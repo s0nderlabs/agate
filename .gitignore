@@ -1,0 +1,10 @@
+# local instructions for Claude Code, never committed
+CLAUDE.md
+.claude/
+# secrets and local state
+.env
+.env.*
+*.key
+credentials.json
+secrets.yaml
+project.yaml
