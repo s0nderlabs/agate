@@ -1,0 +1,34 @@
+{
+  "name": "agate-login-spike-mera",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config app/vite.config.ts",
+    "build": "tsc -p tsconfig.json && vite build --config app/vite.config.ts",
+    "preview": "vite preview --config app/vite.config.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "drip": "bun drip/server.ts",
+    "agent": "bun agent/run.ts",
+    "test:fork": "bun test test/fork.test.ts",
+    "estimate": "bun test/estimate-monad.ts"
+  },
+  "dependencies": {
+    "@category-labs/mera": "0.2.0",
+    "@scure/bip32": "2.4.0",
+    "@scure/bip39": "2.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "viem": "2.57.2"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.1"
+  },
+  "engines": {
+    "bun": ">=1.3.14"
+  }
+}

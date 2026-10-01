@@ -1,0 +1,6 @@
+node_modules
+app/dist
+.env
+.env.*
+!.env.example
+drip/.dripped.json

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+# third-party libs: forge install --no-git foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts@v5.1.0
+contracts/lib/
+*.local
+shared/ids.json
+dynamic/agent/grant.json
+**/grant.json

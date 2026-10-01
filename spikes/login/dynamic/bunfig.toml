@@ -1,0 +1,2 @@
+[install]
+# @dynamic-labs/sdk-api-core 0.64.0 lists an unpublished peer (@dyn-crypto/proof, never imported). It is satisfied by stubs/.

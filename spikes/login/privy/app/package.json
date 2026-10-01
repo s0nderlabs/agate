@@ -1,0 +1,26 @@
+{
+  "name": "agate-login-spike-privy",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5172 --strictPort --host localhost",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.node.json && vite build",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
+    "preview": "vite preview --port 5172 --strictPort --host localhost"
+  },
+  "dependencies": {
+    "@privy-io/react-auth": "3.46.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "viem": "2.57.2"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "6.0.3",
+    "vite": "8.3.1"
+  }
+}

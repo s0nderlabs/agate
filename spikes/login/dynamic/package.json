@@ -1,0 +1,39 @@
+{
+  "name": "agate-login-spike-dynamic",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config app/vite.config.ts",
+    "build": "vite build --config app/vite.config.ts",
+    "preview": "vite preview --config app/vite.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "agent": "bun agent/run.ts",
+    "fork": "anvil --fork-url https://testnet-rpc.monad.xyz --chain-id 10143 --port 8545",
+    "fork:test": "bun test forktest"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "5.9.3",
+    "vite": "8.3.1"
+  },
+  "overrides": {
+    "@dyn-crypto/proof": "file:./stubs/dyn-crypto-proof"
+  },
+  "dependencies": {
+    "@dyn-crypto/proof": "file:./stubs/dyn-crypto-proof",
+    "@dynamic-labs-sdk/client": "1.36.0",
+    "@dynamic-labs-sdk/evm": "1.36.0",
+    "@dynamic-labs-sdk/react-hooks": "1.36.0",
+    "@dynamic-labs-sdk/zerodev": "1.36.0",
+    "@tanstack/react-query": "5.90.2",
+    "@zerodev/ecdsa-validator": "5.4.9",
+    "@zerodev/permissions": "5.5.8",
+    "@zerodev/sdk": "5.4.37",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "viem": "2.57.2"
+  }
+}
