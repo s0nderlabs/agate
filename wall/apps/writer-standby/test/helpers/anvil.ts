@@ -17,6 +17,7 @@ import {
   type WalletClient,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { spawnAnvil } from "../../../../scripts/anvil.ts";
 
 // Anvil's default accounts: 0 owner, 1 primary, 2 standby, 3 attester, 4 guardian, 5 keeper / stranger.
 export const KEYS = [
@@ -58,31 +59,9 @@ export interface Anvil {
   stop(): void;
 }
 
-function freePort(): number {
-  const s = Bun.serve({ port: 0, fetch: () => new Response("") });
-  const p = s.port!;
-  s.stop(true);
-  return p;
-}
-
 export async function startAnvil(o: { chainId?: number; args?: string[] } = {}): Promise<Anvil> {
-  const port = freePort();
-  const rpc = `http://127.0.0.1:${port}`;
-  const args = [`${import.meta.dir}/../../../../scripts/anvil-safe.sh`, "--port", String(port), "--code-size-limit", "131072", "--silent", ...(o.chainId ? ["--chain-id", String(o.chainId)] : []), ...(o.args ?? [])];
-  const proc = Bun.spawn(args, { stdout: "ignore", stderr: "ignore" });
-  const probe = createPublicClient({ transport: http(rpc, { retryCount: 0 }) });
-  let chainId = 0;
-  for (let i = 0; i < 200 && !chainId; i++) {
-    try {
-      chainId = await probe.getChainId();
-    } catch {
-      await Bun.sleep(50);
-    }
-  }
-  if (!chainId) {
-    proc.kill();
-    throw new Error("anvil did not start");
-  }
+  const { proc, port, rpc } = await spawnAnvil(["--code-size-limit", "131072", "--silent", ...(o.chainId ? ["--chain-id", String(o.chainId)] : []), ...(o.args ?? [])]);
+  const chainId = await createPublicClient({ transport: http(rpc, { retryCount: 0 }) }).getChainId();
   const chain = defineChain({ id: chainId, name: "anvil", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpc] } } });
   const transport = http(rpc, { retryCount: 0 });
   return {

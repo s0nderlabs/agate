@@ -13,6 +13,7 @@ import { TxSender } from "../src/chain/sender.ts";
 import { deriveClocks, PROFILES } from "../src/clock.ts";
 import { connect } from "../src/config.ts";
 import { writeAtomic } from "../src/fsutil.ts";
+import { spawnAnvil } from "../../../scripts/anvil.ts";
 
 const KEY_ENV = "AGATE_TEST_SENDER_KEY";
 process.env[KEY_ENV] = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"; // anvil #3, local only
@@ -20,7 +21,7 @@ const PING: Abi = [{ type: "function", name: "ping", inputs: [], outputs: [], st
 const EOA: Address = "0x00000000000000000000000000000000000000E0";
 const REVERTER: Address = "0x00000000000000000000000000000000000000Ee";
 
-let anvil: ReturnType<typeof Bun.spawn> | null = null;
+let anvil: Bun.Subprocess | null = null;
 let anvilUrl = "";
 type Mode = "forward" | "error" | "hang" | "wrongchain" | "stale" | "drop-raw" | "forward-then-error";
 const proxy = { mode: "forward" as Mode, server: null as ReturnType<typeof Bun.serve> | null, url: "", raws: [] as string[] };
@@ -32,20 +33,13 @@ async function rpc(url: string, method: string, params: unknown[] = []) {
 }
 
 beforeAll(async () => {
-  const port = 18_545 + Math.floor(Math.random() * 1_000);
   try {
-    anvil = Bun.spawn([`${import.meta.dir}/../../../scripts/anvil-safe.sh`, "--port", String(port), "--silent", "--chain-id", "31337"], { stdout: "ignore", stderr: "ignore" });
+    const a = await spawnAnvil(["--silent", "--chain-id", "31337"]);
+    anvil = a.proc;
+    anvilUrl = a.rpc;
   } catch {
     available = false;
     return;
-  }
-  anvilUrl = `http://127.0.0.1:${port}`;
-  for (let j = 0; j < 100; j++) {
-    try {
-      if ((await rpc(anvilUrl, "eth_chainId")).result) break;
-    } catch {
-      await Bun.sleep(100);
-    }
   }
   await rpc(anvilUrl, "anvil_setCode", [REVERTER, "0x60006000fd"]);
   proxy.server = Bun.serve({

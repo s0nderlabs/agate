@@ -8,6 +8,7 @@ import type { Address, Hex } from "@agate/report/types";
 import type { Panel } from "@agate/sources/types";
 import { type Abi, createPublicClient, createWalletClient, defineChain, http, type PublicClient, toHex } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
+import { spawnAnvil } from "../../scripts/anvil.ts";
 
 const MNEMONIC = "test test test test test test test test test test test junk"; // Anvil's public test mnemonic
 
@@ -55,35 +56,15 @@ export interface Anvil {
   rpcCall(method: string, params: unknown[]): Promise<unknown>;
 }
 
-function freePort(): number {
-  const s = Bun.serve({ port: 0, fetch: () => new Response("") });
-  const p = s.port!;
-  s.stop(true);
-  return p;
-}
-
 export async function startAnvil(startTs: number): Promise<Anvil> {
-  const port = freePort();
-  const rpc = `http://127.0.0.1:${port}`;
-  const proc = Bun.spawn([`${import.meta.dir}/../../scripts/anvil-safe.sh`, "--port", String(port), "--code-size-limit", "131072", "--silent", "--timestamp", String(startTs)], { stdout: "ignore", stderr: "ignore" });
+  const { proc, port, rpc } = await spawnAnvil(["--code-size-limit", "131072", "--silent", "--timestamp", String(startTs)]);
   const call = async (method: string, params: unknown[]) => {
     const r = await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
     const j = (await r.json()) as { result?: unknown; error?: { message: string } };
     if (j.error) throw new Error(`${method}: ${j.error.message}`);
     return j.result;
   };
-  let chainId = 0;
-  for (let i = 0; i < 200 && !chainId; i++) {
-    try {
-      chainId = Number(BigInt((await call("eth_chainId", [])) as string));
-    } catch {
-      await Bun.sleep(50);
-    }
-  }
-  if (!chainId) {
-    proc.kill();
-    throw new Error("anvil did not start");
-  }
+  const chainId = Number(BigInt((await call("eth_chainId", [])) as string));
   await call("anvil_setBlockTimestampInterval", [0]);
   const chain = defineChain({ id: chainId, name: "anvil", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpc] } } });
   const pub = createPublicClient({ chain, transport: http(rpc, { retryCount: 0 }), cacheTime: 0 }) as PublicClient;
