@@ -1,0 +1,8 @@
+# CRE workflow settings. The runner copies this file into its runtime folder and passes --config ./cfg.json, a file it
+# generates from the index's clocks() and the panels, so config.local-simulation.json is only the example shape.
+local-simulation:
+  user-workflow:
+    workflow-name: "agate-writer"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.local-simulation.json"

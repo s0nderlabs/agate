@@ -1,0 +1,21 @@
+{
+  "name": "@agate/writer-standby",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./core": "./src/core/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "backfill": "bun run src/backfill.ts",
+    "test": "bun test",
+    "typecheck:core": "tsc -p tsconfig.core.json --noEmit"
+  },
+  "dependencies": {
+    "@agate/report": "workspace:*",
+    "@agate/sources": "workspace:*",
+    "viem": "^2.57.2"
+  }
+}

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  One watcher process (__ROLE__ = log | attest | keep | health) for one index, as a launchd agent. TEMPLATE: nothing
+  installs or loads it; make one copy per role (Label and log paths carry the role).
+  launchd jobs hang on files under ~/Documents (macOS privacy prompt), so the job runs a copy of wall/ outside it
+  (__APP__, e.g. ~/.agate-wall/app/wall) and keeps its data in AGATE_WALL_HOME (~/.agate-wall).
+  No key in this file: run-watcher.sh asks AGATE_KEY_CMD for the role's key at start (attest: the attester key,
+  keep: the keeper key; log and health need none) and exports it only to that process.
+  To use: replace __HOME__, __APP__, __BUN__, __RPC_URLS__ (two URLs, comma separated), __CHAIN_ID__ (10143 on Monad
+  testnet), __INDEX__, __PANELS__, __FROM_BLOCK__, __ROLE__, __KEY_CMD__; copy to ~/Library/LaunchAgents/;
+  `launchctl bootstrap gui/$(id -u) <plist>`.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>xyz.s0nderlabs.agate-watcher-__ROLE__</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>__APP__/apps/watcher/launchd/run-watcher.sh</string>
+    <string>__ROLE__</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__APP__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BUN</key>
+    <string>__BUN__</string>
+    <key>AGATE_RPC_URLS</key>
+    <string>__RPC_URLS__</string>
+    <key>AGATE_CHAIN_ID</key>
+    <string>__CHAIN_ID__</string>
+    <key>AGATE_INDEX</key>
+    <string>__INDEX__</string>
+    <key>AGATE_PANELS</key>
+    <string>__PANELS__</string>
+    <key>AGATE_FROM_BLOCK</key>
+    <string>__FROM_BLOCK__</string>
+    <key>AGATE_WALL_HOME</key>
+    <string>__HOME__/.agate-wall</string>
+    <key>AGATE_KEY_CMD</key>
+    <string>__KEY_CMD__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/.agate-wall/watcher/__ROLE__.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.agate-wall/watcher/__ROLE__.stderr.log</string>
+</dict>
+</plist>

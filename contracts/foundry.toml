@@ -1,0 +1,43 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+solc_version = "0.8.30"
+# Monad runs the Pectra rule set; cancun codegen is a strict subset and needs no newer opcode.
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+bytecode_hash = "none"
+# Monad allows 128 KB of runtime code (EIP-170 is 24 KB); local tests and anvil must match.
+code_size_limit = 131072
+fs_permissions = [
+  { access = "read", path = "./test/vectors" },
+  { access = "read", path = "./script/config" },
+]
+remappings = ["forge-std/=lib/forge-std/src/"]
+
+[lint]
+lint_on_build = false
+
+[fuzz]
+runs = 512
+seed = "0x6167617465"
+
+[invariant]
+runs = 256
+depth = 128
+fail_on_revert = false
+
+[profile.ci.fuzz]
+runs = 4096
+
+[profile.ci.invariant]
+runs = 1024
+depth = 256
+
+[rpc_endpoints]
+monad_testnet = "https://testnet-rpc.monad.xyz"
+anvil = "http://127.0.0.1:8545"

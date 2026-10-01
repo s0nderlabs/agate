@@ -1,0 +1,183 @@
+{
+ "model": "verify-v43/thief/rule_r43.py + thief_v43.py scenarios (rule R v4.3, BUILD-SPEC version 2)",
+ "generator": "verify-v43/diff/gen_diff_vectors.py",
+ "note": "synthetic pages only (thief_v43.Pages); expected = the thief model's own attester decision; remembered ranges and anchors are inputs computed by the model from earlier days",
+ "vectors": [
+  {
+   "id": "t43-00",
+   "description": "thief B (TEST) day 2 after Oct 1: pending unchanged record of w1, tiers [3, 3], action none"
+  },
+  {
+   "id": "t43-01",
+   "description": "thief B (TEST) day 3 after Oct 1: pending needsSign record of w1, tiers [3, 3], action attest w1"
+  },
+  {
+   "id": "t43-02",
+   "description": "thief B (TEST) day 3 after Oct 1: pending unchanged record of w1, tiers [0, 3], action select w2"
+  },
+  {
+   "id": "t43-03",
+   "description": "thief C target 3400000 (TEST) day 3 after Oct 1: pending unchanged record of w1, tiers [0, 3], action select w2"
+  },
+  {
+   "id": "t43-04",
+   "description": "thief C target 3650000 (TEST) day 3 after Oct 1: pending needsSign record of w1, tiers [3, 3], action attest w1"
+  },
+  {
+   "id": "t43-05",
+   "description": "thief D (TEST) day 28 after Oct 1: pending unchanged record of w1, tiers [3, 3], action none"
+  },
+  {
+   "id": "t43-06",
+   "description": "thief D (TEST) day 28 after Oct 1: pending unchanged record of w1, tiers [0, 3], action select w2"
+  },
+  {
+   "id": "t43-07",
+   "description": "thief D (TEST) day 31 after Oct 1: pending needsSign record of w1, tiers [3, 2], action attest w1"
+  },
+  {
+   "id": "t43-08",
+   "description": "thief D (TEST) day 31 after Oct 1: pending needsSign record of w1, tiers [2, 2], action attest w1"
+  },
+  {
+   "id": "t43-09",
+   "description": "thief D (TEST) day 31 after Oct 1: pending needsSign record of w1, tiers [3, 3], action attest w1"
+  },
+  {
+   "id": "t43-10",
+   "description": "thief E (TEST) day 2 after Oct 1: pending unchanged record of w1, tiers [3, 3], action none"
+  },
+  {
+   "id": "t43-11",
+   "description": "thief E (TEST) day 3 after Oct 1: pending needsSign incomplete record of w1, tiers [3, 0], action attest w1"
+  },
+  {
+   "id": "t43-12",
+   "description": "thief F (TEST) day 2 after Oct 1: pending unchanged record of w1, tiers [3, 3], action none"
+  },
+  {
+   "id": "t43-13",
+   "description": "thief F (TEST) day 3 after Oct 1: pending needsSign record of w1, tiers [1, 3], action select w2"
+  },
+  {
+   "id": "t43-14",
+   "description": "thief F (TEST) day 3 after Oct 1: pending unchanged record of w1, tiers [0, 3], action select w2"
+  },
+  {
+   "id": "t43-15",
+   "description": "thief G (TEST) day 3 after Oct 1: pending unchanged record of w1, tiers [3, 3], action none"
+  },
+  {
+   "id": "t43-16",
+   "description": "thief G (TEST) day 3 after Oct 1: pending unchanged record of w1, tiers [2, 2], action none R9_UNCHANGED_NOT_STRICT"
+  },
+  {
+   "id": "t43-17",
+   "description": "thief G (TEST) day 4 after Oct 1: pending unchanged record of w1, tiers [3, 3], action none"
+  },
+  {
+   "id": "t43-18",
+   "description": "thief G (TEST) day 8 after Oct 1: pending needsSign record of w1, tiers [3, 3], action attest w1"
+  },
+  {
+   "id": "t43-19",
+   "description": "thief H target 3400000 (TEST) day 3 after Oct 1: pending needsSign incomplete record of w1, tiers [3, 0], action attest w1"
+  },
+  {
+   "id": "t43-20",
+   "description": "thief H target 3650000 (TEST) day 3 after Oct 1: pending needsSign incomplete record of w1, tiers [3, 3], action attest w1"
+  },
+  {
+   "id": "t43-21",
+   "description": "thief I (TEST) day 2 after Oct 1: pending unchanged record of w1, tiers [3, 3], action none"
+  },
+  {
+   "id": "t43-22",
+   "description": "thief I (TEST) day 3 after Oct 1: pending needsSign record of w1, tiers [3, 3], action attest w1"
+  },
+  {
+   "id": "t43-23",
+   "description": "thief I (TEST) day 3 after Oct 1: pending unchanged record of w1, tiers [3, 3], action select w2"
+  },
+  {
+   "id": "t43-24",
+   "description": "thief J (TEST) day 2 after Oct 1: pending unchanged record of w1, tiers [3, 3], action none"
+  },
+  {
+   "id": "t43-25",
+   "description": "thief J (TEST) day 3 after Oct 1: pending unchanged record of w1, tiers [0], action none R9_UNCHANGED_NOT_STRICT"
+  },
+  {
+   "id": "t43-26",
+   "description": "thief J (TEST) day 4 after Oct 1: pending needsSign record of w1, tiers [3, 3], action attest w1"
+  },
+  {
+   "id": "t43-27",
+   "description": "thief K (TEST) day 3 after Oct 1: pending unchanged record of w2, tiers [3], action none"
+  },
+  {
+   "id": "t43-28",
+   "description": "thief K (TEST) day 3 after Oct 1: pending needsSign record of w2, tiers [3], action attest w2"
+  },
+  {
+   "id": "t43-29",
+   "description": "thief M (TEST) day 2 after Oct 1: pending unchanged record of w1, tiers [3, 3], action none"
+  },
+  {
+   "id": "t43-30",
+   "description": "thief M (TEST) day 3 after Oct 1: pending needsSign record of w1, tiers [3, 0], action attest w1"
+  },
+  {
+   "id": "t43-31",
+   "description": "thief M (TEST) day 3 after Oct 1: pending unchanged record of w1, tiers [0, 0], action none R9_UNCHANGED_NOT_STRICT"
+  },
+  {
+   "id": "t43-32",
+   "description": "thief M (TEST) day 3 after Oct 1: pending unchanged record of w2, tiers [0], action none R9_UNCHANGED_NOT_STRICT"
+  },
+  {
+   "id": "t43-33",
+   "description": "thief M (TEST) day 4 after Oct 1: pending needsSign record of w1, tiers [3, 3], action attest w1"
+  },
+  {
+   "id": "t43-34",
+   "description": "thief Z DEMO (DEMO) day 2 after Oct 1: pending unchanged record of w1, tiers [3, 3], action none"
+  },
+  {
+   "id": "t43-35",
+   "description": "thief Z DEMO (DEMO) day 3 after Oct 1: pending unchanged record of w1, tiers [0, 3], action select w2"
+  },
+  {
+   "id": "t43-36",
+   "description": "thief Z DEMO (DEMO) day 4 after Oct 1: pending needsSign record of w1, tiers [3, 3], action attest w1"
+  },
+  {
+   "id": "t43-37",
+   "description": "thief Z FAST (FAST) day 2 after Oct 1: pending needsSign record of w1, tiers [3, 3], action attest w1"
+  },
+  {
+   "id": "t43-38",
+   "description": "thief Z FAST (FAST) day 3 after Oct 1: pending needsSign record of w1, tiers [3, 3], action select w2"
+  },
+  {
+   "id": "e43-00",
+   "description": "edge SA: slot 3 dark (NO_ROW, a page read) for everyone all of D, the watcher asleep from D's last slice: slot 3 is NOT_FRESH, not blind, with an open partial range; a thief primary types slot 3 FRESH at 3.45 (6.2: a slot the watcher read DARK is never unverifiable, so NEAR must not skip it); pending unchanged record of w1, tiers [0, 3], action select w2"
+  },
+  {
+   "id": "e43-01",
+   "description": "edge SB: slot 3 NOT_RENTABLE for everyone in slices 7 to 11 of D; a thief primary types slot 3 at 3.60 in every slice, one of them in an EMPTY span (its writer range is FAIL; 6.2: FAIL stays FAIL, also inside R11 and R12); pending unchanged record of w1, tiers [3, 3], action none"
+  },
+  {
+   "id": "e43-02",
+   "description": "edge SC: slot 3 FAILS for the watcher and the standby all of D (blind, closed partial range from the edge readings); a thief primary types slot 3 at 3.45 (6.2 unverifiable: 'or the slot is blind and blind-slot agreement fails'; R12 row fresh, NOT_FRESH: blind and unverifiable gives any value); pending unchanged record of w1, tiers [1, 3], action select w2"
+  },
+  {
+   "id": "e43-03",
+   "description": "edge SD: six slots, slot 5 queued (liveFrom D+2); the watcher asleep from slice 5 of D (every slot UNKNOWN, open partial ranges); slots 0, 1 and the queued slot 5 step up at slice 8; honest writers: three unverifiable fresh slots, one of them OUT (R12 any value: 'the families holding such a slot' against floor((F - 1) / 2)); pending unchanged record of w1, tiers [0, 0], action none R9_UNCHANGED_NOT_STRICT"
+  },
+  {
+   "id": "e43-04",
+   "description": "edge SE: the watcher asleep from slice 7 of D; slot 3 NOT_RENTABLE in slices 2 to 6 and +0.50 at slice 8 (UNKNOWN, unverifiable); slot 4 +0.50 at slice 9 (FRESH class, open partial range, outside it but inside the same-side exception); honest writers (NEAR's X: is a slot that passes by the same-side exception unverifiable?); pending unchanged record of w1, tiers [1, 1], action none R9_UNCHANGED_NOT_STRICT"
+  }
+ ]
+}

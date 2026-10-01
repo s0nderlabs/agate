@@ -1,0 +1,21 @@
+{
+  "name": "@agate/watcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./rule": "./src/rule/index.ts",
+    "./sim": "./src/sim/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "test": "bun test",
+    "rule": "bun run scripts/evaluate.ts"
+  },
+  "dependencies": {
+    "@agate/report": "workspace:*",
+    "@agate/sources": "workspace:*",
+    "viem": "^2.57.2"
+  }
+}

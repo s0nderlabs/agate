@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  agate primary writer (CRE runner) as a launchd agent. TEMPLATE: nothing installs or loads it.
+  launchd jobs hang on files under ~/Documents (macOS privacy prompt), so the job runs a copy of wall/ outside it
+  (__APP__, e.g. ~/.agate-wall/app/wall) and keeps its data in AGATE_WALL_HOME (~/.agate-wall).
+  No key in this file: run-primary.sh asks AGATE_PRIMARY_KEY_CMD for it at start (a command the operator chooses).
+  To use: replace __HOME__, __APP__, __BUN__, __RPCS__ (two or more URLs, comma-separated, different providers),
+  __CHAIN_ID__ (10143 on Monad testnet), __INDEX__, __PANELS__, __KEY_CMD__, __BUN_DIR__ (the folder holding bun,
+  for cre-compile); copy to ~/Library/LaunchAgents/; then
+  `launchctl bootstrap gui/$(id -u) <plist>`. One plist per index (change the Label for the second one).
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>xyz.s0nderlabs.agate-writer-primary</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>__APP__/apps/writer-cre/launchd/run-primary.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__APP__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BUN</key>
+    <string>__BUN__</string>
+    <key>AGATE_RPC_URLS</key>
+    <string>__RPCS__</string>
+    <key>AGATE_CHAIN_ID</key>
+    <string>__CHAIN_ID__</string>
+    <key>AGATE_INDEX</key>
+    <string>__INDEX__</string>
+    <key>AGATE_PANELS</key>
+    <string>__PANELS__</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <key>PATH</key>
+    <string>__BUN_DIR__:/usr/bin:/bin</string>
+    <key>AGATE_WALL_HOME</key>
+    <string>__HOME__/.agate-wall</string>
+    <key>AGATE_PRIMARY_KEY_CMD</key>
+    <string>__KEY_CMD__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/.agate-wall/primary/stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.agate-wall/primary/stderr.log</string>
+</dict>
+</plist>

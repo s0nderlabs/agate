@@ -1,0 +1,12 @@
+# CRE project settings, only for running `cre workflow simulate` here by hand. The runner (../src/runner.ts) does
+# not read this folder's project.yaml: it writes its own into <AGATE_WALL_HOME>/primary/cre/<index8>/ from the RPC
+# pool's current URL before every run (so the CLI follows an RPC failover). Copy to project.yaml (gitignored) to use.
+# Never commit a URL that carries an API key.
+# Chain name and selector from `cre workflow supported-chains` (CLI v1.35.0): monad-testnet = 2183018362218727504;
+# its simulation forwarder is 0xB9F79d863261869B234c481D1f9A7af84AeAd192. A private anvil started with
+# --chain-id 10143 also works when that forwarder's runtime code is set at its address (the opt-in test does this).
+local-simulation:
+  rpcs:
+    - chain-name: monad-testnet
+      # Monad testnet: https://testnet-rpc.monad.xyz
+      url: "<monad testnet rpc url, or http://127.0.0.1:8545 for a local anvil>"

@@ -1,0 +1,24 @@
+{
+  "name": "@agate/sources",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./pure": "./src/pure/index.ts",
+    "./types": "./src/types.ts",
+    "./io": "./src/io/index.ts",
+    "./synthetic": "./src/synthetic.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "panel": "bun run scripts/panel.ts",
+    "archive-values": "bun run scripts/archive-values.ts",
+    "replay": "bun run scripts/replay.ts",
+    "check-live": "bun run scripts/check-live.ts"
+  },
+  "dependencies": {
+    "@agate/report": "workspace:*",
+    "viem": "^2.57.2"
+  }
+}

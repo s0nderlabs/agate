@@ -1,0 +1,20 @@
+{
+  "name": "@agate/writer-cre",
+  "version": "0.1.0",
+  "dependencies": {
+    "@agate/report": "workspace:*",
+    "@agate/sources": "workspace:*",
+    "@agate/writer-standby": "workspace:*",
+    "viem": "^2.57.2"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "private": true,
+  "scripts": {
+    "start": "bun run src/runner.ts",
+    "build:wasm": "cd workflow && bun x cre-compile main.ts dist/main.wasm",
+    "test": "bun test"
+  },
+  "type": "module"
+}

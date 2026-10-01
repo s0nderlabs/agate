@@ -1,0 +1,26 @@
+Initializing...
+Loading settings...
+Checking RPC connectivity...
+  Reading pre-built WASM binary...
+✓ Loaded WASM binary from ./dist/main.wasm
+✓ Simulation limits enabled
+  HTTP: req=120kb resp=250kb timeout=10s | ConfHTTP: req=125kb resp=500kb timeout=1m30s | Consensus obs=25kb | ChainWrite evm_report=50kb evm_gas=10000000 solana_report=265b solana_cu=300000 | WASM binary=100mb compressed=20mb
+  Binary hash: f04f790213022ec104c7ce0139925ca573e2639559687cddfc6b4e3fb4abaf78
+  Config hash: fe6630b869a1e892ad804521c5e9513069ae2978dfc81ce33f04c35ac6fbf97d
+2026-10-01T12:19:43Z [SIMULATION] Simulator Initialized
+
+2026-10-01T12:19:43Z [SIMULATION] Running trigger trigger=cron-trigger@1.0.0
+2026-10-01T12:19:43Z [USER LOG] agate 0xC0BF43A4Ca27e0976195E6661b099742f10507e5 day 20727 slice 5 readAt 1790831983 valid {"H100":3,"H200":1}
+2026-10-01T12:19:44Z [USER LOG] agate writeReport {"status":2,"receiverStatus":0,"hash":"0x3f37f7347bb497fa2427d8f704661799801d28f21cf13bf1df4003ca1463a637","error":null}
+
+✓ Workflow Simulation Result:
+"{\"agate\":1,\"t\":1790831983,\"index\":\"0xC0BF43A4Ca27e0976195E6661b099742f10507e5\",\"dayId\":20727,\"slice\":5,\"entries\":[{\"gpuId\":\"0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955\",\"dayId\":20727,\"slice\":5,\"readAt\":1790831983,\"values\":[2990000,6160000,2660000,0]},{\"gpuId\":\"0xf7b3c4797305bd1433be196119ae5d6df4a433cffbf8d02c22048cc3a487b30d\",\"dayId\":20727,\"slice\":5,\"readAt\":1790831983,\"values\":[3490000,0]}],\"sources\":[{\"sourceId\":\"s_a\",\"httpStatus\":200,\"bytes\":29,\"rows\":{\"H100\":{\"state\":\"VALID\",\"valueU\":2990000},\"H200\":{\"state\":\"VALID\",\"valueU\":3490000}},\"pageTime\":1790831983},{\"sourceId\":\"s_b\",\"httpStatus\":200,\"bytes\":16,\"rows\":{\"H100\":{\"state\":\"VALID\",\"valueU\":6160000}},\"pageTime\":1790831983},{\"sourceId\":\"s_e\",\"httpStatus\":200,\"bytes\":27,\"rows\":{\"H100\":{\"state\":\"VALID\",\"valueU\":2660000},\"H200\":{\"state\":\"NOT_RENTABLE\",\"valueU\":0}},\"pageTime\":1790831983,\"fxDate\":\"2026-09-30\"},{\"sourceId\":\"s_big\",\"httpStatus\":0,\"bytes\":0,\"rows\":{\"H100\":{\"state\":\"FAILED\",\"valueU\":0}}}],\"tx\":{\"status\":2,\"receiverStatus\":0,\"hash\":\"0x3f37f7347bb497fa2427d8f704661799801d28f21cf13bf1df4003ca1463a637\",\"error\":null}}"
+
+2026-10-01T12:19:44Z [SIMULATION] Execution finished signal received
+2026-10-01T12:19:44Z [SIMULATION] Skipping WorkflowEngineV2
+
+╭──────────────────────────────────────────────────────╮
+│ Simulation complete! Ready to deploy your workflow?  │
+│                                                      │
+│ Run cre account access to request deployment access. │
+╰──────────────────────────────────────────────────────╯

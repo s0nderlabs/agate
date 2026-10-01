@@ -1,0 +1,166 @@
+{
+ "model": "verify-v43/liveness/model43.py (rule R v4.3, BUILD-SPEC version 2)",
+ "note": "synthetic pages only; states as logged (6.1 mapping applies); remembered ranges and anchors are given as inputs computed by the model from earlier days",
+ "vectors": [
+  {
+   "id": "r1-00",
+   "description": "FAST world 0 day 0: pending needsSign record, tiers [3, 3], action attest"
+  },
+  {
+   "id": "r1-01",
+   "description": "DEMO world 8 day 33: pending unchanged record, tiers [3, 3], action none"
+  },
+  {
+   "id": "r1-02",
+   "description": "TEST world 19 day 4: pending unchanged record, tiers [3], action none"
+  },
+  {
+   "id": "r1-03",
+   "description": "TEST world 13 day 0: pending needsSign record, tiers [3, 3], action attest"
+  },
+  {
+   "id": "r1-04",
+   "description": "TEST world 26 day 0: pending needsSign record, tiers [3, 3], action select"
+  },
+  {
+   "id": "r1-05",
+   "description": "DEMO world 2 day 22: pending unchanged record, tiers [2], action none R9_UNCHANGED_NOT_STRICT"
+  },
+  {
+   "id": "r1-06",
+   "description": "TEST world 25 day 18: pending unchanged record, tiers [0, 0], action none R9_UNCHANGED_NOT_STRICT"
+  },
+  {
+   "id": "r1-07",
+   "description": "DEMO world 85 day 7: pending needsSign record, tiers [0, 0], action none R1_NO_CANDIDATE"
+  },
+  {
+   "id": "r1-08",
+   "description": "DEMO world 85 day 7: pending needsSign record, tiers [3, 3], action attest"
+  },
+  {
+   "id": "r1-09",
+   "description": "PRODUCTION world 23 day 3: pending unchanged record, tiers [3, 3], action none"
+  },
+  {
+   "id": "r1-10",
+   "description": "PRODUCTION world 15 day 24: pending needsSign record, tiers [2, 2], action attest"
+  },
+  {
+   "id": "r1-11",
+   "description": "PRODUCTION world 25 day 11: pending unchanged record, tiers [2, 2], action none R9_UNCHANGED_NOT_STRICT"
+  },
+  {
+   "id": "r1-12",
+   "description": "DEMO world 14 day 9: pending unchanged record, tiers [0, 3], action select"
+  },
+  {
+   "id": "r1-13",
+   "description": "FAST world 29 day 1: pending needsSign record, tiers [3], action attest"
+  },
+  {
+   "id": "r1-14",
+   "description": "FAST world 0 day 32: pending needsSign record, tiers [3], action attest"
+  },
+  {
+   "id": "r1-15",
+   "description": "FAST world 0 day 2: pending needsSign record, tiers [3, 2], action attest"
+  },
+  {
+   "id": "r1-16",
+   "description": "FAST world 4 day 20: pending needsSign record, tiers [3, 3], action attest"
+  },
+  {
+   "id": "r1-17",
+   "description": "FAST world 3 day 29: pending needsSign record, tiers [2], action attest"
+  },
+  {
+   "id": "r1-18",
+   "description": "DEMO world 0 day 31: pending unchanged record, tiers [3], action none"
+  },
+  {
+   "id": "r1-19",
+   "description": "FAST world 6 day 5: pending needsSign record, tiers [3, 3], action attest"
+  },
+  {
+   "id": "r1-20",
+   "description": "FAST world 15 day 20: pending needsSign record, tiers [3], action attest"
+  },
+  {
+   "id": "r1-21",
+   "description": "DEMO world 4 day 2: pending unchanged record, tiers [3, 2], action none"
+  },
+  {
+   "id": "r1-22",
+   "description": "DEMO world 0 day 2: pending unchanged record, tiers [2, 2], action none R9_UNCHANGED_NOT_STRICT"
+  },
+  {
+   "id": "r1-23",
+   "description": "DEMO world 4 day 20: pending unchanged record, tiers [3, 3], action none"
+  },
+  {
+   "id": "r1-24",
+   "description": "DEMO world 14 day 48: pending unchanged record, tiers [3, 3], action none"
+  },
+  {
+   "id": "r1-25",
+   "description": "DEMO world 14 day 1: pending unchanged record, tiers [3, 3], action none"
+  },
+  {
+   "id": "r1-26",
+   "description": "FAST world 15 day 22: pending needsSign record, tiers [3], action attest"
+  },
+  {
+   "id": "r1-27",
+   "description": "DEMO world 15 day 2: pending unchanged record, tiers [3, 3], action none"
+  },
+  {
+   "id": "r1-28",
+   "description": "FAST world 1 day 9: pending needsSign record, tiers [3, 3], action attest"
+  },
+  {
+   "id": "r1-29",
+   "description": "FAST world 1 day 10: pending needsSign record, tiers [3, 3], action attest"
+  },
+  {
+   "id": "r1-30",
+   "description": "FAST world 1 day 18: pending needsSign record, tiers [3], action attest"
+  },
+  {
+   "id": "r1-31",
+   "description": "FAST world 1 day 12: pending needsSign record, tiers [3, 3], action attest"
+  },
+  {
+   "id": "r1-32",
+   "description": "DEMO world 1 day 14: pending unchanged record, tiers [3], action none"
+  },
+  {
+   "id": "r1-33",
+   "description": "TEST world 1 day 20: pending needsSign record, tiers [3, 2], action attest"
+  },
+  {
+   "id": "r1-34",
+   "description": "TEST world 7 day 16: pending needsSign record, tiers [2, 3], action select"
+  },
+  {
+   "id": "r1-35",
+   "description": "TEST world 23 day 12: pending unchanged record, tiers [3, 3], action none"
+  },
+  {
+   "id": "r1-36",
+   "description": "TEST world 27 day 10: pending needsSign record, tiers [3, 3], action attest"
+  },
+  {
+   "id": "r1-37",
+   "description": "TEST world 41 day 22: pending unchanged record, tiers [2, 3], action select"
+  },
+  {
+   "id": "r1-38",
+   "description": "TEST world 41 day 28: pending needsSign record, tiers [2, 2], action select"
+  },
+  {
+   "id": "r1-39",
+   "description": "TEST world 53 day 19: pending needsSign record, tiers [2], action attest"
+  }
+ ]
+}

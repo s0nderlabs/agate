@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["bun"] },
+  "include": ["main.ts", "handler.ts", "test/**/*.ts"]
+}

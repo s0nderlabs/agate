@@ -1,0 +1,22 @@
+{
+  "name": "@agate/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run scripts/run.ts",
+    "list": "bun run scripts/run.ts --list",
+    "test": "AGATE_E2E=1 bun test"
+  },
+  "dependencies": {
+    "@agate/report": "workspace:*",
+    "@agate/sources": "workspace:*",
+    "@agate/watcher": "workspace:*",
+    "@agate/writer-cre": "workspace:*",
+    "@agate/writer-standby": "workspace:*",
+    "viem": "^2.57.2"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "agate-wall",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "e2e"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p packages/sources/tsconfig.pure.json --noEmit",
+    "gen:abi": "bun run packages/report/scripts/gen-abi.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
+  }
+}

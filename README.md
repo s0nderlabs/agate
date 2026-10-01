@@ -11,8 +11,8 @@ GPU rental prices move fast, and there is no open way to lock one in. Renters ca
 ## How it works
 
 1. **A standard unit.** One GPU-hour of a defined GPU model, rented on demand.
-2. **An open price.** For each GPU model, several independent price sources are combined into a median, with quorum, staleness, outlier and max-move checks. Every source is shown beside the median and the method is public. A Chainlink CRE workflow carries the index onchain on Monad.
-3. **A cash-settled claim.** Fully collateralized LONG and SHORT GPU-hour tokens with a floor and a cap, settling on the monthly average of the index. No GPUs change hands.
+2. **An open price.** For each GPU model, the clouds' own public price pages are read every hour and combined into a median of companies. A second, independent reader checks the same pages and must countersign every change, so no single key can move the price. Every source is shown beside the median and the method is public. A Chainlink CRE workflow carries the index onchain on Monad.
+3. **A cash-settled claim.** Fully collateralized UP and DOWN GPU-hour tickets with a floor and a ceiling, settling on the monthly average of the index and paying out daily. No GPUs change hands.
 
 ## Ways in (planned)
 
@@ -21,6 +21,13 @@ GPU rental prices move fast, and there is no open way to lock one in. Renters ca
 - **Onchain feed:** for contracts that need a compute price.
 - **Agent connector (MCP):** for agents that analyze or trade.
 
+## Repository
+
+- `contracts/`: the index contract `AgateIndex` (Foundry). `forge install --no-git foundry-rs/forge-std@v1.17.0 && forge test`
+- `wall/`: the price readers, the two writers (Chainlink CRE and a standby), the watcher and attester, the guardian CLI, and end-to-end and chaos tests on a local chain. `cd wall && bun install && bun test`
+- `docs/wall/BUILD-SPEC.md`: the full specification of the index and its checks.
+- `spikes/login/`: login and wallet experiments (Mera, Privy, Dynamic) on Monad testnet.
+
 ## Status
 
-Early. The index, the contracts and the app are being built in this repository.
+Early. The index and its checking system are built and tested on local chains. The market contracts and the app are next.

@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["bun"]
+  },
+  "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts", "packages/*/scripts/**/*.ts", "apps/*/src/**/*.ts", "apps/*/test/**/*.ts", "e2e/src/**/*.ts"],
+  "exclude": ["**/node_modules", "apps/writer-cre/workflow"]
+}

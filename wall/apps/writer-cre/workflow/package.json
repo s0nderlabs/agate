@@ -1,0 +1,16 @@
+{
+  "name": "agate-writer-cre-workflow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "cre-compile main.ts dist/main.wasm"
+  },
+  "dependencies": {
+    "@chainlink/cre-sdk": "^1.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

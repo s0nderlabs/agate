@@ -1,0 +1,6 @@
+{
+ "note": "Default demo data (BUILD-SPEC 14.1 item 2): the logger archive replayed, plus one scripted price step. From demo day 3, Lambda's H100 page shows $3.49 per GPU-hour (archived: $3.99), which moves the H100 median of the default panel from Verda's 3.63 to 3.49. Scripted pages carry X-Agate-Scripted: 1.",
+ "scripted": {
+  "p_lambda": { "gpus": { "H100": [{ "from": { "day": 3 }, "price": "3.49" }] } }
+ }
+}

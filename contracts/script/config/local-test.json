@@ -1,0 +1,87 @@
+{
+ "_note": "Local anvil, TEST profile (2,400-second day, 12 slices; the e2e default). Same roles and panel.",
+ "profile": {
+  "day": 2400,
+  "slices": 12,
+  "minReadings": 6,
+  "qMin": 1,
+  "demoLabel": true,
+  "signAll": false,
+  "epochDay": 20758,
+  "epochFromBlock": true,
+  "firstDay": 20758
+ },
+ "chainSelector": 2183018362218727504,
+ "roles": {
+  "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "primary": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "standby": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+  "attester": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+  "guardian0": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+  "guardian1": "0x0000000000000000000000000000000000000000"
+ },
+ "forwarder": "0x0000000000000000000000000000000000000000",
+ "deployMockForwarder": true,
+ "writerMode": 0,
+ "gpus": [
+  {
+   "gpu": "H100",
+   "spec": "H100-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955",
+   "recipeHash": "0xe6514fa7e4a54edccdd868c38bd5a4e0632bea709fcb4b477d227e5954b31e25",
+   "family": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 31
+  },
+  {
+   "gpu": "H200",
+   "spec": "H200-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0xf7b3c4797305bd1433be196119ae5d6df4a433cffbf8d02c22048cc3a487b30d",
+   "recipeHash": "0x6f9f14b5ea35886704228cc4905ac7d4d7574a42fd76e2b5a1c3e7f393ae6447",
+   "family": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 7
+  },
+  {
+   "gpu": "B200",
+   "spec": "B200-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x0a5bf357b491308f9e8b00f22d9d58b1c984046be5b4a94a21a59038b996dd27",
+   "recipeHash": "0x4fa64929588d7edd7603a46469c812c2a4079b51590628a64dc9a3221e2e6839",
+   "family": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 7
+  }
+ ]
+}

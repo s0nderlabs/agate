@@ -1,0 +1,23 @@
+{
+  "index": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "chainSelector": "2183018362218727504",
+  "gasLimit": "777371",
+  "schedule": "0 7 * * * *",
+  "role": "primary",
+  "timeout": "10s",
+  "sourceBaseUrl": "http://127.0.0.1:8787",
+  "clock": { "day": 2400, "slices": 12, "epochTs": 1790812800, "epochDay": 20727, "signAll": false },
+  "panels": [
+    {
+      "gpu": "H100",
+      "spec": "H100-SXM/on-demand-list/neocloud/v1",
+      "gpuId": "0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955",
+      "families": [{ "name": "Verda", "famQ": 1 }, { "name": "Nebius", "famQ": 1 }, { "name": "Lambda", "famQ": 1 }],
+      "slots": [
+        { "slot": 0, "sourceId": "p_verda", "family": 0, "liveAtStart": true },
+        { "slot": 1, "sourceId": "p_nebius", "family": 1, "liveAtStart": true },
+        { "slot": 2, "sourceId": "p_lambda", "family": 2, "liveAtStart": true }
+      ]
+    }
+  ]
+}

@@ -4,7 +4,33 @@ CLAUDE.md
 # secrets and local state
 .env
 .env.*
+!.env.example
 *.key
 credentials.json
 secrets.yaml
 project.yaml
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/
+out/
+cache/
+broadcast/
+# bun / node
+node_modules/
+# CRE build output (the workflow compiles to JS + WASM locally)
+wall/apps/writer-cre/workflow/dist/
+wall/apps/writer-cre/workflow/.cre_build_tmp.js
+*.wasm
+# local data of the wall roles (logs, raw pages, alerts); the default home is ~/.agate-wall, outside the repo
+.agate-wall/
+wall/**/data/
+wall/e2e/out/
+*.log
+# third-party raw pages are never committed (read from AGATE_RAW_DIR)
+raw/
+*.html.gz
+*.all.gz
+# OS
+.DS_Store
