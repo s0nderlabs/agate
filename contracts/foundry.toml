@@ -16,8 +16,15 @@ code_size_limit = 131072
 fs_permissions = [
   { access = "read", path = "./test/vectors" },
   { access = "read", path = "./script/config" },
+  { access = "read-write", path = "./deployments" },
+  # the deploy-script tests' throwaway files (gitignored; never next to the real deployments files)
+  { access = "read-write", path = "./cache/test-deployments" },
+  { access = "read", path = "./test/market/vectors" },
 ]
-remappings = ["forge-std/=lib/forge-std/src/"]
+remappings = [
+  "forge-std/=lib/forge-std/src/",
+  "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+]
 
 [lint]
 lint_on_build = false

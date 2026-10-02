@@ -1,0 +1,55 @@
+{
+ "_note": "Dress rehearsal on an anvil fork of Monad testnet (BUILD-SPEC 12.3, contracts/script/rehearse-market.sh): the DEMO profile of local-demo.json with the demo index's calendar (epochDay = firstDay = 20,727, 2026-10-01; section 2, finding F4) and fresh role addresses (the last 20 bytes of keccak256(\"agate rehearsal <role>\"): no key exists for them, and they have no code on Monad testnet, where Anvil's default accounts carry EIP-7702 code that AgateIndex's constructor refuses). The rehearsal sends as them with anvil_impersonateAccount and --unlocked. Never used on a public network.",
+ "profile": {
+  "day": 600,
+  "slices": 4,
+  "minReadings": 2,
+  "qMin": 1,
+  "demoLabel": true,
+  "signAll": false,
+  "epochDay": 20727,
+  "epochFromBlock": true,
+  "firstDay": 20727
+ },
+ "chainSelector": 2183018362218727504,
+ "roles": {
+  "owner": "0x3E8F5a1021e0e0da13fC93fa0788fFf75E112F16",
+  "primary": "0xb2aC5cd5058220A88E59130fFCc1fff7d89d20D8",
+  "standby": "0xb0FcCE0F6eDF63fb835B6320AD7543164c74562C",
+  "attester": "0x406A4ef9602F9D527Ea9A748EE26aC2343a7Ea39",
+  "guardian0": "0xBE744B4D26A764E44aC171393df410071dABA347",
+  "guardian1": "0x0000000000000000000000000000000000000000"
+ },
+ "forwarder": "0x0000000000000000000000000000000000000000",
+ "deployMockForwarder": true,
+ "writerMode": 0,
+ "gpus": [
+  {
+   "gpu": "H100",
+   "spec": "H100-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955",
+   "recipeHash": "0xe6514fa7e4a54edccdd868c38bd5a4e0632bea709fcb4b477d227e5954b31e25",
+   "family": [0, 1, 2, 3, 4],
+   "famQ": [1, 1, 1, 1, 1],
+   "liveAtStartMask": 31
+  },
+  {
+   "gpu": "H200",
+   "spec": "H200-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0xf7b3c4797305bd1433be196119ae5d6df4a433cffbf8d02c22048cc3a487b30d",
+   "recipeHash": "0x6f9f14b5ea35886704228cc4905ac7d4d7574a42fd76e2b5a1c3e7f393ae6447",
+   "family": [0, 1, 2, 3],
+   "famQ": [1, 1, 1, 1],
+   "liveAtStartMask": 7
+  },
+  {
+   "gpu": "B200",
+   "spec": "B200-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x0a5bf357b491308f9e8b00f22d9d58b1c984046be5b4a94a21a59038b996dd27",
+   "recipeHash": "0x4fa64929588d7edd7603a46469c812c2a4079b51590628a64dc9a3221e2e6839",
+   "family": [0, 1, 2, 3],
+   "famQ": [1, 1, 1, 1],
+   "liveAtStartMask": 7
+  }
+ ]
+}

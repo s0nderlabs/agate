@@ -1,0 +1,21 @@
+{
+ "examples": [
+  "ex1_november",
+  "ex2a_exits",
+  "ex2b_close_long_daily",
+  "ex3_mid_month",
+  "ex4_above_cap",
+  "ex4_below_floor",
+  "ex5a_silent_halt",
+  "ex5b_walk",
+  "ex5c_dead_x0",
+  "ex5d_walk_once",
+  "ex5e_demo_floor",
+  "ex5f_late_records",
+  "ex6_dust",
+  "ex7_clock_production",
+  "ex7_clock_demo",
+  "ex7_clock_fast"
+ ],
+ "random": 50
+}

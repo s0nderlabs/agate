@@ -23,7 +23,7 @@ GPU rental prices move fast, and there is no open way to lock one in. Renters ca
 
 ## Repository
 
-- `contracts/`: the index contract `AgateIndex` (Foundry). `forge install --no-git foundry-rs/forge-std@v1.17.0 && forge test`
+- `contracts/`: the index contract `AgateIndex` and the market contracts in `src/market/` (Foundry). `forge install --no-git foundry-rs/forge-std@v1.17.0 && forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.4.0 && forge test`
 - `wall/`: the price readers, the two writers (Chainlink CRE and a standby), the watcher and attester, the guardian CLI, and end-to-end and chaos tests on a local chain. `cd wall && bun install && bun test`
 - `docs/wall/BUILD-SPEC.md`: the full specification of the index and its checks.
 - `docs/market/BUILD-SPEC.md`: the specification of the market (the monthly token, short positions, daily payouts, the router to Kuru, the test dollar), with a reference model in `docs/market/model/`. `cd docs/market/model && python3 -m unittest`
@@ -31,4 +31,4 @@ GPU rental prices move fast, and there is no open way to lock one in. Renters ca
 
 ## Status
 
-Early. The index and its checking system are built and tested on local chains. The market is specified and modelled; its contracts and the app are next.
+Early. The index and its checking system are built and tested on local chains. The market contracts are built and tested, including against Kuru's testnet order books on a fork. The bots, the indexer, the testnet deployment and the app are next.

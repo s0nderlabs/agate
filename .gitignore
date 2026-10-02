@@ -14,6 +14,9 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/
 contracts/lib/
+# a deploy run's plan until DeployMarket verify() finds every address on chain; test files, as a backstop
+contracts/deployments/*.pending
+contracts/deployments/.test-*
 out/
 cache/
 broadcast/
