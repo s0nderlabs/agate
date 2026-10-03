@@ -13,7 +13,7 @@ const PANELS = ((await Bun.file(`${import.meta.dir}/../../../../packages/sources
 const cfg: Config = {
   index: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
   chainSelector: SELECTOR.toString(),
-  gasLimit: "777371",
+  gasLimit: "1614000", // the runner's creGasLimit: ceil(1.5 x MEASURED onReport)
   schedule: "0 7 * * * *",
   role: "primary",
   timeout: "10s",
@@ -23,10 +23,10 @@ const cfg: Config = {
 };
 const NOW = 1_790_812_800 + 5 * 200 + 37; // TEST day 20,727, slice 5
 const PAGES: Record<string, string> = {
-  p_verda: renderPage("p_verda", { H100: { price: "3.63", count: 8 }, H200: { price: "4.73", count: 8 }, B200: { price: "6.92", count: 8 } }),
-  p_nebius: renderPage("p_nebius", { H100: { price: "4.50", count: 8 }, H200: { price: "5.40", count: 8 }, B200: { price: "8.50", count: 8 } }),
-  p_lambda: renderPage("p_lambda", { H100: { price: "3.99", count: 8 }, B200: { state: "not-rentable" } }),
-  p_hyperstack: renderPage("p_hyperstack", { H100: { price: "2.40", count: 8 }, H200: { price: "3.50", count: 8 }, B200: { price: "5.90", count: 8 } }),
+  p_verda: renderPage("p_verda", { H100: { price: "3.63", count: 8 }, H200: { price: "4.73", count: 8 }, B200: { price: "6.92", count: 8 }, B300: { price: "8.80", count: 8 }, A100: { price: "1.80", count: 8 }, L40S: { price: "1.56", count: 8 } }),
+  p_nebius: renderPage("p_nebius", { H100: { price: "4.50", count: 8 }, H200: { price: "5.40", count: 8 }, B200: { price: "8.50", count: 8 }, B300: { price: "9.50", count: 8 } }),
+  p_lambda: renderPage("p_lambda", { H100: { price: "3.99", count: 8 }, B200: { state: "not-rentable" }, A100: { price: "2.79", count: 8 } }),
+  p_hyperstack: renderPage("p_hyperstack", { H100: { price: "2.40", count: 8 }, H200: { price: "3.50", count: 8 }, B200: { price: "5.90", count: 8 }, B300: { price: "7.40", count: 8 }, A100: { price: "1.60", count: 8 } }),
 };
 
 test("one run: every page once with the agate user agent, the real parsers, one entry per GPU, one writeReport", () => {
@@ -58,14 +58,18 @@ test("one run: every page once with the agate user agent, the real parsers, one 
   expect(out.tx.status).toBe(2);
   expect(out.tx.hash).toBe(`0x${"ab".repeat(32)}`);
   expect(written!.receiver.toLowerCase()).toBe(cfg.index.toLowerCase());
-  expect(written!.gas).toBe("777371");
+  expect(written!.gas).toBe("1614000");
   const report = decodeReport(written!.payload);
   expect(report).toMatchObject({ version: 1, chainSelector: SELECTOR });
   expect(report.entries.map((e) => e.values)).toEqual([
     [3_630_000, 4_500_000, 3_990_000, 0, 2_400_000], // H100: Civo answered 503, its slot sends 0
     [4_730_000, 5_400_000, 0, 3_500_000], // H200: the reserve (Hyperstack) carries its value; E8b ignores it onchain
     [6_920_000, 8_500_000, 0, 5_900_000], // B200: Lambda not rentable
+    [8_800_000, 9_500_000, 0, 7_400_000], // B300 (price-only, 18.1): Civo's slot sends 0
+    [1_800_000, 2_790_000, 1_600_000], // A100 SXM 80GB
+    [1_560_000, 0], // L40S: Verda live, Civo (503) the reserve
   ]);
+  expect(report.entries.map((e) => e.gpuId)).toEqual(PANELS.map((p) => p.gpuId)); // one entry per registered GPU, in panel order
   expect(report.entries.every((e) => e.slice === 5 && e.readAt === BigInt(NOW - 2))).toBe(true);
   const civo = out.sources.find((s: { sourceId: string }) => s.sourceId === "p_civo");
   expect(civo.rows.H100.state).toBe("FAILED");
@@ -156,7 +160,7 @@ test("a version the compiled workflow lacks reads 0 for that slot (MISSED), neve
   const lam = out.sources.find((s: { sourceId: string }) => s.sourceId === "p_lambda");
   expect(lam.rows.B200.state).toBe("MISSED");
   expect(lam.refused.B200).toMatch(/lambda\/9/);
-  expect(lam.parsers).toEqual({ H100: "lambda/1" });
+  expect(lam.parsers).toEqual({ H100: "lambda/1", A100: "lambda/1" }); // every GPU Lambda prices but the refused one
   const cv = out.sources.find((s: { sourceId: string }) => s.sourceId === "p_civo");
   expect(cv.rows.H100.state).toBe("MISSED");
   expect(cv.rows.H200.state).toBe("VALID"); // the civo page was still fetched once for H200

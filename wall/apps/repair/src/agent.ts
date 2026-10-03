@@ -8,7 +8,7 @@ import { join } from "node:path";
 import type { GpuModel, Hex } from "@agate/report/types";
 import { ACTION_WINDOW_DAYS } from "@agate/report/types";
 import { type IntervalTrackers, loadInterval, readStatus, trackerFor, WatchLog } from "@agate/pagecheck";
-import { httpsHost, readerInForce, SOURCES } from "@agate/sources/pure";
+import { GPUS, httpsHost, readerInForce, SOURCES } from "@agate/sources/pure";
 import type { Panel } from "@agate/sources/types";
 import { type AlertSink, appendLine, type Heartbeat, writeAtomic } from "@agate/watcher";
 import { Budget } from "./budget.ts";
@@ -92,7 +92,7 @@ interface Ctx {
 
 const GPUS_OF = (sourceId: string): GpuModel[] => {
   const d = SOURCES.find((s) => s.id === sourceId);
-  return (["H100", "H200", "B200"] as GpuModel[]).filter((g) => d?.rules[g]);
+  return GPUS.filter((g) => d?.rules[g]);
 };
 
 export class RepairAgent {

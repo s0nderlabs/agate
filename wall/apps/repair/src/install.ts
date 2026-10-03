@@ -12,9 +12,9 @@ import type { Spawner } from "./spawn.ts";
 import type { NoteJson } from "./note.ts";
 
 /** The sources test files install runs in the sandbox: every one that needs no network and starts no program. */
-export const SANDBOX_TESTS = ["readers", "parsers", "recipe", "money", "hostile", "launch-panel", "archive", "ecb"] as const;
-/** The others open a local server or start tsc: the operator runs them unsandboxed (note step 4), after reading the draft. */
-export const UNSANDBOXED_TESTS = ["io", "pure", "replay", "replay-upgrades"] as const;
+export const SANDBOX_TESTS = ["readers", "parsers", "recipe", "money", "hostile", "launch-panel", "archive", "ecb", "adversarial/price-only-wrong-rows", "adversarial/price-only-size-class-date-traps"] as const;
+/** The others open a local server or start a program: the operator runs them unsandboxed (note step 4), after reading the draft. */
+export const UNSANDBOXED_TESTS = ["io", "pure", "replay", "replay-upgrades", "price-only-gpus"] as const;
 
 /** The unsandboxed test files as paths from wall/. */
 export const unsandboxedPaths = (): string => UNSANDBOXED_TESTS.map((t) => `packages/sources/test/${t}.test.ts`).join(" ");

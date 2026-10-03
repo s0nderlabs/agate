@@ -14,36 +14,49 @@ const values: HourValues[] = present ? archiveValues() : [];
 
 // Hand-checked against the archived pages (n = 3 hours per source; the pages were identical within each date).
 // Sep 30 hours: Nebius still "before October 1" prices; EUR rows have no rate (the archive's ECB file is dated Sep 30).
+// The price-only GPUs (18.2; numbers only): checked by hand against the same pages and against an independent reader's
+// readings of those hours. Verda's "B300 CC" and "A100 40GB" rows and Hyperstack's PCIe A100 rows are never read;
+// CoreWeave's B300 on-demand cell says "Contact sales"; Seeweb's L40S is EUR (0.85 x the ECB rate).
 const HAND: Record<string, Record<string, Partial<Record<GpuModel, [ReadState, number]>>>> = {
   "2026-09-30T17": {
-    p_verda: { H100: ["VALID", 3_630_000], H200: ["VALID", 4_730_000], B200: ["VALID", 6_920_000] }, // 29.02/8, 37.86/8, 55.34/8
-    p_nebius: { H100: ["VALID", 3_850_000], H200: ["VALID", 4_500_000], B200: ["VALID", 7_150_000] },
-    p_lambda: { H100: ["VALID", 3_990_000], B200: ["VALID", 6_690_000] }, // 8x tab, per GPU
-    p_coreweave: { H100: ["VALID", 6_160_000], H200: ["VALID", 6_310_000], B200: ["VALID", 8_600_000] }, // 49.24/8, 50.44/8, 68.80/8
-    p_civo: { H100: ["VALID", 2_990_000], H200: ["VALID", 3_490_000], B200: ["NOT_RENTABLE", 0] }, // 23.92/8, 27.92/8, N/A
-    p_hyperstack: { H100: ["VALID", 3_200_000], H200: ["VALID", 3_990_000], B200: ["VALID", 6_000_000] },
-    p_seeweb: { H100: ["NO_ROW", 0], H200: ["NO_ROW", 0] },
+    p_verda: { H100: ["VALID", 3_630_000], H200: ["VALID", 4_730_000], B200: ["VALID", 6_920_000], B300: ["VALID", 8_620_000], A100: ["VALID", 1_790_000], L40S: ["VALID", 1_540_000] }, // 29.02/8, 37.86/8, 55.34/8, 68.98/8, 14.30/8, 12.34/8
+    p_nebius: { H100: ["VALID", 3_850_000], H200: ["VALID", 4_500_000], B200: ["VALID", 7_150_000], B300: ["VALID", 7_850_000] },
+    p_lambda: { H100: ["VALID", 3_990_000], B200: ["VALID", 6_690_000], A100: ["VALID", 2_790_000] }, // 8x tab, per GPU; A100 the 80 GB row
+    p_coreweave: { H100: ["VALID", 6_160_000], H200: ["VALID", 6_310_000], B200: ["VALID", 8_600_000], B300: ["NOT_RENTABLE", 0], A100: ["VALID", 2_700_000], L40S: ["VALID", 2_250_000] }, // 49.24/8, 50.44/8, 68.80/8, contact sales, 21.60/8, 18.00/8
+    p_civo: { H100: ["VALID", 2_990_000], H200: ["VALID", 3_490_000], B200: ["NOT_RENTABLE", 0], B300: ["VALID", 7_490_000], L40S: ["VALID", 1_290_000] }, // 23.92/8, 27.92/8, N/A, 59.92/8, 10.32/8
+    p_hyperstack: { H100: ["VALID", 3_200_000], H200: ["VALID", 3_990_000], B200: ["VALID", 6_000_000], B300: ["VALID", 7_400_000], A100: ["VALID", 1_600_000] },
+    p_seeweb: { H100: ["NO_ROW", 0], H200: ["NO_ROW", 0], L40S: ["NO_ROW", 0] },
     p_gcore: { H100: ["NO_ROW", 0], H200: ["NO_ROW", 0] },
   },
   "2026-10-01T00": {
-    p_verda: { H100: ["VALID", 3_630_000], H200: ["VALID", 4_730_000], B200: ["VALID", 6_920_000] },
-    p_nebius: { H100: ["VALID", 4_500_000], H200: ["VALID", 5_400_000], B200: ["VALID", 8_500_000] }, // "from October 1"
-    p_lambda: { H100: ["VALID", 3_990_000], B200: ["VALID", 6_690_000] },
-    p_coreweave: { H100: ["VALID", 6_160_000], H200: ["VALID", 6_310_000], B200: ["VALID", 8_600_000] },
-    p_civo: { H100: ["VALID", 2_990_000], H200: ["VALID", 3_490_000], B200: ["NOT_RENTABLE", 0] },
-    p_hyperstack: { H100: ["VALID", 3_200_000], H200: ["VALID", 3_990_000], B200: ["VALID", 6_000_000] },
-    p_seeweb: { H100: ["VALID", 2_150_000], H200: ["VALID", 2_950_000] }, // 1.89 and 2.60 EUR x 1.1355 (ECB Sep 30)
+    p_verda: { H100: ["VALID", 3_630_000], H200: ["VALID", 4_730_000], B200: ["VALID", 6_920_000], B300: ["VALID", 8_620_000], A100: ["VALID", 1_790_000], L40S: ["VALID", 1_540_000] },
+    p_nebius: { H100: ["VALID", 4_500_000], H200: ["VALID", 5_400_000], B200: ["VALID", 8_500_000], B300: ["VALID", 9_500_000] }, // "from October 1"
+    p_lambda: { H100: ["VALID", 3_990_000], B200: ["VALID", 6_690_000], A100: ["VALID", 2_790_000] },
+    p_coreweave: { H100: ["VALID", 6_160_000], H200: ["VALID", 6_310_000], B200: ["VALID", 8_600_000], B300: ["NOT_RENTABLE", 0], A100: ["VALID", 2_700_000], L40S: ["VALID", 2_250_000] },
+    p_civo: { H100: ["VALID", 2_990_000], H200: ["VALID", 3_490_000], B200: ["NOT_RENTABLE", 0], B300: ["VALID", 7_490_000], L40S: ["VALID", 1_290_000] },
+    p_hyperstack: { H100: ["VALID", 3_200_000], H200: ["VALID", 3_990_000], B200: ["VALID", 6_000_000], B300: ["VALID", 7_400_000], A100: ["VALID", 1_600_000] },
+    p_seeweb: { H100: ["VALID", 2_150_000], H200: ["VALID", 2_950_000], L40S: ["VALID", 970_000] }, // 1.89, 2.60 and 0.85 EUR x 1.1355 (ECB Sep 30)
     p_gcore: { H100: ["VALID", 2_680_000], H200: ["NO_ROW", 0] }, // 18.91 EUR x 1.1355 / 8; no Virtual GPU H200
   },
   "2026-10-01T04": {
-    p_verda: { H100: ["VALID", 3_630_000], H200: ["VALID", 4_730_000], B200: ["VALID", 6_920_000] },
-    p_nebius: { H100: ["VALID", 4_500_000], H200: ["VALID", 5_400_000], B200: ["VALID", 8_500_000] },
-    p_lambda: { H100: ["VALID", 3_990_000], B200: ["VALID", 6_690_000] },
-    p_coreweave: { H100: ["VALID", 6_160_000], H200: ["VALID", 6_310_000], B200: ["VALID", 8_600_000] },
-    p_civo: { H100: ["VALID", 2_990_000], H200: ["VALID", 3_490_000], B200: ["NOT_RENTABLE", 0] },
-    p_hyperstack: { H100: ["VALID", 3_200_000], H200: ["VALID", 3_990_000], B200: ["VALID", 6_000_000] },
-    p_seeweb: { H100: ["VALID", 2_150_000], H200: ["VALID", 2_950_000] },
+    p_verda: { H100: ["VALID", 3_630_000], H200: ["VALID", 4_730_000], B200: ["VALID", 6_920_000], B300: ["VALID", 8_620_000], A100: ["VALID", 1_790_000], L40S: ["VALID", 1_540_000] },
+    p_nebius: { H100: ["VALID", 4_500_000], H200: ["VALID", 5_400_000], B200: ["VALID", 8_500_000], B300: ["VALID", 9_500_000] },
+    p_lambda: { H100: ["VALID", 3_990_000], B200: ["VALID", 6_690_000], A100: ["VALID", 2_790_000] },
+    p_coreweave: { H100: ["VALID", 6_160_000], H200: ["VALID", 6_310_000], B200: ["VALID", 8_600_000], B300: ["NOT_RENTABLE", 0], A100: ["VALID", 2_700_000], L40S: ["VALID", 2_250_000] },
+    p_civo: { H100: ["VALID", 2_990_000], H200: ["VALID", 3_490_000], B200: ["NOT_RENTABLE", 0], B300: ["VALID", 7_490_000], L40S: ["VALID", 1_290_000] },
+    p_hyperstack: { H100: ["VALID", 3_200_000], H200: ["VALID", 3_990_000], B200: ["VALID", 6_000_000], B300: ["VALID", 7_400_000], A100: ["VALID", 1_600_000] },
+    p_seeweb: { H100: ["VALID", 2_150_000], H200: ["VALID", 2_950_000], L40S: ["VALID", 970_000] },
     p_gcore: { H100: ["VALID", 2_680_000], H200: ["NO_ROW", 0] },
+  },
+  // Verda's Oct 2 18 UTC step: 70.36/8 = 8.795 and 14.38/8 = 1.7975, both cent half-up; Seeweb L40S 0.85 x 1.1298.
+  "2026-10-02T18": {
+    p_verda: { B300: ["VALID", 8_800_000], A100: ["VALID", 1_800_000], L40S: ["VALID", 1_560_000] }, // 12.46/8 = 1.5575
+    p_nebius: { B300: ["VALID", 9_500_000] },
+    p_lambda: { A100: ["VALID", 2_790_000] },
+    p_coreweave: { B300: ["NOT_RENTABLE", 0], A100: ["VALID", 2_700_000], L40S: ["VALID", 2_250_000] },
+    p_civo: { B300: ["VALID", 7_490_000], L40S: ["VALID", 1_290_000] },
+    p_hyperstack: { B300: ["VALID", 7_400_000], A100: ["VALID", 1_600_000] },
+    p_seeweb: { L40S: ["VALID", 960_000] },
   },
 };
 
@@ -58,6 +71,7 @@ function botWall(id: string, hour: string): boolean {
 /** States a source/GPU may legitimately show; anything else (layout-changed, ambiguous, parse-error) fails. */
 function allowed(id: string, g: GpuModel, h: HourValues): ReadState[] {
   if (id === "p_civo" && g === "B200") return ["NOT_RENTABLE", "VALID"];
+  if (id === "p_coreweave" && g === "B300") return ["NOT_RENTABLE", "VALID"]; // "Contact sales" today
   if (id === "p_gcore" && g === "H200") return ["NO_ROW", "VALID"];
   const def = SOURCES.find((s) => s.id === id)!;
   if (def.currency === "EUR" && !h.fx) return ["NO_ROW"];
@@ -126,7 +140,9 @@ describe("parsers on every archived hour", () => {
         }
       }
     }
-    if (listHours().some((h) => h.date === "2026-10-01")) expect(checked).toBeGreaterThanOrEqual(3 * 21);
+    // 21 cells of the first three GPUs and 13 of the price-only ones per hour, three hours, plus the Oct 2 18 UTC step
+    if (listHours().some((h) => h.date === "2026-10-01")) expect(checked).toBeGreaterThanOrEqual(3 * (21 + 13));
+    if (listHours().some((h) => `${h.date}T${h.hour}` === "2026-10-02T18")) expect(checked).toBe(3 * (21 + 13) + 13);
   });
 
   test.skipIf(!present)("the numbers-only fixture agrees with a fresh parse of the hours it covers", () => {

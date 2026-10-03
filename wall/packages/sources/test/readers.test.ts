@@ -31,7 +31,7 @@ const ctx = (t = Date.UTC(2026, 9, 2, 8, 20) / 1000) => ({ utcDate: new Date(t *
 /** Every GPU a source prices, with a distinct on-demand price. */
 function fullPage(id: string): SynthPage {
   const def = SOURCES.find((s) => s.id === id)!;
-  const prices: Record<GpuModel, string> = { H100: "3.99", H200: "4.79", B200: "6.69" };
+  const prices: Record<GpuModel, string> = { H100: "3.99", H200: "4.79", B200: "6.69", B300: "8.71", A100: "1.79", L40S: "1.56" };
   const p: SynthPage = {};
   for (const g of GPUS) if (def.rules[g]) p[g] = { price: prices[g], count: 8 };
   return p;

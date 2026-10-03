@@ -9,6 +9,7 @@ import type { Hex } from "@agate/report/types";
 import { closableAt, dayEnd, dayStart, fullBits, pendEnd, readWindow, sendDeadline, sliceStart } from "../src/core/index.ts";
 import { reportHex } from "../src/core/index.ts";
 import type { LogLine } from "../src/pipeline/log.ts";
+import { MEASURED } from "../src/pipeline/sender.ts";
 import type { ReadingSource } from "../src/pipeline/writer.ts";
 import { ADDR, haveAnvil, MOCK_FORWARDER_ABI, SELECTOR } from "./helpers/anvil.ts";
 import { D, makeWorld, PRICES, type World } from "./helpers/world.ts";
@@ -37,8 +38,9 @@ describe.skipIf(!haveAnvil)("writers on the real AgateIndex", () => {
     const p = await w.writer("primary");
     const s = await w.writer("standby");
     await w.run([p, s], dayStart(c, D) + 1, pendEnd(c, D) + c.slice);
-    const [h100, h200, b200] = w.dep.panels.map((x) => x.gpuId as Hex);
-    for (const g of [h100!, h200!, b200!]) {
+    expect(w.dep.panels.map((x) => x.gpu)).toEqual(["H100", "H200", "B200", "B300", "A100", "L40S"]); // default.json: six GPUs (18)
+    const [h100, h200, b200, b300, a100, l40s] = w.dep.panels.map((x) => x.gpuId as Hex);
+    for (const g of [h100!, h200!, b200!, b300!, a100!, l40s!]) {
       for (const who of [PRIMARY, STANDBY]) {
         const r = await w.readings(g, D, who);
         expect(r.sliceBits).toBe(fullBits(c));
@@ -54,12 +56,13 @@ describe.skipIf(!haveAnvil)("writers on the real AgateIndex", () => {
     // exactly one post per slice per writer, and nothing else from the standby (it never needed to close)
     const pp = await w.posted(PRIMARY);
     const sp = await w.posted(STANDBY);
-    expect(pp.filter((x) => x.day === D).length).toBe(36);
-    expect(sp.filter((x) => x.day === D).length).toBe(36);
+    expect(pp.filter((x) => x.day === D).length).toBe(72); // 12 slices x 6 GPUs, one report (six entries) a slice
+    expect(sp.filter((x) => x.day === D).length).toBe(72);
+    expect(new Set(sp.filter((x) => x.day === D).map((x) => x.tx)).size).toBe(12);
     for (const list of [pp, sp]) expect(new Set(list.map((x) => `${x.gpuId}:${x.day}:${x.slice}`)).size).toBe(list.length);
-    // one transaction per slice read, plus the primary's three closes: no repost, no duplicate, no close by the standby
+    // one transaction per slice read, plus the primary's six closes: no repost, no duplicate, no close by the standby
     expect(await w.txCount(STANDBY)).toBe(new Set(sp.map((x) => x.tx)).size);
-    expect(await w.txCount(PRIMARY)).toBe(new Set(pp.map((x) => x.tx)).size + 3);
+    expect(await w.txCount(PRIMARY)).toBe(new Set(pp.map((x) => x.tx)).size + 6);
     const { exists, rec } = await w.record(h100!, D);
     expect(exists).toBe(true);
     expect(rec.source.toLowerCase()).toBe(PRIMARY.toLowerCase());
@@ -70,8 +73,13 @@ describe.skipIf(!haveAnvil)("writers on the real AgateIndex", () => {
     expect(Number(rec.postedAt)).toBeLessThan(closableAt(c, D) + c.slice / 20 + 25);
     expect((await w.record(h200!, D)).rec.value).toBe(4_730_000);
     expect((await w.record(b200!, D)).rec.value).toBe(6_920_000);
-    // explicit gas limits: ceil(1.5 x MEASURED) for both shapes
-    expect((await w.a.pub.getTransaction({ hash: (await w.posted(STANDBY))[0]!.tx })).gas).toBe(769_077n);
+    // the price-only GPUs: the median of their live slots (18.3 default.json: L40S has one live slot)
+    expect((await w.record(b300!, D)).rec.value).toBe(8_800_000); // Verda 8.80, Nebius 9.50, Civo 7.49
+    expect((await w.record(a100!, D)).rec.value).toBe(1_800_000); // Verda 1.80, Lambda 2.79, Hyperstack 1.60
+    expect((await w.record(l40s!, D)).rec.value).toBe(1_560_000); // Verda; Civo is the reserve
+    // explicit gas limits: ceil(1.5 x MEASURED) for both shapes (a six-entry report's estimate is below MEASURED)
+    expect((await w.a.pub.getTransaction({ hash: (await w.posted(STANDBY))[0]!.tx })).gas).toBe((3n * MEASURED.postReport + 1n) / 2n);
+    expect((3n * MEASURED.postReport + 1n) / 2n).toBe(1_491_414n);
   }, 120_000);
 
   test("day two unchanged: closes without needsSign and is final T_PEND after; the closeDay gas limit is ceil(1.5 x 630,218)", async () => {
@@ -131,7 +139,8 @@ describe.skipIf(!haveAnvil)("writers on the real AgateIndex", () => {
         const bad = n++ === 2;
         const hex = bad ? encodeReport(makeReport(SELECTOR + 1n, w.dep.index, r.reading.entries)) : reportHex(SELECTOR, w.dep.index, r.reading.entries);
         const meta = encodeMetadata(`0x${"11".repeat(32)}`, `0x${"22".repeat(10)}`, PRIMARY);
-        const hash = await wallet.writeContract({ address: w.dep.forwarder, abi: MOCK_FORWARDER_ABI, functionName: "forward", args: [w.dep.index, meta, hex], account: wallet.account!, chain: wallet.chain, gas: 777_371n });
+        // the runner's writeReport limit, ceil(1.5 x MEASURED onReport): a six-entry report fits through the forwarder
+        const hash = await wallet.writeContract({ address: w.dep.forwarder, abi: MOCK_FORWARDER_ABI, functionName: "forward", args: [w.dep.index, meta, hex], account: wallet.account!, chain: wallet.chain, gas: (3n * MEASURED.onReport + 1n) / 2n });
         const rc = await w.a.pub.waitForTransactionReceipt({ hash });
         return { ...r, via: "cre", sent: { ok: rc.status === "success", sent: true, txHash: hash } };
       },
@@ -142,7 +151,9 @@ describe.skipIf(!haveAnvil)("writers on the real AgateIndex", () => {
     expect((await w.readings(g, D, PRIMARY)).sliceBits).toBe(0b1111n);
     const posted = await w.posted(PRIMARY);
     const s2 = posted.filter((x) => x.day === D && x.slice === 2);
-    expect(s2.length).toBe(3);
+    expect(s2.length).toBe(6);
+    // the other slices landed through the forwarder, every GPU of the report
+    for (const k of [0, 1, 3]) expect(posted.filter((x) => x.day === D && x.slice === k).length).toBe(6);
     const tx = await w.a.pub.getTransaction({ hash: s2[0]!.tx });
     expect(tx.to!.toLowerCase()).toBe(w.dep.index.toLowerCase()); // the repost: postReport, not the forwarder
     expect(await w.skipped()).toBe(0);

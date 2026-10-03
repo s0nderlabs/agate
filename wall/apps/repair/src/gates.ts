@@ -2,7 +2,7 @@
 // rows are judged here, in the agent, against the reader in force and the trackers.
 import { dirname, join } from "node:path";
 import type { GpuModel } from "@agate/report/types";
-import { httpsHost, inBounds, SOURCES } from "@agate/sources/pure";
+import { GPUS, httpsHost, inBounds, SOURCES } from "@agate/sources/pure";
 import { renderPage, type SynthGpu, type SynthPage } from "@agate/sources";
 import type { ParsedRow, ParseResult } from "@agate/sources/types";
 import { isGap } from "@agate/pagecheck";
@@ -121,7 +121,7 @@ export async function gate3(x: RunCtx, version: string, gpus: readonly GpuModel[
 export function fixturePages(sourceId: string, now: number): BatchPage[] {
   const def = SOURCES.find((s) => s.id === sourceId);
   if (!def) return [];
-  const gs = (["H100", "H200", "B200"] as GpuModel[]).filter((g) => def.rules[g]);
+  const gs = GPUS.filter((g) => def.rules[g]);
   const all = (v: SynthGpu): SynthPage => Object.fromEntries(gs.map((g) => [g, v]));
   const cases: [string, SynthPage][] = [
     ["eight", all({ price: "3.99", count: 8 })],

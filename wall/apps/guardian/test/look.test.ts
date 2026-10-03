@@ -10,7 +10,7 @@ const PAGE_TIME = Date.UTC(2026, 8, 30, 12) / 1000; // 2026-09-30 12:00 UTC, an 
 const NOW = Date.UTC(2026, 9, 2, 6) / 1000; // the guardian runs on Oct 2
 const ECB = renderEcb({ "2026-09-28": "1.1000", "2026-09-29": "1.2000", "2026-10-01": "1.3000" });
 const BODIES: Record<string, string> = {
-  p_lambda: renderPage("p_lambda", { H100: { price: "3.00" }, B200: { price: "5.00" } }),
+  p_lambda: renderPage("p_lambda", { H100: { price: "3.00" }, B200: { price: "5.00" }, A100: { price: "2.79" } }), // every GPU its rules price
   p_gcore: renderPage("p_gcore", { H100: { price: "3.00" }, H200: { price: "4.00" } }),
 };
 const ok = (body: string, pageTime?: number): PageResult => ({ ok: true, httpStatus: 200, body, bytes: body.length, ...(pageTime !== undefined ? { pageTime } : {}) });
@@ -43,6 +43,7 @@ describe("guardian look reader", () => {
         expect(out[id]![g as "H100"]).toEqual({ state: "VALID", valueU: r!.valueU });
       }
     }
+    expect(Object.keys(out.p_lambda!)).toEqual(["H100", "B200", "A100"]); // the price-only A100 too, in GPUS order
     expect(out.p_gcore!.H100!.valueU).toBe(3_600_000); // the Sep 29 rate (1.2), not the Oct 1 one
     expect(urls).toEqual(["http://replay.test/r/look/p_lambda", "http://replay.test/r/look/p_gcore", "http://replay.test/r/look/fx_ecb"]);
   });

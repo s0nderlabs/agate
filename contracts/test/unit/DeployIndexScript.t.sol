@@ -37,6 +37,11 @@ contract DeployIndexScriptTest is Test {
         return vm.readFile(string.concat(vm.projectRoot(), "/script/config/local-demo.json"));
     }
 
+    function _nGpus() internal view returns (uint64 n) {
+        string memory json = _json();
+        while (vm.keyExistsJson(json, string.concat(".gpus[", vm.toString(n), "]"))) ++n;
+    }
+
     function _checkDeployed(AgateIndex ix, address owner_) internal view {
         assertEq(ix.owner(), owner_);
         assertEq(ix.gpu(H100).nSlots, 5);
@@ -58,7 +63,8 @@ contract DeployIndexScriptTest is Test {
         AgateIndex ix = di.run();
         _checkDeployed(ix, ANVIL0);
         assertGt(vm.getNonce(ANVIL0), n0, "the key's account sent the transactions");
-        assertEq(vm.computeCreateAddress(ANVIL0, vm.getNonce(ANVIL0) - 4), address(ix), "created by the key's account");
+        // the index is the transaction before the config's registerGpu calls (one per GPU)
+        assertEq(vm.computeCreateAddress(ANVIL0, vm.getNonce(ANVIL0) - 1 - _nGpus()), address(ix), "created by the key's account");
     }
 
     /// Empty (a failed Keychain read), no 0x, "0x" alone, zero, too long, not hex: each stops the run.

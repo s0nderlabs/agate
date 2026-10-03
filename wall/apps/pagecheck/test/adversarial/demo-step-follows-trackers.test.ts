@@ -1,12 +1,13 @@
-// Audit (rules and liveness lens): the demo replay's scripted price step and the page check (15.1).
+// The demo replay's scripted price step and the page check (15.1).
 // A scripted step on a tracker-mapped cloud with no matching tracker script is a real-looking price change the trackers
 // never show: after one demo day it raised PAGECHECK_FAULT ("likely parser fault") on a correct parser and opened a
-// wrong_cell repair incident. Fixed in the fix round: the replay's archived GPUTable rows follow the scripted step.
+// wrong_cell repair incident. Fixed: the replay's archived GPUTable rows follow the scripted step.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { GPUTABLE_GPU, GPUTABLE_PROVIDER, Replay, type ReplayScenario } from "@agate/sources/io";
-import { GT_GPU, isGap, TRACKER_MAP } from "../../src/trackers.ts";
+import { GPU_ECONOMY_FILE, GPUTABLE_GPU, GPUTABLE_PROVIDER, Replay, type ReplayScenario } from "@agate/sources/io";
+import { GPUS } from "@agate/sources/pure";
+import { GE_FILE, GT_GPU, isGap, TRACKER_MAP } from "../../src/trackers.ts";
 
 const DEMO = join(import.meta.dir, "../../../../packages/sources/replay/demo.json");
 
@@ -28,7 +29,7 @@ describe("demo.json against the page check", () => {
     expect(isGap(3_490_000, 3_990_000)).toBe(true); // 12.5% off the archived tracker row
   });
 
-  test("every scripted price step on a tracker-mapped cloud is followed by the replay's GPUTable rows (fixed, M2)", () => {
+  test("every scripted price step on a tracker-mapped cloud is followed by the replay's GPUTable rows", () => {
     const mapped = steps.filter((x) => TRACKER_MAP[x.src]);
     expect(mapped.length).toBeGreaterThan(0);
     const replay = new Replay({ clock: { t0: 0, daySec: 600, slices: 12 }, scenario: { ...(demo as ReplayScenario), archive: false } });
@@ -55,5 +56,8 @@ describe("demo.json against the page check", () => {
     for (const [id, m] of Object.entries(TRACKER_MAP)) expect(GPUTABLE_PROVIDER[id]).toBe(m.gt);
     expect(Object.keys(GPUTABLE_PROVIDER).sort()).toEqual(Object.keys(TRACKER_MAP).sort());
     expect(GPUTABLE_GPU).toEqual(GT_GPU as typeof GPUTABLE_GPU);
+    // every GPU of the recipe, the price-only ones included (18.4), and the replay's GPU Economy routes are the files the page check asks for
+    expect(Object.keys(GT_GPU).sort()).toEqual([...GPUS].sort());
+    expect(GPU_ECONOMY_FILE).toEqual(GE_FILE as typeof GPU_ECONOMY_FILE);
   });
 });

@@ -24,13 +24,22 @@ beforeAll(async () => {
   replay = startReplay({ clock: { t0: dep.epochTs, daySec: PROFILE.day, slices: PROFILE.slices }, scenario: PRICES });
   home = mkdtempSync(join(tmpdir(), "agate-svc-"));
 }, 60_000);
+// every child this file starts, so a failing test cannot leave one running (it would keep posting to a later anvil)
+const children = new Set<{ kill(signal?: number | NodeJS.Signals): void }>();
+const track = <T extends { kill(signal?: number | NodeJS.Signals): void }>(p: T): T => (children.add(p), p);
+
 afterAll(() => {
+  for (const p of children) {
+    try {
+      p.kill("SIGKILL");
+    } catch {}
+  }
   replay?.stop();
   a?.stop();
 });
 
 function spawnStandby() {
-  return Bun.spawn(["bun", "run", MAIN], {
+  return track(Bun.spawn(["bun", "run", MAIN], {
     env: {
       PATH: process.env.PATH!,
       HOME: process.env.HOME!,
@@ -44,11 +53,11 @@ function spawnStandby() {
     },
     stdout: "pipe",
     stderr: "pipe",
-  });
+  }));
 }
 
 function spawnWith(env: Record<string, string>) {
-  return Bun.spawn(["bun", "run", MAIN], {
+  return track(Bun.spawn(["bun", "run", MAIN], {
     env: {
       PATH: process.env.PATH!,
       HOME: process.env.HOME!,
@@ -62,7 +71,7 @@ function spawnWith(env: Record<string, string>) {
     },
     stdout: "pipe",
     stderr: "pipe",
-  });
+  }));
 }
 
 const POSTED_EVENT = { type: "event", name: "ReadingsPosted", inputs: [{ name: "gpuId", type: "bytes32", indexed: true }, { name: "day", type: "uint32", indexed: true }, { name: "writer", type: "address", indexed: true }, { name: "slice", type: "uint8" }, { name: "readAt", type: "uint64" }, { name: "values", type: "uint32[]" }, { name: "validMask", type: "uint32" }, { name: "late", type: "bool" }] } as const;
@@ -79,8 +88,9 @@ describe.skipIf(!haveAnvil)("standby process", () => {
         fromBlock: 0n,
       })).length;
     const t0 = Date.now();
-    while ((await posted()) < 6 && Date.now() - t0 < 40_000) await Bun.sleep(500);
-    expect(await posted()).toBeGreaterThanOrEqual(6); // two slices x three GPUs
+    const two = 2 * dep.panels.length; // two slices x every registered GPU (six since 18)
+    while ((await posted()) < two && Date.now() - t0 < 40_000) await Bun.sleep(500);
+    expect(await posted()).toBeGreaterThanOrEqual(two);
 
     const hb = JSON.parse(readFileSync(join(home, "standby/heartbeat.json"), "utf8"));
     expect(hb).toMatchObject({ role: "standby", index: dep.index, pid: p.pid });
@@ -136,11 +146,12 @@ describe.skipIf(!haveAnvil)("standby process", () => {
       up = true;
       const t1 = Date.now();
       let after = before;
-      while (after < before + 6 && Date.now() - t1 < 40_000) {
+      const two = 2 * dep.panels.length; // two slices' entries
+      while (after < before + two && Date.now() - t1 < 40_000) {
         await Bun.sleep(500);
         after = (await a.pub.getLogs({ address: dep.index, event: POSTED_EVENT, args: { writer: ADDR[2]! }, fromBlock: 0n })).length;
       }
-      expect(after).toBeGreaterThanOrEqual(before + 6); // the held entries were sent once a URL answered
+      expect(after).toBeGreaterThanOrEqual(before + two); // the held entries were sent once a URL answered
       p.kill("SIGTERM");
       expect(await p.exited).toBe(0);
       const lines = (await out).trim().split("\n").map((l) => JSON.parse(l));
@@ -160,11 +171,12 @@ describe.skipIf(!haveAnvil)("standby process", () => {
     const err = new Response(p.stderr).text();
     const t0 = Date.now();
     let after = before;
-    while (after < before + 6 && Date.now() - t0 < 40_000) {
+    const two = 2 * dep.panels.length;
+    while (after < before + two && Date.now() - t0 < 40_000) {
       await Bun.sleep(500);
       after = (await a.pub.getLogs({ address: dep.index, event: POSTED_EVENT, args: { writer: ADDR[2]! }, fromBlock: 0n })).length;
     }
-    expect(after).toBeGreaterThanOrEqual(before + 6);
+    expect(after).toBeGreaterThanOrEqual(before + two);
     p.kill("SIGTERM");
     expect(await p.exited).toBe(0);
     const o = (await out) + (await err);

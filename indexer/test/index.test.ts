@@ -125,6 +125,26 @@ describe("daily fixes", () => {
     expect(await i.IndexGpu.getOrThrow(`${DEMO.index}-${H100}`)).toMatchObject({ index_id: DEMO.index, gpuId: H100, recipeHash: DIG, firstDay: D });
     expect((await i.WriterSuspension.getAll())[0]).toMatchObject({ index_id: DEMO.index, writer: user(1), by: user(9) });
   });
+
+  it("a price-only GPU (no market, wall spec 18) is stored like any other: its registration, fixes and finality", async () => {
+    const L40S = "0x5d0a54c25c386ef135340ebc802b2bc2538004e5538d436114a5b3c9398b30e4"; // keccak256("L40S-PCIe/on-demand-list/neocloud/v1")
+    const B300 = "0x08c6236b69837cbbc194f0e5543b52ec92d53b309e164e1139b0076f2151b07f";
+    const i = createTestIndexer();
+    await run(i, [
+      ix("GpuRegistered", { gpuId: L40S, recipeHash: DIG2, firstDay: D, family: [0, 1, 2], famQ: [1, 1, 1], liveAtStartMask: 7 }, { index: REAL.index }),
+      ix("GpuRegistered", { gpuId: B300, recipeHash: DIG, firstDay: D, family: [0, 1, 2, 3], famQ: [1, 1, 1, 1], liveAtStartMask: 7 }),
+      closed({ gpu: L40S, index: REAL.index, value: 1_560_000, at: 1_791_000_100 }),
+      closed({ gpu: B300, value: 8_710_000, needsSign: true, at: 1_791_000_200 }),
+      ix("Attested", { gpuId: B300, day: D, by: user(8), source: user(1), digest: DIG, finalAt: 1_791_000_410n }, { at: 1_791_000_300 }),
+    ]);
+    expect(await i.IndexGpu.getOrThrow(`${REAL.index}-${L40S}`)).toMatchObject({ index_id: REAL.index, gpuId: L40S, recipeHash: DIG2, firstDay: D });
+    expect(await i.IndexGpu.getOrThrow(`${DEMO.index}-${B300}`)).toMatchObject({ index_id: DEMO.index, gpuId: B300, firstDay: D });
+    expect(await fix(i, D, L40S, REAL.index)).toMatchObject({ gpuId: L40S, value: 1_560_000n, state: "PENDING", finalAt: 1_791_000_100n + 21_600n });
+    expect(await fix(i, D, B300)).toMatchObject({ gpuId: B300, value: 8_710_000n, state: "PENDING", finalAt: 1_791_000_410n, attestedBy: user(8) });
+    expect(dayLabel(await fix(i, D, B300), 1_791_000_410n)).toBe("final");
+    // the market side is untouched: no series for a GPU no factory lists
+    expect(await i.Series.getAll()).toEqual([]);
+  });
 });
 
 describe("owner actions and reader swaps", () => {

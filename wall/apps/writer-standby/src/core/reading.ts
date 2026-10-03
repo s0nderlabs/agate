@@ -1,12 +1,14 @@
 // One reading run: pages in, report entries and a log record out. Shared by the CRE workflow (inside WASM) and
 // the bun writers, so everything here is pure (no Node, Bun or DOM APIs, no float money math).
 import type { Entry, GpuModel, Hex, ReadState } from "@agate/report/types";
+import { GPUS } from "@agate/sources/pure";
 import type { FxRate, Panel, ParseResult, ReaderRef, SourceDef, SourcesPureApi } from "@agate/sources/types";
 import { utcDate } from "./clock.ts";
 
 export const ECB_ID = "fx_ecb";
 export const ECB_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml";
-export const GPUS: readonly GpuModel[] = ["H100", "H200", "B200"];
+/** Every GPU the recipe knows (the sources' list, in its order); a source reads the ones its rules price. */
+export { GPUS };
 
 /** Replay override: every page is served at `<base>/<sourceId>` (the ECB file at `<base>/fx_ecb`). */
 export function pageUrl(id: string, liveUrl: string, base?: string): string {

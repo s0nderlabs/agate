@@ -13,6 +13,9 @@ const HEADER = new RegExp(
 const DIVIDER = /^\|\s*-+\s*\|\s*-+\s*\|\s*-+\s*\|$/;
 const ROW = /^\|([^|]*)\|([^|]*)\|([^|]*)\|$/;
 const PRICE = /^\\?\$(\d[\d,]*(?:\.\d+)?)$/;
+/** The GPUs with an NVLink (SXM) platform section; B300 is "gpu-b300-sxm" (18.2). L40S is sold as GPU, vCPU and RAM
+ * lines with no instance price and is never read. */
+const PLATFORMS: readonly GpuModel[] = ["H100", "H200", "B200", "B300"];
 
 interface Block {
   kind: "plain" | "from" | "before";
@@ -67,7 +70,7 @@ export function extractNebius(body: string, ctx: ParseContext): Partial<Record<G
   if (!body.includes("prices are shown without any applicable taxes")) throw new LayoutError("tax statement missing");
   const lines = body.split("\n");
   const out: Partial<Record<GpuModel, Cell>> = {};
-  for (const g of ["H100", "H200", "B200"] as GpuModel[]) {
+  for (const g of PLATFORMS) {
     const head = new RegExp(`^#### NVIDIA${REG} ${g} NVLink(?:, [a-z0-9-]+)?\\s*$`);
     const item = `NVIDIA${REG} ${g} NVLink`;
     const cells: Cell[] = [];

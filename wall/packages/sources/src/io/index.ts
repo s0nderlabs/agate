@@ -4,6 +4,7 @@ export { archiveValues, type HourValues, statsOf, valuesOfHour } from "./archive
 export { type FetchSourceOptions, fetchSource, type SourceFetch, sha256Hex, userAgent } from "./fetch.ts";
 export {
   checkScenario,
+  GPU_ECONOMY_FILE,
   GPU_ECONOMY_FILES,
   GPUTABLE_GPU,
   GPUTABLE_PROVIDER,

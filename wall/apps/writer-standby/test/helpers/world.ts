@@ -22,15 +22,15 @@ import { ADDR, type Anvil, type Deployed, type DeployOptions, deployIndex, KEYS,
 export const D = 20_727;
 const price = (p: string) => [{ from: { day: 0 }, price: p, count: 8 as const }];
 
-/** Every USD source of the default panels, a fixed on-demand price per GPU. */
+/** Every USD source of the default panels, a fixed on-demand price per GPU (the price-only GPUs too, 18). */
 export const PRICES: ReplayScenario = {
   archive: false,
   scripted: {
-    p_verda: { gpus: { H100: price("3.63"), H200: price("4.73"), B200: price("6.92") } },
-    p_nebius: { gpus: { H100: price("4.50"), H200: price("5.40"), B200: price("8.50") } },
-    p_lambda: { gpus: { H100: price("3.99"), B200: price("6.69") } },
-    p_civo: { gpus: { H100: price("2.99"), H200: price("3.49") } },
-    p_hyperstack: { gpus: { H100: price("2.40"), H200: price("3.50"), B200: price("5.90") } },
+    p_verda: { gpus: { H100: price("3.63"), H200: price("4.73"), B200: price("6.92"), B300: price("8.80"), A100: price("1.80"), L40S: price("1.56") } },
+    p_nebius: { gpus: { H100: price("4.50"), H200: price("5.40"), B200: price("8.50"), B300: price("9.50") } },
+    p_lambda: { gpus: { H100: price("3.99"), B200: price("6.69"), A100: price("2.79") } },
+    p_civo: { gpus: { H100: price("2.99"), H200: price("3.49"), B300: price("7.49"), L40S: price("1.29") } },
+    p_hyperstack: { gpus: { H100: price("2.40"), H200: price("3.50"), B200: price("5.90"), B300: price("7.40"), A100: price("1.60") } },
   },
 };
 

@@ -23,7 +23,10 @@ describe("gas rule (13.4)", () => {
     expect(gasLimitFor(600_000n, 512_718n)).toEqual({ ok: true, limit: 900_000n, cap: 1_025_436n });
     expect(gasLimitFor(683_624n, 512_718n)).toEqual({ ok: true, limit: 1_025_436n, cap: 1_025_436n });
     expect(gasLimitFor(683_625n, 512_718n)).toEqual({ ok: false, need: 1_025_438n, cap: 1_025_436n });
-    expect(MEASURED).toEqual({ postReport: 512_718n, closeDay: 630_218n, onReport: 518_247n });
+    // reports at six entries of 15 slots (18.4, measured on anvil; onReport through the CRE simulation forwarder),
+    // closeDay per GPU (forge, unchanged)
+    expect(MEASURED).toEqual({ postReport: 994_276n, closeDay: 630_218n, onReport: 1_076_000n });
+    expect(gasLimitFor(100_000n, MEASURED.postReport)).toEqual({ ok: true, limit: 1_491_414n, cap: 1_988_552n });
   });
 });
 
@@ -135,7 +138,7 @@ describe.skipIf(!haveAnvil)("TxSender on anvil", () => {
     const r = await s.send({ to: dep.index, data: await post(await report()), shape: "postReport", meta: meta(["x:1"]) });
     expect(r.ok).toBe(true);
     const tx = await a.pub.getTransaction({ hash: r.txHash! });
-    expect(tx.gas).toBe(769_077n);
+    expect(tx.gas).toBe(1_491_414n); // ceil(1.5 x 994,276)
     expect(r.gasUsed! < tx.gas).toBe(true);
     const j = journal(log, ADDR[2]!);
     expect(j.at(-1)).toMatchObject({ kind: "tx", hash: r.txHash, nonce: tx.nonce, action: "post", tags: ["x:1"] });

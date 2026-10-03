@@ -28,6 +28,7 @@ import {
   GPU,
   type GpuName,
   GPUS,
+  INDEX_GPUS,
   IndexDays,
   isLoopback,
   MARGIN,
@@ -292,6 +293,20 @@ export async function runMarketFork(o: RunOptions = {}): Promise<Report> {
       const ticksAfter = payer.events().filter((e) => e.event === "tick" && Number(e.listed ?? 0) + Number(e.created ?? 0) > 0).length;
       const n0 = await f.nonce(A.payer);
       rep.check("E2", "Oct and Nov of H100, H200, B200 listed and their 6 Kuru V1 markets created (12 payer transactions)", n0 === 12, { payerNonce: n0, wallMs: ms, ticksThatSent: ticksAfter });
+      // wall spec 18: the index prices six GPUs, the market keeps three; the price-only ones are final too, and unlisted
+      const factoryGpus = (await f.read<readonly Hex[]>(demo.factory, agateFactoryAbi as Abi, "gpuIds")).map((x) => x.toLowerCase());
+      const regd: Record<string, number> = {};
+      const unlisted: Record<string, boolean> = {};
+      for (const g of INDEX_GPUS) {
+        regd[g.gpu] = Number((await f.read<{ nSlots: number }>(w.index, agateIndexAbi as Abi, "gpu", [g.gpuId])).nSlots);
+        if (factoryGpus.includes(g.gpuId.toLowerCase())) continue;
+        const [, isFinal] = await days.recordOf(g.gpuId, OCT1);
+        let none = isFinal;
+        for (const m of [OCT, NOV]) if ((await f.read<Address>(demo.factory, agateFactoryAbi as Abi, "seriesOf", [g.gpuId, m])) !== ZERO) none = false;
+        unlisted[g.gpu] = none;
+      }
+      const sixThree = INDEX_GPUS.length === 6 && Object.values(regd).every((n) => n > 0) && factoryGpus.length === 3 && j(factoryGpus) === j(GPUS.map((g) => GPU[g].toLowerCase())) && Object.keys(unlisted).length === 3 && Object.values(unlisted).every(Boolean);
+      rep.check("E2", "the index registers six GPUs (fork-demo.json) and the factory three: B300, A100 and L40S have final Oct 1 records and no series", sixThree, { slots: regd, factoryGpus: factoryGpus.length, finalAndUnlisted: unlisted });
       for (const k of Object.keys(series)) T[series[k]!.toLowerCase()] = await terms(f, series[k]!);
       rep.num("series", Object.fromEntries(Object.entries(series).map(([k, a]) => [k, { series: a, market: markets[k], F: T[a.toLowerCase()]!.floor, C: T[a.toLowerCase()]!.cap }])));
       await payer.stop();
@@ -333,6 +348,10 @@ export async function runMarketFork(o: RunOptions = {}): Promise<Report> {
         if (j(a) !== j(b) || a.length !== 6) agree = false;
       }
       rep.check("E3", "s_orders (Kuru's own status rule) and getL2Book agree with the maker's state.json, 6 orders per book", agree);
+      // the maker quotes only the factory's books: none for a GPU the index prices and the factory does not list
+      const books = new Set(Object.values(markets).map((m) => m.toLowerCase()));
+      const quoted = Object.entries(st?.orders ?? {}).filter(([, os]) => os.length > 0).map(([m]) => m.toLowerCase());
+      rep.check("E3", "the maker quotes only the factory's 6 books (three GPUs), never a price-only GPU of the six-GPU index", st !== null && quoted.length === 6 && quoted.every((m) => books.has(m)), { quotedBooks: quoted.length });
     });
 
     // ---------------------------------------------------------------- Oct 2: a fair move (E4)

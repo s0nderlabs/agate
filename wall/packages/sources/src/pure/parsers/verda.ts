@@ -3,7 +3,17 @@ import type { GpuModel } from "@agate/report/types";
 import type { ParseContext } from "../../types.ts";
 import { agree, type Cell, LayoutError } from "../text.ts";
 
-const NAMES: Record<GpuModel, string> = { H100: "H100", H200: "H200", B200: "B200" };
+const SXM = /\bSXM\d?\b/;
+/** The model field per GPU and the name its rows must carry: SXM for the first three, a per-GPU pattern for the
+ * price-only ones (18.2; "B300 CC" and "A100 40GB" are other models, so never read). */
+const ROWS: Partial<Record<GpuModel, { model: string; name: RegExp }>> = {
+  H100: { model: "H100", name: SXM },
+  H200: { model: "H200", name: SXM },
+  B200: { model: "B200", name: SXM },
+  B300: { model: "B300", name: /^B300 SXM6 / },
+  A100: { model: "A100 80GB", name: /^A100 SXM4 80GB$/ },
+  L40S: { model: "L40S", name: /^L40S 48GB$/ },
+};
 const PRICE = /^\d{1,6}(?:\.\d+)?$/;
 
 interface Row {
@@ -28,10 +38,10 @@ export function extractVerda(body: string, _ctx: ParseContext): Partial<Record<G
   if (typed.length < rows.length * 0.9) throw new LayoutError("instance-type rows lost model, price_per_hour or gpu");
 
   const out: Partial<Record<GpuModel, Cell>> = {};
-  for (const g of Object.keys(NAMES) as GpuModel[]) {
-    const mine = typed.filter((r) => r.model === NAMES[g]);
+  for (const [g, want] of Object.entries(ROWS) as [GpuModel, { model: string; name: RegExp }][]) {
+    const mine = typed.filter((r) => r.model === want.model);
     if (mine.length === 0) {
-      out[g] = { kind: "missing", why: `no instance type with model ${NAMES[g]}` };
+      out[g] = { kind: "missing", why: `no instance type with model ${want.model}` };
       continue;
     }
     const sized: { n: number; cell: Cell }[] = [];
@@ -48,8 +58,8 @@ export function extractVerda(body: string, _ctx: ParseContext): Partial<Record<G
         bad = { kind: "error", code: "layout-changed", why: `${where}: gpu.description does not start with ${n}x` };
         break;
       }
-      if (typeof r.name !== "string" || !/\bSXM\d?\b/.test(r.name)) {
-        bad = { kind: "error", code: "layout-changed", why: `${where}: name does not say SXM` };
+      if (typeof r.name !== "string" || !want.name.test(r.name)) {
+        bad = { kind: "error", code: "layout-changed", why: `${where}: name does not ${want.name === SXM ? "say SXM" : `match ${want.name}`}` };
         break;
       }
       if (r.currency !== "usd") {

@@ -154,7 +154,8 @@ describe.skipIf(!ON)("fork replay of the market e2e (BOTS-SPEC 5.7 item 5)", () 
       expect({ k, value: d.value, status: d.status, finalAt: d.finalAt }).toEqual({ k, value: BigInt(t.value), status: FIX_STATUS[t.status], finalAt: BigInt(t.finalAt) });
       expect({ k, label: dayLabel(d, tEnd) }).toEqual({ k, label: t.isFinal ? "final" : "pending" });
     }
-    expect((await indexer.IndexGpu.getAll()).length).toBe(3);
+    // the fork's index registers six GPUs (fork-demo.json, wall spec 18); the market's forward curves stay three (below)
+    expect((await indexer.IndexGpu.getAll()).length).toBe(6);
   });
 
   it("every Kuru order the books created: status and remaining as s_orders says (a filled order whose slot a later cancel deleted is FILLED here)", async () => {

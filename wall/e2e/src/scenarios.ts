@@ -3,6 +3,7 @@
 // (numbers only); archive runs read the live logger's archive in place through a symlink view. The Oct 3 upgrade
 // scenarios (17.2 Integrate) live in upgrades.ts and run after these.
 import type { ReplayScenario, ScriptedSource } from "@agate/sources/io";
+import { GPUS } from "@agate/sources/pure";
 import { AlertCode } from "@agate/report/types";
 import { archiveView } from "./archive.ts";
 import { ActionKind, ADDR, executeAction, PROFILES, queueAction, ROLE, ZERO } from "./chain.ts";
@@ -16,14 +17,17 @@ export { h100World, haveSandbox, NOV1, OCT1, T0, type Scenario } from "./kit.ts"
 
 // ------------------------------------------------------------------ the base runs
 
+/** Every GPU of the recipe (six since 18: the price-only B300, A100 and L40S beside H100, H200 and B200). */
+const ALL_GPUS = GPUS.map((gpu) => ({ gpu }));
+
 const fastBase: Scenario = {
   name: "fast-base",
-  what: "FAST profile, three GPUs, the archive replayed (finished Oct 1 hours) plus the demo's scripted step (Lambda H100 3.49 from demo day 3); the primary through the CRE path's mock forwarder, the standby direct; watcher, attester, keeper, health, guardian",
+  what: "FAST profile, six GPUs (default.json), the archive replayed (finished Oct 1 hours) plus the demo's scripted step (Lambda H100 3.49 from demo day 3); the primary through the CRE path's mock forwarder, the standby direct; watcher, attester, keeper, health, guardian",
   needsArchive: true,
   run: async () => {
     const view = archiveView((date) => date === "2026-10-01");
     return runWorld(
-      { name: "fast-base", profile: PROFILES.FAST, startTs: T0, epochDay: NOV1, gpus: [{ gpu: "H100" }, { gpu: "H200" }, { gpu: "B200" }], scenario: demoScenario(), rawDir: view.rawDir, primary: { viaForwarder: true }, standby: {}, guardian: GUARD },
+      { name: "fast-base", profile: PROFILES.FAST, startTs: T0, epochDay: NOV1, gpus: ALL_GPUS, scenario: demoScenario(), rawDir: view.rawDir, primary: { viaForwarder: true }, standby: {}, guardian: GUARD },
       (w) => w.dayEnd(relDay(w, 12)) + 30,
       { expectAlerts: [AlertCode.R1_SIGNED], forbidAlerts: [AlertCode.R1_NO_CANDIDATE, AlertCode.HEARTBEAT_LOST, AlertCode.GAS_CAP, AlertCode.NONCE_STUCK, AlertCode.CLOCK_SKEW, AlertCode.RPC_DOWN] },
     );
@@ -32,14 +36,14 @@ const fastBase: Scenario = {
 
 const fastArchiveFull: Scenario = {
   name: "fast-archive-full",
-  what: "FAST, the WHOLE archive (Sep 30 17h to Oct 1): Nebius's dated 'from October 1' block flips its prices as the replay cycles across midnight, several times inside one 12-second slice",
+  what: "FAST, six GPUs, the WHOLE archive (Sep 30 17h to Oct 1): Nebius's dated 'from October 1' block flips its prices (B300's too) as the replay cycles across midnight, several times inside one 12-second slice",
   needsArchive: true,
   run: async () => {
     // pinned to the archive this scenario was written for (Sep 30 17h to Oct 1, its midnight flip); the live archive
     // keeps growing, and later hours hold real intra-day price changes the FAST replay compresses (integration.md)
     const view = archiveView((date) => date <= "2026-10-01");
     return runWorld(
-      { name: "fast-archive-full", profile: PROFILES.FAST, startTs: T0, epochDay: NOV1, gpus: [{ gpu: "H100" }, { gpu: "H200" }, { gpu: "B200" }], scenario: demoScenario(), rawDir: view.rawDir, primary: { viaForwarder: true }, standby: {}, guardian: GUARD },
+      { name: "fast-archive-full", profile: PROFILES.FAST, startTs: T0, epochDay: NOV1, gpus: ALL_GPUS, scenario: demoScenario(), rawDir: view.rawDir, primary: { viaForwarder: true }, standby: {}, guardian: GUARD },
       (w) => w.dayEnd(relDay(w, 8)) + 30,
       {},
     );
@@ -48,12 +52,12 @@ const fastArchiveFull: Scenario = {
 
 const demoBase: Scenario = {
   name: "demo-base",
-  what: "DEMO profile (600 s day, 4 slices), H100 on the finished Oct 1 archive hours plus the scripted step on demo day 3; both writers direct, full watcher, guardian",
+  what: "DEMO profile (600 s day, 4 slices), six GPUs (default.json: six closes a demo day, the launch demo's shape) on the finished Oct 1 archive hours plus the scripted step on demo day 3 (Lambda H100 only); the primary through the CRE path's mock forwarder, the standby direct; full watcher, guardian",
   needsArchive: true,
   run: async () => {
     const view = archiveView((date) => date === "2026-10-01");
     return runWorld(
-      { name: "demo-base", profile: PROFILES.DEMO, startTs: T0, epochDay: NOV1, gpus: [{ gpu: "H100" }], scenario: demoScenario(), rawDir: view.rawDir, primary: { viaForwarder: true }, standby: {}, guardian: GUARD },
+      { name: "demo-base", profile: PROFILES.DEMO, startTs: T0, epochDay: NOV1, gpus: ALL_GPUS, scenario: demoScenario(), rawDir: view.rawDir, primary: { viaForwarder: true }, standby: {}, guardian: GUARD },
       (w) => w.dayEnd(relDay(w, 5)) + 300,
       { expectAlerts: [AlertCode.R1_SIGNED], forbidAlerts: [AlertCode.R1_NO_CANDIDATE, AlertCode.HEARTBEAT_LOST, AlertCode.GAS_CAP, AlertCode.NONCE_STUCK, AlertCode.CLOCK_SKEW] },
     );
@@ -591,7 +595,7 @@ function race(name: string, profile: "DEMO" | "FAST"): Scenario {
 }
 
 /** chaos: every process crashes and is restarted by launchd (rebuilt from its files and the chain), three times a day
- *  at different phases, through a step day with a stolen primary freezing. */
+ *  at different offsets into the day, through a step day with a stolen primary freezing. */
 const restartAll: Scenario = {
   name: "chaos-restart-all",
   what: "TEST: every process (both writers, logger, attester, keeper, health, guardian) crashes and restarts from disk at slices 2, 6 and 11 of every day and right after each day's close, through a +0.60 step on day 3 with a stolen primary freezing from day 2; guardian on",
@@ -647,7 +651,7 @@ const restartAll: Scenario = {
  *  chain (the cost a launchd restart pays after weeks of running). */
 const fastLong: Scenario = {
   name: "fast-long-150d",
-  what: "FAST, 150 index days (one real hour of demo time compressed), three GPUs, archive plus the step; every process restarted at day 140; reports the per-day processing time early and late and the restart's rebuild time",
+  what: "FAST, 150 index days (one real hour of demo time compressed), six GPUs, archive plus the step; every process restarted at day 140; reports the per-day processing time early and late and the restart's rebuild time",
   needsArchive: true,
   run: async () => {
     const view = archiveView((date) => date === "2026-10-01");
@@ -655,7 +659,7 @@ const fastLong: Scenario = {
     let restartMs = 0;
     let restarted = false;
     return runWorld(
-      { name: "fast-long-150d", profile: PROFILES.FAST, startTs: T0, epochDay: NOV1, gpus: [{ gpu: "H100" }, { gpu: "H200" }, { gpu: "B200" }], scenario: demoScenario(), rawDir: view.rawDir, primary: { viaForwarder: true }, standby: {}, guardian: GUARD },
+      { name: "fast-long-150d", profile: PROFILES.FAST, startTs: T0, epochDay: NOV1, gpus: ALL_GPUS, scenario: demoScenario(), rawDir: view.rawDir, primary: { viaForwarder: true }, standby: {}, guardian: GUARD },
       (w) => w.dayEnd(relDay(w, 150)) + 30,
       {
         forbidAlerts: [AlertCode.R1_NO_CANDIDATE, AlertCode.GAS_CAP, AlertCode.NONCE_STUCK, AlertCode.CLOCK_SKEW, AlertCode.RPC_DOWN],

@@ -14,10 +14,14 @@ import { type AlertFn, RpcDownError, RpcError, type RpcPool } from "./rpc.ts";
 
 export type Shape = "postReport" | "closeDay" | "onReport";
 
-/** The contracts' published worst cases (forge test --gas-report --isolate, PRODUCTION clock, 3 GPUs of 15 slots in 15
- * families, two writers): postReport and onReport 3 x 15 on a day's first slice, closeDay with the first writer
- * below quorum (both writers computed). */
-export const MEASURED: Readonly<Record<Shape, bigint>> = { postReport: 512_718n, closeDay: 630_218n, onReport: 518_247n };
+/** The published measured shapes (a value can use a little more: a 6 x 15 report with four-byte prices used +1,152;
+ * the 1.5x limit holds it). Reports (one entry per registered GPU: six, 18.4): a 6 x 15-slot report on a
+ * writer's first slice of a day on anvil. postReport: the receipt's gasUsed (e2e/scripts/gas.ts, PRODUCTION clock).
+ * onReport: the least gas limit at which that report still lands through the CRE simulation forwarder's own code,
+ * rounded up to 1,000 (1,075,276; its try/catch keeps a 64th back, so this is above the receipt's 1,032,119;
+ * test/adversarial/six-entry-sim-forwarder.test.ts). closeDay: forge test --gas-report --isolate, 15 slots in 15
+ * families, the first writer below quorum (both writers computed); a close is per GPU, so six GPUs leave it as is. */
+export const MEASURED: Readonly<Record<Shape, bigint>> = { postReport: 994_276n, closeDay: 630_218n, onReport: 1_076_000n };
 
 const ceil15 = (x: bigint) => (3n * x + 1n) / 2n;
 

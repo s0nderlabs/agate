@@ -52,9 +52,11 @@ import {
   alertSink,
   type Clock,
   directSource,
+  gasLimitFor,
   type IndexChain,
   indexChain,
   makeFetcher,
+  MEASURED,
   PageReader,
   type ReadingSource,
   ReadingLog,
@@ -459,8 +461,9 @@ export class World {
           try {
             const nonce = Number(BigInt((await pool.request("eth_getTransactionCount", [acct.address, "pending"])) as string));
             const gasPrice = BigInt((await pool.request("eth_gasPrice", [])) as string);
-            // writeReport's gas limit: 13.4 with MEASURED onReport (518,247) as the estimate, as the runner sets it
-            const raw = await acct.signTransaction({ chainId: this.a.chainId, type: "eip1559", to: this.dep.forwarder, data, gas: 777_371n, nonce, maxFeePerGas: gasPrice * 2n, maxPriorityFeePerGas: gasPrice });
+            // writeReport's gas limit: 13.4 with MEASURED onReport as the estimate, as the runner sets it (1,614,000)
+            const g = gasLimitFor(MEASURED.onReport, MEASURED.onReport);
+            const raw = await acct.signTransaction({ chainId: this.a.chainId, type: "eip1559", to: this.dep.forwarder, data, gas: g.ok ? g.limit : MEASURED.onReport, nonce, maxFeePerGas: gasPrice * 2n, maxPriorityFeePerGas: gasPrice });
             const hash = (await pool.request("eth_sendRawTransaction", [raw])) as Hex;
             for (let i = 0; i < 50; i++) {
               const rc = (await pool.request("eth_getTransactionReceipt", [hash])) as { status: string } | null;

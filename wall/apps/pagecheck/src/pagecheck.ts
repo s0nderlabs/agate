@@ -160,7 +160,8 @@ export class PageCheck {
     // fetch once per interval, inside [slice/20, 19 slice/20); an interval it did not see is never fetched late
     if (!this.fetched.has(kNow) && (this.lastComparedK === null || kNow > this.lastComparedK) && now >= start + this.c.slice / 20 && now < start + (19 * this.c.slice) / 20) {
       const gpus = [...new Set(this.pairs.map((p) => p.gpu))];
-      const needGt = (t: IntervalTrackers) => this.pairs.some((p) => !geUsable(t, p.sourceId, p.gpu).use);
+      // a pair GPUTable never serves (gtNever) is no reason to fetch it
+      const needGt = (t: IntervalTrackers) => this.pairs.some((p) => !geUsable(t, p.sourceId, p.gpu).use && !TRACKER_MAP[p.sourceId]?.gtNever?.includes(p.gpu));
       const timeoutMs = Math.min(40, this.c.slice / 10) * 1000;
       const r = await fetchInterval({ fetch: this.o.fetch, timeoutMs, ...(this.o.trackerBaseUrl ? { base: this.o.trackerBaseUrl } : {}), rawDir: this.rawDir, now: this.o.now, retryMs: this.o.retryMs ?? 5_000 }, kNow, start, gpus, needGt);
       this.fetched.set(kNow, r.t);

@@ -11,11 +11,11 @@
 // Oct 3 (7.9): a slot whose reader was swapped still fetches /<sourceId> (the reader decides only the parser); a page
 // step "redesigned" renders the scripted prices in a second synthetic layout every "/1" parser reads as NO_ROW; the
 // page check's trackers: /t_gputable (the archived t_gputable.all.gz of the mapped hour, or a scripted body) and
-// /t_gpu_economy/<h100-sxm|h200|b200> (scripted only, else 404: the logger keeps no GPU Economy data files). Fix round:
-// the archived GPUTable file follows the scripted price steps (the mapped provider's on-demand rows of that GPU).
+// /t_gpu_economy/<file> (one of GPU_ECONOMY_FILES; scripted only, else 404: the logger keeps no GPU Economy data
+// files). The archived GPUTable file follows the scripted price steps (the mapped provider's on-demand rows of that GPU).
 import type { GpuModel } from "@agate/report/types";
 import { parse, reasonOf } from "../pure/parse.ts";
-import { ECB, SOURCES } from "../pure/recipe.ts";
+import { ECB, GPUS, SOURCES } from "../pure/recipe.ts";
 import { renderEcb, renderPage, type SynthGpu, type SynthPage } from "../synthetic.ts";
 import type { FxRate } from "../types.ts";
 import { type ArchiveHour, listHours, pageTimeOf, rawDir, readArchived } from "./archive.ts";
@@ -40,10 +40,12 @@ export interface PageStep {
 /** GPUTable's provider name per sourceId and its GPU names (15.1's table; the page check's TRACKER_MAP agrees, a
  *  pagecheck test pins it). */
 export const GPUTABLE_PROVIDER: Readonly<Record<string, string>> = { p_verda: "Verda", p_nebius: "Nebius", p_lambda: "Lambda Labs", p_coreweave: "CoreWeave", p_civo: "Civo", p_hyperstack: "Hyperstack" };
-export const GPUTABLE_GPU: Readonly<Record<GpuModel, string>> = { H100: "H100 SXM", H200: "H200", B200: "B200" };
-/** GPU Economy's per-GPU data files, by the path segment the page check fetches. */
-export const GPU_ECONOMY_FILES = ["h100-sxm", "h200", "b200"] as const;
-export type GpuEconomyFile = (typeof GPU_ECONOMY_FILES)[number];
+export const GPUTABLE_GPU: Readonly<Record<GpuModel, string>> = { H100: "H100 SXM", H200: "H200", B200: "B200", B300: "B300", A100: "A100 SXM", L40S: "L40S" };
+/** GPU Economy's per-GPU data file, by the path segment the page check fetches (18.4: b300, a100-80, l40s). */
+export const GPU_ECONOMY_FILE = { H100: "h100-sxm", H200: "h200", B200: "b200", B300: "b300", A100: "a100-80", L40S: "l40s" } as const satisfies Record<GpuModel, string>;
+export type GpuEconomyFile = (typeof GPU_ECONOMY_FILE)[GpuModel];
+/** Every GPU's file, in GPUS order. */
+export const GPU_ECONOMY_FILES: readonly GpuEconomyFile[] = GPUS.map((g) => GPU_ECONOMY_FILE[g]);
 /** A tracker file from a step on: a JSON body in the tracker's own field names (synthetic numbers only), or an HTTP
  * status (a tracker outage). */
 export interface TrackerStep {
@@ -272,7 +274,7 @@ export class Replay {
   }
 
   /** The archived GPUTable file with every scripted price step in force applied to the mapped provider's on-demand
-   *  rows of that GPU (fix round, audit M2): a scripted page step is a price change the trackers show too, so the
+   *  rows of that GPU (7.9 item 4): a scripted page step is a price change the trackers show too, so the
    *  demo's step raises no false "likely parser fault". The real-calendar index never reads the replay. */
   followScriptedPrices(archived: string, day: number, slice: number): string {
     const changes: { provider: string; gpu: string; price: number }[] = [];

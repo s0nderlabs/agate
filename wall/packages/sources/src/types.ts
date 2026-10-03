@@ -14,7 +14,7 @@ export type RowState = Extract<ReadState, "VALID" | "NOT_RENTABLE" | "NO_ROW" | 
 /** The extraction rule of one source for one GPU. Every field enters recipeHash. */
 export interface ExtractionRule {
   product: string; // the exact row as named on the page, e.g. "NVIDIA H100 SXM"
-  form: "SXM" | "NVLink"; // never PCIe or NVL variants
+  form: "SXM" | "NVLink" | "PCIe"; // the GPU's own form (FORM_OF): PCIe only for L40S; never NVL variants
   priceClass: "on-demand"; // never spot, preemptible, community, reserved, commitment, serverless, marketplace
   instance: "per-GPU of the 8-GPU instance, else of the 1-GPU instance";
   rentable: "page-shows-availability" | "assumed-rentable"; // the latter: the page shows no stock state

@@ -68,7 +68,7 @@ describe("the runtime project folder and the invocation", () => {
   test("prepareRuntime: workflow.yaml and main.ts copied, cfg.json written, project.yaml follows the CLI's key-free URL", () => {
     const dir = join(mkdtempSync(join(tmpdir(), `agate-cre-${"long-home-path-".repeat(5)}`)), "primary/cre/5fbdb231");
     expect(dir.length).toBeGreaterThan(CONFIG_PATH_MAX); // the old absolute --config would have been refused here
-    const cfg = workflowConfig({ index: "0x5FbDB2315678afecb367f032d93F642f64180aa3", chainSelector: 1n, gasLimit: 777_371n, clock: clockOf({ day: 600, slices: 4, epochTs: 5, epochDay: 20_758 }), panels: [] });
+    const cfg = workflowConfig({ index: "0x5FbDB2315678afecb367f032d93F642f64180aa3", chainSelector: 1n, gasLimit: creGasLimit(), clock: clockOf({ day: 600, slices: 4, epochTs: 5, epochDay: 20_758 }), panels: [] });
     const rt = prepareRuntime({ dir, workflowDir: WORKFLOW, target: "local-simulation", chainName: "monad-testnet", config: cfg });
     expect(readFileSync(join(dir, "workflow.yaml"), "utf8")).toBe(readFileSync(join(WORKFLOW, "workflow.yaml"), "utf8"));
     expect(readFileSync(join(dir, "main.ts"), "utf8")).toContain("Runner.newRunner");
@@ -83,9 +83,9 @@ describe("the runtime project folder and the invocation", () => {
     expect(() => projectYaml("local-simulation", "monad-testnet", 'http://x"\ny')).toThrow();
   });
 
-  test("workflow config carries the index clock; HTTP timeout under CRE's 10 s cap; writeReport gas = ceil(1.5 x 518,247)", () => {
+  test("workflow config carries the index clock; HTTP timeout under CRE's 10 s cap; writeReport gas = ceil(1.5 x 1,076,000) (six entries of 15 slots, through the CRE simulation forwarder)", () => {
     const prod = workflowConfig({ index: "0x5FbDB2315678afecb367f032d93F642f64180aa3", chainSelector: 2183018362218727504n, gasLimit: creGasLimit(), clock: clockOf({ day: 86_400, slices: 24, epochTs: 0, epochDay: 0 }), panels: [] });
-    expect(prod).toMatchObject({ chainSelector: "2183018362218727504", gasLimit: "777371", timeout: "10s", role: "primary" });
+    expect(prod).toMatchObject({ chainSelector: "2183018362218727504", gasLimit: "1614000", timeout: "10s", role: "primary" });
     expect(prod.clock).toEqual({ day: 86_400, slices: 24, epochTs: 0, epochDay: 0, signAll: false });
     const fast = workflowConfig({ index: "0x5FbDB2315678afecb367f032d93F642f64180aa3", chainSelector: 1n, gasLimit: 1n, clock: clockOf({ day: 24, slices: 2, epochTs: 5, epochDay: 20_758, signAll: true }), panels: [] });
     expect(clockOf(fast.clock).tPend).toBe(6); // the workflow can derive a FAST clock (it throws without signAll)

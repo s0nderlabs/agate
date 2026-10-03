@@ -1,5 +1,6 @@
 // BUILD-SPEC 15.1 tests. Synthetic tracker JSON in the trackers' field names; never a copy of a tracker file.
 import { afterAll, describe, expect, test } from "bun:test";
+import type { Panel } from "@agate/sources/types";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pruneRaw, rawFile } from "../src/fetch.ts";
@@ -27,9 +28,9 @@ describe("row selection (15.1)", () => {
   );
   test("provider map, on_demand and live only", () => {
     if (!ge.ok) throw new Error("parse");
-    expect(geRowsFor(ge, "p_lambda").map((r) => r.valueU)).toEqual([U(3.99), U(4.29)]);
-    expect(geRowsFor(ge, "p_civo").map((r) => r.valueU)).toEqual([U(2.99)]);
-    expect(geRowsFor(ge, "p_seeweb")).toEqual([]); // no mapping: never compared
+    expect(geRowsFor(ge, "p_lambda", "H100").map((r) => r.valueU)).toEqual([U(3.99), U(4.29)]);
+    expect(geRowsFor(ge, "p_civo", "H100").map((r) => r.valueU)).toEqual([U(2.99)]);
+    expect(geRowsFor(ge, "p_seeweb", "H100")).toEqual([]); // no mapping: never compared
     expect(ge.rows.some((r) => r.providerId === "vast-ai")).toBe(false); // providers not in the map are ignored
   });
   test("8-GPU rows first, then 1-GPU, then all; the nearest to our value", () => {
@@ -71,6 +72,29 @@ describe("exclusions and skips (15.1, 7.1)", () => {
     expect(trackerFor(t, "p_hyperstack", "H200", U(3.99))!.valueU).toBe(U(3.99));
     if (!gt.ok) throw new Error("parse");
     expect(gt.rows.some((r) => /together/i.test(r.provider))).toBe(false);
+  });
+  test("Hyperstack A100: never compared, in either tracker (both list its PCIe card at $1.35 for our SXM row)", () => {
+    const ge = parseGpuEconomy(geFile(CLOCK.epochTs, [geRow("hyperstack", 1.35, { gpu_count: 1 }), geRow("datacrunch", 1.7975)]));
+    const gt = parseGpuTable(gtFile([gtRow("Hyperstack", "A100 SXM", 1.35, { gpu_count: 1 }), gtRow("Hyperstack", "B300", 7.4, { gpu_count: 1 }), gtRow("Verda", "A100 SXM", 1.7975)]));
+    const both: IntervalTrackers = { at: CLOCK.epochTs, ge: { A100: ge }, gt };
+    expect(trackerFor(both, "p_hyperstack", "A100", U(1.6))).toBeNull(); // GPU Economy has no usable row: the fallback has none either
+    expect(trackerFor({ at: CLOCK.epochTs, ge: {}, gt }, "p_hyperstack", "A100", U(1.6))).toBeNull(); // GPUTable alone
+    expect(trackerFor({ at: CLOCK.epochTs, ge: { A100: ge } }, "p_hyperstack", "A100", U(1.6))).toBeNull(); // GPU Economy alone
+    if (!ge.ok) throw new Error("parse");
+    expect(geRowsFor(ge, "p_hyperstack", "A100")).toEqual([]);
+    expect(geRowsFor(ge, "p_hyperstack", "B300").map((r) => r.valueU)).toEqual([U(1.35)]); // the exclusion is A100 only
+    // the other A100 pairs and Hyperstack's other GPUs are still compared
+    expect(trackerFor(both, "p_verda", "A100", U(1.8))).toMatchObject({ tracker: "gpueconomy", valueU: U(1.7975) });
+    expect(trackerFor({ at: CLOCK.epochTs, ge: {}, gt }, "p_verda", "A100", U(1.8))).toMatchObject({ tracker: "gputable", valueU: U(1.7975) });
+    expect(trackerFor({ at: CLOCK.epochTs, ge: {}, gt }, "p_hyperstack", "B300", U(7.4))).toMatchObject({ tracker: "gputable", valueU: U(7.4) });
+  });
+  test("the new GPUs' tracker names: GPU Economy files b300, a100-80, l40s; GPUTable B300, A100 SXM, L40S", () => {
+    const gt = parseGpuTable(gtFile([gtRow("Civo", "L40S", 1.29), gtRow("Lambda Labs", "A100 SXM", 2.79), gtRow("Lambda Labs", "A100 PCIe", 1.29), gtRow("Nebius", "B300", 9.5)]));
+    const t: IntervalTrackers = { at: CLOCK.epochTs, ge: {}, gt };
+    expect(trackerFor(t, "p_civo", "L40S", U(1.29))!.valueU).toBe(U(1.29));
+    expect(trackerFor(t, "p_lambda", "A100", U(2.79))!.valueU).toBe(U(2.79)); // never its PCIe row
+    expect(trackerFor(t, "p_nebius", "B300", U(9.5))!.valueU).toBe(U(9.5));
+    expect(rawFile("/r", "2026-10-03", 7, "gpueconomy", "A100")).toBe("/r/2026-10-03/7/gpueconomy.a100-80.gz");
   });
   test("Runpod, Runpod Community and Crusoe rows are skipped by provider name before any other field", () => {
     expect(forbiddenProvider("Runpod")).toBe(true);
@@ -152,7 +176,7 @@ describe("runs and alerts", () => {
     const fault = alerts.open().find((a) => a.code === "PAGECHECK_FAULT")!;
     expect(fault.severity).toBe("action");
     expect(fault.deadline).toBeUndefined();
-    expect(fault.message).toMatch(/the gpueconomy row was last confirmed [\d.]+ h before this reading|row age unknown/); // fix round L3
+    expect(fault.message).toMatch(/the gpueconomy row was last confirmed [\d.]+ h before this reading|row age unknown/); // row freshness (15.1)
     expect(alerts.all().filter((a) => a.code === "PAGECHECK_REVIEW").length).toBe(1); // raised once, never rewritten
     const st = readStatus(statusPath(home, INDEX))!;
     const p = st.pairs.find((x) => x.sourceId === "p_lambda")!;
@@ -262,7 +286,7 @@ describe("fallback to GPUTable, per pair (15.1)", () => {
     const l = JSON.parse(readFileSync(join(pc.dir, "compare.jsonl"), "utf8").trim()) as CompareLine;
     expect([l.tracker, l.fallback, l.gap]).toEqual(["gputable", "stale", false]);
   });
-  test("fix round (audit L3): a row whose last_confirmed_at is older than 26 h inside a fresh file is no row: GPUTable for that pair", async () => {
+  test("row freshness (15.1): a row whose last_confirmed_at is older than 26 h inside a fresh file is no row: GPUTable for that pair", async () => {
     const home = tmpHome();
     const stuck = geRow("lambda", 3.0, { last_confirmed_at: iso(CLOCK.epochTs - 27 * 3_600) });
     const f = scripted({ current: (u) => (u.endsWith("data.json") ? gt() : u.includes("h100-sxm") ? ok(geFile(CLOCK.epochTs, [stuck])) : undefined) });
@@ -299,6 +323,19 @@ describe("fallback to GPUTable, per pair (15.1)", () => {
     await c2.step(0);
     expect(g.urls.filter((u) => u.endsWith("data.json")).length).toBe(0);
     expect(g.urls.length).toBe(2);
+  });
+  test("a pair no tracker may serve (Hyperstack A100) never makes the page check fetch GPUTable", async () => {
+    const launch = JSON.parse(readFileSync(join(import.meta.dir, "..", "..", "..", "packages", "sources", "panels", "launch.json"), "utf8")) as { panels: Panel[] };
+    const a100 = launch.panels.find((p) => p.gpu === "A100")!;
+    expect(a100.slots.map((s) => s.sourceId)).toContain("p_hyperstack");
+    // GPU Economy's A100 file serves every other A100 source; its Hyperstack row is the PCIe card, excluded
+    const g = scripted({ current: (u) => (u.endsWith("data.json") ? gt() : u.includes("a100-80") ? ok(geFile(CLOCK.epochTs, [geRow("datacrunch", 1.8), geRow("lambda", 2.79), geRow("coreweave", 2.7), geRow("hyperstack", 1.35)])) : undefined) });
+    const h = tmpHome();
+    const c = makeCheck(h, g.fetch, { panels: [a100] });
+    writeLine(h, "p_lambda", 0, { A100: U(2.79) });
+    await c.step(0);
+    expect(g.urls.filter((u) => u.endsWith("data.json")).length).toBe(0);
+    expect(g.urls.filter((u) => u.includes("a100-80")).length).toBe(1);
   });
   test("Hyperstack H100 is never compared through GPUTable", async () => {
     const home = tmpHome();

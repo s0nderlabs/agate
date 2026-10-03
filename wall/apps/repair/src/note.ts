@@ -93,7 +93,7 @@ export function commandsText(o: { home: string; repo: string; draft: { id: strin
   } else {
     L.push(`3  install  cd ${shq(`${o.repo}/wall`)} && bun run apps/repair/src/cli.ts install ${o.draft.id}`);
     L.push(`4  test     cd ${shq(`${o.repo}/wall`)} && bun test ${unsandboxedPaths()}`);
-    L.push(`${pad}(unsandboxed, the draft loaded: they open a local server or start tsc), then commit the reviewed draft`);
+    L.push(`${pad}(unsandboxed, the draft loaded: they open a local server or start a program), then commit the reviewed draft`);
     L.push(`5  restart  the readers of every served index: copy the committed wall/ to the launchd app copy (13.2), then restart the primary`);
     L.push(`${pad}(its runner recompiles the CRE workflow at start; a prebuilt AGATE_CRE_WASM must be rebuilt first), the standby`);
     L.push(`${pad}and the watcher logger: launchctl kickstart -k gui/$(id -u)/<each label>`);

@@ -1,7 +1,7 @@
 // What a run is judged on (BUILD-SPEC 12.6 pass conditions): every day final within LAG_MAX, every final fix equal
-// to the honest reference recomputed from what the replayed pages truly showed at each honest reading's second, no
-// veto or suspension of an honest writer, the expected alerts raised, and the honest writers' posted values equal to
-// the pages. The reference is independent of what the writers posted: only the honest writers' read seconds are
+// to the honest reference recomputed from what the replayed pages truly showed at each honest reading's fetch second,
+// no veto or suspension of an honest writer, the expected alerts raised, and the honest writers' posted values equal
+// to the pages. The reference is independent of what the writers posted: only the honest writers' read seconds are
 // taken from the chain.
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -127,6 +127,10 @@ export async function judge(w: World, o: JudgeOptions = {}): Promise<RunReport> 
   let maxLag = 0;
   let maxLagChained = 0;
   const weak = 2 * (c.keeperPeriod + c.slice + Math.max(c.guardAct, c.tPend)) > c.day; // DEMO and FAST (6.6 (vi))
+  // an honest writer fetches its pages at its tick second and posts readAt = that second minus min(2, slice / 20)
+  // (writer-standby readAtFor, 8.1); the archive replay turns an archive hour every 25 s on the DEMO clock, so the
+  // page it saw is the one at readAt + that lag, not at readAt
+  const fetchLag = Math.min(2, Math.floor(c.slice / 20));
 
   for (const p of w.panels) {
     const g = p.gpuId;
@@ -189,7 +193,7 @@ export async function judge(w: World, o: JudgeOptions = {}): Promise<RunReport> 
         break;
       }
       prevFinalAt = finalAt!;
-      // the honest reference: each honest writer's record from the TRUE page values at its read seconds
+      // the honest reference: each honest writer's record from the TRUE page values at its fetch seconds
       const refs: { w: string; value: number; digest: Hex; quorate: boolean; post: SlotState[] }[] = [];
       for (const hw of honestAddr) {
         if (o.honestOn && !o.honestOn(roleOf(hw) as "primary" | "standby", d)) continue;
@@ -207,12 +211,12 @@ export async function judge(w: World, o: JudgeOptions = {}): Promise<RunReport> 
           bits += 2 ** e.slice;
           late ||= e.late;
           for (let i = 0; i < n; i++) {
-            const tv = w.truth.value(p.sources[i]!, p.gpu, e.readAt, roleOf(hw));
+            const tv = w.truth.value(p.sources[i]!, p.gpu, e.readAt + fetchLag, roleOf(hw));
             if (tv > 0) {
               sums[i] += tv;
               counts[i] += 1;
             }
-            if ((e.values[i] ?? 0) !== tv) readFails.push(`${p.gpu} ${d}/${e.slice} ${roleOf(hw)} slot ${i} (${p.sources[i]}): posted ${e.values[i]} page ${tv} at ${e.readAt}`);
+            if ((e.values[i] ?? 0) !== tv) readFails.push(`${p.gpu} ${d}/${e.slice} ${roleOf(hw)} slot ${i} (${p.sources[i]}): posted ${e.values[i]} page ${tv} at ${e.readAt + fetchLag} (readAt ${e.readAt})`);
           }
         }
         const R = computeRecord({
@@ -270,7 +274,7 @@ export async function judge(w: World, o: JudgeOptions = {}): Promise<RunReport> 
   const label = weak ? `the weak form of 6.6 (vi): within B = ${c.lagBound} s of the later of its end and the previous day's finality` : `LAG_MAX = ${c.lagMax} s`;
   if (!o.l1b) checks.push({ name: "L1 lag", ok: lagFails.length === 0, detail: lagFails.length ? lagFails.slice(0, 12).join("; ") : `every day final within ${label}; max lag ${maxLag} s${weak ? `, max chained lag ${maxLagChained} s` : ""}` });
   checks.push({ name: "fixes = honest reference", ok: refFails.length === 0, detail: refFails.length ? refFails.slice(0, 12).join("; ") : `${days.filter((x) => x.final && x.status !== "CARRIED").length} computed final days, all equal to an honest writer's record from the true pages` });
-  checks.push({ name: "honest reads = pages", ok: readFails.length === 0, detail: readFails.length ? `${readFails.length}: ${readFails.slice(0, 6).join("; ")}` : "every value an honest writer posted equals what its page showed at its read second" });
+  checks.push({ name: "honest reads = pages", ok: readFails.length === 0, detail: readFails.length ? `${readFails.length}: ${readFails.slice(0, 6).join("; ")}` : "every value an honest writer posted equals what its page showed at its fetch second" });
   const vetoes = ev.filter((e): e is Extract<WallEvent, { name: "Vetoed" }> => e.name === "Vetoed");
   const honestVeto = vetoes.filter((e) => !thiefAddr.includes(lc(e.source)));
   checks.push({ name: "no honest veto", ok: honestVeto.length === 0, detail: `${vetoes.length} veto(es), ${honestVeto.length} of an honest writer${vetoes.length ? `: ${vetoes.map((e) => `${e.day} ${roleOf(e.source)}`).join(", ")}` : ""}` });

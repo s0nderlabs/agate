@@ -1,6 +1,8 @@
 // Re-parses the logger's archived hours (Sep 30 17 UTC onwards) and writes the per-hour values per source and GPU as
 // a numbers-only fixture (BUILD-SPEC 7.7), for the watcher's tests and the e2e replay. Never writes page content.
-//   bun run scripts/archive-values.ts [--out test/fixtures/archive-values.json]
+//   bun run scripts/archive-values.ts [--to 2026-10-03T08] [--out test/fixtures/archive-values.json]
+// --to keeps the hours up to that UTC hour (inclusive), so the fixture stays reproducible while the archive grows; the
+// committed fixture covers 2026-09-30T17 to 2026-10-03T08 (64 hours, the hours the price-only GPU research read).
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { archivePresent, rawDir } from "../src/io/archive.ts";
@@ -12,7 +14,10 @@ if (!archivePresent()) {
   console.error(`no archive at ${rawDir()} (set AGATE_RAW_DIR)`);
   process.exit(1);
 }
-const hours = archiveValues().filter((h) => h.hour >= "2026-09-30T17");
+const t = process.argv.indexOf("--to");
+const to = t > 0 ? (process.argv[t + 1] ?? "") : undefined;
+if (to !== undefined && !/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(to)) throw new Error("--to takes a UTC hour, e.g. 2026-10-03T08");
+const hours = archiveValues().filter((h) => h.hour >= "2026-09-30T17" && (to === undefined || h.hour <= to));
 const doc = {
   note: "Numbers only: per archived hour, per source and GPU, the parsed state (s) and valueU (v, 10^-6 USD per GPU-hour). pageTime: the logger's fetch time (unix s). fx: the ECB rate the FX rule picked for that hour's date.",
   generatedBy: "wall/packages/sources/scripts/archive-values.ts",

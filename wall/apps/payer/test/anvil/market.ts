@@ -43,17 +43,25 @@ export function finalAt(w: { epochTs: bigint }, day: number): bigint {
   return dayStart(w, day) + DAY + 360n;
 }
 
-export async function buildMarket(c: Chain, o: { deployer: Hex; epochTs: bigint; dir: string; kuruRouter?: Address; marginAccount?: Address }): Promise<MarketWorld> {
+/** The gpuIds of the wall's six GPUs (keccak256 of each spec; the price-only three have no market, spec 18). */
+export const B200 = keccak256(toBytes("B200-SXM/on-demand-list/neocloud/v1"));
+export const B300 = keccak256(toBytes("B300-SXM/on-demand-list/neocloud/v1"));
+export const A100 = keccak256(toBytes("A100-SXM/on-demand-list/neocloud/v1"));
+export const L40S = keccak256(toBytes("L40S-PCIe/on-demand-list/neocloud/v1"));
+
+/** indexGpus: the GPUs the index registers (default H100, H200); factoryGpus: the factory's own (default the same two). */
+export async function buildMarket(c: Chain, o: { deployer: Hex; epochTs: bigint; dir: string; kuruRouter?: Address; marginAccount?: Address; indexGpus?: Hex[]; factoryGpus?: { id: Hex; label: string }[] }): Promise<MarketWorld> {
   const d = o.deployer;
   const me = privateKeyToAccount(d).address;
   const startBlock = await c.pub.getBlockNumber({ cacheTime: 0 });
   const mi = await artifact("MockIndex");
   const index = await deploy(c, d, mi, [Number(DAY), o.epochTs, EPOCH_DAY]);
-  for (const g of [H100, H200]) await tx(c, d, index, mi.abi, "register", [g, keccak256(g)]);
+  for (const g of o.indexGpus ?? [H100, H200]) await tx(c, d, index, mi.abi, "register", [g, keccak256(g)]);
   const dollar = await deploy(c, d, await artifact("AgateDollar"), [me, 10_000n * U, 86_400n]);
   const book = await artifact("MockKuruOrderBook");
   const kuruRouter = o.kuruRouter ?? (await deploy(c, d, await artifact("MockKuruRouter")));
-  const factory = await deploy(c, d, await artifact("AgateFactory"), [index, dollar, kuruRouter, [H100, H200], ["H100", "H200"], me, "demo", 0n, 0n]);
+  const fg = o.factoryGpus ?? [{ id: H100, label: "H100" }, { id: H200, label: "H200" }];
+  const factory = await deploy(c, d, await artifact("AgateFactory"), [index, dollar, kuruRouter, fg.map((g) => g.id), fg.map((g) => g.label), me, "demo", 0n, 0n]);
   const router = await read<Address>(c, factory, agateFactoryAbi as Abi, "router");
   const depFile = join(o.dir, "deployments.json");
   writeFileSync(

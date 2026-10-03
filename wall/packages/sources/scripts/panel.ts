@@ -1,24 +1,23 @@
 // The panel tool (BUILD-SPEC 7.2, 7.6, 14.1 items 3 to 5): picks each GPU's slots from the recipe, the measured page
 // sizes and the archive's VALID hours, and prints the writers' panel JSON and the deploy entries for registerGpu.
-//   bun run scripts/panel.ts [--include-eur] [--include-over-cap] [--reserve H200=p_civo] [--no-archive]
+//   bun run scripts/panel.ts [--include-eur] [--include-over-cap] [--reserve H200=p_civo] (any GPU of GPUS) [--no-archive]
 //     [--from 2026-09-30T17] [--to 2026-10-02T17] [--out file]
 // Prints a summary on stderr and {panels, deploy, choices} as JSON on stdout (or into --out). --from and --to keep only
 // the archived hours inside that range (UTC, inclusive), so a panel stays reproducible while the archive grows.
 // The launch panel (BUILD-SPEC 7.10): --include-over-cap --from 2026-09-30T17 --to 2026-10-02T17 --out panels/launch.json
+// The flagless panel (18.3): --from 2026-09-30T17 --to 2026-10-02T17 --out panels/default.json
 import { writeFileSync } from "node:fs";
-import type { GpuModel } from "@agate/report/types";
 import { archivePresent, rawDir } from "../src/io/archive.ts";
 import { archiveValues, statsOf } from "../src/io/archiveValues.ts";
-import { buildPanel, type PanelFlags } from "../src/panelTool.ts";
+import { buildPanel, type PanelFlags, reserveArg } from "../src/panelTool.ts";
 import { GPUS } from "../src/pure/recipe.ts";
 
 const args = process.argv.slice(2);
 const flags: PanelFlags = { includeEur: args.includes("--include-eur"), includeOverCap: args.includes("--include-over-cap"), reserve: {} };
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--reserve") {
-    const m = /^(H100|H200|B200)=(p_[a-z]+)$/.exec(args[++i] ?? "");
-    if (!m) throw new Error("--reserve takes GPU=sourceId, e.g. H200=p_civo");
-    flags.reserve![m[1] as GpuModel] = m[2]!;
+    const [gpu, sourceId] = reserveArg(args[++i] ?? "");
+    flags.reserve![gpu] = sourceId;
   }
 }
 const outAt = args.indexOf("--out");

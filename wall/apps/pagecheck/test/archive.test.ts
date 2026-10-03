@@ -6,8 +6,8 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { GpuModel } from "@agate/report/types";
-import { parse } from "@agate/sources/pure";
+import type { GpuModel, Hex } from "@agate/report/types";
+import { GPUS, parse } from "@agate/sources/pure";
 import type { Panel } from "@agate/sources/types";
 import { GE_FILE, gapBps, type IntervalTrackers, isGap, parseGpuEconomy, parseGpuTable, TRACKER_MAP, trackerFor } from "../src/trackers.ts";
 import { cleanup, H100_ID, makeCheck, ok, scripted, tmpHome, writeLine } from "./helpers.ts";
@@ -16,9 +16,13 @@ afterAll(cleanup);
 
 const RAW = process.env.AGATE_RAW_DIR || join(homedir(), ".agate-index-logger", "data", "raw");
 const HAVE = existsSync(join(RAW, "2026-09-30", "17", "t_gputable.all.gz")) && existsSync(join(RAW, "2026-10-02", "12", "t_gputable.all.gz"));
-const GPUS: GpuModel[] = ["H100", "H200", "B200"];
+/** The first three GPUs; the price-only ones (18.1) are pinned on their own below. */
+const OLD: readonly GpuModel[] = ["H100", "H200", "B200"];
+const NEW: readonly GpuModel[] = ["B300", "A100", "L40S"];
 /** The window checked by hand on Oct 3 (n = 51 hours); later hours are read but not pinned. */
 const LAST_PINNED = "2026-10-02T18";
+/** The price-only GPUs' window, checked against the research's own reader (n = 64 hours, Sep 30 17 to Oct 3 08 UTC). */
+const NEW_LAST_PINNED = "2026-10-03T08";
 
 interface Hour {
   key: string;
@@ -58,7 +62,8 @@ describe.skipIf(!HAVE)("archive backtest (GPUTable fallback)", () => {
         if (row) compared.push({ key: h.key, sid, g, own, t: row.valueU, gap: isGap(own, row.valueU) });
       }
   }
-  const pinned = compared.filter((c) => c.key <= LAST_PINNED);
+  const pinned = compared.filter((c) => c.key <= LAST_PINNED && OLD.includes(c.g));
+  const newPinned = compared.filter((c) => c.key <= NEW_LAST_PINNED && NEW.includes(c.g));
 
   test("hand-checked tracker values (three hours)", () => {
     const at = (key: string, sid: string, g: GpuModel) => pinned.find((c) => c.key === key && c.sid === sid && c.g === g)?.t;
@@ -90,6 +95,42 @@ describe.skipIf(!HAVE)("archive backtest (GPUTable fallback)", () => {
     expect(pinned.length).toBeGreaterThan(700);
   });
 
+  test("the price-only GPUs: hand-checked tracker values (three hours)", () => {
+    const at = (key: string, sid: string, g: GpuModel) => newPinned.find((c) => c.key === key && c.sid === sid && c.g === g)?.t;
+    // Oct 2 12 UTC: GPUTable's per-GPU on-demand rows, 8x where listed
+    expect(at("2026-10-02T12", "p_verda", "B300")).toBe(8_707_500);
+    expect(at("2026-10-02T12", "p_verda", "A100")).toBe(1_787_500);
+    expect(at("2026-10-02T12", "p_lambda", "A100")).toBe(2_790_000);
+    expect(at("2026-10-02T12", "p_coreweave", "L40S")).toBe(2_250_000);
+    expect(at("2026-10-02T12", "p_civo", "L40S")).toBe(1_290_000);
+    expect(at("2026-10-02T12", "p_hyperstack", "B300")).toBe(7_400_000); // its 1x row (no 8x listed)
+    // Sep 30 17 UTC: GPUTable already lists Nebius's Oct 1 B300 price, as for its other GPUs
+    expect(at("2026-09-30T17", "p_nebius", "B300")).toBe(9_500_000);
+    expect(at("2026-09-30T17", "p_verda", "L40S")).toBe(1_542_500);
+    // Oct 3 08 UTC: after Verda's Oct 2 18 UTC step
+    expect(at("2026-10-03T08", "p_verda", "B300")).toBe(8_795_000);
+    expect(at("2026-10-03T08", "p_coreweave", "A100")).toBe(2_700_000);
+  });
+
+  test("Hyperstack A100 is never compared through GPUTable (its PCIe card at $1.35 for our SXM row: 64 of 64 false alarms)", () => {
+    expect(hs.length).toBeGreaterThanOrEqual(64);
+    expect(compared.some((c) => c.sid === "p_hyperstack" && c.g === "A100")).toBe(false);
+    // the exclusion is that pair only: Hyperstack's B300 and every other cloud's A100 are compared every hour
+    const hours = (sid: string, g: GpuModel) => newPinned.filter((c) => c.sid === sid && c.g === g).length;
+    expect(hours("p_hyperstack", "B300")).toBe(64);
+    for (const sid of ["p_verda", "p_lambda", "p_coreweave"]) expect(hours(sid, "A100")).toBe(64);
+  });
+
+  test("the price-only pairs over 64 hours: no gap but Nebius B300's 7 early hours (GPUTable's lead, as for the first three)", () => {
+    const pairs = new Set(newPinned.map((c) => `${c.sid}:${c.g}`));
+    // nine pairs with a rule and a GPUTable row; Civo B300 has no GPUTable row (no compare, not an alarm)
+    expect(pairs).toEqual(new Set(["p_verda:B300", "p_nebius:B300", "p_hyperstack:B300", "p_verda:A100", "p_lambda:A100", "p_coreweave:A100", "p_verda:L40S", "p_coreweave:L40S", "p_civo:L40S"]));
+    expect(newPinned.length).toBe(9 * 64);
+    const gaps = newPinned.filter((c) => c.gap);
+    expect(gaps.map((c) => `${c.sid}:${c.g}`)).toEqual(Array(7).fill("p_nebius:B300"));
+    expect(gaps.map((c) => c.key)).toEqual(["17", "18", "19", "20", "21", "22", "23"].map((h) => `2026-09-30T${h}`));
+  });
+
   test("driven through the page check on a PRODUCTION clock: Nebius raises REVIEW, clears at 00 UTC, never FAULT", async () => {
     const home = tmpHome();
     const byT = new Map(hs.map((h) => [h.t, h]));
@@ -116,6 +157,36 @@ describe.skipIf(!HAVE)("archive backtest (GPUTable fallback)", () => {
     const pinnedReviews = reviews.filter((r) => r.slice(0, 13) <= LAST_PINNED);
     expect(pinnedReviews).toEqual(["17", "18", "19", "20", "21", "22", "23"].map((x) => `2026-09-30T${x}:${nebSlot}`));
   });
+
+  test("the price-only GPUs driven through the page check (PRODUCTION clock): only Nebius B300's early hours raise REVIEW, never FAULT", async () => {
+    const home = tmpHome();
+    const byT = new Map(hs.map((h) => [h.t, h]));
+    const cur = { t: 0 };
+    const f = scripted({ current: (u) => (u.endsWith("data.json") ? ok(byT.get(cur.t)!.gt) : undefined) });
+    // every tracker-mapped cloud on a slot of each new GPU (whatever the panels choose), so each pair the trackers list is compared
+    const ids: Record<string, Hex> = { B300: "0x08c6236b69837cbbc194f0e5543b52ec92d53b309e164e1139b0076f2151b07f", A100: "0x32422c52fa2c8e908a3d943000e08e47ac121b194f11f4d58f0149ef008418de", L40S: "0x5d0a54c25c386ef135340ebc802b2bc2538004e5538d436114a5b3c9398b30e4" };
+    const panels: Panel[] = NEW.map((g) => ({ gpu: g, spec: `${g}-x`, gpuId: ids[g]!, families: [], slots: Object.keys(TRACKER_MAP).map((sourceId, slot) => ({ slot, sourceId, family: slot, liveAtStart: true })) }));
+    const clock = { day: 86_400, slice: 3_600, minReadings: 12, epochTs: 0 };
+    const { pc, alerts, now } = makeCheck(home, f.fetch, { panels, clock });
+    const reviews: string[] = [];
+    for (const h of hs.filter((x) => x.key <= NEW_LAST_PINNED)) {
+      cur.t = h.t;
+      const k = h.t / 3_600;
+      for (const [sid, gs] of Object.entries(h.own)) {
+        const mine = Object.fromEntries(NEW.filter((g) => gs[g] !== undefined).map((g) => [g, gs[g]!]));
+        if (Object.keys(mine).length) writeLine(home, sid, k, mine, { scheduledAt: h.t + 30, fetchedAt: h.t + 30 });
+      }
+      now.t = h.t + 1_800;
+      await pc.tick(now.t);
+      now.t = h.t + 3_600 + 100;
+      await pc.tick(now.t);
+      for (const a of alerts.open()) if (a.code === "PAGECHECK_REVIEW") reviews.push(`${h.key}:${a.gpuId}:${a.slot}`);
+      expect(alerts.open().some((a) => a.code === "PAGECHECK_FAULT")).toBe(false);
+    }
+    const nebSlot = Object.keys(TRACKER_MAP).indexOf("p_nebius");
+    expect(reviews).toEqual(["17", "18", "19", "20", "21", "22", "23"].map((x) => `2026-09-30T${x}:${ids.B300}:${nebSlot}`));
+    expect(alerts.open().some((a) => a.code === "PAGECHECK_TRACKERS_DOWN")).toBe(false);
+  });
 });
 
 // GPU Economy's per-GPU files are not in the logger archive; the source check of Oct 2 saved one read of each (outside
@@ -126,15 +197,18 @@ const HAVE_GE = GE_DIR !== "" && existsSync(join(GE_DIR, "gpueconomy_gpu_h100-sx
 if (!HAVE_GE) console.log("GPU Economy samples absent: skipping their parity tests (set AGATE_TRACKER_SAMPLES to the saved files' folder)");
 
 describe.skipIf(!HAVE_GE)("GPU Economy's saved files (Oct 2, n = 1 read)", () => {
+  // only the GPUs with a saved file (the Oct 2 read saved the first three)
+  const SAVED = HAVE_GE ? GPUS.filter((g) => existsSync(join(GE_DIR, `gpueconomy_gpu_${GE_FILE[g]}.gz`))) : [];
   test("parse, select and agree with the clouds' own pages on 16 of 16 pairs (hand-checked values)", () => {
+    expect(SAVED).toEqual(["H100", "H200", "B200"]);
     const t: IntervalTrackers = { at: Date.parse("2026-10-02T08:00:00Z") / 1000, ge: {} };
-    for (const g of GPUS) t.ge[g] = parseGpuEconomy(new TextDecoder().decode(Bun.gunzipSync(readFileSync(join(GE_DIR, `gpueconomy_gpu_${GE_FILE[g]}.gz`)))));
-    for (const g of GPUS) expect(t.ge[g]!.ok).toBe(true);
+    for (const g of SAVED) t.ge[g] = parseGpuEconomy(new TextDecoder().decode(Bun.gunzipSync(readFileSync(join(GE_DIR, `gpueconomy_gpu_${GE_FILE[g]}.gz`)))));
+    for (const g of SAVED) expect(t.ge[g]!.ok).toBe(true);
     const got: Record<string, number> = {};
     let gaps = 0;
     for (const sid of Object.keys(TRACKER_MAP)) {
       const res = parse(sid, new TextDecoder().decode(Bun.gunzipSync(readFileSync(join(RAW, "2026-10-02", "08", `${sid}.all.gz`)))), { utcDate: "2026-10-02", nowSec: t.at + 30 });
-      for (const g of GPUS) {
+      for (const g of SAVED) {
         const r = res[g];
         if (r?.state !== "VALID") continue;
         const row = trackerFor(t, sid, g, r.valueU);
@@ -151,5 +225,47 @@ describe.skipIf(!HAVE_GE)("GPU Economy's saved files (Oct 2, n = 1 read)", () =>
     expect(got["p_nebius:B200"]).toBe(8_500_000);
     expect(got["p_hyperstack:H100"]).toBe(3_200_000); // GPU Economy lists Hyperstack's SXM price (GPUTable's row is never read)
     expect(got["p_civo:H200"]).toBe(3_490_000);
+  });
+});
+
+// The price-only GPUs' GPU Economy files, one read at 08:40 UTC on Oct 3 (research, outside the repo, file names
+// gpueconomy_<file>.json.gz). AGATE_TRACKER_SAMPLES_OCT3 names that folder; unset, skipped. Compared with our parsers on
+// the logger's Oct 3 08 UTC pages.
+const GE3_DIR = process.env.AGATE_TRACKER_SAMPLES_OCT3 ?? "";
+const HAVE_GE3 = GE3_DIR !== "" && existsSync(join(GE3_DIR, "gpueconomy_a100-80.json.gz")) && existsSync(join(RAW, "2026-10-03", "08", "p_lambda.all.gz"));
+if (!HAVE_GE3) console.log("GPU Economy price-only samples absent: skipping their parity tests (set AGATE_TRACKER_SAMPLES_OCT3 to the saved files' folder)");
+
+describe.skipIf(!HAVE_GE3)("GPU Economy's price-only files (Oct 3, n = 1 read)", () => {
+  test("agree with the clouds' own pages on 10 of 10 pairs; Hyperstack A100 is never compared", () => {
+    const SAVED = NEW.filter((g) => existsSync(join(GE3_DIR, `gpueconomy_${GE_FILE[g]}.json.gz`)));
+    expect(SAVED).toEqual(["B300", "A100", "L40S"]);
+    const t: IntervalTrackers = { at: Date.parse("2026-10-03T08:00:00Z") / 1000, ge: {} };
+    for (const g of SAVED) t.ge[g] = parseGpuEconomy(new TextDecoder().decode(Bun.gunzipSync(readFileSync(join(GE3_DIR, `gpueconomy_${GE_FILE[g]}.json.gz`)))));
+    const got: Record<string, number> = {};
+    const none: string[] = [];
+    let gaps = 0;
+    for (const sid of Object.keys(TRACKER_MAP)) {
+      const res = parse(sid, new TextDecoder().decode(Bun.gunzipSync(readFileSync(join(RAW, "2026-10-03", "08", `${sid}.all.gz`)))), { utcDate: "2026-10-03", nowSec: t.at + 30 });
+      for (const g of SAVED) {
+        const r = res[g];
+        if (r?.state !== "VALID") continue;
+        const row = trackerFor(t, sid, g, r.valueU);
+        if (!row) {
+          none.push(`${sid}:${g}`);
+          continue;
+        }
+        expect(row.tracker).toBe("gpueconomy");
+        got[`${sid}:${g}`] = row.valueU;
+        if (isGap(r.valueU, row.valueU)) gaps++;
+      }
+    }
+    expect(Object.keys(got).length).toBe(10);
+    expect(gaps).toBe(0);
+    expect(none).toEqual(["p_hyperstack:A100"]); // the file lists its PCIe card at 1.35: excluded, not an alarm
+    expect(got["p_verda:B300"]).toBe(8_795_000); // a 1x row (no 8x listed); our 8x read is 8.80
+    expect(got["p_civo:B300"]).toBe(7_490_000); // GPUTable has no Civo B300 row; GPU Economy does
+    expect(got["p_lambda:A100"]).toBe(2_790_000);
+    expect(got["p_verda:L40S"]).toBe(1_557_500);
+    expect(got["p_coreweave:L40S"]).toBe(2_250_000);
   });
 });

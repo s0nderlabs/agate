@@ -2,13 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { keccak256, toHex } from "viem";
-import { type ArchiveStats, buildPanel } from "../src/panelTool.ts";
+import { type ArchiveStats, buildPanel, reserveArg } from "../src/panelTool.ts";
 import {
   assertAllowed,
   CanonicalError,
   canonicalJson,
   checkPanel,
   CRE_CAP_BYTES,
+  FORM_OF,
   GPUS,
   gpuIdOf,
   PanelError,
@@ -19,7 +20,7 @@ import {
   slotValues,
   specOf,
 } from "../src/pure/index.ts";
-import type { Panel } from "../src/types.ts";
+import type { GpuModel, Panel } from "../src/types.ts";
 
 const H100: Panel = {
   gpu: "H100",
@@ -52,6 +53,46 @@ describe("gpuId and recipeHash", () => {
   test("gpuIdOf is keccak256 of the UTF-8 spec (same as viem's)", () => {
     for (const g of GPUS) expect(gpuIdOf(specOf(g))).toBe(keccak256(toHex(specOf(g))));
     expect(specOf("H200")).toBe("H200-SXM/on-demand-list/neocloud/v1");
+  });
+
+  test("six GPUs in order; the spec names each GPU's form (FORM_OF): SXM, PCIe only for L40S", () => {
+    expect([...GPUS]).toEqual(["H100", "H200", "B200", "B300", "A100", "L40S"]);
+    expect(GPUS.map((g) => specOf(g))).toEqual([
+      "H100-SXM/on-demand-list/neocloud/v1",
+      "H200-SXM/on-demand-list/neocloud/v1",
+      "B200-SXM/on-demand-list/neocloud/v1",
+      "B300-SXM/on-demand-list/neocloud/v1",
+      "A100-SXM/on-demand-list/neocloud/v1",
+      "L40S-PCIe/on-demand-list/neocloud/v1",
+    ]);
+    expect(GPUS.map((g) => FORM_OF[g])).toEqual(["SXM", "SXM", "SXM", "SXM", "SXM", "PCIe"]);
+    // the first three gpuIds are the registered ones, unchanged
+    expect(gpuIdOf(specOf("H100"))).toBe("0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955");
+    expect(gpuIdOf(specOf("H200"))).toBe("0xf7b3c4797305bd1433be196119ae5d6df4a433cffbf8d02c22048cc3a487b30d");
+    expect(gpuIdOf(specOf("B200"))).toBe("0x0a5bf357b491308f9e8b00f22d9d58b1c984046be5b4a94a21a59038b996dd27");
+    // every rule's form is its GPU's (Nebius writes NVLink for its SXM platforms)
+    for (const s of SOURCES) {
+      for (const [g, r] of Object.entries(s.rules)) expect(r!.form === FORM_OF[g as "H100"] || (r!.form === "NVLink" && FORM_OF[g as "H100"] === "SXM"), `${s.id} ${g}`).toBe(true);
+    }
+  });
+
+  test("checkPanel takes each GPU's own form: an L40S spec must say PCIe, the others SXM", () => {
+    const l40s: Panel = {
+      gpu: "L40S",
+      spec: specOf("L40S"),
+      gpuId: gpuIdOf(specOf("L40S")),
+      families: [{ name: "Verda", famQ: 1 }],
+      slots: [{ slot: 0, sourceId: "p_verda", family: 0, liveAtStart: true }],
+    };
+    expect(() => checkPanel(l40s)).not.toThrow();
+    const sxm = "L40S-SXM/on-demand-list/neocloud/v1";
+    expect(() => checkPanel({ ...l40s, spec: sxm, gpuId: gpuIdOf(sxm) })).toThrow(/does not name L40S-PCIe/);
+    const pcie = "B300-PCIe/on-demand-list/neocloud/v1";
+    expect(() => checkPanel({ ...l40s, gpu: "B300", spec: pcie, gpuId: gpuIdOf(pcie) })).toThrow(/does not name B300-SXM/);
+    // a source without a rule for the GPU is refused: Civo has no A100 rule, Hyperstack none for L40S
+    const a100 = specOf("A100");
+    expect(() => checkPanel({ ...l40s, gpu: "A100", spec: a100, gpuId: gpuIdOf(a100), slots: [{ slot: 0, sourceId: "p_civo", family: 0, liveAtStart: true }] })).toThrow(/no rule for A100/);
+    expect(() => checkPanel({ ...l40s, slots: [{ slot: 0, sourceId: "p_hyperstack", family: 0, liveAtStart: true }] })).toThrow(/no rule for L40S/);
   });
 
   test("recipeHash is stable under key order and object construction", () => {
@@ -150,11 +191,12 @@ describe("sources", () => {
 });
 
 describe("panel tool defaults (14.1 items 3 to 5)", () => {
-  const stats = (over: Record<string, Partial<Record<"H100" | "H200" | "B200", number>>> = {}): ArchiveStats => {
+  const stats = (over: Record<string, Partial<Record<GpuModel, number>>> = {}): ArchiveStats => {
     const valid: ArchiveStats["valid"] = {};
     for (const s of SOURCES) valid[s.id] = Object.fromEntries(Object.keys(s.rules).map((g) => [g, 14]));
     valid.p_civo!.B200 = 0;
     valid.p_gcore!.H200 = 0;
+    valid.p_coreweave!.B300 = 0;
     for (const [id, v] of Object.entries(over)) Object.assign(valid[id]!, v);
     return { hours: 14, valid, present: Object.fromEntries(SOURCES.map((s) => [s.id, 14])) };
   };
@@ -183,6 +225,31 @@ describe("panel tool defaults (14.1 items 3 to 5)", () => {
     }
   });
 
+  test("the price-only GPUs (18.3): B300 and A100 get a reserve by the tie rule, L40S needs the over-cap flag for 3", () => {
+    const b300 = buildPanel("B300", stats(), { includeOverCap: true });
+    expect(b300.live).toEqual(["p_verda", "p_nebius", "p_civo"]);
+    expect(b300.reserve).toBe("p_hyperstack");
+    expect(b300.displayOnly.find((d) => d.sourceId === "p_coreweave")!.reasons.join()).toMatch(/no VALID B300 hour/);
+    const a100 = buildPanel("A100", stats(), { includeOverCap: true });
+    expect(a100.live).toEqual(["p_verda", "p_lambda", "p_coreweave"]);
+    expect(a100.reserve).toBe("p_hyperstack");
+    expect(buildPanel("A100", stats(), { includeOverCap: true, reserve: { A100: "p_coreweave" } }).live).toEqual(["p_verda", "p_lambda", "p_hyperstack"]);
+    expect(buildPanel("A100", stats()).live).toEqual(["p_verda", "p_lambda", "p_hyperstack"]);
+    expect(buildPanel("L40S", stats(), { includeOverCap: true }).live).toEqual(["p_verda", "p_coreweave", "p_civo"]);
+    const degenerate = buildPanel("L40S", stats());
+    expect([degenerate.live, degenerate.reserve]).toEqual([["p_verda"], "p_civo"]);
+    expect(buildPanel("L40S", stats(), { includeEur: true, includeOverCap: true }).live).toEqual(["p_verda", "p_coreweave", "p_civo"]);
+    expect(buildPanel("L40S", stats(), { includeEur: true, includeOverCap: true }).reserve).toBe("p_seeweb");
+    for (const c of [b300, a100]) expect(c.deploy.spec).toBe(specOf(c.gpu));
+    expect(degenerate.deploy.spec).toBe("L40S-PCIe/on-demand-list/neocloud/v1");
+  });
+
+  test("--reserve takes every GPU of GPUS (reserveArg) and nothing else", () => {
+    for (const g of GPUS) expect(reserveArg(`${g}=p_hyperstack`)).toEqual([g, "p_hyperstack"]);
+    expect(reserveArg("A100=p_coreweave")).toEqual(["A100", "p_coreweave"]);
+    for (const bad of ["H800=p_civo", "a100=p_civo", "A100", "A100=civo", "A100=p_civo=x", "=p_civo", "L40=p_verda", ""]) expect(() => reserveArg(bad), bad).toThrow(/--reserve/);
+  });
+
   test("flags make EUR and over-cap sources live; a named reserve; bad reserve refused", () => {
     const all = buildPanel("H100", stats(), { includeEur: true, includeOverCap: true });
     expect(all.live.length + (all.reserve ? 1 : 0)).toBe(8);
@@ -200,7 +267,7 @@ describe("panel tool defaults (14.1 items 3 to 5)", () => {
       panels: Panel[];
       deploy: { gpu: string; gpuId: string; recipeHash: string; family: number[]; famQ: number[]; liveAtStartMask: number }[];
     };
-    expect(doc.panels.map((p) => p.gpu)).toEqual(["H100", "H200", "B200"]);
+    expect(doc.panels.map((p) => p.gpu)).toEqual([...GPUS]);
     doc.panels.forEach((p, i) => {
       checkPanel(p);
       const d = doc.deploy[i]!;

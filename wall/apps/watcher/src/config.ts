@@ -5,7 +5,8 @@
 // AGATE_PANELS (JSON Panel[] or {panels}), AGATE_WALL_HOME (default ~/.agate-wall), AGATE_CHAIN_ID (expected),
 // AGATE_FROM_BLOCK (the index's deployment block), AGATE_LOG_CHUNK (getLogs range, default 100),
 // AGATE_CONFIRMATIONS, AGATE_GAS_MEASURED (JSON {attest, closeDay, carryDay, veto, suspend}), AGATE_MAX_FEE_GWEI,
-// AGATE_NOTIFY_CMD, SOURCE_BASE_URL, AGATE_WATCH_SOURCES, AGATE_WATCHER_LOG_DIR (a log kept before the index existed:
+// AGATE_NOTIFY_CMD, AGATE_KEY_LOW_HOURS (health: KEY_LOW under that many hours of a key's recent spend, default 24),
+// SOURCE_BASE_URL, AGATE_WATCH_SOURCES, AGATE_WATCHER_LOG_DIR (a log kept before the index existed:
 // the logger runs without AGATE_INDEX on a profile clock, AGATE_PROFILE and AGATE_EPOCH_TS, 13.3 step 2).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

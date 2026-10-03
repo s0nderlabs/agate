@@ -4,6 +4,7 @@
 // that has ended; an interval that ended without a line is written MISSED (honest catch-up after sleep or restart).
 import { join } from "node:path";
 import type { GpuModel, ReadState, WatcherReading } from "@agate/report/types";
+import { GPUS } from "@agate/sources/pure";
 import type { FxRate, ParseResult, SourceDef } from "@agate/sources/types";
 import { AlertCode } from "@agate/report/types";
 import type { AlertSink } from "../alerts.ts";
@@ -14,7 +15,6 @@ import type { LogStore } from "./store.ts";
 
 export const ECB_ID = "fx_ecb";
 export const ECB_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml";
-const GPUS: readonly GpuModel[] = ["H100", "H200", "B200"];
 /** The in-flight key of a line parked on its ECB rate. */
 const fxKey = (id: string, k: number) => `${id}:fx:${k}`;
 

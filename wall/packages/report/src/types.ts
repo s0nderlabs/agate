@@ -222,7 +222,9 @@ export const ReadState = {
 } as const;
 export type ReadState = (typeof ReadState)[keyof typeof ReadState];
 
-export type GpuModel = "H100" | "H200" | "B200";
+/** Every GPU the index prices; the list in order is GPUS in @agate/sources (pure/recipe.ts). B300, A100 and L40S
+ *  are price-only (no market, BUILD-SPEC 18). */
+export type GpuModel = "H100" | "H200" | "B200" | "B300" | "A100" | "L40S";
 
 /** One line of the watcher's log: one source page, one interval, all GPUs read from that page. */
 export interface WatcherReading {
@@ -282,7 +284,7 @@ export const AlertCode = {
   NONCE_STUCK: "NONCE_STUCK", // action: a transaction still unmined after three replacements
   CLOCK_JUMP: "CLOCK_JUMP", // info: a process woke after a clock jump (sleep, suspend)
   CLOCK_SKEW: "CLOCK_SKEW", // action: local clock and chain head time differ beyond max(5 s, slice/20)
-  KEY_LOW: "KEY_LOW", // action: a role key holds less than 10 MON
+  KEY_LOW: "KEY_LOW", // action: a role key holds less than 10 MON, or less than AGATE_KEY_LOW_HOURS (24) of its recent spend
   ONCHAIN_EVENT: "ONCHAIN_EVENT", // info: veto, suspension, drop, carry, owner action or reader swap (action: a ReaderSwapQueued)
 } as const;
 export type AlertCode = (typeof AlertCode)[keyof typeof AlertCode];

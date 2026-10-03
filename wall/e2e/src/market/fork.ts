@@ -48,9 +48,21 @@ export const GPU = {
   B200: "0x0a5bf357b491308f9e8b00f22d9d58b1c984046be5b4a94a21a59038b996dd27",
 } as const satisfies Record<string, Hex>;
 export type GpuName = keyof typeof GPU;
+/** The market's GPUs (market-fork.json's factory): three, whatever the index prices. */
 export const GPUS: GpuName[] = ["H100", "H200", "B200"];
-/** live slots per GPU in fork-demo.json (H100 five of five, H200 and B200 three of four) */
-const SLOTS: Record<GpuName, { n: number; live: number }> = { H100: { n: 5, live: 5 }, H200: { n: 4, live: 3 }, B200: { n: 4, live: 3 } };
+/** Every GPU the fork's index registers (fork-demo.json: the market's three and the price-only ones of wall spec 18),
+ *  with its slot count and its live-at-start mask. */
+export interface IndexGpu {
+  gpu: string;
+  gpuId: Hex;
+  n: number;
+  liveMask: number;
+}
+export const INDEX_GPUS: IndexGpu[] = (
+  JSON.parse(readFileSync(join(CONTRACTS, "script", "config", "fork-demo.json"), "utf8")) as { gpus: { gpu: string; gpuId: Hex; family: number[]; liveAtStartMask: number }[] }
+).gpus.map((g) => ({ gpu: g.gpu, gpuId: g.gpuId, n: g.family.length, liveMask: g.liveAtStartMask }));
+/** The value posted for an index GPU the market does not list (its fix is never read by a series). */
+const PRICE_ONLY_U = 2_000_000n;
 export const SELECTOR = 2183018362218727504n;
 export const OCT1 = 20_727;
 export const NOV1 = 20_758;
@@ -294,11 +306,13 @@ export async function deployWorld(f: Fork, scratch: string): Promise<Deployed> {
 
 // ------------------------------------------------------------------ the demo index's days, through the direct path
 
+/** The market GPUs' values for one day; every other index GPU posts PRICE_ONLY_U. */
 export interface DayValues {
   H100: bigint;
   H200: bigint;
   B200: bigint;
 }
+const valueOf = (v: DayValues, gpu: string): bigint => (gpu in GPU ? v[gpu as GpuName] : PRICE_ONLY_U);
 
 export interface Clocks {
   day: bigint;
@@ -334,11 +348,12 @@ export class IndexDays {
     return this.start(d + 1) + this.clocks.closeGrace;
   }
 
-  /** One slice of day d for the three GPUs, posted at its read second (the block lands there). */
+  /** One slice of day d for every GPU the index registers (six), posted at its read second (the block lands there);
+   *  live slots carry the value, reserve slots 0. */
   async postSlice(d: number, h: number, v: DayValues): Promise<TxOut> {
     const t = this.readAt(d, h);
     await this.f.warp(t);
-    const entries = GPUS.map((g) => ({ gpuId: GPU[g], dayId: d, slice: h, readAt: t, values: Array.from({ length: SLOTS[g].n }, (_, i) => (i < SLOTS[g].live ? Number(v[g]) : 0)) }));
+    const entries = INDEX_GPUS.map((g) => ({ gpuId: g.gpuId, dayId: d, slice: h, readAt: t, values: Array.from({ length: g.n }, (_, i) => ((g.liveMask >> i) & 1 ? Number(valueOf(v, g.gpu)) : 0)) }));
     const report = encodeAbiParameters(
       [{ type: "uint8" }, { type: "uint64" }, { type: "address" }, { type: "tuple[]", components: [{ name: "gpuId", type: "bytes32" }, { name: "dayId", type: "uint32" }, { name: "slice", type: "uint8" }, { name: "readAt", type: "uint64" }, { name: "values", type: "uint32[]" }] }],
       [1, SELECTOR, this.index, entries],
@@ -352,24 +367,28 @@ export class IndexDays {
   async close(d: number): Promise<bigint> {
     await this.f.warp(this.closeAt(d));
     let finalAt = 0n;
-    for (const g of GPUS) {
-      const head = await this.f.read<number>(this.index, agateIndexAbi as Abi, "head", [GPU[g]]);
-      if (head !== d) throw new Error(`${g}: head is ${head}, expected ${d}`);
-      await this.f.txAs(ROLE.primary, this.index, agateIndexAbi as Abi, "closeDay", [GPU[g]]);
+    for (const g of INDEX_GPUS) {
+      const head = await this.f.read<number>(this.index, agateIndexAbi as Abi, "head", [g.gpuId]);
+      if (head !== d) throw new Error(`${g.gpu}: head is ${head}, expected ${d}`);
+      await this.f.txAs(ROLE.primary, this.index, agateIndexAbi as Abi, "closeDay", [g.gpuId]);
       this.closed++;
-      let [, , rec] = await this.record(g, d);
+      let [, , rec] = await this.recordOf(g.gpuId, d);
       if (rec.needsSign && rec.finalAt === 0n) {
-        await this.f.txAs(ROLE.attester, this.index, agateIndexAbi as Abi, "attest", [GPU[g], d, rec.source, rec.digest]);
+        await this.f.txAs(ROLE.attester, this.index, agateIndexAbi as Abi, "attest", [g.gpuId, d, rec.source, rec.digest]);
         this.attested++;
-        [, , rec] = await this.record(g, d);
+        [, , rec] = await this.recordOf(g.gpuId, d);
       }
-      if (rec.finalAt === 0n) throw new Error(`${g} day ${d}: no finalAt after close and attest`);
+      if (rec.finalAt === 0n) throw new Error(`${g.gpu} day ${d}: no finalAt after close and attest`);
       if (rec.finalAt > finalAt) finalAt = rec.finalAt;
     }
     return finalAt;
   }
 
   record(g: GpuName, d: number) {
-    return this.f.read<readonly [boolean, boolean, { value: number; status: number; needsSign: boolean; source: Address; digest: Hex; finalAt: bigint; postedAt: bigint }]>(this.index, agateIndexAbi as Abi, "record", [GPU[g], d]);
+    return this.recordOf(GPU[g], d);
+  }
+
+  recordOf(gpuId: Hex, d: number) {
+    return this.f.read<readonly [boolean, boolean, { value: number; status: number; needsSign: boolean; source: Address; digest: Hex; finalAt: bigint; postedAt: bigint }]>(this.index, agateIndexAbi as Abi, "record", [gpuId, d]);
   }
 }

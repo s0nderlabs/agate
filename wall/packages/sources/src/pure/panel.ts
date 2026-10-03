@@ -5,7 +5,7 @@ import { keccak256 } from "viem";
 import type { Panel, ParseResult } from "../types.ts";
 import { asciiBytes, canonicalJson } from "./canonical.ts";
 import { inBounds } from "./money.ts";
-import { BOUNDS, FX_RECIPE, GPUS, ROUNDING, SOURCES } from "./recipe.ts";
+import { BOUNDS, FORM_OF, FX_RECIPE, GPUS, ROUNDING, SOURCES } from "./recipe.ts";
 
 export function gpuIdOf(spec: string): Hex {
   return keccak256(asciiBytes(spec));
@@ -19,7 +19,8 @@ export class PanelError extends Error {
 export function checkPanel(panel: Panel): void {
   const p = panel;
   if (!p || !GPUS.includes(p.gpu)) throw new PanelError(`unknown GPU ${String(p?.gpu)}`);
-  if (typeof p.spec !== "string" || !p.spec.startsWith(`${p.gpu}-SXM/`)) throw new PanelError(`${p.gpu}: spec ${String(p.spec)} does not name ${p.gpu}-SXM`);
+  const form = `${p.gpu}-${FORM_OF[p.gpu]}`;
+  if (typeof p.spec !== "string" || !p.spec.startsWith(`${form}/`)) throw new PanelError(`${p.gpu}: spec ${String(p.spec)} does not name ${form}`);
   if (String(p.gpuId).toLowerCase() !== gpuIdOf(p.spec)) throw new PanelError(`${p.gpu}: gpuId is not keccak256 of the spec`);
   if (!Array.isArray(p.families) || p.families.length === 0) throw new PanelError(`${p.gpu}: no families`);
   if (!Array.isArray(p.slots) || p.slots.length === 0 || p.slots.length > MAX_SLOTS) throw new PanelError(`${p.gpu}: ${p.slots?.length} slots`);

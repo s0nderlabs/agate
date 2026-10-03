@@ -132,6 +132,7 @@ describe("what an extractor needs is allowed", () => {
     ["a counter fed by another counter", wrap("  const a = [1, 2];\n  let i = 0;\n  let j = i + 1;\n  j *= 2;\n  void a[j];")],
     ["Math, Number and parseInt results as keys", wrap('  const a = [1, 2];\n  void a[Math.min(1, 0)];\n  void a[Number.parseInt("1", 10)];\n  void a[parseInt("0", 10)];')],
     ["fixed keys from a for ... of over string literals", wrap('  const out: Partial<Record<"H100" | "B200", Cell>> = {};\n  for (const g of ["H100", "B200"] as const) out[g] = { kind: "missing", why: g };\n  void out;')],
+    ["the price-only GPUs' names (18.4) wherever the first three's are accepted", wrap('  const out: Partial<Record<"B300" | "A100" | "L40S", Cell>> = {};\n  for (const g of ["B300", "A100", "L40S"] as const) out[g] = { kind: "missing", why: g };\n  const k = "L40S";\n  const c = body ? "A100" : "B300";\n  void out[k];\n  void out[c];\n  void out["A100"];\n  const { B300: b, "L40S": l } = out;\n  void b;\n  void l;')],
     ["a const string key and a choice between two", wrap('  const o: Record<string, number> = { "gpu-type": 1 };\n  const k = "gpu-type";\n  const c = body ? "a" : "b";\n  void o[k];\n  void o[c];\n  void o["gpu-type"];')],
     ["helpers, regexes, maps, sets, JSON and strings", wrap('  const m = new Map<string, string[]>();\n  const s = new Set<string>();\n  const r = new RegExp("x", "g");\n  const t = textOf(body).replace(/\\s+/g, " ");\n  m.set(t, [t]);\n  s.add(String(JSON.stringify({ a: 1 })));\n  if (!r.test(t)) throw new LayoutError("no x");')],
     ["writes to own objects and parameters of its own helpers", wrap("  const o: { a: number[] } = { a: [] };\n  o.a.push(1);\n  o.a[0] = 2;\n  fill(o);", "function fill(x: { a: number[] }) { x.a[0] = 1; }\n")],
@@ -145,4 +146,8 @@ describe("what an extractor needs is allowed", () => {
       expect(await checkSyntax(src)).toEqual({ ok: true });
     }, 30_000);
   }
+  test("the price-only GPUs' names pass the word list as well", () => {
+    const src = ok.find(([n]) => n.startsWith("the price-only GPUs"))![1];
+    expect(checkPurity(src)).toEqual({ ok: true });
+  });
 });

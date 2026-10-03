@@ -2,6 +2,7 @@
 // anchors and nothing else. Used by the tests (every row state) and by the replay server's scripted pages.
 import type { GpuModel } from "@agate/report/types";
 import { MICRO, parseMicro } from "./pure/money.ts";
+import { GPUS } from "./pure/recipe.ts";
 
 export type SynthGpu =
   | { price: string; count?: 1 | 8 } // per-GPU native price; the page shows it per instance where the source does
@@ -50,28 +51,43 @@ function cellOf(g: SynthGpu | undefined, perInstance: boolean, fmt: (amount: str
 const usd = (a: string) => `$${a}`;
 
 function verda(p: SynthPage, o: SynthOptions): string {
-  const rows: unknown[] = ["A100", "L40S", "RTX A6000", "Tesla V100", "B300"].map((model, i) => ({
+  // Other models, never read: the confidential-computing B300, the 40 GB A100, GB300 and two older cards.
+  const rows: unknown[] = [
+    ["B300 CC", "B300 CC SXM6 268GB"],
+    ["A100 40GB", "A100 SXM4 40GB"],
+    ["GB300", "GB300 SXM6 288GB"],
+    ["RTX A6000", "RTX A6000 48GB"],
+    ["Tesla V100", "Tesla V100 16GB"],
+  ].map(([model, name], i) => ({
     model,
-    name: `${model} test`,
+    name,
     currency: "usd",
     price_per_hour: `1.${i}0`,
     spot_price: "0.50",
-    gpu: { number_of_gpus: 1, description: `1x ${model} test` },
+    gpu: { number_of_gpus: 1, description: `1x ${name}` },
   }));
-  const names: Record<GpuModel, string> = { H100: "H100 SXM5 80GB", H200: "H200 SXM5 141GB", B200: "B200 SXM6 180GB" };
-  for (const g of ["H100", "H200", "B200"] as GpuModel[]) {
+  const rowOf: Record<GpuModel, [string, string]> = {
+    H100: ["H100", "H100 SXM5 80GB"],
+    H200: ["H200", "H200 SXM5 141GB"],
+    B200: ["B200", "B200 SXM6 180GB"],
+    B300: ["B300", "B300 SXM6 268GB"],
+    A100: ["A100 80GB", "A100 SXM4 80GB"],
+    L40S: ["L40S", "L40S 48GB"],
+  };
+  for (const g of GPUS) {
     const c = cellOf(p[g], true, (a) => a, "0");
     if (!c) continue;
     const st = p[g] && "state" in p[g]! ? (p[g] as { state: string }).state : undefined;
     if (st === "not-rentable") continue; // the API has no stock state
+    const [model, name] = rowOf[g];
     rows.push({
-      model: g,
-      name: names[g],
+      model,
+      name,
       currency: "usd",
       price_per_hour: st === "garbled" ? "call us" : c.text,
       spot_price: "0.99",
       dynamic_price: null,
-      gpu: { number_of_gpus: c.count, description: `${c.count}x ${names[g]}` },
+      gpu: { number_of_gpus: c.count, description: `${c.count}x ${name}` },
     });
   }
   return o.broken ? JSON.stringify({ data: rows }) : JSON.stringify(rows);
@@ -93,7 +109,7 @@ function nebius(p: SynthPage, o: SynthOptions): string {
     "All prices are shown without any applicable taxes, including VAT.",
     "",
   ];
-  for (const g of ["B200", "H200", "H100"] as GpuModel[]) {
+  for (const g of [...GPUS].reverse()) {
     const c = cellOf(p[g], false, (a) => `\\$${a}`, "N/A");
     if (!c) continue;
     const item = `NVIDIA${R} ${g} NVLink`;
@@ -128,16 +144,17 @@ function nebius(p: SynthPage, o: SynthOptions): string {
 }
 
 function lambda(p: SynthPage, o: SynthOptions): string {
-  const plans: Partial<Record<GpuModel, string>> = { H100: "NVIDIA H100 SXM", B200: "NVIDIA B200 SXM6" };
+  const plans: Partial<Record<GpuModel, [string, string]>> = { H100: ["NVIDIA H100 SXM", "80 GB"], B200: ["NVIDIA B200 SXM6", "80 GB"], A100: ["NVIDIA A100 SXM", "80 GB"] };
   const tab = (label: string) => {
-    const rows = (Object.entries(plans) as [GpuModel, string][])
-      .map(([g, plan]) => {
+    const rows = (Object.entries(plans) as [GpuModel, [string, string]][])
+      .map(([g, [plan, vram]]) => {
         const c = cellOf(p[g], false, usd, "Sold out");
         if (!c || String(c.count) + "x" !== label) return "";
-        return `<tr class="row" data-plan="${plan}"><th scope="row" data-label="Plan">${plan}</th><td data-label="VRAM/GPU">80 GB</td><td data-label="vCPUs">26</td><td data-label="RAM">225 GiB</td><td data-label="STORAGE">1 TiB SSD</td><td data-label="PRICE/GPU/HR*">${c.text}</td></tr>`;
+        return `<tr class="row" data-plan="${plan}"><th scope="row" data-label="Plan">${plan}</th><td data-label="VRAM/GPU">${vram}</td><td data-label="vCPUs">26</td><td data-label="RAM">225 GiB</td><td data-label="STORAGE">1 TiB SSD</td><td data-label="PRICE/GPU/HR*">${c.text}</td></tr>`;
       })
       .join("");
-    const filler = `<tr class="row" data-plan="NVIDIA A100 SXM"><th scope="row" data-label="Plan">NVIDIA A100 SXM</th><td data-label="VRAM/GPU">80 GB</td><td data-label="vCPUs">30</td><td data-label="RAM">220 GiB</td><td data-label="STORAGE">1 TiB SSD</td><td data-label="PRICE/GPU/HR*">$1.99</td></tr>`;
+    // the 40 GB A100 shares its plan name with the 80 GB one (never read)
+    const filler = `<tr class="row" data-plan="NVIDIA A100 SXM"><th scope="row" data-label="Plan">NVIDIA A100 SXM</th><td data-label="VRAM/GPU">40 GB</td><td data-label="vCPUs">30</td><td data-label="RAM">220 GiB</td><td data-label="STORAGE">1 TiB SSD</td><td data-label="PRICE/GPU/HR*">$1.99</td></tr>`;
     const price = o.broken ? "PRICE/HR" : "PRICE/GPU/HR*";
     return `<div role="tabpanel" id="tp-${label}" aria-labelledby="t-${label}"><table><thead><tr><th scope="col"><span>Plan</span></th><th scope="col">VRAM/GPU</th><th scope="col">vCPUs</th><th scope="col">RAM</th><th scope="col">STORAGE</th><th scope="col">${price}</th></tr></thead><tbody>${rows}${filler}</tbody></table></div>`;
   };
@@ -153,18 +170,21 @@ function coreweave(p: SynthPage, o: SynthOptions): string {
     H100: ["hgx-h100", "NVIDIA HGX H100"],
     H200: ["hgx-h200", "NVIDIA HGX H200"],
     B200: ["nvidia-b200", "NVIDIA HGX B200"],
+    B300: ["nvidia-b300", "NVIDIA HGX B300"],
+    A100: ["nvidia-a100", "NVIDIA A100"],
+    L40S: ["nvidia-l40s", "NVIDIA L40S"],
   };
   const cols = ["GPU Count", "VRAM (GB)", "vCPUs", "System RAM<br/>(GB)", "Local Storage<br/>(TB)", o.broken ? "Price" : "On-Demand Price (Per Hour)", "Spot Price (Per Hour)"];
   const head =
     '<div class="table-v2-cell table-v2-cell--name"><div class="table-header-text">GPU Model</div></div>' +
     cols.map((h) => `<div class="table-v2-cell"><div class="table-header-text">${h}</div></div>`).join("");
-  const row = (slug: string, name: string, c: Cellish) => {
+  const row = (slug: string, name: string, c: Cellish, vram = "80") => {
     const isPrice = /^\$/.test(c.text);
     const cell = isPrice ? `<div>${c.text}</div><a href="" class="table-pricing-url"></a>` : `<div></div><a href="/contact-us" class="table-pricing-url">${c.text}</a>`;
     return `<div role="listitem" class="table-row-v2"><div class="table-grid">
 <div class="table-v2-cell table-v2-cell--name"><h3 data-product="${slug}" class="table-model-name">${name}</h3></div>
 <div class="table-v2-cell"><div>${c.count}</div></div>
-<div class="table-v2-cell"><div>80</div></div>
+<div class="table-v2-cell"><div>${vram}</div></div>
 <div class="table-v2-cell"><div>128</div></div>
 <div class="table-v2-cell"><div>2,048</div></div>
 <div class="table-v2-cell"><div>61.44</div></div>
@@ -177,25 +197,23 @@ function coreweave(p: SynthPage, o: SynthOptions): string {
   };
   // Europe shows other prices ($1.00 per instance) so a test can tell which region was read.
   const region = (label: string, eu: boolean) =>
-    `<h5><strong class="eyebrow">REGION: ${label}</strong></h5><div class="table-v2"><div class="table-v2-header"><div class="table-grid">${head}</div></div><div role="list">${(
-      Object.keys(prods) as GpuModel[]
-    )
-      .map((g) => {
-        const c = cellOf(p[g], true, usd, "Contact sales");
-        if (!c) return "";
-        return row(prods[g][0], prods[g][1], eu && /^\$/.test(c.text) ? { ...c, text: "$1.00" } : c);
-      })
-      .join("")}</div></div>`;
+    `<h5><strong class="eyebrow">REGION: ${label}</strong></h5><div class="table-v2"><div class="table-v2-header"><div class="table-grid">${head}</div></div><div role="list">${GPUS.map((g) => {
+      const c = cellOf(p[g], true, usd, "Contact sales");
+      if (!c) return "";
+      return row(prods[g][0], prods[g][1], eu && /^\$/.test(c.text) ? { ...c, text: "$1.00" } : c);
+    }).join("")}${row("nvidia-l40", "NVIDIA L40", { text: "$9.20", count: 8 }, "48")}</div></div>`; // the L40: another card, never read
   return `<!doctype html><html><body><section><h1>CoreWeave Cloud Pricing</h1></section>
 <section class="section"><header><h2 class="heading">On-demand GPU instances</h2></header><div class="section-content">${region("NORTH AMERICA", false)}</div><div class="section-content">${region("EUROPE", true)}</div></section>
 <section><h2>On-demand CPU instances</h2><h5><strong class="eyebrow">REGION: NORTH AMERICA</strong></h5></section></body></html>`;
 }
 
 function civo(p: SynthPage, o: SynthOptions): string {
-  const tables: Record<GpuModel, [string, string]> = {
+  const tables: Partial<Record<GpuModel, [string, string]>> = {
     H100: ["NVIDIA H100 SXM GPU pricing", "NVIDIA H100 - 80GB"],
     H200: ["NVIDIA H200 SXM GPU pricing", "NVIDIA H200 - 141GB HBM3e"],
     B200: ["NVIDIA B200 GPU pricing", "NVIDIA B200 - 180GB"],
+    B300: ["NVIDIA B300 GPU pricing", "NVIDIA B300"],
+    L40S: ["NVIDIA L40S 48GB GPU pricing", "NVIDIA L40S - 48GB"],
   };
   const heads = ["Size", "RAM", "vCPU", "Storage", "Data Transfer", "On-demand", o.broken ? "Reserved" : "Commitment"].map((h) => `<th width="10%">${h}</th>`).join("\n");
   const tr = (count: number, label: string, text: string) => `<tr>
@@ -207,15 +225,13 @@ function civo(p: SynthPage, o: SynthOptions): string {
 </td>
 <td data-title="Commitment price" class="pricing-data commitment-pricing"><div id="12_months"><div id="price-value-hourly" data-option="hourly" class="price-value">$1.00<span>per hour</span></div></div></td>
 </tr>`;
-  const out: string[] = [];
-  for (const g of ["L40S", "H100", "H200", "B200"] as const) {
-    if (g === "L40S") {
-      out.push(`<table class="pricing-table"><caption>NVIDIA L40S 48GB GPU pricing</caption><thead><tr>${heads}</tr></thead><tbody>${tr(1, "NVIDIA L40S - 48GB", "$1.29")}${tr(8, "NVIDIA L40S - 48GB", "$10.32")}</tbody></table>`);
-      continue;
-    }
+  // Civo's A100 80GB table: no rule (its form is not stated), never read.
+  const out: string[] = [`<table class="pricing-table"><caption>NVIDIA A100 80GB GPU pricing</caption><thead><tr>${heads}</tr></thead><tbody>${tr(1, "NVIDIA A100 - 80GB", "$1.79")}${tr(8, "NVIDIA A100 - 80GB", "$14.32")}</tbody></table>`];
+  for (const g of GPUS) {
     const c = cellOf(p[g], true, usd, "N/A");
-    const [caption, label] = tables[g];
-    if (!c) continue;
+    const t = tables[g];
+    if (!c || !t) continue;
+    const [caption, label] = t;
     const rows = c.count === 8 ? tr(1, label, "$9.99") + tr(8, label, c.text) : tr(1, label, c.text);
     out.push(`<table class="pricing-table"><caption>${caption}</caption><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table>`);
   }
@@ -223,16 +239,18 @@ function civo(p: SynthPage, o: SynthOptions): string {
 }
 
 function hyperstack(p: SynthPage, o: SynthOptions): string {
-  const names: Record<GpuModel, string> = { H100: "NVIDIA H100 SXM", H200: "NVIDIA H200 SXM", B200: "NVIDIA B200" };
+  const names: Partial<Record<GpuModel, string>> = { H100: "NVIDIA H100 SXM", H200: "NVIDIA H200 SXM", B200: "NVIDIA B200", B300: "NVIDIA B300", A100: "NVIDIA A100 SXM" };
   const heads = ["GPU Model ", "VRAM (GB)", "Max pCPUs per GPU", "Max RAM (GB) per GPU", o.broken ? "Pricing Per Month" : "Pricing Per Hour"];
   const row = (name: string, price: string) =>
     `<div class="page-price_card_row_item df">${[name, "80", "24", "240", price]
       .map((v, i) => `<div class="page-price_card_row_item_col page-price_card_row_item_col${i + 1}">\n<span>${v}</span>\n</div>`)
       .join("\n")}</div>`;
-  const rows = [row("NVIDIA H100 NVLink", "$2.60"), row("NVIDIA H100", "$2.50")];
-  for (const g of ["H200", "H100", "B200"] as GpuModel[]) {
+  // PCIe cards (never read): their price cells start with a no-break space, as on the page
+  const rows = [row("NVIDIA H100 NVLink", "$2.60"), row("NVIDIA H100", "$2.50"), row("NVIDIA A100 NVLink", "&nbsp;$1.40"), row("NVIDIA A100", "&nbsp;$1.35"), row("NVIDIA L40", "&nbsp;$1.00")];
+  for (const g of [...GPUS].reverse()) {
     const c = cellOf(p[g], false, usd, "Sold Out");
-    if (c) rows.unshift(row(names[g], c.text));
+    const name = names[g];
+    if (c && name) rows.unshift(row(name, c.text));
   }
   return `<!doctype html><html><body><div class="page-price_card df sb"><h3><span>On-Demand GPU</span> Pricing</h3>
 <div class="page-price_card_head df">${heads.map((h, i) => `<div class="page-price_card_head_item page-price_card_head_item${i + 1}"><span>${h}</span></div>`).join("\n")}</div>
@@ -250,13 +268,12 @@ ${form} | <span class="gpuRam">80</span> GB GPU RAM</div></div>
 <p class="hourly"><span>${text}</span> &euro;</p><p class="compare"><span>${text}</span> &euro;</p></div>
 <div class="reservation-prices"><p class="hourly_12mnths">12 mths: <span>0.99</span> &euro;/hr</p></div></div></div></div>`;
   const cards = [card(2, "NVIDIA A100", "GPU PCI", "0.99"), card(3, "NVIDIA L4", "GPU PCI", "0.29")];
+  const named: Partial<Record<GpuModel, [string, string]>> = { H100: ["NVIDIA H100", "GPU SXM"], H200: ["NVIDIA H200", "GPU SXM"], L40S: ["NVIDIA L40S", "GPU PCI"] };
   let id = 9;
-  for (const [g, name] of [
-    ["H200", "NVIDIA H200"],
-    ["H100", "NVIDIA H100"],
-  ] as [GpuModel, string][]) {
+  for (const g of [...GPUS].reverse()) {
     const c = cellOf(p[g], false, (a) => a, "Sold out");
-    if (c) cards.unshift(card(id++, name, "GPU SXM", c.text));
+    const n = named[g];
+    if (c && n) cards.unshift(card(id++, n[0], n[1], c.text));
   }
   return `<!doctype html><html><body><div class="switch-container"><div class="instances-type">Standard</div>
 <label class="form-switch"><input class="js-switch" type="checkbox"${o.broken ? " checked" : ""}><i></i> <div class="instances-type">Spot</div></label></div>
@@ -293,14 +310,21 @@ const RENDERERS: Record<string, (p: SynthPage, o: SynthOptions) => string> = {
   p_gcore: gcore,
 };
 
-const REDESIGN_NAMES: Record<GpuModel, string> = { H100: "NVIDIA H100 SXM", H200: "NVIDIA H200 SXM", B200: "NVIDIA B200" };
+const REDESIGN_NAMES: Record<GpuModel, string> = {
+  H100: "NVIDIA H100 SXM",
+  H200: "NVIDIA H200 SXM",
+  B200: "NVIDIA B200",
+  B300: "NVIDIA B300",
+  A100: "NVIDIA A100 SXM 80GB",
+  L40S: "NVIDIA L40S",
+};
 
 /** The redesigned layout: one card per GPU with the GPU count, the on-demand price per GPU-hour (or per instance-hour
  * when only that is known) and a spot price beside it (a v2 reader must pick the on-demand cell, never the spot one). */
 function redesigned(sourceId: string, p: SynthPage): string {
   const cur = sourceId === "p_seeweb" || sourceId === "p_gcore" ? "\u20ac" : "$";
   const cards: string[] = [];
-  for (const g of ["H100", "H200", "B200"] as GpuModel[]) {
+  for (const g of GPUS) {
     const x = p[g];
     if (!x || ("state" in x && x.state === "missing")) continue;
     let count = 8;

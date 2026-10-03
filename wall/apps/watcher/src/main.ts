@@ -264,7 +264,9 @@ async function main(role: Role): Promise<void> {
       holdKey("AGATE_KEEPER_KEY");
       keys.push({ role: "keeper", address: addressOfEnvKey("AGATE_KEEPER_KEY") });
     }
-    const health = new Health({ view: w.view, pool: w.pool, clock: c, alerts: w.alerts, roles: roleBeats(w), gpuIds: w.panels.map((p) => p.gpuId), keys: keys.filter((k) => !/^0x0{40}$/i.test(k.address)), heartbeat: hb });
+    const keyLowHours = process.env.AGATE_KEY_LOW_HOURS ? Number(process.env.AGATE_KEY_LOW_HOURS) : 24;
+    if (!(Number.isFinite(keyLowHours) && keyLowHours > 0 && keyLowHours <= 8_760)) throw new Error("AGATE_KEY_LOW_HOURS must be a number of hours above 0 and at most 8,760");
+    const health = new Health({ view: w.view, pool: w.pool, clock: c, alerts: w.alerts, roles: roleBeats(w), gpuIds: w.panels.map((p) => p.gpuId), keys: keys.filter((k) => !/^0x0{40}$/i.test(k.address)), keyLowHours, heartbeat: hb });
     return loop(role, Math.min(60, c.slice), (now) => health.tick(now));
   }
 

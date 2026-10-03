@@ -21,6 +21,7 @@ export {
   CRE_CAP_BYTES,
   ECB,
   FORBIDDEN,
+  FORM_OF,
   FX_RECIPE,
   GPUS,
   HELD_OUT,

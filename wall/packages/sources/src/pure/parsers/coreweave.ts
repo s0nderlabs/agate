@@ -3,10 +3,15 @@ import type { GpuModel } from "@agate/report/types";
 import type { ParseContext } from "../../types.ts";
 import { agree, type Cell, classifyPrice, elements, indexOfFirst, indexOfOnly, LayoutError, nearest, positions, textOf } from "../text.ts";
 
-const PRODUCTS: Record<GpuModel, { slug: string; name: string }> = {
+/** The exact data-product (closing quote included in the match: "nvidia-l40s" never reads "nvidia-l40", "nvidia-a100"
+ * never "nvidia-a100-80gb"); vram: the VRAM (GB) cell the row must show (A100 80GB, 18.2). */
+const PRODUCTS: Partial<Record<GpuModel, { slug: string; name: string; vram?: string }>> = {
   H100: { slug: "hgx-h100", name: "NVIDIA HGX H100" },
   H200: { slug: "hgx-h200", name: "NVIDIA HGX H200" },
   B200: { slug: "nvidia-b200", name: "NVIDIA HGX B200" },
+  B300: { slug: "nvidia-b300", name: "NVIDIA HGX B300" },
+  A100: { slug: "nvidia-a100", name: "NVIDIA A100", vram: "80" },
+  L40S: { slug: "nvidia-l40s", name: "NVIDIA L40S" },
 };
 const HEADERS = [
   "GPU Model",
@@ -21,8 +26,9 @@ const HEADERS = [
 const PRICE = /^\$(\d[\d,]*(?:\.\d+)?)$/;
 const CELL = '<div class="table-v2-cell">';
 
-function rowCell(row: string, g: GpuModel): Cell {
-  const { slug, name } = PRODUCTS[g];
+/** The row's cell; null for a row of the product slug with another VRAM (another product: left out, as Lambda does). */
+function rowCell(row: string, g: GpuModel): Cell | null {
+  const { slug, name, vram } = PRODUCTS[g]!;
   const names = elements(row, /<h3\b([^<>]*)>/g, "</h3>")
     .filter((e) => /class="table-model-name"/.test(e.open[1]!))
     .map((e) => textOf(e.inner));
@@ -46,6 +52,7 @@ function rowCell(row: string, g: GpuModel): Cell {
   if (!mobile) throw new LayoutError(`${slug}: no mobile on-demand copy`);
   const n = Number(count);
   const where = `NA ${name} x${n}`;
+  if (vram !== undefined && cells[1] !== vram) return null;
   const cell = classifyPrice(cells[5]!, PRICE, n, where, "USD");
   if (cell.kind === "price" && textOf(mobile[1]!) !== cells[5]) {
     return { kind: "error", code: "layout-changed", why: `${where}: on-demand ${cells[5]} but mobile copy ${JSON.stringify(mobile[1])}` };
@@ -68,10 +75,13 @@ export function extractCoreWeave(body: string, _ctx: ParseContext): Partial<Reco
   const rows = region.split('<div role="listitem"').slice(1);
 
   const out: Partial<Record<GpuModel, Cell>> = {};
-  for (const g of Object.keys(PRODUCTS) as GpuModel[]) {
-    const mine = rows.filter((r) => r.includes(`data-product="${PRODUCTS[g].slug}"`));
+  for (const [g, p] of Object.entries(PRODUCTS) as [GpuModel, { slug: string; name: string }][]) {
+    const mine = rows.filter((r) => r.includes(`data-product="${p.slug}"`));
     try {
-      out[g] = mine.length ? agree(mine.map((r) => rowCell(r, g)), `NA ${PRODUCTS[g].name}`) : { kind: "missing", why: `no ${PRODUCTS[g].slug} row in North America` };
+      const cells = mine.map((r) => rowCell(r, g)).filter((c): c is Cell => c !== null);
+      out[g] = cells.length
+        ? agree(cells, `NA ${p.name}`)
+        : { kind: "missing", why: mine.length ? `no ${p.slug} row with ${PRODUCTS[g]!.vram} GB VRAM in North America` : `no ${p.slug} row in North America` };
     } catch (e) {
       if (!(e instanceof LayoutError)) throw e;
       out[g] = { kind: "error", code: "layout-changed", why: e.message };

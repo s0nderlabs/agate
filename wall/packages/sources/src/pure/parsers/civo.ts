@@ -3,10 +3,14 @@ import type { GpuModel } from "@agate/report/types";
 import type { ParseContext } from "../../types.ts";
 import { agree, type Cell, classifyPrice, countOf, elements, firstElement, LayoutError, textOf } from "../text.ts";
 
-const TABLES: Record<GpuModel, { caption: string; row: RegExp }> = {
+/** No A100: the pricing page never states its form and Civo's own A100 page says PCIe (18.2). B300's row has no
+ * memory suffix. */
+const TABLES: Partial<Record<GpuModel, { caption: string; row: RegExp }>> = {
   H100: { caption: "NVIDIA H100 SXM GPU pricing", row: /^(\d{1,2}) x NVIDIA H100 - 80GB$/ },
   H200: { caption: "NVIDIA H200 SXM GPU pricing", row: /^(\d{1,2}) x NVIDIA H200 - 141GB HBM3e$/ },
   B200: { caption: "NVIDIA B200 GPU pricing", row: /^(\d{1,2}) x NVIDIA B200 - 180GB$/ },
+  B300: { caption: "NVIDIA B300 GPU pricing", row: /^(\d{1,2}) x NVIDIA B300$/ },
+  L40S: { caption: "NVIDIA L40S 48GB GPU pricing", row: /^(\d{1,2}) x NVIDIA L40S - 48GB$/ },
 };
 const HEADERS = ["Size", "RAM", "vCPU", "Storage", "Data Transfer", "On-demand", "Commitment"];
 const PRICE = /^\$(\d[\d,]*(?:\.\d+)?)$/;
@@ -14,8 +18,7 @@ const PRICE = /^\$(\d[\d,]*(?:\.\d+)?)$/;
 export function extractCivo(body: string, _ctx: ParseContext): Partial<Record<GpuModel, Cell>> {
   if (countOf(body, 'class="pricing-data on-demand-pricing"') < 3) throw new LayoutError("on-demand pricing cells missing");
   const out: Partial<Record<GpuModel, Cell>> = {};
-  for (const g of Object.keys(TABLES) as GpuModel[]) {
-    const { caption, row } = TABLES[g];
+  for (const [g, { caption, row }] of Object.entries(TABLES) as [GpuModel, { caption: string; row: RegExp }][]) {
     try {
       const n = countOf(body, `<caption>${caption}</caption>`);
       if (n === 0) {

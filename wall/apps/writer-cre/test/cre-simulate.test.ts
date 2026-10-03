@@ -46,7 +46,7 @@ afterAll(() => {
 });
 
 describe.skipIf(!enabled)("real CRE simulate on anvil (opt-in)", () => {
-  test("two slices written through the CRE simulation forwarder, read back, nothing reposted", async () => {
+  test("two slices of six entries (default.json's six GPUs) written through the CRE simulation forwarder at the runner's limit, read back, nothing reposted", async () => {
     const a = await startAnvil({ chainId: 10_143 });
     stops.push(a.stop);
     await a.test.setCode({ address: CRE_SIM_FORWARDER, bytecode: code! });
@@ -82,7 +82,7 @@ describe.skipIf(!enabled)("real CRE simulate on anvil (opt-in)", () => {
     const alerts: { code: string }[] = [];
     const w = new Writer({ role: "primary", chain, clock: info.clock, chainSelector: info.chainSelector, panels: info.panels, log, source, say, tickS: 1, alert: (x) => void alerts.push(x), api: sourcesApi });
     const t0 = Date.now();
-    const landed = async () => (await a.pub.readContract({ address: dep.index, abi: (await import("@agate/report/abi")).agateIndexAbi, functionName: "readings", args: [info.panels[0]!.gpuId, sliceAt(info.clock, dep.epochTs + 6).dayId, ADDR[1]!] })) as { sliceBits: bigint };
+    const landed = async (gpuId = info.panels[0]!.gpuId) => (await a.pub.readContract({ address: dep.index, abi: (await import("@agate/report/abi")).agateIndexAbi, functionName: "readings", args: [gpuId, sliceAt(info.clock, dep.epochTs + 6).dayId, ADDR[1]!] })) as { sliceBits: bigint };
     while (Date.now() - t0 < 60_000) {
       await w.tick(Math.floor(Date.now() / 1000));
       const bits = (await landed()).sliceBits;
@@ -97,10 +97,14 @@ describe.skipIf(!enabled)("real CRE simulate on anvil (opt-in)", () => {
       const tx = await a.pub.getTransaction({ hash: r.txHash });
       const rc = await a.pub.getTransactionReceipt({ hash: r.txHash });
       expect(tx.to!.toLowerCase()).toBe(CRE_SIM_FORWARDER.toLowerCase());
-      expect(tx.gas).toBe(777_371n);
+      expect(tx.gas).toBe(creGasLimit()); // 1,614,000: a six-entry report through the CRE simulation forwarder
       expect(rc.status).toBe("success");
       console.log(`cre-simulate: slice ${r.slice} in ${r.ms} ms, gas used ${rc.gasUsed} of ${tx.gas}`);
     }
+    // every report carried one entry per registered GPU: each GPU's slice bits equal the first one's
+    expect(info.panels.length).toBe(6);
+    const first = (await landed()).sliceBits;
+    for (const p of info.panels) expect({ gpu: p.gpu, bits: (await landed(p.gpuId)).sliceBits }).toEqual({ gpu: p.gpu, bits: first });
     expect(events.includes("repost")).toBe(false);
     expect(events.includes("simulate_failed")).toBe(false);
     // 8.5: each CRE reading names its run, logged before the CLI started; the CLI's posts match the log
@@ -147,10 +151,11 @@ describe.skipIf(!launchEnabled)("real CRE simulate with the launch panel (opt-in
     const none = cw(await take("none"));
     console.log(`cre-simulate launch: --limits none CoreWeave ${JSON.stringify(none.rows)} bytes ${none.bytes}`);
     expect(none.bytes).toBeGreaterThan(250_000);
-    for (const g of ["H100", "H200", "B200"] as const) expect(none.rows[g]!.state).toBe("VALID");
+    for (const g of ["H100", "H200", "B200", "A100", "L40S"] as const) expect(none.rows[g]!.state).toBe("VALID");
+    expect(none.rows.B300!.state).toBe("NOT_RENTABLE"); // "Contact sales" on every archived hour (18.2)
     const capped = cw(await take("default"));
     console.log(`cre-simulate launch: --limits default CoreWeave ${JSON.stringify(capped.rows)}`);
-    for (const g of ["H100", "H200", "B200"] as const) expect(capped.rows[g]!.state).toBe("FAILED");
+    for (const g of ["H100", "H200", "B200", "B300", "A100", "L40S"] as const) expect(capped.rows[g]!.state).toBe("FAILED");
     // readers in force inside the WASM (8.6): a URL-only swap of H100's Lambda slot, a version the build lacks for B200's
     const h100 = info.panels.find((p) => p.gpu === "H100")!;
     const b200 = info.panels.find((p) => p.gpu === "B200")!;

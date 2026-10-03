@@ -197,6 +197,143 @@
      "liveAtStart": true
     }
    ]
+  },
+  {
+   "gpu": "B300",
+   "spec": "B300-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x08c6236b69837cbbc194f0e5543b52ec92d53b309e164e1139b0076f2151b07f",
+   "families": [
+    {
+     "name": "Verda",
+     "famQ": 1
+    },
+    {
+     "name": "Nebius",
+     "famQ": 1
+    },
+    {
+     "name": "Civo",
+     "famQ": 1
+    },
+    {
+     "name": "Hyperstack",
+     "famQ": 1
+    }
+   ],
+   "slots": [
+    {
+     "slot": 0,
+     "sourceId": "p_verda",
+     "family": 0,
+     "liveAtStart": true
+    },
+    {
+     "slot": 1,
+     "sourceId": "p_nebius",
+     "family": 1,
+     "liveAtStart": true
+    },
+    {
+     "slot": 2,
+     "sourceId": "p_civo",
+     "family": 2,
+     "liveAtStart": true
+    },
+    {
+     "slot": 3,
+     "sourceId": "p_hyperstack",
+     "family": 3,
+     "liveAtStart": false
+    }
+   ]
+  },
+  {
+   "gpu": "A100",
+   "spec": "A100-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x32422c52fa2c8e908a3d943000e08e47ac121b194f11f4d58f0149ef008418de",
+   "families": [
+    {
+     "name": "Verda",
+     "famQ": 1
+    },
+    {
+     "name": "Lambda",
+     "famQ": 1
+    },
+    {
+     "name": "CoreWeave",
+     "famQ": 1
+    },
+    {
+     "name": "Hyperstack",
+     "famQ": 1
+    }
+   ],
+   "slots": [
+    {
+     "slot": 0,
+     "sourceId": "p_verda",
+     "family": 0,
+     "liveAtStart": true
+    },
+    {
+     "slot": 1,
+     "sourceId": "p_lambda",
+     "family": 1,
+     "liveAtStart": true
+    },
+    {
+     "slot": 2,
+     "sourceId": "p_coreweave",
+     "family": 2,
+     "liveAtStart": true
+    },
+    {
+     "slot": 3,
+     "sourceId": "p_hyperstack",
+     "family": 3,
+     "liveAtStart": false
+    }
+   ]
+  },
+  {
+   "gpu": "L40S",
+   "spec": "L40S-PCIe/on-demand-list/neocloud/v1",
+   "gpuId": "0x5d0a54c25c386ef135340ebc802b2bc2538004e5538d436114a5b3c9398b30e4",
+   "families": [
+    {
+     "name": "Verda",
+     "famQ": 1
+    },
+    {
+     "name": "CoreWeave",
+     "famQ": 1
+    },
+    {
+     "name": "Civo",
+     "famQ": 1
+    }
+   ],
+   "slots": [
+    {
+     "slot": 0,
+     "sourceId": "p_verda",
+     "family": 0,
+     "liveAtStart": true
+    },
+    {
+     "slot": 1,
+     "sourceId": "p_coreweave",
+     "family": 1,
+     "liveAtStart": true
+    },
+    {
+     "slot": 2,
+     "sourceId": "p_civo",
+     "family": 2,
+     "liveAtStart": true
+    }
+   ]
   }
  ],
  "deploy": [
@@ -264,6 +401,61 @@
     1
    ],
    "liveAtStartMask": 31
+  },
+  {
+   "gpu": "B300",
+   "spec": "B300-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x08c6236b69837cbbc194f0e5543b52ec92d53b309e164e1139b0076f2151b07f",
+   "recipeHash": "0x24dde5f37a41beedad36c2677df31799ad7d18ac78717df2b8d13d95d0d1573c",
+   "family": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 7
+  },
+  {
+   "gpu": "A100",
+   "spec": "A100-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x32422c52fa2c8e908a3d943000e08e47ac121b194f11f4d58f0149ef008418de",
+   "recipeHash": "0x0ecced91557f67aacec1e47a7beaa5ef673b2c2380d141c113ba78bdc132d5cb",
+   "family": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 7
+  },
+  {
+   "gpu": "L40S",
+   "spec": "L40S-PCIe/on-demand-list/neocloud/v1",
+   "gpuId": "0x5d0a54c25c386ef135340ebc802b2bc2538004e5538d436114a5b3c9398b30e4",
+   "recipeHash": "0x2b283e947b2c3b7c135dc5312acbdcf9f42f00e9b9f25f246eca064de2f1a777",
+   "family": [
+    0,
+    1,
+    2
+   ],
+   "famQ": [
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 7
   }
  ],
  "choices": [
@@ -370,6 +562,76 @@
     "p_hyperstack": 49
    },
    "warnings": []
+  },
+  {
+   "gpu": "B300",
+   "live": [
+    "p_verda",
+    "p_nebius",
+    "p_civo"
+   ],
+   "reserve": "p_hyperstack",
+   "displayOnly": [
+    {
+     "sourceId": "p_coreweave",
+     "reasons": [
+      "no VALID B300 hour in the archive (49 hours read)"
+     ]
+    }
+   ],
+   "validHours": {
+    "p_verda": 49,
+    "p_nebius": 49,
+    "p_coreweave": 0,
+    "p_civo": 49,
+    "p_hyperstack": 49
+   },
+   "warnings": [
+    "p_civo page is 196542 bytes, 79% of CRE's cap"
+   ]
+  },
+  {
+   "gpu": "A100",
+   "live": [
+    "p_verda",
+    "p_lambda",
+    "p_coreweave"
+   ],
+   "reserve": "p_hyperstack",
+   "displayOnly": [],
+   "validHours": {
+    "p_verda": 49,
+    "p_lambda": 49,
+    "p_coreweave": 49,
+    "p_hyperstack": 49
+   },
+   "warnings": []
+  },
+  {
+   "gpu": "L40S",
+   "live": [
+    "p_verda",
+    "p_coreweave",
+    "p_civo"
+   ],
+   "reserve": null,
+   "displayOnly": [
+    {
+     "sourceId": "p_seeweb",
+     "reasons": [
+      "EUR price (display-only by default; flag --include-eur)"
+     ]
+    }
+   ],
+   "validHours": {
+    "p_verda": 49,
+    "p_coreweave": 49,
+    "p_civo": 49,
+    "p_seeweb": 42
+   },
+   "warnings": [
+    "p_civo page is 196542 bytes, 79% of CRE's cap"
+   ]
   }
  ]
 }

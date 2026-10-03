@@ -14,7 +14,7 @@ import { archiveView } from "./archive.ts";
 import { ActionKind, ADDR, executeAction, LAUNCH_PANELS_FILE, PROFILES, queueAction, read, type ReaderArg, ROLE, ROOT, SELECTOR, send, simulate } from "./chain.ts";
 import { demoScenario, eventTime, filesUnder, final, GUARD, guard, H100_ID, h100World, jsonLines, lc, NOV1, OCT1, p, relDay, runWorld, type Scenario, T0 } from "./kit.ts";
 import { installLambdaV2, LAMBDA_V2 } from "./lambda-v2.ts";
-import { EXTRACTORS_BY_VERSION } from "@agate/sources/pure";
+import { EXTRACTORS_BY_VERSION, GPUS } from "@agate/sources/pure";
 import type { Extractor } from "@agate/sources/types";
 import { AlertSink, WsWake } from "@agate/watcher";
 import { loadConfig as repairConfig, RepairAgent, readerSwapId as repairSwapId, Spawner, viemChain } from "../../apps/repair/src/index.ts";
@@ -350,7 +350,7 @@ const SECRET = "FAKEALCHEMYKEY0123456789";
  *  RPC URLs carry a fake Alchemy-style key, read through AGATE_RPC_URLS_CMD: it must reach no file. */
 const repostOutage: Scenario = {
   name: "repost-outage",
-  what: "TEST: both RPC URLs (each carrying a fake API key, read through AGATE_RPC_URLS_CMD; the first one also fails alone for 300 s on day 1) error from slice 9 of day 2 until 1,800 s after its end (REPOST_END = graceStart + GRACE - slice = 2,200 s after it): neither writer abandons anything (the close waits one CLOSE_GRACE after the recovery, fix round M3), both backlogs reposted inside GRACE, the day computed and complete, not carried; the key in no file; guardian on",
+  what: "TEST: both RPC URLs (each carrying a fake API key, read through AGATE_RPC_URLS_CMD; the first one also fails alone for 300 s on day 1) error from slice 9 of day 2 until 1,800 s after its end (REPOST_END = graceStart + GRACE - slice = 2,200 s after it): neither writer abandons anything (the close waits one CLOSE_GRACE after the recovery, 8.1 step 3), both backlogs reposted inside GRACE, the day computed and complete, not carried; the key in no file; guardian on",
   run: async () => {
     const D = 2;
     let from = 0;
@@ -395,9 +395,9 @@ const repostOutage: Scenario = {
             if (lc(closed?.source ?? "") === a) {
               out.push(ok(`${role} (the source): abandons nothing, every slice of day D landed, its backlog after the outage and before REPOST_END`, ab.length === 0 && slices.size === c.slices && late.length === 3 && !late.some((l) => l.startsWith("BAD")), `${slices.size}/${c.slices} slices; ${late.join("; ")}; ${ab.length} abandoned`));
             } else {
-              // fix round (audit M3, 8.1 step 3): after an outage past the day no writer closes before the recovery +
+              // 8.1 step 3: after an outage past the day no writer closes before the recovery +
               // CLOSE_GRACE, so the second writer's backlog lands first and its record stays complete (selectable, F6)
-              out.push(ok(`${role} (second writer): abandons nothing, every slice of day D landed before the close (fix round M3)`, ab.length === 0 && slices.size === c.slices && !late.some((l) => l.startsWith("BAD")), `${slices.size}/${c.slices} slices landed${late.length ? ` (${late.join("; ")})` : ""}; abandoned ${ab.map((x) => `${x.dayId}/${x.slice} at dayEnd + ${x.at - end} s (${x.reason})`).join(", ") || "none"}; the source closed at dayEnd + ${closedAt - end} s`));
+              out.push(ok(`${role} (second writer): abandons nothing, every slice of day D landed before the close (8.1 step 3)`, ab.length === 0 && slices.size === c.slices && !late.some((l) => l.startsWith("BAD")), `${slices.size}/${c.slices} slices landed${late.length ? ` (${late.join("; ")})` : ""}; abandoned ${ab.map((x) => `${x.dayId}/${x.slice} at dayEnd + ${x.at - end} s (${x.reason})`).join(", ") || "none"}; the source closed at dayEnd + ${closedAt - end} s`));
             }
           }
           const others = (["primary", "standby"] as const).flatMap((r) => abandonOf(r).filter((x) => x.dayId !== d).map((x) => `${r} ${x.dayId}/${x.slice}`));
@@ -918,7 +918,7 @@ const twoIndexes: Scenario = {
 
 const coreweave: Scenario = {
   name: "coreweave-launch-panel",
-  what: "FAST, the launch panel (panels/launch.json, --include-over-cap) on the Oct 2 00 to 17 UTC archive hours: H100 5 live with CoreWeave and Hyperstack the reserve, H200 and B200 5 live each; both writers and the watcher read CoreWeave's real archived page; every fix equals the honest reference; the page check runs beside it on the archived GPUTable file (GPU Economy is not archived: the fallback by design), its alerts reported, not judged",
+  what: "FAST, the launch panel (panels/launch.json, --include-over-cap) on the Oct 2 00 to 17 UTC archive hours, six GPUs: H100 5 live with CoreWeave and Hyperstack the reserve, H200 and B200 5 live each, B300 3 live with Hyperstack the reserve, A100 3 live (CoreWeave among them) with Hyperstack the reserve, L40S 3 live (CoreWeave among them); both writers and the watcher read CoreWeave's real archived page; every fix equals the honest reference; the page check runs beside it on the archived GPUTable file (GPU Economy is not archived: the fallback by design), its alerts reported, not judged",
   needsArchive: true,
   run: async () => {
     // Oct 2 00 to 17 UTC: no real price change inside the window (Verda moved at 18 UTC). On FAST one index day
@@ -926,14 +926,21 @@ const coreweave: Scenario = {
     // (a replay artifact, reported in integration.md); this run keeps to a window without one
     const view = archiveView((date, hour) => date === "2026-10-02" && Number(hour) <= 17);
     return runWorld(
-      { name: "coreweave-launch-panel", profile: PROFILES.FAST, startTs: T0, epochDay: NOV1, gpus: [{ gpu: "H100" }, { gpu: "H200" }, { gpu: "B200" }], scenario: demoScenario(), rawDir: view.rawDir, primary: { viaForwarder: true }, standby: {}, guardian: GUARD, panelsFile: LAUNCH_PANELS_FILE, pagecheck: true },
+      { name: "coreweave-launch-panel", profile: PROFILES.FAST, startTs: T0, epochDay: NOV1, gpus: GPUS.map((gpu) => ({ gpu })), scenario: demoScenario(), rawDir: view.rawDir, primary: { viaForwarder: true }, standby: {}, guardian: GUARD, panelsFile: LAUNCH_PANELS_FILE, pagecheck: true },
       (w) => w.dayEnd(relDay(w, 10)) + 30,
       {
         forbidAlerts: [AlertCode.R1_NO_CANDIDATE, AlertCode.GAS_CAP, AlertCode.NONCE_STUCK, AlertCode.CLOCK_SKEW, AlertCode.RPC_DOWN],
         extra: async (w, ev, days) => {
           const out: Check[] = [];
           const NEVER = 0xffffffff;
-          const want: Record<string, { live: number; reserve: string[] }> = { H100: { live: 5, reserve: ["p_hyperstack"] }, H200: { live: 5, reserve: [] }, B200: { live: 5, reserve: [] } };
+          const want: Record<string, { live: number; reserve: string[] }> = {
+            H100: { live: 5, reserve: ["p_hyperstack"] },
+            H200: { live: 5, reserve: [] },
+            B200: { live: 5, reserve: [] },
+            B300: { live: 3, reserve: ["p_hyperstack"] }, // no CoreWeave slot: its B300 is "Contact sales"
+            A100: { live: 3, reserve: ["p_hyperstack"] },
+            L40S: { live: 3, reserve: [] },
+          };
           const rows: string[] = [];
           let shapeOk = true;
           for (const pnl of w.panels) {
@@ -949,18 +956,21 @@ const coreweave: Scenario = {
             const withCw = posted.filter((e) => (e.values[cw] ?? 0) > 0);
             const byRole = new Set(withCw.map((e) => lc(e.writer)));
             const g = want[pnl.gpu]!;
-            if (live !== g.live || json(reserve) !== json(g.reserve) || cw < 0 || byRole.size !== 2 || withCw.length < posted.length / 2) shapeOk = false;
-            rows.push(`${pnl.gpu}: ${live} live (${pnl.sources.filter((s) => !reserve.includes(s)).join(", ")}), reserve ${reserve.join(", ") || "none"}; CoreWeave slot ${cw} in ${withCw.length}/${posted.length} posts from ${byRole.size} writer(s), e.g. ${(withCw[0]?.values[cw] ?? 0) / 1e6}`);
+            const cwWanted = pnl.gpu !== "B300";
+            if (live !== g.live || json(reserve) !== json(g.reserve) || (cw >= 0) !== cwWanted || (cwWanted && (byRole.size !== 2 || withCw.length < posted.length / 2)) || posted.length === 0) shapeOk = false;
+            rows.push(`${pnl.gpu}: ${live} live (${pnl.sources.filter((s) => !reserve.includes(s)).join(", ")}), reserve ${reserve.join(", ") || "none"}; ${cw >= 0 ? `CoreWeave slot ${cw} in ${withCw.length}/${posted.length} posts from ${byRole.size} writer(s), e.g. ${(withCw[0]?.values[cw] ?? 0) / 1e6}` : `no CoreWeave slot, ${posted.length} posts`}`);
           }
           out.push(ok("the launch panel onchain and CoreWeave read by both writers", shapeOk, rows.join("; ")));
           const wl = jsonLines<WatchLine>(join(w.watcherDir, "log")).filter((l) => l.sourceId === "p_coreweave" && l.attempts > 0);
-          const valid = wl.filter((l) => (["H100", "H200", "B200"] as GpuModel[]).every((g) => l.gpus[g]?.state === "VALID"));
-          out.push(ok("the watcher reads CoreWeave's page for all three GPUs", wl.length > 0 && valid.length === wl.length, `${valid.length}/${wl.length} intervals VALID for H100, H200 and B200`));
-          const meds = ["H100", "H200", "B200"].map((g) => {
+          const priced: GpuModel[] = ["H100", "H200", "B200", "A100", "L40S"];
+          const valid = wl.filter((l) => priced.every((g) => l.gpus[g]?.state === "VALID") && l.gpus.B300?.state === "NOT_RENTABLE");
+          out.push(ok("the watcher reads CoreWeave's page for all six GPUs", wl.length > 0 && valid.length === wl.length, `${valid.length}/${wl.length} intervals VALID for H100, H200, B200, A100 and L40S, B300 NOT_RENTABLE ("Contact sales")`));
+          const meds = GPUS.map((g) => {
             const xs = days.filter((x) => x.gpu === g && x.final && x.status !== "CARRIED");
             return `${g} ${xs.length} computed days, last ${((xs.at(-1)?.value ?? 0) / 1e6).toFixed(2)}`;
           });
-          out.push(ok("fixes computed on the five-source sets", days.filter((x) => x.final && x.status !== "CARRIED").length >= 3 * 8, meds.join("; ")));
+          const perGpu = GPUS.every((g) => days.filter((x) => x.gpu === g && x.final && x.status !== "CARRIED").length >= 8);
+          out.push(ok("fixes computed on the launch sets of all six GPUs", perGpu, meds.join("; ")));
           const al = readAlerts(w);
           const cmp = jsonLines<{ sourceId: string; gpu: string; gap: boolean; gapBps: number; tracker: string }>(join(w.home, "pagecheck", index8(w.dep.index)));
           const gaps = cmp.filter((c) => c.gap);

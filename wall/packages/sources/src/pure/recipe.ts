@@ -4,9 +4,12 @@
 import type { GpuModel } from "@agate/report/types";
 import type { ExtractionRule, SourceDef } from "../types.ts";
 
-export const GPUS: readonly GpuModel[] = ["H100", "H200", "B200"];
+/** Every GPU the index prices, in order (BUILD-SPEC 18.1). The one list: everything else iterates this or a panel. */
+export const GPUS: readonly GpuModel[] = ["H100", "H200", "B200", "B300", "A100", "L40S"];
+/** The product form of each GPU (rule 7.3 item 1): SXM for all but L40S, which exists only as a PCIe card. */
+export const FORM_OF: Readonly<Record<GpuModel, "SXM" | "PCIe">> = { H100: "SXM", H200: "SXM", B200: "SXM", B300: "SXM", A100: "SXM", L40S: "PCIe" };
 export const SPEC_VERSION = 1;
-export const specOf = (gpu: GpuModel, version = SPEC_VERSION): string => `${gpu}-SXM/on-demand-list/neocloud/v${version}`;
+export const specOf = (gpu: GpuModel, version = SPEC_VERSION): string => `${gpu}-${FORM_OF[gpu]}/on-demand-list/neocloud/v${version}`;
 
 /** Bounds of rule 7 in u (10^-6 USD) per GPU-hour. */
 export const BOUNDS: readonly [number, number] = [100_000, 1_000_000_000];
@@ -31,14 +34,22 @@ const rule = (product: string, form: ExtractionRule["form"], notes: string): Ext
 
 const NOT_ORDERABLE = "A price cell showing N/A, sold out, waitlist, contact sales or coming soon is NOT_RENTABLE.";
 
+const VERDA_SIZE =
+  "Size from gpu.number_of_gpus (must match the Nx prefix of gpu.description): 8, else 1, never 2 or 4. " +
+  "Read price_per_hour (a decimal string; never spot_price, dynamic_price, max_dynamic_price or serverless_*), " +
+  "per instance, divided by the GPU count. Rows of the chosen size must agree.";
+
 const verda = (model: string, name: string) =>
+  rule(name, "SXM", `JSON array of instance types. Rows with model == "${model}" exactly (never "${model} CC") whose name contains SXM and currency == "usd". ` + VERDA_SIZE);
+
+/** The price-only GPUs (18.2): the name must match a per-GPU pattern instead of containing SXM. */
+const verdaNamed = (model: string, name: string, pattern: string, form: ExtractionRule["form"], never: string) =>
   rule(
     name,
-    "SXM",
-    `JSON array of instance types. Rows with model == "${model}" exactly (never "${model} CC") whose name contains SXM and currency == "usd". ` +
-      "Size from gpu.number_of_gpus (must match the Nx prefix of gpu.description): 8, else 1, never 2 or 4. " +
-      "Read price_per_hour (a decimal string; never spot_price, dynamic_price, max_dynamic_price or serverless_*), " +
-      "per instance, divided by the GPU count. Rows of the chosen size must agree.",
+    form,
+    `JSON array of instance types. Rows with model == "${model}" exactly (${never}) whose name matches /${pattern}/ and currency == "usd" ` +
+      "(a row of that model with another name is a layout change). " +
+      VERDA_SIZE,
   );
 
 const nebius = (gpu: GpuModel) =>
@@ -62,43 +73,61 @@ const lambda = (plan: string) =>
       NOT_ORDERABLE,
   );
 
-const coreweave = (slug: string, name: string) =>
+/** A plan name Lambda gives to two products (A100: 80 GB and 40 GB rows, 18.2): the VRAM/GPU cell picks ours. */
+const lambdaVram = (plan: string, vram: string, never: string) =>
+  rule(
+    `${plan} ${vram}`,
+    "SXM",
+    'HTML. The "Instances pricing" h2, its tab list (8x, 4x, 2x, 1x) and the tab panel each tab controls. ' +
+      `The 8x panel's table rows with data-plan == "${plan}" and VRAM/GPU == "${vram}" (the plan name alone is not unique), ` +
+      `else the 1x panel's; never 4x or 2x; never ${never}. ` +
+      'Cell data-label "PRICE/GPU/HR*" ($d.dd per GPU-hour). Never the 1-Click Clusters or Superclusters tables. ' +
+      NOT_ORDERABLE,
+  );
+
+/** `extra` (the price-only GPUs' own conditions and exclusions, 18.2) is empty for H100, H200 and B200, whose text
+ *  stays exactly as registered. */
+const coreweave = (slug: string, name: string, form: ExtractionRule["form"] = "SXM", extra = "") =>
   rule(
     name,
-    "SXM",
+    form,
     'HTML. The "On-demand GPU instances" h2, then its first "REGION: NORTH AMERICA" block (never Europe, never the CPU tables). ' +
       `The row with data-product == "${slug}" and model name "${name}". Header columns must be GPU Model, GPU Count, VRAM, vCPUs, ` +
       "System RAM, Local Storage, On-Demand Price (Per Hour), Spot Price (Per Hour). GPU count from the GPU Count cell (8, else 1), " +
       "price from the On-Demand cell ($d.dd per instance-hour, never Spot or Inference), divided by the count; the mobile " +
       '"On-Demand Price:" copy and the GPU Count copy in the same row must agree. ' +
+      extra +
       NOT_ORDERABLE,
   );
 
-const civo = (caption: string, row: string) =>
+const civo = (caption: string, row: string, form: ExtractionRule["form"] = "SXM", extra = "") =>
   rule(
     row,
-    "SXM",
+    form,
     `HTML. The table captioned "${caption}" (header Size, RAM, vCPU, Storage, Data Transfer, On-demand, Commitment). ` +
       `Rows "<n> x ${row.replace(/^8 x /, "")}": n = 8, else 1, never 2 or 4. The On-demand cell's hourly value ($d.dd per hour, ` +
       "per instance), divided by n; never the monthly value or any Commitment column. " +
+      extra +
       NOT_ORDERABLE,
   );
 
-const hyperstack = (name: string, notNames: string) =>
+const hyperstack = (name: string, notNames: string, extra = "") =>
   rule(
     name,
     "SXM",
     'HTML. The "On-Demand GPU Pricing" card (header GPU Model, VRAM (GB), Max pCPUs per GPU, Max RAM (GB) per GPU, Pricing Per Hour), ' +
       `row "${name}" exactly; never ${notNames}; never the Reservation or Spot VM cards. ` +
       "The card quotes per GPU-hour, read as is. " +
+      extra +
       NOT_ORDERABLE,
   );
 
-const seeweb = (card: string) =>
+/** formLine: the card's form line, "GPU SXM" for H100 and H200, "GPU PCI" for L40S (18.2). */
+const seeweb = (card: string, formLine = "GPU SXM", form: ExtractionRule["form"] = "SXM") =>
   rule(
     card,
-    "SXM",
-    `HTML, EUR. The card whose name is "${card}" and whose form line reads "GPU SXM". The Standard/Spot switch must be unchecked ` +
+    form,
+    `HTML, EUR. The card whose name is "${card}" and whose form line reads "${formLine}". The Standard/Spot switch must be unchecked ` +
       "(Standard = on-demand) and the card's GPU-count select must default to its first option, 1. " +
       '"Hourly Cost" (<span>d.dd</span> EUR) is per GPU-hour, read as is; never the 3, 6 or 12 month prices. ' +
       NOT_ORDERABLE,
@@ -127,6 +156,9 @@ export const SOURCES: readonly SourceDef[] = [
       H100: verda("H100", "H100 SXM5 80GB"),
       H200: verda("H200", "H200 SXM5 141GB"),
       B200: verda("B200", "B200 SXM6 180GB"),
+      B300: verdaNamed("B300", "B300 SXM6 268GB", "^B300 SXM6 ", "SXM", 'never "B300 CC", the confidential-computing row, and never "GB300"'),
+      A100: verdaNamed("A100 80GB", "A100 SXM4 80GB", "^A100 SXM4 80GB$", "SXM", 'never "A100 40GB" and never a PCIe row'),
+      L40S: verdaNamed("L40S", "L40S 48GB", "^L40S 48GB$", "PCIe", 'never an "L40" row'),
     },
   },
   {
@@ -136,7 +168,8 @@ export const SOURCES: readonly SourceDef[] = [
     currency: "USD",
     parserVersion: "nebius/1",
     hosts: ["docs.nebius.com", "nebius.com", "www.nebius.com"],
-    rules: { H100: nebius("H100"), H200: nebius("H200"), B200: nebius("B200") },
+    // B300 (18.2): the section "gpu-b300-sxm". No A100; never the L40S sections (GPU, vCPU and RAM lines, no instance price).
+    rules: { H100: nebius("H100"), H200: nebius("H200"), B200: nebius("B200"), B300: nebius("B300") },
   },
   {
     id: "p_lambda",
@@ -145,7 +178,11 @@ export const SOURCES: readonly SourceDef[] = [
     currency: "USD",
     parserVersion: "lambda/1",
     hosts: ["lambda.ai", "www.lambda.ai", "lambdalabs.com", "www.lambdalabs.com"],
-    rules: { H100: lambda("NVIDIA H100 SXM"), B200: lambda("NVIDIA B200 SXM6") },
+    rules: {
+      H100: lambda("NVIDIA H100 SXM"),
+      B200: lambda("NVIDIA B200 SXM6"),
+      A100: lambdaVram("NVIDIA A100 SXM", "80 GB", 'the 40 GB "NVIDIA A100 SXM" row or "NVIDIA A100 PCIe"'),
+    },
   },
   {
     id: "p_coreweave",
@@ -158,6 +195,14 @@ export const SOURCES: readonly SourceDef[] = [
       H100: coreweave("hgx-h100", "NVIDIA HGX H100"),
       H200: coreweave("hgx-h200", "NVIDIA HGX H200"),
       B200: coreweave("nvidia-b200", "NVIDIA HGX B200"),
+      B300: coreweave("nvidia-b300", "NVIDIA HGX B300", "SXM", 'Never "nvidia-gb300-nvl72" (GB300 NVL72); a "Contact sales" on-demand cell is NOT_RENTABLE. '),
+      A100: coreweave(
+        "nvidia-a100",
+        "NVIDIA A100",
+        "SXM",
+        'The VRAM (GB) cell must be 80 (A100 SXM4 80GB, 8 GPUs joined by NVLink). The data-product match is exact, closing quote included: never "nvidia-a100-80gb" or "a100-80gb-pcie". ',
+      ),
+      L40S: coreweave("nvidia-l40s", "NVIDIA L40S", "PCIe", 'The data-product match is exact, closing quote included: never "nvidia-l40" (the L40, another card). '),
     },
   },
   {
@@ -171,6 +216,9 @@ export const SOURCES: readonly SourceDef[] = [
       H100: civo("NVIDIA H100 SXM GPU pricing", "8 x NVIDIA H100 - 80GB"),
       H200: civo("NVIDIA H200 SXM GPU pricing", "8 x NVIDIA H200 - 141GB HBM3e"),
       B200: civo("NVIDIA B200 GPU pricing", "8 x NVIDIA B200 - 180GB"),
+      B300: civo("NVIDIA B300 GPU pricing", "8 x NVIDIA B300", "SXM", "The row has no memory suffix; never a GB300 row. "),
+      // No A100 rule: the pricing page never states the A100's form and Civo's own A100 page says PCIe (18.2).
+      L40S: civo("NVIDIA L40S 48GB GPU pricing", "8 x NVIDIA L40S - 48GB", "PCIe", "Never an L40 row. "),
     },
   },
   {
@@ -184,6 +232,13 @@ export const SOURCES: readonly SourceDef[] = [
       H100: hyperstack("NVIDIA H100 SXM", '"NVIDIA H100 NVLink" (a PCIe card with a bridge) or "NVIDIA H100" (PCIe)'),
       H200: hyperstack("NVIDIA H200 SXM", "any other H200 row"),
       B200: hyperstack("NVIDIA B200", "B300 or GB200 rows"),
+      B300: hyperstack("NVIDIA B300", "B200 or GB300 rows"),
+      A100: hyperstack(
+        "NVIDIA A100 SXM",
+        '"NVIDIA A100 NVLink" (a PCIe card with a bridge) or "NVIDIA A100" (PCIe), whose price cells start with a no-break space',
+        "The VRAM (GB) cell must be 80. ",
+      ),
+      // No L40S rule: "NVIDIA L40" is another card.
     },
   },
   {
@@ -193,7 +248,8 @@ export const SOURCES: readonly SourceDef[] = [
     currency: "EUR",
     parserVersion: "seeweb/1",
     hosts: ["www.seeweb.it", "seeweb.it"],
-    rules: { H100: seeweb("NVIDIA H100"), H200: seeweb("NVIDIA H200") },
+    // No A100 rule: Seeweb's A100 card says "GPU PCI".
+    rules: { H100: seeweb("NVIDIA H100"), H200: seeweb("NVIDIA H200"), L40S: seeweb("NVIDIA L40S", "GPU PCI", "PCIe") },
   },
   {
     id: "p_gcore",

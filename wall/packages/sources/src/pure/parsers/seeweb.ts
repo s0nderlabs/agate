@@ -3,7 +3,13 @@ import type { GpuModel } from "@agate/report/types";
 import type { ParseContext } from "../../types.ts";
 import { agree, allMatches, type Cell, classifyPrice, countOf, elements, firstElement, LayoutError, textOf } from "../text.ts";
 
-const CARDS: Partial<Record<GpuModel, string>> = { H100: "NVIDIA H100", H200: "NVIDIA H200" };
+/** The card name and the form its card must state: "GPU SXM" for H100 and H200, "GPU PCI" for L40S (its only form;
+ * 18.2). The A100 card says "GPU PCI" and is never read. */
+const CARDS: Partial<Record<GpuModel, { name: string; form: string }>> = {
+  H100: { name: "NVIDIA H100", form: "GPU SXM" },
+  H200: { name: "NVIDIA H200", form: "GPU SXM" },
+  L40S: { name: "NVIDIA L40S", form: "GPU PCI" },
+};
 const PRICE = /^(\d[\d,]*(?:\.\d+)?) \u20ac$/;
 
 export function extractSeeweb(body: string, _ctx: ParseContext): Partial<Record<GpuModel, Cell>> {
@@ -16,14 +22,14 @@ export function extractSeeweb(body: string, _ctx: ParseContext): Partial<Record<
   if (cards.length < 3) throw new LayoutError(`${cards.length} GPU cards`);
 
   const out: Partial<Record<GpuModel, Cell>> = {};
-  for (const [g, name] of Object.entries(CARDS) as [GpuModel, string][]) {
+  for (const [g, { name, form }] of Object.entries(CARDS) as [GpuModel, { name: string; form: string }][]) {
     const cells: Cell[] = [];
     for (const card of cards) {
       const cn = firstElement(card, /<span class="cardname">/g, "</span>");
       if (cn === null || textOf(cn) !== name) continue;
       try {
-        if (!/GPU SXM \|/.test(textOf(card))) {
-          cells.push({ kind: "missing", why: `${name}: the card does not say GPU SXM` });
+        if (!textOf(card).includes(`${form} |`)) {
+          cells.push({ kind: "missing", why: `${name}: the card does not say ${form}` });
           continue;
         }
         const sel = firstElement(card, /<select class="gpu-params" name="card-number"[^<>]*>/g, "</select>");

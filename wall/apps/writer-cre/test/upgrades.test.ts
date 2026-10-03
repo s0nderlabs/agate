@@ -11,7 +11,7 @@ import type { Panel } from "@agate/sources/types";
 import { clockOf } from "@agate/writer-standby";
 import { type Anvil, type Deployed, deployIndex, haveAnvil, KEYS, LAUNCH_PANELS_FILE, PANELS_FILE, startAnvil } from "../../writer-standby/test/helpers/anvil.ts";
 import { PRICES } from "../../writer-standby/test/helpers/world.ts";
-import { CRE_SIM_FORWARDER, panelOverCap } from "../src/runner.ts";
+import { CRE_SIM_FORWARDER, creGasLimit, panelOverCap } from "../src/runner.ts";
 import { assertKeyFree, childEnv, creLimits, creRpcRotation, creRpcUrls, creSource, prepareRuntime, workflowConfig, workflowRefusals } from "../src/simulate.ts";
 
 const WORKFLOW = join(import.meta.dir, "../workflow");
@@ -84,7 +84,7 @@ describe("8.2 (2), 13.6: the CLI never gets a URL from the RPC list", () => {
 describe("8.2 (3), (4): readers in cfg.json, the run line before the CLI", () => {
   test("each run writes the day's readers into cfg.json (only when they change) and announces its run first", async () => {
     const dir = mkdtempSync(join(tmpdir(), "agate-cre-rd-"));
-    const cfg = workflowConfig({ index: "0x5FbDB2315678afecb367f032d93F642f64180aa3", chainSelector: 1n, gasLimit: 777_371n, clock: clockOf({ day: 600, slices: 4, epochTs: 5, epochDay: 20_758 }), panels: launch.panels });
+    const cfg = workflowConfig({ index: "0x5FbDB2315678afecb367f032d93F642f64180aa3", chainSelector: 1n, gasLimit: creGasLimit(), clock: clockOf({ day: 600, slices: 4, epochTs: 5, epochDay: 20_758 }), panels: launch.panels });
     const rt = prepareRuntime({ dir, workflowDir: WORKFLOW, target: "local-simulation", chainName: "monad-testnet", config: cfg });
     const order: string[] = [];
     const cfgSeen: unknown[] = [];

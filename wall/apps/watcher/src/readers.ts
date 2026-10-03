@@ -4,6 +4,7 @@
 // source). A reader it may not use is never replaced by another: that slot reads as no reading (MISSED, with the
 // reason), and the attester raises READER_MISSING or READER_REFUSED. The pure rules live in @agate/sources.
 import type { GpuModel, Hex } from "@agate/report/types";
+import { GPUS } from "@agate/sources/pure";
 import type { ParseContext, ParseResult, ReaderRef, ReaderSwap, SourceDef } from "@agate/sources/types";
 import type { IndexView } from "./chain/types.ts";
 import type { PanelRef } from "./scenario.ts";
@@ -103,7 +104,7 @@ export class ReaderBook {
     const def = this.def(sourceId);
     if (!def) return [];
     const day = this.dayOfInterval(k);
-    const gpus = (["H100", "H200", "B200"] as GpuModel[]).filter((g) => def.rules[g] !== undefined);
+    const gpus = GPUS.filter((g) => def.rules[g] !== undefined);
     const byGpu = new Map<GpuModel, ReaderRef>();
     for (const p of this.panels) {
       const slot = p.sources.indexOf(sourceId);

@@ -50,6 +50,33 @@
    "family": [0, 1, 2, 3],
    "famQ": [1, 1, 1, 1],
    "liveAtStartMask": 7
+  },
+  {
+   "gpu": "B300",
+   "spec": "B300-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x08c6236b69837cbbc194f0e5543b52ec92d53b309e164e1139b0076f2151b07f",
+   "recipeHash": "0x24dde5f37a41beedad36c2677df31799ad7d18ac78717df2b8d13d95d0d1573c",
+   "family": [0, 1, 2, 3],
+   "famQ": [1, 1, 1, 1],
+   "liveAtStartMask": 7
+  },
+  {
+   "gpu": "A100",
+   "spec": "A100-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x32422c52fa2c8e908a3d943000e08e47ac121b194f11f4d58f0149ef008418de",
+   "recipeHash": "0x7cd86773a2312868d2162a48efb8150735cf9b5ffa7b13a0a1ac57c8c6a31cd1",
+   "family": [0, 1, 2],
+   "famQ": [1, 1, 1],
+   "liveAtStartMask": 7
+  },
+  {
+   "gpu": "L40S",
+   "spec": "L40S-PCIe/on-demand-list/neocloud/v1",
+   "gpuId": "0x5d0a54c25c386ef135340ebc802b2bc2538004e5538d436114a5b3c9398b30e4",
+   "recipeHash": "0x0eb6eb135826c62e0b94d2fc451f2ad54e8e5275e1683cda343330d862c932c2",
+   "family": [0, 1],
+   "famQ": [1, 1],
+   "liveAtStartMask": 1
   }
  ]
 }

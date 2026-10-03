@@ -97,13 +97,14 @@ describe("repair install", () => {
     expect(argv.slice(3, 5)).toEqual([process.execPath, "test"]);
     expect(argv.slice(5)).toEqual(SANDBOX_TESTS.map((t) => join("packages", "sources", "test", `${t}.test.ts`)));
     const text = r.out.join("\n");
-    expect(text).toContain("bun test (sandboxed: 8 pure test files of packages/sources): passed");
+    expect(text).toContain(`bun test (sandboxed: ${SANDBOX_TESTS.length} pure test files of packages/sources): passed`);
     expect(text).toContain("read the draft line by line before committing it");
     expect(text).toContain("next: run those tests and commit, then");
     expect(existsSync(join(WALL, "packages", "sources", "src", "pure", "parsers", "lambda.v2.ts"))).toBe(false); // the real repo untouched
   }, 60_000);
   test("every sources test file is either run in the sandbox or named as unsandboxed (a new one forces a decision)", () => {
-    const files = readdirSync(join(WALL, "packages", "sources", "test")).filter((f) => f.endsWith(".test.ts")).map((f) => f.replace(/\.test\.ts$/, "")).sort();
+    // recursive: a test in a subfolder (adversarial/) is a sources test too
+    const files = (readdirSync(join(WALL, "packages", "sources", "test"), { recursive: true }) as string[]).filter((f) => f.endsWith(".test.ts")).map((f) => f.replace(/\.test\.ts$/, "")).sort();
     expect(files).toEqual([...SANDBOX_TESTS, ...UNSANDBOXED_TESTS].sort());
   });
   test.skipIf(!MAC)("a draft that escapes gate 1 still cannot reach the network or start a program from install's tests", async () => {

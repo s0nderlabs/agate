@@ -14,6 +14,8 @@ GPU rental prices move fast, and there is no open way to lock one in. Renters ca
 2. **An open price.** For each GPU model, the clouds' own public price pages are read every hour and combined into a median of companies. A second, independent reader checks the same pages and must countersign every change, so no single key can move the price. Every source is shown beside the median and the method is public. A Chainlink CRE workflow carries the index onchain on Monad.
 3. **A cash-settled claim.** One token per GPU model per month that pays the month's average index price, clamped between a floor and a ceiling (half and twice the reference price). Going short means locking the ceiling and selling the token, so every token is fully backed. Holders are paid after the month, or daily if they choose. No GPUs change hands.
 
+Six GPU models have a daily index price: H100, H200, B200, B300, A100 and L40S. The first three also have monthly markets; the other three are price only for now.
+
 ## Ways in (planned)
 
 - **Web app:** see the price, trade it, hedge with it.

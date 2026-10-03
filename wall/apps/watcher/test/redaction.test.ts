@@ -52,8 +52,10 @@ async function run(cwd: string, args: string[], env: Record<string, string>, ms:
   const out = new Response(p.stdout).text();
   const err = new Response(p.stderr).text();
   const timer = setTimeout(() => p.kill("SIGTERM"), ms);
+  const hard = setTimeout(() => p.kill("SIGKILL"), ms + 5_000); // a role asleep in its period or an RPC retry: never left running
   await p.exited;
   clearTimeout(timer);
+  clearTimeout(hard);
   return `${await out}\n${await err}`;
 }
 

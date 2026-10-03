@@ -13,6 +13,8 @@ export interface TrackerMapEntry {
   gt: string;
   /** GPUs whose GPUTable row is never read for this source (Hyperstack H100: its PCIe price labelled SXM) */
   gtNever?: readonly GpuModel[];
+  /** GPUs whose GPU Economy row is never read for this source (Hyperstack A100: its PCIe card where we read SXM) */
+  geNever?: readonly GpuModel[];
 }
 
 /** sourceId to tracker provider (15.1). p_seeweb and p_gcore: none, not compared. */
@@ -22,11 +24,12 @@ export const TRACKER_MAP: Readonly<Record<string, TrackerMapEntry>> = {
   p_lambda: { ge: "lambda", gt: "Lambda Labs" },
   p_coreweave: { ge: "coreweave", gt: "CoreWeave" },
   p_civo: { ge: "civo", gt: "Civo" },
-  p_hyperstack: { ge: "hyperstack", gt: "Hyperstack", gtNever: ["H100"] },
+  // A100 in both trackers: each lists Hyperstack's PCIe A100 ($1.35) for our SXM row ($1.60), a false alarm every hour
+  p_hyperstack: { ge: "hyperstack", gt: "Hyperstack", gtNever: ["H100", "A100"], geNever: ["A100"] },
 };
 
-export const GE_FILE: Readonly<Record<GpuModel, string>> = { H100: "h100-sxm", H200: "h200", B200: "b200" };
-export const GT_GPU: Readonly<Record<GpuModel, string>> = { H100: "H100 SXM", H200: "H200", B200: "B200" };
+export const GE_FILE: Readonly<Record<GpuModel, string>> = { H100: "h100-sxm", H200: "h200", B200: "b200", B300: "b300", A100: "a100-80", L40S: "l40s" };
+export const GT_GPU: Readonly<Record<GpuModel, string>> = { H100: "H100 SXM", H200: "H200", B200: "B200", B300: "B300", A100: "A100 SXM", L40S: "L40S" };
 export const GE_URL = (gpu: GpuModel) => `https://gpueconomy.com/gpu/${GE_FILE[gpu]}/prices.json`;
 export const GT_URL = "https://gputable.dev/data.json";
 export const ATTRIBUTION = { gpueconomy: "GPU Economy (https://gpueconomy.com)", gputable: "GPUTable (https://gputable.dev)" } as const;
@@ -160,9 +163,11 @@ export function pickRow(rows: readonly TrackerRow[], own: number): TrackerRow | 
   return pool.slice().sort((a, b) => Math.abs(a.valueU - own) - Math.abs(b.valueU - own) || a.valueU - b.valueU)[0]!;
 }
 
-export function geRowsFor(f: ParsedGe, sourceId: string): TrackerRow[] {
+/** The rows of one GPU Economy file (one GPU) for a source; none for a pair on the source's geNever list. */
+export function geRowsFor(f: ParsedGe, sourceId: string, gpu: GpuModel): TrackerRow[] {
   const m = TRACKER_MAP[sourceId];
-  return m ? f.rows.filter((r) => r.providerId === m.ge).map((r) => r.row) : [];
+  if (!m || m.geNever?.includes(gpu)) return [];
+  return f.rows.filter((r) => r.providerId === m.ge).map((r) => r.row);
 }
 export function gtRowsFor(f: ParsedGt, sourceId: string, gpu: GpuModel): TrackerRow[] {
   const m = TRACKER_MAP[sourceId];
@@ -181,7 +186,7 @@ export interface IntervalTrackers {
 export type GeUsable = { use: true } | { use: false; why: "file-failed" | "stale" | "no-row" | "stale-row" };
 
 /** A GPU Economy row is fresh when its last_confirmed_at is at most GE_STALE_S before t (absent or unreadable: the
- *  file's data_updated_at decides, as before). Fix round (audit L3): a row stuck inside a fresh file is no row. */
+ *  file's data_updated_at decides, as before). A row stuck inside a fresh file is no row (15.1, row freshness). */
 export function rowFresh(r: TrackerRow, at: number): boolean {
   const c = isoS(r.lastConfirmedAt);
   return c === null || at - c <= GE_STALE_S;
@@ -192,7 +197,7 @@ export function geUsable(t: IntervalTrackers, sourceId: string, gpu: GpuModel): 
   const f = t.ge[gpu];
   if (!f || !f.ok) return { use: false, why: "file-failed" };
   if (f.updatedAt === null || t.at - f.updatedAt > GE_STALE_S) return { use: false, why: "stale" };
-  const rows = geRowsFor(f, sourceId);
+  const rows = geRowsFor(f, sourceId, gpu);
   if (rows.length === 0) return { use: false, why: "no-row" };
   return rows.some((r) => rowFresh(r, t.at)) ? { use: true } : { use: false, why: "stale-row" };
 }
@@ -201,7 +206,7 @@ export function geUsable(t: IntervalTrackers, sourceId: string, gpu: GpuModel): 
 export function trackerFor(t: IntervalTrackers, sourceId: string, gpu: GpuModel, own: number): TrackerRow | null {
   if (!TRACKER_MAP[sourceId]) return null;
   const f = t.ge[gpu];
-  if (geUsable(t, sourceId, gpu).use && f && f.ok) return pickRow(geRowsFor(f, sourceId).filter((r) => rowFresh(r, t.at)), own);
+  if (geUsable(t, sourceId, gpu).use && f && f.ok) return pickRow(geRowsFor(f, sourceId, gpu).filter((r) => rowFresh(r, t.at)), own);
   if (t.gt && t.gt.ok) return pickRow(gtRowsFor(t.gt, sourceId, gpu), own);
   return null;
 }
