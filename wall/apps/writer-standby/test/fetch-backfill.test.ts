@@ -96,6 +96,7 @@ describe("launch backfill (8.4)", () => {
   test("posts every logged slice the index lacks, with its original readAt, from firstDay", async () => {
     const idx = new FakeIndex(clocks, PANELS, D);
     idx.time = dayStart(c, D + 2) + 100;
+    idx.registeredAt = idx.time; // registered just now, with firstDay two days back
     const log = logged(mkdtempSync(join(tmpdir(), "agate-bf-")));
     const res = await backfill({ chain: idx.view(PRIMARY), clock: c, chainSelector: SELECTOR, panels: PANELS, log, role: "primary", now: idx.time });
     expect(res.posted.length).toBe(24);

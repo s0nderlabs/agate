@@ -2,7 +2,9 @@
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "../../../..");
-const artifact = join(root, "contracts/out/IAgateIndex.sol/IAgateIndex.json");
+// AGATE_FORGE_OUT: a forge out folder other than contracts/out (a builder's own FOUNDRY_OUT)
+const out_ = process.env.AGATE_FORGE_OUT ?? join(root, "contracts/out");
+const artifact = join(out_, "IAgateIndex.sol/IAgateIndex.json");
 const { abi } = await Bun.file(artifact).json();
 const out = join(import.meta.dir, "../src/abi.ts");
 const body =

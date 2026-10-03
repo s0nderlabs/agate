@@ -24,7 +24,7 @@ contract IndexInvariantTest is IndexBase {
         h = new IndexHandler(ix, [w1, w2, att, g1, keeper, owner], OCT1, 6);
         targetContract(address(h));
         // weights by repetition: mostly posting, closing and signing, sometimes vetoes, suspensions and long waits
-        bytes4[] memory sel = new bytes4[](21);
+        bytes4[] memory sel = new bytes4[](28);
         uint256 k;
         for (uint256 i; i < 4; ++i) sel[k++] = IndexHandler.postAll.selector;
         for (uint256 i; i < 2; ++i) sel[k++] = IndexHandler.post.selector;
@@ -36,6 +36,12 @@ contract IndexInvariantTest is IndexBase {
         sel[k++] = IndexHandler.veto.selector;
         sel[k++] = IndexHandler.suspendStandby.selector;
         sel[k++] = IndexHandler.reappointStandby.selector;
+        // Oct 3 (I31, I32): reader swaps and the owner queue's execute window, with time warps to its boundaries
+        for (uint256 i; i < 2; ++i) sel[k++] = IndexHandler.queueSwap.selector;
+        for (uint256 i; i < 2; ++i) sel[k++] = IndexHandler.executeSwap.selector;
+        sel[k++] = IndexHandler.cancelSwap.selector;
+        sel[k++] = IndexHandler.warpToBoundary.selector;
+        sel[k++] = IndexHandler.executeReappointAnyTime.selector;
         targetSelector(FuzzSelector({addr: address(h), selectors: sel}));
     }
 
@@ -45,6 +51,12 @@ contract IndexInvariantTest is IndexBase {
 
     function invariant_records_I16_I17_I18_I19() public view {
         assertEq(h.checkRecords(), "");
+    }
+
+    /// I31 (a reader swap moves nothing recorded; fromDay strictly increases) and I32 (queuedEta is 0 outside a live
+    /// window). The checks inside the swap and execute actions report through violation().
+    function invariant_queue_I31_I32() public view {
+        assertEq(h.checkQueue(), "");
     }
 
     function invariant_slotStates() public view {
@@ -144,9 +156,9 @@ contract IndexInvariantTest is IndexBase {
     }
 
     function afterInvariant() external view {
-        bytes32[11] memory k = [
+        bytes32[16] memory k = [
             bytes32("post"), "close", "carry", "drop", "attest", "select", "veto", "suspend", "reappoint", "postReverted",
-            "attestReverted"
+            "attestReverted", "swapQueue", "swapExecute", "swapCancel", "warpBoundary", "refusedInWindow"
         ];
         for (uint256 i; i < k.length; ++i) {
             console2.log(string(abi.encodePacked(k[i])), h.calls(k[i]));

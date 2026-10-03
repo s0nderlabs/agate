@@ -6,8 +6,11 @@ import type { GpuModel, WatcherReading } from "@agate/report/types";
 import type { LogCell, SlotLog } from "../rule/types.ts";
 
 export interface LogSource {
-  /** Cells of (source, gpu) for intervals [from, to], clipped at the newest logged interval of that source. */
-  slotLog(sourceId: string, gpu: GpuModel, from: number, to: number): SlotLog;
+  /** Cells of (source, gpu) for intervals [from, to], clipped at the newest logged interval of that source. urlAt(k):
+   *  the URL whose line holds interval k's reading of this slot (8.6: the reader in force that day); undefined = the
+   *  registered URL's line. A slot whose URL has no line in an interval is MISSED there (unknown, never dark). */
+  slotLog(sourceId: string, gpu: GpuModel, from: number, to: number, urlAt?: (k: number) => string | undefined): SlotLog;
+  /** some line of the source exists for interval k */
   has(sourceId: string, k: number): boolean;
   lastInterval(sourceId?: string): number;
 }
@@ -27,7 +30,8 @@ function better(old: WatcherReading | undefined, nu: WatcherReading): boolean {
 }
 
 export class LogStore implements LogSource {
-  private readonly lines = new Map<string, Map<number, WatcherReading>>();
+  // sourceId -> interval -> URL key ("" = the registered URL: a line without `url`) -> line
+  private readonly lines = new Map<string, Map<number, Map<string, WatcherReading>>>();
   private readonly offsets = new Map<string, number>();
   private readonly last = new Map<string, number>();
   private readonly partial = new Map<string, string>();
@@ -68,25 +72,29 @@ export class LogStore implements LogSource {
   add(r: WatcherReading): void {
     let m = this.lines.get(r.sourceId);
     if (!m) this.lines.set(r.sourceId, (m = new Map()));
-    if (better(m.get(r.interval), r)) m.set(r.interval, r);
+    let byUrl = m.get(r.interval);
+    if (!byUrl) m.set(r.interval, (byUrl = new Map()));
+    const u = r.url ?? "";
+    if (better(byUrl.get(u), r)) byUrl.set(u, r);
     this.last.set(r.sourceId, Math.max(this.last.get(r.sourceId) ?? -Infinity, r.interval));
   }
 
-  get(sourceId: string, k: number): WatcherReading | undefined {
-    return this.lines.get(sourceId)?.get(k);
+  /** The line of (source, interval, URL); url undefined = the registered URL's line. */
+  get(sourceId: string, k: number, url?: string): WatcherReading | undefined {
+    return this.lines.get(sourceId)?.get(k)?.get(url ?? "");
   }
   has(sourceId: string, k: number): boolean {
-    return this.lines.get(sourceId)?.has(k) ?? false;
+    return (this.lines.get(sourceId)?.get(k)?.size ?? 0) > 0;
   }
   lastInterval(sourceId?: string): number {
     if (sourceId !== undefined) return this.last.get(sourceId) ?? -Infinity;
     return Math.max(-Infinity, ...this.last.values());
   }
 
-  slotLog(sourceId: string, gpu: GpuModel, from: number, to: number): SlotLog {
+  slotLog(sourceId: string, gpu: GpuModel, from: number, to: number, urlAt?: (k: number) => string | undefined): SlotLog {
     const end = Math.min(to, this.lastInterval(sourceId));
     const cells: LogCell[] = [];
-    for (let k = from; k <= end; k++) cells.push(cellOf(this.get(sourceId, k), gpu));
+    for (let k = from; k <= end; k++) cells.push(cellOf(this.get(sourceId, k, urlAt?.(k)), gpu));
     return { k0: from, cells };
   }
 }

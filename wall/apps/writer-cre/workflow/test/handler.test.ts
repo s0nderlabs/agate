@@ -82,3 +82,82 @@ test("a FAST clock (24-second day, signAll) is derived inside the workflow witho
   const out = JSON.parse(onCron(newTestRuntime<Config>(null, { timeProvider: () => t * 1000 }, fast) as never, {} as never));
   expect(out).toMatchObject({ dayId: 20_730, slice: 1, t });
 });
+
+// ---------------------------------------------------------------- Oct 3: readers in force (8.2 (3), 8.6)
+
+const LAUNCH = ((await Bun.file(`${import.meta.dir}/../../../../packages/sources/panels/launch.json`).json()) as { panels: Panel[] }).panels;
+const lambdaSlot = (gpu: string) => LAUNCH.find((p) => p.gpu === gpu)!.slots.find((s) => s.sourceId === "p_lambda")!.slot;
+
+function runWith(c: Config, page: (url: string) => string | undefined) {
+  const urls: string[] = [];
+  const http = HttpActionsMock.testInstance();
+  http.sendRequest = (req) => {
+    urls.push(req.url);
+    const body = page(req.url);
+    return body === undefined ? { statusCode: 404, body: "" } : { statusCode: 200, body: Buffer.from(body).toString("base64"), headers: { "X-Agate-Page-Time": String(NOW) } };
+  };
+  let payload: `0x${string}` | undefined;
+  const evm = EvmMock.testInstance(SELECTOR);
+  evm.writeReport = (input) => {
+    payload = bytesToHex(input.report!.rawReport.slice(REPORT_METADATA_HEADER_LENGTH));
+    return { txStatus: 2, txHash: new Uint8Array(32).fill(0xcd) } as never;
+  };
+  const out = JSON.parse(onCron(newTestRuntime<Config>(null, { timeProvider: () => NOW * 1000 }, c) as never, {} as never));
+  return { urls, out, report: decodeReport(payload!) };
+}
+
+const LIVE: Record<string, string> = {
+  "https://api.verda.com/v1/instance-types": renderPage("p_verda", { H100: { price: "3.63" }, H200: { price: "4.73" }, B200: { price: "6.92" } }),
+  "https://docs.nebius.com/compute/resources/pricing.md": renderPage("p_nebius", { H100: { price: "4.50" }, H200: { price: "5.40" }, B200: { price: "8.50" } }),
+  "https://lambda.ai/pricing": renderPage("p_lambda", { H100: { price: "3.99" }, B200: { price: "6.69" } }),
+  "https://lambda.ai/pricing-2026": renderPage("p_lambda", { H100: { price: "3.79" }, B200: { price: "6.49" } }),
+  "https://www.coreweave.com/pricing": renderPage("p_coreweave", { H100: { price: "6.16" }, H200: { price: "6.31" }, B200: { price: "8.60" } }),
+  "https://www.civo.com/pricing": renderPage("p_civo", { H100: { price: "2.99" }, H200: { price: "3.49" } }),
+  "https://www.hyperstack.cloud/gpu-pricing": renderPage("p_hyperstack", { H100: { price: "2.40" }, H200: { price: "3.50" }, B200: { price: "5.90" } }),
+};
+
+test("readers in force: a moved Lambda page for H100 is fetched beside the registered one, each URL once", () => {
+  const h100 = LAUNCH.find((p) => p.gpu === "H100")!;
+  const c: Config = { ...cfg, panels: LAUNCH, readers: { [h100.gpuId]: { [String(lambdaSlot("H100"))]: { url: "https://lambda.ai/pricing-2026", parserVersion: "lambda/1" } } } };
+  delete (c as { sourceBaseUrl?: string }).sourceBaseUrl;
+  const { urls, out, report } = runWith(c, (u) => LIVE[u]);
+  expect(urls.filter((u) => u.startsWith("https://lambda.ai/"))).toEqual(["https://lambda.ai/pricing", "https://lambda.ai/pricing-2026"]);
+  expect(new Set(urls).size).toBe(urls.length); // every distinct URL once
+  const e = (gpu: string) => report.entries.find((x) => x.gpuId === LAUNCH.find((p) => p.gpu === gpu)!.gpuId)!;
+  expect(e("H100").values[lambdaSlot("H100")]).toBe(3_790_000); // the swapped reader's page
+  expect(e("B200").values[lambdaSlot("B200")]).toBe(6_690_000); // B200's slot not swapped: the registered page
+  const lam = out.sources.find((s: { sourceId: string }) => s.sourceId === "p_lambda");
+  expect(lam.urls).toEqual({ H100: "https://lambda.ai/pricing-2026" });
+  expect(lam.parsers).toBeUndefined(); // a URL-only swap: every GPU still on lambda/1
+});
+
+test("a version the compiled workflow lacks reads 0 for that slot (MISSED), never another reader; a refused one is never fetched", () => {
+  const b200 = LAUNCH.find((p) => p.gpu === "B200")!;
+  const h100 = LAUNCH.find((p) => p.gpu === "H100")!;
+  const civo = h100.slots.find((s) => s.sourceId === "p_civo")!.slot;
+  const c: Config = {
+    ...cfg,
+    panels: LAUNCH,
+    readers: {
+      [b200.gpuId]: { [String(lambdaSlot("B200"))]: { url: "https://lambda.ai/pricing", parserVersion: "lambda/9" } },
+      [h100.gpuId]: { [String(civo)]: { refused: "host evil.example is not on p_civo's hosts" } },
+    },
+  };
+  const { urls, out, report } = runWith(c, (u) => {
+    const id = u.split("/").pop()!;
+    const def = Object.entries(LIVE).find(([k]) => k.includes(id.replace("p_", "")))?.[1];
+    return def;
+  });
+  expect(urls.filter((u) => u.endsWith("/p_lambda")).length).toBe(1); // under the replay base: /p_lambda once
+  const e = (gpu: string) => report.entries.find((x) => x.gpuId === LAUNCH.find((p) => p.gpu === gpu)!.gpuId)!;
+  expect(e("B200").values[lambdaSlot("B200")]).toBe(0);
+  expect(e("H100").values[lambdaSlot("H100")]).toBe(3_990_000); // H100's Lambda slot keeps lambda/1
+  expect(e("H100").values[civo]).toBe(0);
+  const lam = out.sources.find((s: { sourceId: string }) => s.sourceId === "p_lambda");
+  expect(lam.rows.B200.state).toBe("MISSED");
+  expect(lam.refused.B200).toMatch(/lambda\/9/);
+  expect(lam.parsers).toEqual({ H100: "lambda/1" });
+  const cv = out.sources.find((s: { sourceId: string }) => s.sourceId === "p_civo");
+  expect(cv.rows.H100.state).toBe("MISSED");
+  expect(cv.rows.H200.state).toBe("VALID"); // the civo page was still fetched once for H200
+});

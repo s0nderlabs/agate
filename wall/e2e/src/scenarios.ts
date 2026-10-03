@@ -1,61 +1,18 @@
 // The e2e and chaos scenarios (BUILD-SPEC 11, 12.6): each builds a World, runs it on the warped clock, applies its
 // chaos at scripted moments, then judges it. Synthetic pages are hand-written by the replay server's renderers
-// (numbers only); archive runs read the live logger's archive in place through a symlink view.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+// (numbers only); archive runs read the live logger's archive in place through a symlink view. The Oct 3 upgrade
+// scenarios (17.2 Integrate) live in upgrades.ts and run after these.
 import type { ReplayScenario, ScriptedSource } from "@agate/sources/io";
 import { AlertCode } from "@agate/report/types";
 import { archiveView } from "./archive.ts";
-import { ActionKind, ADDR, executeAction, PROFILES, queueAction, ROLE, ROOT, ZERO } from "./chain.ts";
+import { ActionKind, ADDR, executeAction, PROFILES, queueAction, ROLE, ZERO } from "./chain.ts";
 import type { WallEvent } from "@agate/watcher";
-import { type DayRow, judge, type JudgeOptions, readAlerts, type RunReport } from "./report.ts";
-import { type Proc, World, type WorldOptions } from "./world.ts";
+import { demoScenario, final, GUARD, guard, H100_ID, h100World, KIND, lc, NOV1, OCT1, p, relDay, runWorld, type Scenario, slotsOf, type Steps, T0, withRoles } from "./kit.ts";
+import { readAlerts } from "./report.ts";
+import { UPGRADE_SCENARIOS } from "./upgrades.ts";
+import type { Proc, World } from "./world.ts";
 
-export const T0 = 1_790_000_000; // 2026-09-21: anvil's first block on the demo profiles
-export const OCT1 = 20_727;
-export const NOV1 = 20_758;
-const GUARD = { delay: 1, looks: true, suspend: true };
-
-export interface Scenario {
-  name: string;
-  what: string;
-  needsArchive?: boolean;
-  run(): Promise<RunReport>;
-}
-
-const p = (price: string) => ({ price, count: 8 as const });
-type Steps = { from: { day: number; slice?: number }; price?: string; count?: 1 | 8; state?: "not-rentable" | "missing" | "garbled" }[];
-
-/** Five single-cloud H100 families at fixed prices (the spec's 3.00 / 3.20 / 3.40 / 3.60 / 3.80 world, slot order
- *  Verda, Nebius, Lambda, Civo, Hyperstack), with extra steps per slot. Demo days are relative to the epoch. */
-export function h100World(steps: Partial<Record<0 | 1 | 2 | 3 | 4, Steps>> = {}, base = ["3.00", "3.20", "3.40", "3.60", "3.80"]): Record<string, ScriptedSource> {
-  const ids = ["p_verda", "p_nebius", "p_lambda", "p_civo", "p_hyperstack"];
-  const out: Record<string, ScriptedSource> = {};
-  ids.forEach((id, i) => {
-    out[id] = { gpus: { H100: [{ from: { day: 0 }, ...p(base[i]!) }, ...((steps as Record<number, Steps>)[i] ?? [])] } };
-  });
-  return out;
-}
-
-function demoScenario(): ReplayScenario {
-  return JSON.parse(readFileSync(join(ROOT, "wall/packages/sources/replay/demo.json"), "utf8")) as ReplayScenario;
-}
-
-async function runWorld(o: WorldOptions, until: (w: World) => number, j: JudgeOptions = {}, during?: (w: World) => Promise<void> | void): Promise<RunReport> {
-  const w = await World.create(o);
-  const t0 = Date.now();
-  try {
-    await w.runUntil(until(w), during);
-    const r = await judge(w, j);
-    r.stats.wallMs = Date.now() - t0;
-    r.stats.home = w.home;
-    return r;
-  } finally {
-    w.stop();
-  }
-}
-
-const relDay = (w: World, k: number) => w.dep.epochDay + k;
+export { h100World, haveSandbox, NOV1, OCT1, T0, type Scenario } from "./kit.ts";
 
 // ------------------------------------------------------------------ the base runs
 
@@ -78,7 +35,9 @@ const fastArchiveFull: Scenario = {
   what: "FAST, the WHOLE archive (Sep 30 17h to Oct 1): Nebius's dated 'from October 1' block flips its prices as the replay cycles across midnight, several times inside one 12-second slice",
   needsArchive: true,
   run: async () => {
-    const view = archiveView(() => true);
+    // pinned to the archive this scenario was written for (Sep 30 17h to Oct 1, its midnight flip); the live archive
+    // keeps growing, and later hours hold real intra-day price changes the FAST replay compresses (integration.md)
+    const view = archiveView((date) => date <= "2026-10-01");
     return runWorld(
       { name: "fast-archive-full", profile: PROFILES.FAST, startTs: T0, epochDay: NOV1, gpus: [{ gpu: "H100" }, { gpu: "H200" }, { gpu: "B200" }], scenario: demoScenario(), rawDir: view.rawDir, primary: { viaForwarder: true }, standby: {}, guardian: GUARD },
       (w) => w.dayEnd(relDay(w, 8)) + 30,
@@ -114,16 +73,7 @@ const fastRealtime: Scenario = {
 
 // ------------------------------------------------------------------ chaos (12.6)
 
-const guard = (day: number) => ({ delay: Math.max(1, Math.floor(day / 40)), looks: true, suspend: true });
-const KIND = { OUT: 0, FRESH: 1, HELD: 2 } as const;
 
-function slotsOf(ev: WallEvent[], gpuId: string, day: number, digest?: string) {
-  const xs = ev.filter((e): e is Extract<WallEvent, { name: "RecordSlots" }> => e.name === "RecordSlots" && e.gpuId.toLowerCase() === gpuId.toLowerCase() && e.day === day && (!digest || e.digest.toLowerCase() === digest.toLowerCase()));
-  return xs[xs.length - 1];
-}
-const H100_ID = "0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955";
-const lc = (a: string) => a.toLowerCase();
-const final = (days: DayRow[], d: number) => days.find((x) => x.gpu === "H100" && x.day === d);
 
 /** T1 / chaos (A): slot 4 (3.80, not the median) NOT_RENTABLE from slice 5 of day D, dark for everyone D+1 to D+6,
  *  back on D+7; every page +0.60 from D+8. Nobody acting. */
@@ -195,12 +145,6 @@ const watcherGap: Scenario = {
   },
 };
 
-/** Per-role copies of a global script with extra page states for some roles (a view split). */
-function withRoles(scripted: Record<string, ScriptedSource>, id: string, roles: string[], page: { from: { day: number; slice?: number }; state: "ok" | "broken" | "http-503" | "hang" | "gzip-raw" }[]): ReplayScenario {
-  const out: ReplayScenario = { archive: false, scripted, roles: {} };
-  for (const r of roles) out.roles![r] = { [id]: { ...scripted[id]!, page } };
-  return out;
-}
 
 /** T2 / chaos (G): both writers blocked from slot 3 on day X while the watcher reads it; dark for everyone from X+1;
  *  +0.60 on every page at X+9. */
@@ -768,6 +712,7 @@ export const SCENARIOS: Scenario[] = [
   race("t8-race-fast", "FAST"),
   restartAll,
   fastLong,
+  ...UPGRADE_SCENARIOS,
 ];
 
 export type { Proc };

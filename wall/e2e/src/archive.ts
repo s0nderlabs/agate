@@ -5,8 +5,11 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, symlinkSync } from "no
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
+// the archive as configured when the harness loaded (a World points AGATE_RAW_DIR at its own view while it runs)
+const ARCHIVE = process.env.AGATE_RAW_DIR || join(homedir(), ".agate-index-logger", "data", "raw");
+
 export function sourceRawDir(): string {
-  return process.env.AGATE_RAW_DIR || join(homedir(), ".agate-index-logger", "data", "raw");
+  return ARCHIVE;
 }
 
 export function archivePresent(): boolean {

@@ -65,7 +65,7 @@ describe("the runtime project folder and the invocation", () => {
     expect(() => simulateArgs({ creBin: "cre", dir: "/w", target: "t", configPath: "./cfg.json", wasm: `/${"x".repeat(CONFIG_PATH_MAX)}`, broadcast: false, timeoutMs: 1 })).toThrow(/--wasm/);
   });
 
-  test("prepareRuntime: workflow.yaml and main.ts copied, cfg.json written, project.yaml follows the pool's URL", () => {
+  test("prepareRuntime: workflow.yaml and main.ts copied, cfg.json written, project.yaml follows the CLI's key-free URL", () => {
     const dir = join(mkdtempSync(join(tmpdir(), `agate-cre-${"long-home-path-".repeat(5)}`)), "primary/cre/5fbdb231");
     expect(dir.length).toBeGreaterThan(CONFIG_PATH_MAX); // the old absolute --config would have been refused here
     const cfg = workflowConfig({ index: "0x5FbDB2315678afecb367f032d93F642f64180aa3", chainSelector: 1n, gasLimit: 777_371n, clock: clockOf({ day: 600, slices: 4, epochTs: 5, epochDay: 20_758 }), panels: [] });
@@ -73,9 +73,12 @@ describe("the runtime project folder and the invocation", () => {
     expect(readFileSync(join(dir, "workflow.yaml"), "utf8")).toBe(readFileSync(join(WORKFLOW, "workflow.yaml"), "utf8"));
     expect(readFileSync(join(dir, "main.ts"), "utf8")).toContain("Runner.newRunner");
     expect(JSON.parse(readFileSync(join(dir, "cfg.json"), "utf8"))).toEqual(JSON.parse(JSON.stringify(cfg)));
-    rt.setRpc("https://rpc-a.example/key");
-    expect(readFileSync(join(dir, "project.yaml"), "utf8")).toBe(projectYaml("local-simulation", "monad-testnet", "https://rpc-a.example/key"));
+    rt.setRpc("https://rpc-a.example");
+    expect(readFileSync(join(dir, "project.yaml"), "utf8")).toBe(projectYaml("local-simulation", "monad-testnet", "https://rpc-a.example"));
     rt.setRpc("https://rpc-b.example");
+    expect(readFileSync(join(dir, "project.yaml"), "utf8")).toContain('url: "https://rpc-b.example"');
+    // a URL with a path may carry an API key (Alchemy's does): never written (8.2 (2), 13.6)
+    expect(() => rt.setRpc("https://rpc-a.example/v2/key0123456789abcdef")).toThrow(/key-free/);
     expect(readFileSync(join(dir, "project.yaml"), "utf8")).toContain('url: "https://rpc-b.example"');
     expect(() => projectYaml("local-simulation", "monad-testnet", 'http://x"\ny')).toThrow();
   });

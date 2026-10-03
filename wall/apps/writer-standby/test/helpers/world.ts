@@ -69,6 +69,8 @@ export interface WriterOptions {
   /** false: no key lock file (a restart test drops a Writer without its process dying). */
   keyLock?: boolean;
   sendWaitS?: number;
+  /** Readers in force (8.6): the writer gets the real sources API, as the service wires it. */
+  readers?: boolean;
 }
 
 export interface World {
@@ -149,6 +151,7 @@ export async function makeWorld(o: { deploy?: DeployOptions; scenario?: ReplaySc
         heartbeatDir: join(home, role),
         tickS: w.tickS ?? 20,
         ...(w.sendWaitS !== undefined ? { sendWaitS: w.sendWaitS } : {}),
+        ...(w.readers ? { api: sourcesApi } : {}),
       });
       return { ...h, w: writer };
     },

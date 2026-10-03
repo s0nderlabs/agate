@@ -1,13 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IAgateIndex, MAX_SLOTS, HOLD_DAYS, NEVER} from "../interfaces/IAgateIndex.sol";
+import {
+    IAgateIndex, MAX_SLOTS, HOLD_DAYS, NEVER, ACTION_WINDOW_DAYS, READER_SWAP_TAG
+} from "../interfaces/IAgateIndex.sol";
 import {Store, GpuS, Prof} from "./IndexTypes.sol";
 import {DateLib} from "./DateLib.sol";
 import {IndexLib} from "./IndexLib.sol";
 
-/// @title IndexAdmin: the owner's registerGpu and 48 h queue (BUILD-SPEC 4.11). A linked library.
+/// @title IndexAdmin: the owner's registerGpu, 48 h queue with its 14 DAY execute window (BUILD-SPEC 4.11) and reader
+/// swap (4.15). A linked library.
 library IndexAdmin {
+    // reader swap bounds (4.15), in bytes
+    uint256 internal constant URL_MIN = 9;
+    uint256 internal constant URL_MAX = 256;
+    uint256 internal constant PARSER_MAX = 32;
+    uint256 internal constant REASON_MAX = 280;
+
     function register(
         Store storage s,
         Prof memory pf,
@@ -72,17 +81,13 @@ library IndexAdmin {
     function queue(Store storage s, Prof memory pf, IAgateIndex.Action calldata a) external returns (bytes32 id) {
         _validate(s, pf, a, true);
         id = keccak256(abi.encode(a));
-        if (s.queued[id] != 0) revert IAgateIndex.AlreadyQueued(id);
-        uint64 eta = uint64(block.timestamp + 2 * pf.day);
-        s.queued[id] = eta;
+        uint64 eta = enqueue(s, pf, id);
         emit IAgateIndex.ActionQueued(id, a, eta);
     }
 
     function execute(Store storage s, Prof memory pf, IAgateIndex.Action calldata a) external {
         bytes32 id = keccak256(abi.encode(a));
-        uint64 eta = s.queued[id];
-        if (eta == 0) revert IAgateIndex.NotQueued(id);
-        if (block.timestamp < eta) revert IAgateIndex.TimelockActive(eta);
+        checkExecutable(s, pf, id);
         _validate(s, pf, a, false);
         delete s.queued[id];
         IAgateIndex.ActionKind k = a.kind;
@@ -106,11 +111,148 @@ library IndexAdmin {
         emit IAgateIndex.ActionExecuted(id, a);
     }
 
+    /// An expired entry can still be cancelled (log hygiene).
     function cancel(Store storage s, IAgateIndex.Action calldata a) external {
         bytes32 id = keccak256(abi.encode(a));
         if (s.queued[id] == 0) revert IAgateIndex.NotQueued(id);
         delete s.queued[id];
         emit IAgateIndex.ActionCancelled(id);
+    }
+
+    // ------------------------------------------------------------------ the queue (actions and reader swaps, 4.11)
+
+    /// The last second an entry queued with this eta can execute (the deadline itself still executes).
+    function deadlineOf(Prof memory pf, uint256 eta) internal pure returns (uint256) {
+        return eta + ACTION_WINDOW_DAYS * pf.day;
+    }
+
+    /// The eta a view shows: 0 when nothing live is queued (none, or past its window).
+    function liveEta(Store storage s, Prof memory pf, bytes32 id) internal view returns (uint64 eta) {
+        eta = s.queued[id];
+        if (eta != 0 && block.timestamp > deadlineOf(pf, eta)) eta = 0;
+    }
+
+    /// Queues id at now + TIMELOCK. A live entry is refused; one past its window is dead and is queued afresh.
+    function enqueue(Store storage s, Prof memory pf, bytes32 id) internal returns (uint64 eta) {
+        uint64 old = s.queued[id];
+        if (old != 0 && block.timestamp <= deadlineOf(pf, old)) revert IAgateIndex.AlreadyQueued(id);
+        eta = uint64(block.timestamp + 2 * pf.day);
+        s.queued[id] = eta;
+    }
+
+    /// Queued, the timelock over, the window not yet over.
+    function checkExecutable(Store storage s, Prof memory pf, bytes32 id) internal view {
+        uint64 eta = s.queued[id];
+        if (eta == 0) revert IAgateIndex.NotQueued(id);
+        if (block.timestamp < eta) revert IAgateIndex.TimelockActive(eta);
+        uint256 deadline = deadlineOf(pf, eta);
+        if (block.timestamp > deadline) revert IAgateIndex.ActionExpired(id, uint64(deadline));
+    }
+
+    // ------------------------------------------------------------------ reader swap (4.15)
+    // A swap changes which page a slot's readers fetch and how they parse it, from a next day start. It shares the
+    // queue, TIMELOCK and execute window of the actions, and no formula path reads anything stored here (I31).
+
+    function queueSwap(
+        Store storage s,
+        Prof memory pf,
+        bytes32 gpuId,
+        uint8 slot,
+        IAgateIndex.Reader calldata r,
+        string calldata reason
+    ) external returns (bytes32 id) {
+        _check(s, gpuId, slot, r);
+        uint256 nr = bytes(reason).length;
+        if (nr == 0 || nr > REASON_MAX) revert IAgateIndex.BadReader();
+        // printable ASCII only (queue only: the id binds url and parserVersion): no terminal escapes reach a reader
+        _printable(bytes(r.url), 0x21);
+        _printable(bytes(r.parserVersion), 0x21);
+        _printable(bytes(reason), 0x20);
+        id = swapId(gpuId, slot, r);
+        uint64 eta = enqueue(s, pf, id);
+        s.readerReason[id] = reason;
+        emit IAgateIndex.ReaderSwapQueued(id, gpuId, slot, r.url, r.parserVersion, reason, eta);
+    }
+
+    function executeSwap(Store storage s, Prof memory pf, bytes32 gpuId, uint8 slot, IAgateIndex.Reader calldata r)
+        external
+    {
+        bytes32 id = swapId(gpuId, slot, r);
+        checkExecutable(s, pf, id);
+        _check(s, gpuId, slot, r);
+        // the next day start with at least one slice of notice: inside a day's last slice, the day after
+        uint256 fromDay = IndexLib.dayId(pf, block.timestamp + pf.slice) + 1;
+        IAgateIndex.ReaderVersion[] storage h = s.readers[gpuId][slot];
+        uint256 n = h.length;
+        if (n != 0 && h[n - 1].fromDay >= fromDay) {
+            revert IAgateIndex.ReaderSwapPending(gpuId, slot, h[n - 1].fromDay);
+        }
+        string memory reason = s.readerReason[id];
+        bytes32 rh = readerHash(r);
+        h.push(
+            IAgateIndex.ReaderVersion(uint32(fromDay), uint64(block.timestamp), rh, r.url, r.parserVersion, reason)
+        );
+        delete s.queued[id];
+        delete s.readerReason[id];
+        emit IAgateIndex.ReaderSwapped(id, gpuId, slot, uint32(fromDay), rh, r.url, r.parserVersion, reason);
+    }
+
+    /// Live or expired.
+    function cancelSwap(Store storage s, bytes32 gpuId, uint8 slot, IAgateIndex.Reader calldata r) external {
+        bytes32 id = swapId(gpuId, slot, r);
+        if (s.queued[id] == 0) revert IAgateIndex.NotQueued(id);
+        delete s.queued[id];
+        delete s.readerReason[id];
+        emit IAgateIndex.ReaderSwapCancelled(id, gpuId, slot);
+    }
+
+    function history(Store storage s, bytes32 gpuId, uint8 slot)
+        external
+        view
+        returns (IAgateIndex.ReaderVersion[] memory)
+    {
+        return s.readers[gpuId][slot];
+    }
+
+    /// The newest swap with fromDay <= day (fromDay strictly increases along the history).
+    function at(Store storage s, bytes32 gpuId, uint8 slot, uint32 day)
+        external
+        view
+        returns (bool swapped, IAgateIndex.ReaderVersion memory v)
+    {
+        IAgateIndex.ReaderVersion[] storage h = s.readers[gpuId][slot];
+        for (uint256 i = h.length; i > 0; --i) {
+            if (h[i - 1].fromDay <= day) return (true, h[i - 1]);
+        }
+    }
+
+    function readerHash(IAgateIndex.Reader calldata r) internal pure returns (bytes32) {
+        return keccak256(abi.encode(r.url, r.parserVersion));
+    }
+
+    function swapId(bytes32 gpuId, uint8 slot, IAgateIndex.Reader calldata r) internal pure returns (bytes32) {
+        return keccak256(abi.encode(READER_SWAP_TAG, gpuId, slot, readerHash(r)));
+    }
+
+    /// A registered gpu, a slot below nSlots, an https url of 9 to 256 bytes and a parserVersion of 1 to 32 bytes.
+    function _check(Store storage s, bytes32 gpuId, uint8 slot, IAgateIndex.Reader calldata r) private view {
+        uint256 n = s.gpus[gpuId].nSlots;
+        if (n == 0) revert IAgateIndex.UnknownGpu(gpuId);
+        if (slot >= n) revert IAgateIndex.BadSlot(slot);
+        bytes calldata u = bytes(r.url);
+        uint256 np = bytes(r.parserVersion).length;
+        if (
+            u.length < URL_MIN || u.length > URL_MAX || bytes8(u[:8]) != bytes8("https://") || np == 0
+                || np > PARSER_MAX
+        ) revert IAgateIndex.BadReader();
+    }
+
+    /// Every byte in [lo, 0x7e]: no C0 control, no DEL, no byte of 0x80 or more (so no C1 control either).
+    function _printable(bytes calldata b, uint8 lo) private pure {
+        for (uint256 i; i < b.length; ++i) {
+            uint8 c = uint8(b[i]);
+            if (c < lo || c > 0x7e) revert IAgateIndex.BadReader();
+        }
     }
 
     /// The checks of 4.11's table; fields an action kind does not use must be zero (BadAction), so one effect has

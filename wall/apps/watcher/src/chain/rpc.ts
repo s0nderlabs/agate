@@ -4,6 +4,7 @@
 // five minutes and taken back when healthy. RPC_FAILOVER (info), RPC_DOWN (action, every URL failed on two ticks
 // running), RPC_SINGLE (action, only one URL).
 import { BaseError, ContractFunctionRevertedError, createPublicClient, http, type PublicClient } from "viem";
+import { redactUrl } from "@agate/report/env";
 import { AlertCode } from "@agate/report/types";
 import type { AlertSink } from "../alerts.ts";
 
@@ -79,14 +80,14 @@ export class RpcPool {
     const eps: Endpoint[] = [];
     urls.forEach((u, i) => {
       if (ids[i] === expect || ids[i] === null) eps.push({ url: u, client: this.mk(u) });
-      else this.o.alerts?.raise({ code: AlertCode.RPC_FAILOVER, severity: "info", message: `${this.o.role}: dropped ${u}: chain id ${ids[i]}, expected ${expect}` });
+      else this.o.alerts?.raise({ code: AlertCode.RPC_FAILOVER, severity: "info", message: `${this.o.role}: dropped ${redactUrl(u)}: chain id ${ids[i]}, expected ${expect}` });
     });
     return eps;
   }
 
   private async init(): Promise<void> {
     const urls = [...new Set(this.o.urls.map((u) => u.trim()).filter(Boolean))];
-    if (urls.length === 0) throw new Error("no RPC URL configured (AGATE_RPC_URLS)");
+    if (urls.length === 0) throw new Error("no RPC URL configured (AGATE_RPC_URLS_CMD or AGATE_RPC_URLS)");
     const ids = await this.chainIds(urls);
     const expect = this.o.expectChainId ?? majorityChainId(ids) ?? this.o.fallbackChainId ?? null;
     if (expect === null) throw new RpcDown("no RPC URL answered eth_chainId");
@@ -94,7 +95,7 @@ export class RpcPool {
     this.verified = ids.some((x) => x === expect);
     this.eps = this.keepOn(urls, ids, expect);
     if (this.eps.length === 0) throw new RpcDown(`no RPC URL on chain ${expect}`);
-    if (this.eps.length === 1) this.o.alerts?.raise({ code: AlertCode.RPC_SINGLE, severity: "action", message: `${this.o.role}: only one RPC URL (${this.eps[0]!.url}); configure two in AGATE_RPC_URLS (13.4)` });
+    if (this.eps.length === 1) this.o.alerts?.raise({ code: AlertCode.RPC_SINGLE, severity: "action", message: `${this.o.role}: only one RPC URL (${redactUrl(this.eps[0]!.url)}); configure two in AGATE_RPC_URLS_CMD or AGATE_RPC_URLS (13.4, 13.6)` });
     this.lastReprobe = this.o.now();
   }
 
@@ -131,13 +132,18 @@ export class RpcPool {
   urls(): string[] {
     return this.eps.map((e) => e.url);
   }
+  /** The URLs for a log line: scheme and host only (13.6: every URL is a secret). */
+  redactedUrls(): string[] {
+    return this.eps.map((e) => redactUrl(e.url));
+  }
 
   private switchTo(i: number, why: string): void {
     if (i === this.cur) return;
-    const from = this.eps[this.cur]!.url;
+    const from = redactUrl(this.eps[this.cur]!.url);
     this.cur = i;
-    this.events.push(`failover ${from} -> ${this.eps[i]!.url}: ${why}`);
-    this.o.alerts?.raise({ code: AlertCode.RPC_FAILOVER, severity: "info", message: `${this.o.role}: RPC ${from} -> ${this.eps[i]!.url} (${why})` });
+    const to = redactUrl(this.eps[i]!.url);
+    this.events.push(`failover ${from} -> ${to}: ${why}`);
+    this.o.alerts?.raise({ code: AlertCode.RPC_FAILOVER, severity: "info", message: `${this.o.role}: RPC ${from} -> ${to} (${why})` });
   }
 
   /** Runs fn on the current URL; on a transport or node failure tries the next URLs in turn. appError: errors that
@@ -231,8 +237,9 @@ export function short(e: unknown): string {
   return e instanceof Error ? e.message.split("\n")[0]! : String(e);
 }
 
+/** The http URLs of a plain list (no command, nothing deleted): for tools; processes use config.readEndpoints. */
 export function parseRpcUrls(env: Record<string, string | undefined>): string[] {
-  if (env.AGATE_RPC_URLS) return env.AGATE_RPC_URLS.split(",").map((s) => s.trim()).filter(Boolean);
+  if (env.AGATE_RPC_URLS) return env.AGATE_RPC_URLS.split(/[,\r\n]+/).map((s) => s.trim()).filter((s) => /^https?:\/\//.test(s));
   if (env.AGATE_RPC_URL) return [env.AGATE_RPC_URL.trim()];
   return [];
 }

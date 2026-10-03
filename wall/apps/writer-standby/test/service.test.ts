@@ -150,4 +150,40 @@ describe.skipIf(!haveAnvil)("standby process", () => {
       px.stop(true);
     }
   }, 120_000);
+
+  test("13.6: takes AGATE_RPC_URLS_CMD, fails over from a dead first URL, and the fake key reaches no file and no output", async () => {
+    const FAKE = "FAKEALCHEMYKEY0123456789";
+    const own = mkdtempSync(join(tmpdir(), "agate-svc-cmd-"));
+    const before = (await a.pub.getLogs({ address: dep.index, event: POSTED_EVENT, args: { writer: ADDR[2]! }, fromBlock: 0n })).length;
+    const p = spawnWith({ AGATE_WALL_HOME: own, AGATE_RPC_URLS_CMD: `printf "http://127.0.0.1:1/v2/${FAKE},${a.rpc}"` });
+    const out = new Response(p.stdout).text();
+    const err = new Response(p.stderr).text();
+    const t0 = Date.now();
+    let after = before;
+    while (after < before + 6 && Date.now() - t0 < 40_000) {
+      await Bun.sleep(500);
+      after = (await a.pub.getLogs({ address: dep.index, event: POSTED_EVENT, args: { writer: ADDR[2]! }, fromBlock: 0n })).length;
+    }
+    expect(after).toBeGreaterThanOrEqual(before + 6);
+    p.kill("SIGTERM");
+    expect(await p.exited).toBe(0);
+    const o = (await out) + (await err);
+    expect(o.includes(FAKE)).toBe(false);
+    const files = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(d, e.name)) : [join(d, e.name)]));
+    for (const f of files(own)) expect(readFileSync(f, "utf8").includes(FAKE), f).toBe(false);
+    const lines = (await out).trim().split("\n").map((l) => JSON.parse(l));
+    expect(lines.some((l) => l.event === "start" && l.rpcs === 2)).toBe(true);
+    // a dead first URL was named redacted, never with its key
+    expect(o.includes("http://127.0.0.1:1/...") || !o.includes("127.0.0.1:1")).toBe(true);
+    // both variables set: refused at start, without echoing either
+    const q = spawnWith({ AGATE_WALL_HOME: own, AGATE_RPC_URLS: a.rpc, AGATE_RPC_URLS_CMD: `printf "${a.rpc}"` });
+    expect(await q.exited).not.toBe(0);
+    expect(await new Response(q.stderr).text()).toContain("set one of AGATE_RPC_URLS_CMD and AGATE_RPC_URLS");
+    // a failing command: refused with its exit code, its output never shown
+    const r = spawnWith({ AGATE_WALL_HOME: own, AGATE_RPC_URLS_CMD: `printf "${FAKE}"; exit 7` });
+    expect(await r.exited).not.toBe(0);
+    const re = await new Response(r.stderr).text();
+    expect(re).toContain("AGATE_RPC_URLS_CMD failed (exit 7)");
+    expect(re.includes(FAKE)).toBe(false);
+  }, 120_000);
 });

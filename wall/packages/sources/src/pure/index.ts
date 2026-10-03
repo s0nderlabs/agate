@@ -4,14 +4,17 @@ import type { SourcesPureApi } from "../types.ts";
 import { parseEcb } from "./ecb.ts";
 import { toValueU } from "./money.ts";
 import { gpuIdOf, recipeHash, slotValues } from "./panel.ts";
-import { parse } from "./parse.ts";
+import { parse, parseWith } from "./parse.ts";
+import { PARSER_VERSIONS, readerAllowed, readerInForce, readerProblem, sourceOfVersion } from "./readers.ts";
 import { SOURCES } from "./recipe.ts";
 
 export { asciiBytes, CanonicalError, canonicalJson } from "./canonical.ts";
 export { dayNumber, FX_MAX_AGE_DAYS, fxUsableFor, parseEcb } from "./ecb.ts";
 export { centValueU, DecimalError, fxMicro, inBounds, parseMicro, toValueU } from "./money.ts";
 export { checkPanel, gpuIdOf, PanelError, recipeHash, recipeObject, slotValues } from "./panel.ts";
-export { EXTRACTORS, MAX_BODY_CHARS, parse, priceRow, type Reason, REASONS, reasonOf } from "./parse.ts";
+export { EXTRACTORS, installed, MAX_BODY_CHARS, parse, parseWith, priceRow, type Reason, REASONS, reasonOf } from "./parse.ts";
+export { EXTRACTORS_BY_VERSION } from "./parsers/index.ts";
+export { httpsHost, isRegistered, PARSER_VERSIONS, readerAllowed, readerInForce, readerProblem, registeredReader, sourceOfVersion, swapInForce } from "./readers.ts";
 export {
   assertAllowed,
   BOUNDS,
@@ -31,4 +34,18 @@ export {
 } from "./recipe.ts";
 
 /** The whole pure API as one object (what the writers' asSourcesApi checks). */
-export const sourcesApi: SourcesPureApi = { SOURCES, parse, parseEcb, toValueU, slotValues, recipeHash, gpuIdOf };
+export const sourcesApi: SourcesPureApi = {
+  SOURCES,
+  parse,
+  parseEcb,
+  toValueU,
+  slotValues,
+  recipeHash,
+  gpuIdOf,
+  PARSER_VERSIONS,
+  sourceOfVersion,
+  parseWith,
+  readerAllowed,
+  readerProblem,
+  readerInForce,
+};

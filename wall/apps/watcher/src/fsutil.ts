@@ -11,17 +11,41 @@ export function ensureDir(p: string): void {
   if (!existsSync(p)) mkdirSync(p, { recursive: true });
 }
 
+let textScrub: ((s: string) => string) | null = null;
+
+/** 13.6 (Oct 3): every text this process writes to a file (alerts, heartbeats, decisions, logs, events, the guardian
+ *  log) passes through this, once the RPC endpoints are known (config.connect installs scrubSecrets). */
+export function setFileScrubber(f: ((s: string) => string) | null): void {
+  textScrub = f;
+}
+export function scrubText(s: string): string {
+  return textScrub ? textScrub(s) : s;
+}
+
+/** One line for a terminal: every C0 and C1 control, DEL and line break becomes "?", so no string from the chain or
+ *  a page (a reader swap's url or reason) can move the cursor, hide text or write the clipboard (fix round M1). */
+export function printable(s: string): string {
+  return s.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, "?");
+}
+
+/** Our own multi-line text (the CLI's help, a confirmation prompt, a multi-line error) for a terminal: each line
+ *  through printable(), the line feeds kept. A chain string inside it goes through printable() where it is formatted,
+ *  so a line break it carries is already "?" here. */
+export function printableLines(s: string): string {
+  return String(s).split("\n").map(printable).join("\n");
+}
+
 /** Write to a temp file and rename, so a reader never sees half a file. */
 export function writeAtomic(path: string, data: string | Uint8Array): void {
   ensureDir(dirname(path));
   const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, data);
+  writeFileSync(tmp, typeof data === "string" ? scrubText(data) : data);
   renameSync(tmp, path);
 }
 
 export function appendLine(path: string, obj: unknown): void {
   ensureDir(dirname(path));
-  appendFileSync(path, `${JSON.stringify(obj, (_k, v) => (typeof v === "bigint" ? v.toString() : v))}\n`);
+  appendFileSync(path, `${scrubText(JSON.stringify(obj, (_k, v) => (typeof v === "bigint" ? v.toString() : v)))}\n`);
 }
 
 export class LockHeld extends Error {}

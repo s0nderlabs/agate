@@ -156,7 +156,7 @@ export async function send(a: Anvil, from: number, functionName: string, args: r
 /** Deploys the index (writer mode TX_ORIGIN through a MockForwarder, like the deploy script's local configs) and
  *  registers the GPUs of the panel file. epochTs defaults to the current block second minus 5 (the deploy script's
  *  epochFromBlock); PRODUCTION uses epochTs 0, epochDay 0. */
-export async function deployIndex(a: Anvil, p: Profile, o: { epochTs?: number; epochDay: number; firstDay?: number; gpus: GpuReg[] }): Promise<Deployed> {
+export async function deployIndex(a: Anvil, p: Profile, o: { epochTs?: number; epochDay: number; firstDay?: number; gpus: GpuReg[]; panelsFile?: string }): Promise<Deployed> {
   const fromBlock = await a.pub.getBlockNumber();
   const mf = await artifact("MockForwarder.sol", "MockForwarder");
   const fwd = await deployRaw(a, mf.abi, mf.bytecode);
@@ -182,7 +182,7 @@ export async function deployIndex(a: Anvil, p: Profile, o: { epochTs?: number; e
   const index = await deployRaw(a, ix.abi, ix.bytecode, [init]);
   const today = o.epochDay + Math.floor(((await a.time()) - epochTs) / p.day);
   const firstDay = o.firstDay ?? today;
-  const file = (await Bun.file(PANELS_FILE).json()) as PanelFile;
+  const file = (await Bun.file(o.panelsFile ?? PANELS_FILE).json()) as PanelFile;
   const panels: Panel[] = [];
   for (const g of o.gpus) {
     const d = file.deploy.find((x) => x.gpu === g.gpu);
@@ -205,3 +205,26 @@ export const ActionKind = { WRITER: 0, ATTESTER: 1, GUARDIAN: 2, FORWARDER: 3, L
 
 export const queueAction = (a: Anvil, index: Address, act: Action) => send(a, ROLE.owner, "queue", [act], index);
 export const executeAction = (a: Anvil, index: Address, act: Action) => send(a, ROLE.owner, "execute", [act], index);
+export const LAUNCH_PANELS_FILE = join(ROOT, "wall/packages/sources/panels/launch.json");
+
+/** A reader (4.15): the page a slot fetches and the parser version that reads it. */
+export interface ReaderArg {
+  url: string;
+  parserVersion: string;
+}
+
+/** eth_call as `from`: null when it would succeed, else the custom error's name (or the revert text). */
+export async function simulate(a: Anvil, from: number, functionName: string, args: readonly unknown[], to: Address): Promise<string | null> {
+  try {
+    await a.pub.simulateContract({ address: to, abi: agateIndexAbi, functionName, args, account: ADDR[from]! } as never);
+    return null;
+  } catch (e) {
+    const err = e as { walk?: (f: (x: unknown) => boolean) => unknown; shortMessage?: string; message?: string };
+    const inner = err.walk?.((x) => typeof (x as { data?: { errorName?: string } }).data?.errorName === "string") as { data?: { errorName?: string } } | undefined;
+    return inner?.data?.errorName ?? err.shortMessage ?? err.message ?? String(e);
+  }
+}
+
+export async function read<T>(a: Anvil, index: Address, functionName: string, args: readonly unknown[]): Promise<T> {
+  return (await a.pub.readContract({ address: index, abi: agateIndexAbi, functionName, args } as never)) as T;
+}

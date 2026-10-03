@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Hex } from "@agate/report/types";
-import { dayStart, sliceAt, sliceStart } from "../src/core/index.ts";
+import { dayEnd, dayStart, repostEnd, sliceAt, sliceStart } from "../src/core/index.ts";
 import type { IndexChain } from "../src/pipeline/chain.ts";
 import { type LogLine, ReadingLog } from "../src/pipeline/log.ts";
 import type { ReadingSource } from "../src/pipeline/writer.ts";
@@ -239,4 +239,41 @@ describe.skipIf(!haveAnvil)("RPC chaos", () => {
     const uniq = [...new Set(nonces)].sort((a, b) => a - b);
     expect(uniq).toEqual(uniq.map((_, i) => i)); // 0, 1, 2, ...: no gap, no reuse
   }, 120_000);
+});
+
+describe.skipIf(!haveAnvil)("RPC chaos on a PRODUCTION clock (Oct 3, 8.1 step 2)", () => {
+  test("both RPC URLs down from slice 20 until dayEnd + 20 h (PRODUCTION, time-warped): 0 abandoned, the day computed from every logged slice, not carried", async () => {
+    const profile = { day: 86_400, slices: 24, minReadings: 12, qMin: 1, demoLabel: true, signAll: false, epochDay: 20_727 };
+    const w = (world = await makeWorld({ deploy: { profile } }));
+    const c = w.clock;
+    expect(c.tPend).toBe(21_600);
+    const A = proxy(w.a.rpc);
+    const B = proxy(w.a.rpc);
+    const step = 300;
+    const s = await w.writer("standby", { urls: [A.url, B.url], tickS: step });
+    await w.run([s], dayStart(c, D) + 1, sliceStart(c, D, 20), step);
+    A.mode = B.mode = "down";
+    const back = dayEnd(c, D) + 20 * 3_600;
+    expect(back).toBeLessThan(repostEnd(c, D)); // dayEnd + 23 h on PRODUCTION
+    await w.run([s], sliceStart(c, D, 20), back, step);
+    // the pages were read and logged every slice of the outage, nothing reached the chain
+    const reads = readLines(s.log).filter((l) => l.kind === "reading" && (l as { dayId: number }).dayId === D);
+    expect(reads.map((l) => (l as { slice: number }).slice)).toEqual([...Array(24).keys()]);
+    const g = w.dep.panels[0]!.gpuId as Hex;
+    expect((await w.readings(g, D, STANDBY)).sliceBits).toBe((1n << 20n) - 1n);
+    A.mode = B.mode = "ok";
+    await w.run([s], back, back + 2 * c.slice, step);
+    expect(readLines(s.log).filter((l) => l.kind === "abandon")).toEqual([]);
+    for (const p of w.dep.panels) {
+      const gid = p.gpuId as Hex;
+      expect((await w.readings(gid, D, STANDBY)).sliceBits).toBe((1n << 24n) - 1n); // every logged slice landed
+      const r = await w.record(gid, D);
+      expect(r.exists).toBe(true);
+      expect(r.rec.status).not.toBe(4); // computed, not CARRIED
+      expect(r.rec.incomplete).toBe(false);
+      expect(r.rec.source.toLowerCase()).toBe(STANDBY.toLowerCase());
+    }
+    expect(s.alerts.filter((x) => x.code === "RPC_DOWN").length).toBe(1);
+    expect(await w.skipped()).toBe(0); // nothing sent twice, nothing out of its slice
+  }, 300_000);
 });

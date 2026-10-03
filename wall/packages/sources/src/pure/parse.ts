@@ -1,17 +1,10 @@
 // parse(): page text to one ParsedRow per GPU the source prices (BUILD-SPEC 7.5). Never throws: a page it cannot
 // understand gives NO_ROW for every GPU, with the reason in `detail` ("<code>: <text>", codes in REASONS).
 import type { GpuModel } from "@agate/report/types";
-import type { Currency, ParseContext, ParsedRow, ParseResult, SourceDef } from "../types.ts";
+import type { Currency, Extractor, ParseContext, ParsedRow, ParseResult, SourceDef } from "../types.ts";
 import { dayNumber, fxUsableFor } from "./ecb.ts";
 import { centValueU, DecimalError, fxMicro, inBounds, MICRO, parseMicro } from "./money.ts";
-import { extractCivo } from "./parsers/civo.ts";
-import { extractCoreWeave } from "./parsers/coreweave.ts";
-import { extractGcore } from "./parsers/gcore.ts";
-import { extractHyperstack } from "./parsers/hyperstack.ts";
-import { extractLambda } from "./parsers/lambda.ts";
-import { extractNebius } from "./parsers/nebius.ts";
-import { extractSeeweb } from "./parsers/seeweb.ts";
-import { extractVerda } from "./parsers/verda.ts";
+import { EXTRACTORS_BY_VERSION } from "./parsers/index.ts";
 import { GPUS, SOURCES } from "./recipe.ts";
 import { type Cell, LayoutError } from "./text.ts";
 
@@ -37,18 +30,10 @@ export function reasonOf(row: ParsedRow | undefined): Reason | undefined {
   return code && code in REASONS ? (code as Reason) : undefined;
 }
 
-type Extractor = (body: string, ctx: ParseContext) => Partial<Record<GpuModel, Cell>>;
-
-export const EXTRACTORS: Readonly<Record<string, Extractor>> = {
-  p_verda: extractVerda,
-  p_nebius: extractNebius,
-  p_lambda: extractLambda,
-  p_coreweave: extractCoreWeave,
-  p_civo: extractCivo,
-  p_hyperstack: extractHyperstack,
-  p_seeweb: extractSeeweb,
-  p_gcore: extractGcore,
-};
+/** The registered extractor of each source (its recipe's parserVersion), by sourceId. */
+export const EXTRACTORS: Readonly<Record<string, Extractor>> = Object.fromEntries(
+  SOURCES.flatMap((d) => (EXTRACTORS_BY_VERSION[d.parserVersion]?.sourceId === d.id ? [[d.id, EXTRACTORS_BY_VERSION[d.parserVersion]!.extract]] : [])),
+);
 
 const row = (state: ParsedRow["state"], reason: Reason, text: string): ParsedRow => ({ state, valueU: 0, detail: `${reason}: ${text}` });
 
@@ -105,10 +90,24 @@ function looksBinary(body: string): boolean {
 /** Far above any real page (the largest seen is about 0.5 MB); a bigger body is refused, never scanned. */
 export const MAX_BODY_CHARS = 4_000_000;
 
+/** The registry entry of an installed version (own keys only: "constructor" or "__proto__" are not versions). */
+export function installed(parserVersion: string): { sourceId: string; extract: Extractor } | undefined {
+  return typeof parserVersion === "string" && Object.prototype.hasOwnProperty.call(EXTRACTORS_BY_VERSION, parserVersion) ? EXTRACTORS_BY_VERSION[parserVersion] : undefined;
+}
+
+/** Reads a page with the registered parser version of its source (the recipe's reader). */
 export function parse(sourceId: string, body: string, ctx: ParseContext): ParseResult {
   const def = SOURCES.find((s) => s.id === sourceId);
-  const extract = EXTRACTORS[sourceId];
-  if (!def || !extract) return {};
+  return def ? parseWith(def.parserVersion, body, ctx) : {};
+}
+
+/** Reads a page with one installed parser version (a reader swap's, 4.15); the money math, bounds and row states
+ * are the same for every version. An unknown version gives {}. */
+export function parseWith(parserVersion: string, body: string, ctx: ParseContext): ParseResult {
+  const reg = installed(parserVersion);
+  const def = reg ? SOURCES.find((s) => s.id === reg.sourceId) : undefined;
+  if (!reg || !def) return {};
+  const extract = reg.extract;
   try {
     if (typeof body !== "string" || body.length === 0) return allRows(def, "layout-changed", "empty body");
     if (body.length > MAX_BODY_CHARS) return allRows(def, "layout-changed", `body of ${body.length} characters is far larger than any pricing page`);
@@ -117,7 +116,8 @@ export function parse(sourceId: string, body: string, ctx: ParseContext): ParseR
     if (ce) return allRows(def, "bad-context", ce);
     let cells: Partial<Record<GpuModel, Cell>>;
     try {
-      cells = extract(body, ctx);
+      // a frozen copy: no extractor (an installed draft included) can change the rate or the time another one reads
+      cells = extract(body, Object.freeze({ ...ctx, ...(ctx.fx ? { fx: Object.freeze({ ...ctx.fx }) } : {}) }));
     } catch (e) {
       if (e instanceof LayoutError) return allRows(def, "layout-changed", e.message);
       throw e;

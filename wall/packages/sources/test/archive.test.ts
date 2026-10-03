@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { GpuModel, ReadState } from "@agate/report/types";
-import { archivePresent, listHours, rawDir } from "../src/io/archive.ts";
+import { archivePresent, listHours, rawDir, readArchived } from "../src/io/archive.ts";
 import { archiveValues, type HourValues } from "../src/io/archiveValues.ts";
 import { GPUS, SOURCES } from "../src/pure/index.ts";
 
@@ -47,6 +47,14 @@ const HAND: Record<string, Record<string, Partial<Record<GpuModel, [ReadState, n
   },
 };
 
+/** A bot wall served with HTTP 200 instead of the pricing page (seen: Gcore's "Site verification" page at
+ * 2026-10-02T11, 3,803 bytes). The parser must read it as NO_ROW, which is right: it is not the page. */
+function botWall(id: string, hour: string): boolean {
+  const h = listHours().find((x) => `${x.date}T${x.hour}` === hour);
+  const body = h ? readArchived(h, id) : null;
+  return body !== null && body.length < 20_000 && /<title>\s*(?:Site verification|Just a moment|Attention Required|Access denied)/i.test(body);
+}
+
 /** States a source/GPU may legitimately show; anything else (layout-changed, ambiguous, parse-error) fails. */
 function allowed(id: string, g: GpuModel, h: HourValues): ReadState[] {
   if (id === "p_civo" && g === "B200") return ["NOT_RENTABLE", "VALID"];
@@ -69,7 +77,7 @@ describe("parsers on every archived hour", () => {
         let good = true;
         for (const g of GPUS.filter((x) => def.rules[x])) {
           const r = src.rows[g]!;
-          if (!allowed(def.id, g, h).includes(r.s)) {
+          if (!allowed(def.id, g, h).includes(r.s) && !(r.s === "NO_ROW" && botWall(def.id, h.hour))) {
             good = false;
             console.log(`${h.hour} ${def.id} ${g}: unexpected ${r.s}`);
           }

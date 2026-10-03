@@ -3,12 +3,15 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { keccak256, toBytes } from "viem";
 import { agateIndexAbi } from "../src/abi.ts";
-import type { Clocks, IndexRecord, InitParams, Readings } from "../src/types.ts";
+import { ACTION_WINDOW_DAYS, AlertCode, READER_SWAP_TAG } from "../src/types.ts";
+import type { Clocks, IndexRecord, InitParams, Reader, Readings, ReaderVersion } from "../src/types.ts";
 
-const INDEX_ARTIFACT = join(import.meta.dir, "../../../../contracts/out/AgateIndex.sol/AgateIndex.json");
-
-const ARTIFACT = join(import.meta.dir, "../../../../contracts/out/IAgateIndex.sol/IAgateIndex.json");
+// AGATE_FORGE_OUT: a forge out folder other than contracts/out (a builder's own FOUNDRY_OUT)
+const OUT = process.env.AGATE_FORGE_OUT ?? join(import.meta.dir, "../../../../contracts/out");
+const INDEX_ARTIFACT = join(OUT, "AgateIndex.sol/AgateIndex.json");
+const ARTIFACT = join(OUT, "IAgateIndex.sol/IAgateIndex.json");
 
 type Item = { type: string; name?: string; inputs?: { name: string; components?: { name: string }[] }[]; outputs?: { name: string; components?: { name: string }[] }[] };
 const items = agateIndexAbi as unknown as Item[];
@@ -37,5 +40,34 @@ describe("ABI and types", () => {
     expect(fn("readings").outputs![0]!.components!.map((c) => c.name)).toEqual(Object.keys(rd));
     expect(ev("DayClosed").inputs!.map((i) => i.name)).toContain("needsSign");
     expect(ev("DayCarried").inputs!.map((i) => i.name).at(-1)).toBe("missAdvanced");
+  });
+
+  test("Oct 3 (4.11, 4.15): the reader swap and the execute window are in the ABI, and types.ts follows them", () => {
+    for (const f of ["queueReaderSwap", "executeReaderSwap", "cancelReaderSwap", "readerSwapId", "readerHistory", "readerAt", "queuedEta"]) {
+      expect(fn(f), f).toBeDefined();
+    }
+    for (const e of ["ReaderSwapQueued", "ReaderSwapped", "ReaderSwapCancelled", "ActionExecuted", "ActionCancelled"]) expect(ev(e), e).toBeDefined();
+    const errs = items.filter((x) => x.type === "error").map((x) => x.name);
+    for (const e of ["ActionExpired", "BadReader", "ReaderSwapPending"]) expect(errs).toContain(e);
+    const rd: Record<keyof Reader, 0> = { url: 0, parserVersion: 0 };
+    expect(fn("queueReaderSwap").inputs![2]!.components!.map((c) => c.name)).toEqual(Object.keys(rd));
+    const rv: Record<keyof ReaderVersion, 0> = { fromDay: 0, executedAt: 0, readerHash: 0, url: 0, parserVersion: 0, reason: 0 };
+    expect(fn("readerHistory").outputs![0]!.components!.map((c) => c.name)).toEqual(Object.keys(rv));
+    expect(fn("readerAt").outputs![1]!.components!.map((c) => c.name)).toEqual(Object.keys(rv));
+    expect(ev("ReaderSwapQueued").inputs!.map((i) => i.name)).toEqual(["id", "gpuId", "slot", "url", "parserVersion", "reason", "eta"]);
+    expect(ev("ReaderSwapped").inputs!.map((i) => i.name)).toEqual(["id", "gpuId", "slot", "fromDay", "readerHash", "url", "parserVersion", "reason"]);
+  });
+
+  test("ACTION_WINDOW_DAYS and READER_SWAP_TAG mirror IAgateIndex.sol", async () => {
+    const sol = await Bun.file(join(import.meta.dir, "../../../../contracts/src/interfaces/IAgateIndex.sol")).text();
+    expect(Number(/uint8 constant ACTION_WINDOW_DAYS = (\d+);/.exec(sol)![1])).toBe(ACTION_WINDOW_DAYS);
+    const tag = /bytes32 constant READER_SWAP_TAG = keccak256\("([^"]+)"\);/.exec(sol)![1]!;
+    expect(keccak256(toBytes(tag))).toBe(READER_SWAP_TAG);
+  });
+
+  test("the Oct 3 alert codes (9.4) are in AlertCode, each named as its value", () => {
+    const codes = ["PAGECHECK_REVIEW", "PAGECHECK_FAULT", "PAGECHECK_TRACKERS_DOWN", "KEY_MISMATCH", "KEY_UNVERIFIED", "READER_MISSING", "READER_REFUSED", "REPAIR_INCIDENT", "REPAIR_NOTE", "REPAIR_REFUSED", "REPAIR_WINDOW", "RPC_WS_DOWN", "TRACKER_GAP"];
+    for (const c of codes) expect((AlertCode as Record<string, string>)[c]).toBe(c);
+    for (const [k, v] of Object.entries(AlertCode)) expect(v as string).toBe(k);
   });
 });

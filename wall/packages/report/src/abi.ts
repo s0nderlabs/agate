@@ -139,6 +139,41 @@ export const agateIndexAbi = [
   },
   {
     "type": "function",
+    "name": "cancelReaderSwap",
+    "inputs": [
+      {
+        "name": "gpuId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "reader",
+        "type": "tuple",
+        "internalType": "struct IAgateIndex.Reader",
+        "components": [
+          {
+            "name": "url",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "parserVersion",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "carryDay",
     "inputs": [
       {
@@ -451,6 +486,41 @@ export const agateIndexAbi = [
             "name": "mode",
             "type": "uint8",
             "internalType": "enum IAgateIndex.WriterMode"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "executeReaderSwap",
+    "inputs": [
+      {
+        "name": "gpuId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "reader",
+        "type": "tuple",
+        "internalType": "struct IAgateIndex.Reader",
+        "components": [
+          {
+            "name": "url",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "parserVersion",
+            "type": "string",
+            "internalType": "string"
           }
         ]
       }
@@ -1141,6 +1211,52 @@ export const agateIndexAbi = [
   },
   {
     "type": "function",
+    "name": "queueReaderSwap",
+    "inputs": [
+      {
+        "name": "gpuId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "reader",
+        "type": "tuple",
+        "internalType": "struct IAgateIndex.Reader",
+        "components": [
+          {
+            "name": "url",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "parserVersion",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "id",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "queuedEta",
     "inputs": [
       {
@@ -1157,6 +1273,169 @@ export const agateIndexAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "readerAt",
+    "inputs": [
+      {
+        "name": "gpuId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "day",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "swapped",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "version",
+        "type": "tuple",
+        "internalType": "struct IAgateIndex.ReaderVersion",
+        "components": [
+          {
+            "name": "fromDay",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "executedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "readerHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "url",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "parserVersion",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "reason",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "readerHistory",
+    "inputs": [
+      {
+        "name": "gpuId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct IAgateIndex.ReaderVersion[]",
+        "components": [
+          {
+            "name": "fromDay",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "executedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "readerHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "url",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "parserVersion",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "reason",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "readerSwapId",
+    "inputs": [
+      {
+        "name": "gpuId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "reader",
+        "type": "tuple",
+        "internalType": "struct IAgateIndex.Reader",
+        "components": [
+          {
+            "name": "url",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "parserVersion",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "pure"
   },
   {
     "type": "function",
@@ -2097,6 +2376,135 @@ export const agateIndexAbi = [
   },
   {
     "type": "event",
+    "name": "ReaderSwapCancelled",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "gpuId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ReaderSwapQueued",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "gpuId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "url",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "parserVersion",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "eta",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ReaderSwapped",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "gpuId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "fromDay",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "readerHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "url",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "parserVersion",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ReadingsPosted",
     "inputs": [
       {
@@ -2395,6 +2803,22 @@ export const agateIndexAbi = [
   },
   {
     "type": "error",
+    "name": "ActionExpired",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "deadline",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "AlreadyAttested",
     "inputs": [
       {
@@ -2449,6 +2873,11 @@ export const agateIndexAbi = [
   {
     "type": "error",
     "name": "BadInit",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BadReader",
     "inputs": []
   },
   {
@@ -2760,6 +3189,27 @@ export const agateIndexAbi = [
     "type": "error",
     "name": "NothingLive",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReaderSwapPending",
+    "inputs": [
+      {
+        "name": "gpuId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "fromDay",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ]
   },
   {
     "type": "error",

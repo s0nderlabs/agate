@@ -209,6 +209,25 @@ describe.skipIf(!haveAnvil)("TxSender on anvil", () => {
     });
   });
 
+  test("a stuck post whose day has closed (useful() false, Oct 3) is replaced by a cancel before its REPOST_END", async () => {
+    let open = true;
+    await withAutomineOff(async () => {
+      const { s, ck, log } = await mkSender(KEYS[2], { nowS: () => 50 });
+      const m = { ...meta(["u:1"], 100), useful: async () => open };
+      const r = await s.send({ to: dep.index, data: await post(await report()), shape: "postReport", meta: m, waitUntilMs: ck.now() + 50 });
+      ck.advance(FAST.replaceMs);
+      await s.settle(ck.now() + 50);
+      expect(journal(log, ADDR[2]!).at(-1)).toMatchObject({ action: "post", replaces: r.txHash }); // still useful: same content
+      open = false; // the day was closed meanwhile: the entries would be skipped (E3)
+      ck.advance(FAST.replaceMs);
+      await s.settle(ck.now() + 50);
+      const l = journal(log, ADDR[2]!).at(-1)!;
+      expect(l).toMatchObject({ action: "cancel", nonce: r.nonce });
+      await a.test.mine({ blocks: 1 });
+      expect(await s.settle(ck.now() + 500)).toMatchObject({ kind: "mined", hash: l.hash, cancel: true });
+    });
+  });
+
   test("NONCE_STUCK after three replacements still unmined", async () => {
     await withAutomineOff(async () => {
       const { s, ck, alerts } = await mkSender(KEYS[2]);

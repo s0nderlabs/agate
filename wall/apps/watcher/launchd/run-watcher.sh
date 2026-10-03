@@ -15,5 +15,10 @@ if [ -n "$VAR" ]; then
   unset KEY
 fi
 unset AGATE_KEY_CMD
+# the RPC list: AGATE_RPC_URLS_CMD (run by the process itself at start, in memory only: 13.6) or AGATE_RPC_URLS
+if [ -z "${AGATE_RPC_URLS_CMD:-}" ] && [ -z "${AGATE_RPC_URLS:-}" ] && { [ "$ROLE" != "log" ] || [ -n "${AGATE_INDEX:-}" ]; }; then
+  echo "set AGATE_RPC_URLS_CMD (or AGATE_RPC_URLS) for the $ROLE role" >&2
+  exit 2
+fi
 mkdir -p "${AGATE_WALL_HOME:-$HOME/.agate-wall}/watcher"
 exec "${BUN:-bun}" run apps/watcher/src/main.ts "$ROLE"

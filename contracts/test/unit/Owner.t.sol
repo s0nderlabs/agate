@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IndexBase} from "../Base.t.sol";
-import {IAgateIndex, NEVER} from "../../src/interfaces/IAgateIndex.sol";
+import {IAgateIndex, NEVER, ACTION_WINDOW_DAYS} from "../../src/interfaces/IAgateIndex.sol";
 
 contract OwnerTest is IndexBase {
     function setUp() public {
@@ -322,12 +322,17 @@ contract OwnerTest is IndexBase {
         _reg(GPU, _seq(4), _ones(4), t, 0x7);
         IAgateIndex.Action memory a = _slotA(IAgateIndex.ActionKind.LIVE_FROM, 3, DEC1);
         _queue(a);
-        // executed late: Dec 1 has begun
+        uint256 eta = block.timestamp + 2 * P.day;
+        // executed late it has expired long before Dec 1 begins (a LIVE_FROM is queued a month ahead, 4.11)
         vm.warp(dStart(DEC1));
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IAgateIndex.DayBegun.selector, DEC1));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAgateIndex.ActionExpired.selector, keccak256(abi.encode(a)), uint64(eta + ACTION_WINDOW_DAYS * P.day)
+            )
+        );
         ix.execute(a);
-        vm.warp(dStart(DEC1) - 1);
+        vm.warp(eta + ACTION_WINDOW_DAYS * P.day);
         _exec(a);
         (uint32 lf, uint32 lu) = ix.slotWindow(GPU, 3);
         assertEq(lf, DEC1);

@@ -47,6 +47,30 @@ describe("guardian look reader", () => {
     expect(urls).toEqual(["http://replay.test/r/look/p_lambda", "http://replay.test/r/look/p_gcore", "http://replay.test/r/look/fx_ecb"]);
   });
 
+  test("8.6: a swapped reader fetches its own URL; one this build may not use reads MISSED, unfetched, never another reader", async () => {
+    const urls: string[] = [];
+    const look = lookReader({
+      timeoutMs: 1_000,
+      now: () => NOW,
+      fetchPage: async (url) => {
+        urls.push(url);
+        return ok(BODIES.p_lambda!, PAGE_TIME);
+      },
+    });
+    // the same parser on another page of Lambda's own hosts: fetched there and parsed as before
+    const moved = await look(["p_lambda"], { p_lambda: { url: "https://lambda.ai/pricing-moved", parserVersion: "lambda/1" } });
+    expect(urls).toEqual(["https://lambda.ai/pricing-moved"]);
+    expect(moved.p_lambda!.H100!.state).toBe("VALID");
+    // a host off the allowlist, and a version not installed: MISSED with the reason, no fetch
+    urls.length = 0;
+    const off = await look(["p_lambda"], { p_lambda: { url: "https://evil.example/pricing", parserVersion: "lambda/1" } });
+    expect(off.p_lambda!.H100).toMatchObject({ state: "MISSED", valueU: 0 });
+    expect(off.p_lambda!.H100!.why).toContain("evil.example");
+    const missing = await look(["p_lambda"], { p_lambda: { url: "https://lambda.ai/pricing", parserVersion: "lambda/99" } });
+    expect(missing.p_lambda!.B200!.state).toBe("MISSED");
+    expect(urls).toEqual([]);
+  });
+
   test("no ECB rate: the EUR rows are FAILED (missing evidence), never a dark page", async () => {
     const { look } = reader({ ecb: false });
     const out = await look(["p_gcore", "p_lambda"]);

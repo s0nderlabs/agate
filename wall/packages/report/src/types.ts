@@ -17,6 +17,10 @@ export const NEVER = 0xffffffff;
 export const REPORT_VERSION = 1;
 export const N_WRITERS = 2;
 export const N_GUARDIANS = 2;
+/** A queued owner action or reader swap is executable from eta to eta + ACTION_WINDOW_DAYS * DAY (4.11, Oct 3). */
+export const ACTION_WINDOW_DAYS = 14;
+/** keccak256("agate.ReaderSwap.v1"): separates reader swap ids from Action ids (4.15). */
+export const READER_SWAP_TAG: Hex = "0xf3d8c20af718394f49eed11d4b00c6e4ca01daa8294a7dd61b0faf5d5aa0ed35";
 
 // ---------------------------------------------------------------- enums (uint8 on the wire)
 
@@ -176,6 +180,23 @@ export interface Action {
   mode: WriterMode;
 }
 
+/** A slot's reader: the page it fetches and the parser version that reads it (4.15, 7.6). */
+export interface Reader {
+  url: string; // "https://...", 9 to 256 bytes
+  parserVersion: string; // 1 to 32 bytes, e.g. "lambda/2"
+}
+
+/** One executed swap of a slot's reader (readerHistory, readerAt). Before the first entry the registered recipe's
+ *  reader applies. readerHash = keccak256(abi.encode(url, parserVersion)). */
+export interface ReaderVersion {
+  fromDay: number; // uint32: the first index day read with this reader
+  executedAt: bigint; // uint64
+  readerHash: Hex;
+  url: string;
+  parserVersion: string;
+  reason: string;
+}
+
 /** Decoded ReadingsPosted event: the public per-slice view the watcher's VETO side and R8 tooling need. */
 export interface ReadingsPosted {
   gpuId: Hex;
@@ -216,6 +237,9 @@ export interface WatcherReading {
   fxDate?: string; // ECB rate date used for an EUR source (YYYY-MM-DD)
   gpus: Partial<Record<GpuModel, { state: ReadState; valueU: number }>>; // valueU = 0 unless VALID
   error?: string;
+  url?: string; // the URL fetched, when not the registered one (a reader swap, 8.6)
+  parsers?: Partial<Record<GpuModel, string>>; // parserVersion per GPU, when any is not the registered one (8.6)
+  location?: string; // the final URL when the fetch followed a redirect to another URL (15.2's "moved" diagnosis)
 }
 
 export const AlertCode = {
@@ -235,19 +259,31 @@ export const AlertCode = {
   R9B_BLIND_SLOT_SPLIT: "R9B_BLIND_SLOT_SPLIT", // action: writers differ on a slot the watcher cannot read fresh (F3)
   FREEZE_LOOP: "FREEZE_LOOP", // action: a FixDropped; carries the drops in a row and the next record's refusal reasons (R12)
   R10_SPLIT_STEP: "R10_SPLIT_STEP", // action: fewer than two families beyond the median moved with a recent move
-  TRACKER_GAP: "TRACKER_GAP", // info: a cloud slot differs from its tracker row by more than 10%
+  TRACKER_GAP: "TRACKER_GAP", // info: superseded Oct 3 by PAGECHECK_REVIEW (kept so old alert files parse; nothing raises it)
+  PAGECHECK_REVIEW: "PAGECHECK_REVIEW", // info: a panel cloud's reading differs from its tracker row by more than 10% (15.1)
+  PAGECHECK_FAULT: "PAGECHECK_FAULT", // action: that gap has lasted one DAY: a likely parser fault (15.1)
+  PAGECHECK_TRACKERS_DOWN: "PAGECHECK_TRACKERS_DOWN", // info: no tracker row for any pair for DAY/4 of intervals
+  KEY_MISMATCH: "KEY_MISMATCH", // action: a writer's onchain readings differ from its own log: a second user of its key (8.5)
+  KEY_UNVERIFIED: "KEY_UNVERIFIED", // info: an onchain post of a slice whose CRE run output the writer could not parse (8.5)
+  READER_MISSING: "READER_MISSING", // action: a reader in force (or queued) whose parserVersion this process lacks (8.6)
+  READER_REFUSED: "READER_REFUSED", // action: a reader in force (or queued) not https or off the source's host allowlist (8.6)
+  REPAIR_INCIDENT: "REPAIR_INCIDENT", // info: the repair agent opened an incident (15.2)
+  REPAIR_NOTE: "REPAIR_NOTE", // action: an approval note is ready (15.2)
+  REPAIR_REFUSED: "REPAIR_REFUSED", // action: a draft failed a guard (15.2)
+  REPAIR_WINDOW: "REPAIR_WINDOW", // action: a proposed reader swap past its eta, unexecuted, under 2 DAY of its window left
   WATCHER_GAP: "WATCHER_GAP", // action: the watcher missed intervals (its own health)
   WRITER_GAP: "WRITER_GAP", // action: a writer's slice bits are missing past the repost window
   HEARTBEAT_LOST: "HEARTBEAT_LOST", // action: a role's heartbeat is older than three of its tick periods
   RPC_FAILOVER: "RPC_FAILOVER", // info: a process moved to its next RPC URL
   RPC_DOWN: "RPC_DOWN", // action: every RPC URL failed on two ticks running
   RPC_SINGLE: "RPC_SINGLE", // action: only one RPC URL configured
+  RPC_WS_DOWN: "RPC_WS_DOWN", // info: no websocket subscription live for 3 ticks (polling only; 13.6)
   GAS_CAP: "GAS_CAP", // action: a call's needed gas limit exceeds its cap; not sent
   NONCE_STUCK: "NONCE_STUCK", // action: a transaction still unmined after three replacements
   CLOCK_JUMP: "CLOCK_JUMP", // info: a process woke after a clock jump (sleep, suspend)
   CLOCK_SKEW: "CLOCK_SKEW", // action: local clock and chain head time differ beyond max(5 s, slice/20)
   KEY_LOW: "KEY_LOW", // action: a role key holds less than 10 MON
-  ONCHAIN_EVENT: "ONCHAIN_EVENT", // info: veto, suspension, drop, carry, owner action queued
+  ONCHAIN_EVENT: "ONCHAIN_EVENT", // info: veto, suspension, drop, carry, owner action or reader swap (action: a ReaderSwapQueued)
 } as const;
 export type AlertCode = (typeof AlertCode)[keyof typeof AlertCode];
 

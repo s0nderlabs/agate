@@ -1,6 +1,6 @@
 // bun run src/backfill.ts --role primary|standby [--dry-run]
 // Posts this writer's logged readings from firstDay on (8.4). Key: AGATE_PRIMARY_KEY or AGATE_STANDBY_KEY. Other env
-// as main.ts. Run within GRACE (one DAY) of registerGpu. Holds the role's per-index lock, so stop the writer first.
+// as main.ts (AGATE_RPC_URLS_CMD or AGATE_RPC_URLS). Run within GRACE (one DAY) of registerGpu. Holds the role's per-index lock, so stop the writer first.
 import { join } from "node:path";
 import type { Address } from "@agate/report/types";
 import { privateKeyToAccount } from "viem/accounts";
@@ -11,8 +11,10 @@ import { ReadingLog, type Role, wallHome } from "./pipeline/log.ts";
 import { alertSink } from "./pipeline/ops.ts";
 import { RpcPool } from "./pipeline/rpc.ts";
 import { timingFor } from "./pipeline/sender.ts";
-import { env, loadPanels, loadSourcesApi, maxFeeFromEnv, measuredFromEnv, rpcUrlsFromEnv, startupChecks, takeKey } from "./pipeline/setup.ts";
+import { env, loadPanels, loadSourcesApi, maxFeeFromEnv, measuredFromEnv, redaction, rpcEndpointsFromEnv, startupChecks, takeKey } from "./pipeline/setup.ts";
 
+const endpoints = rpcEndpointsFromEnv(process.env); // AGATE_RPC_URLS_CMD or AGATE_RPC_URLS (13.6)
+const scrub = redaction(endpoints);
 const args = process.argv.slice(2);
 const role = (args[args.indexOf("--role") + 1] ?? "") as Role;
 if (role !== "primary" && role !== "standby") throw new Error("--role primary|standby");
@@ -25,10 +27,11 @@ if (!lock) {
 }
 const key = takeKey(role === "primary" ? "AGATE_PRIMARY_KEY" : "AGATE_STANDBY_KEY");
 const writer = privateKeyToAccount(key).address;
-const alert = alertSink({ home, writer });
-const pool = new RpcPool({ urls: rpcUrlsFromEnv(), ...(process.env.AGATE_CHAIN_ID ? { expectChainId: Number(process.env.AGATE_CHAIN_ID) } : {}), timeoutMs: 10_000, staleS: 60, alert });
+const alert = alertSink({ home, writer, index, scrub, ...(process.env.AGATE_NOTIFY_CMD ? { notifyCmd: process.env.AGATE_NOTIFY_CMD } : {}) });
+const pool = new RpcPool({ urls: endpoints.http, ...(process.env.AGATE_CHAIN_ID ? { expectChainId: Number(process.env.AGATE_CHAIN_ID) } : {}), timeoutMs: 10_000, staleS: 60, alert });
 await pool.init();
 const log = new ReadingLog(home, role);
+log.scrub = scrub;
 const chain = indexChain({
   pool,
   index,

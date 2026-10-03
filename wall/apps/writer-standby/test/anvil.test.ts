@@ -168,7 +168,7 @@ describe.skipIf(!haveAnvil)("writers on the real AgateIndex", () => {
     expect(rec.source.toLowerCase()).toBe(STANDBY.toLowerCase()); // the only writer with readings is the first writer
     expect(rec.incomplete).toBe(true);
     expect(await w.skipped()).toBe(0);
-    // no send of day D after its F1 deadline, ever
+    // the day closed at C1 (the standby is its first writer): every send of day D went before F1's repost point
     const sends = (await w.posted(STANDBY)).filter((x) => x.day === D);
     for (const x of sends) {
       const b = await w.a.pub.getBlock({ blockNumber: (await w.a.pub.getTransactionReceipt({ hash: x.tx })).blockNumber });

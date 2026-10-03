@@ -259,11 +259,13 @@ contract FormulaTest is IndexBase {
         a.day = DEC1;
         vm.prank(owner);
         ix.queue(a);
+        uint256 eta = block.timestamp + 2 * P.day;
         _day(V); // Oct 29
-        _carryUntil(DEC1 - 6);
-        warpTo(block.timestamp + 2 * P.day);
+        // executed when ready (48 h), inside its 14 DAY window (4.11); liveFrom = Dec 1 either way
+        warpTo(eta);
         vm.prank(owner);
         ix.execute(a);
+        _carryUntil(DEC1 - 6);
         (uint32 lf,) = ix.slotWindow(GPU, 4);
         assertEq(lf, DEC1);
         // Nov 25: not yet readable (DEC1 - 6 < liveFrom - SHADOW_DAYS)

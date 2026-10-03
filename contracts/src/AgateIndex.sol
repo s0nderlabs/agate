@@ -178,6 +178,44 @@ contract AgateIndex is IAgateIndex {
         IndexAdmin.cancel(s, a);
     }
 
+    // ------------------------------------------------------------------ reader swap (4.15)
+
+    function queueReaderSwap(bytes32 gpuId, uint8 slot, Reader calldata reader, string calldata reason)
+        external
+        override
+        returns (bytes32)
+    {
+        _onlyOwner();
+        return IndexAdmin.queueSwap(s, _prof(), gpuId, slot, reader, reason);
+    }
+
+    function executeReaderSwap(bytes32 gpuId, uint8 slot, Reader calldata reader) external override {
+        _onlyOwner();
+        IndexAdmin.executeSwap(s, _prof(), gpuId, slot, reader);
+    }
+
+    function cancelReaderSwap(bytes32 gpuId, uint8 slot, Reader calldata reader) external override {
+        _onlyOwner();
+        IndexAdmin.cancelSwap(s, gpuId, slot, reader);
+    }
+
+    function readerSwapId(bytes32 gpuId, uint8 slot, Reader calldata reader) external pure override returns (bytes32) {
+        return IndexAdmin.swapId(gpuId, slot, reader);
+    }
+
+    function readerHistory(bytes32 gpuId, uint8 slot) external view override returns (ReaderVersion[] memory) {
+        return IndexAdmin.history(s, gpuId, slot);
+    }
+
+    function readerAt(bytes32 gpuId, uint8 slot, uint32 day)
+        external
+        view
+        override
+        returns (bool, ReaderVersion memory)
+    {
+        return IndexAdmin.at(s, gpuId, slot, day);
+    }
+
     // ------------------------------------------------------------------ views (4.12; none reverts)
 
     function finalFix(bytes32 gpuId, uint32 day)
@@ -368,7 +406,7 @@ contract AgateIndex is IAgateIndex {
     }
 
     function queuedEta(bytes32 id) external view override returns (uint64) {
-        return s.queued[id];
+        return IndexAdmin.liveEta(s, _prof(), id);
     }
 
     function actionId(Action calldata a) external pure override returns (bytes32) {

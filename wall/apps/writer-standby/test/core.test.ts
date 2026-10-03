@@ -14,6 +14,7 @@ import {
   flatFields,
   flattenLogs,
   fullBits,
+  graceStart,
   guardAct,
   lagMax,
   neededSources,
@@ -21,10 +22,14 @@ import {
   pageUrl,
   parsePages,
   pendEnd,
+  fetchesOf,
+  planNotes,
+  planReaders,
   readAtFor,
   readOffset,
   readWindow,
   reportHex,
+  repostEnd,
   sendDeadline,
   sliceAt,
   takeReading,
@@ -118,6 +123,28 @@ describe("clock (2.2 rule R v4.3, 3)", () => {
     }
   });
 
+  test("REPOST_END (Oct 3, 2.2): graceStart + GRACE - slice, graceStart = max(dayEnd, registeredAt)", () => {
+    const offsets: [keyof typeof PROFILES, number][] = [
+      ["PRODUCTION", 82_800],
+      ["DEMO", 450],
+      ["FAST", 12],
+      ["TEST", 2_200],
+    ];
+    for (const [name, off] of offsets) {
+      const c = clockOf(PROFILES[name]);
+      const d = c.epochDay + 3;
+      expect(repostEnd(c, d) - dayEnd(c, d)).toBe(off);
+      expect(graceStart(c, d)).toBe(dayEnd(c, d));
+      // a backfilled day: registered after it ended, its clocks start at the registration
+      const reg = dayEnd(c, d) + 777;
+      expect(graceStart(c, d, reg)).toBe(reg);
+      expect(repostEnd(c, d, reg)).toBe(reg + off);
+      // registered before the day ended: dayEnd decides
+      expect(repostEnd(c, d, dayStart(c, d))).toBe(dayEnd(c, d) + off);
+      expect(repostEnd(c, d)).toBeGreaterThan(sendDeadline(c, d));
+    }
+  });
+
   test("F1 deadlines: sends end one margin before the close becomes possible; others close from T_PEND", () => {
     const c = clockOf(PROFILES.TEST);
     expect(closableAt(c, 20_727)).toBe(dayEnd(c, 20_727) + 200);
@@ -201,3 +228,66 @@ describe("reading (7.4, 7.5)", () => {
     expect(PANELS[0]!.gpuId as Hex).toBe("0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955");
   });
 });
+
+describe("readers in force in the pure core (8.6)", () => {
+  const defs = FAKE_SOURCES_ALL();
+  const h100 = PANELS[0]!;
+
+  test("planReaders: registered by default; an allowed swap is used; anything else is a refusal, whatever the caller passed", () => {
+    const none = planReaders(fakeSources, defs, PANELS);
+    expect(none.find((p) => p.def.id === "f_a")!.byGpu).toEqual({ H100: { url: "https://a.invalid/p", parserVersion: "f_a/1" }, H200: { url: "https://a.invalid/p", parserVersion: "f_a/1" }, B200: { url: "https://a.invalid/p", parserVersion: "f_a/1" } });
+    const plans = planReaders(fakeSources, defs, PANELS, {
+      [h100.gpuId.toUpperCase().replace("0X", "0x")]: {
+        "0": { url: "https://www.a.invalid/v2", parserVersion: "f_a/2" },
+        "1": { url: "https://evil.invalid/p", parserVersion: "f_b/1" },
+        "2": { url: "https://c.invalid/p", parserVersion: "f_c/9" },
+        "3": { refused: "the caller refused it" },
+      },
+    });
+    const by = (id: string) => plans.find((p) => p.def.id === id)!.byGpu;
+    expect(by("f_a").H100).toEqual({ url: "https://www.a.invalid/v2", parserVersion: "f_a/2" });
+    expect(by("f_a").H200).toEqual({ url: "https://a.invalid/p", parserVersion: "f_a/1" }); // H200's slot is not swapped
+    expect((by("f_b").H100 as { refused: string }).refused).toMatch(/host/);
+    expect((by("f_c").H100 as { refused: string }).refused).toMatch(/not installed/);
+    expect(by("f_e").H100).toEqual({ refused: "the caller refused it" });
+    // each distinct URL once, the registered one first; under a replay base one fetch per source
+    const f = fetchesOf(plans);
+    expect(f.filter((x) => x.sourceId === "f_a").map((x) => x.fetchUrl)).toEqual(["https://a.invalid/p", "https://www.a.invalid/v2"]);
+    expect(f.some((x) => x.fetchUrl.includes("evil"))).toBe(false);
+    const fb = fetchesOf(plans, "http://replay.test");
+    expect(new Set(fb.filter((x) => x.sourceId === "f_a").map((x) => x.fetchUrl))).toEqual(new Set(["http://replay.test/f_a"]));
+    const notes = planNotes(plans);
+    expect(notes.f_a).toEqual({ parsers: { H100: "f_a/2", H200: "f_a/1", B200: "f_a/1" }, urls: { H100: "https://www.a.invalid/v2" } });
+    expect(notes.f_b!.refused!.H100).toMatch(/host/);
+    expect(notes.f_c!.parsers).toEqual({ H200: "f_c/1" });
+  });
+
+  test("parsePages with plans: the swapped GPU reads its version at its URL; a refused one is MISSED and sends 0", () => {
+    const plans = planReaders(fakeSources, defs, PANELS, { [h100.gpuId]: { "0": { url: "https://www.a.invalid/v2", parserVersion: "f_a/2" }, "1": { refused: "x" } } });
+    const ok = (body: string): PageResult => ({ ok: true, httpStatus: 200, body, bytes: body.length });
+    const pages: Record<string, PageResult> = {
+      f_a: ok(PAGES.f_a!),
+      "f_a https://www.a.invalid/v2": ok(JSON.stringify({ v2: { H100: "2.79" } })),
+      f_b: ok(PAGES.f_b!),
+      f_c: ok(PAGES.f_c!),
+      f_e: ok(PAGES.f_e!),
+    };
+    const r = takeReading(fakeSources, PANELS, defs, { dayId: 20_727, slice: 1, readAt: 1_790_813_000 }, pages, ok(PAGES.fx_ecb!), plans);
+    expect(r.entries.find((e) => e.gpuId === h100.gpuId)!.values).toEqual([2_790_000, 0, 3_100_000, 2_660_000]);
+    const fa = r.sources.find((x) => x.sourceId === "f_a")!;
+    expect(fa.rows.H100).toEqual({ state: "VALID", valueU: 2_790_000 });
+    expect(fa.extra).toEqual([{ url: "https://www.a.invalid/v2", httpStatus: 200, bytes: pages["f_a https://www.a.invalid/v2"]!.bytes }]);
+    const fb = r.sources.find((x) => x.sourceId === "f_b")!;
+    expect(fb.rows.H100).toEqual({ state: "MISSED", valueU: 0 });
+    expect(fb.rows.B200).toEqual({ state: "NOT_RENTABLE", valueU: 0 }); // f_b's B200 slot: registered reader
+    // flattened for CRE's consensus and back: the states and values survive, the notes come back from the plan
+    const back = unflatten(defs, flattenLogs(r.sources));
+    expect(back.logs.find((x) => x.sourceId === "f_b")!.rows.H100).toEqual({ state: "MISSED", valueU: 0 });
+    expect(back.rows.f_b!.H100).toBeUndefined();
+    expect(back.rows.f_a!.H100).toEqual({ state: "VALID", valueU: 2_790_000 });
+  });
+});
+
+function FAKE_SOURCES_ALL() {
+  return neededSources(fakeSources, PANELS);
+}

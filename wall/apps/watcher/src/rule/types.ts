@@ -40,6 +40,7 @@ export interface RuleClock {
   epochDay: number;
   tPend: number;
   grace?: number; // for R12 timing and lag reporting only
+  reopenWait?: number; // default day / 4 (VETO_BY, 6.6 step 3b)
 }
 
 export interface ScenarioGpu {
@@ -50,6 +51,8 @@ export interface ScenarioGpu {
   liveFrom: number[]; // NEVER = 4294967295
   liveUntil: number[];
   firstDay: number;
+  /** registration time (graceStart of a backfilled day; VETO_BY); default 0 */
+  registeredAt?: number;
 }
 
 /** One writer slot's stored readings for one day (readings() plus its ReadingsPosted validMasks). */
@@ -275,6 +278,9 @@ export interface Evaluation {
     /** liveness: 6.6 step 3b, a needsSign record no candidate signs under R11 or R12 (never an R8 reason) */
     veto: { writer: Address; digest: Hex; reasons: string[]; liveness?: boolean } | null;
     r8: { writer: Address; reason: string }[];
+    /** 6.6 step 3b (Oct 3): a pending needsSign record with no R11 or R12 candidate: the liveness veto may wait until
+     *  vetoBy = graceStart + GRACE - REOPEN_WAIT and is due by max(vetoBy, alert + GUARD_ACT) */
+    stuck?: { vetoBy: number; due: number };
   };
   alerts: AlertDraft[];
 }

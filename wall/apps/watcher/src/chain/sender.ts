@@ -10,16 +10,32 @@ import { privateKeyToAccount } from "viem/accounts";
 import { agateIndexAbi } from "@agate/report/abi";
 import { AlertCode } from "@agate/report/types";
 import type { AlertSink } from "../alerts.ts";
+import type { SendLock } from "./keylock.ts";
 import { isRevert, RpcDown, type RpcPool, short } from "./rpc.ts";
 import type { CallName, Sender, SendResult } from "./types.ts";
 
 export class KeyMissing extends Error {}
 
-/** Reads a 32-byte hex key from the environment at call time. Never logged, never stored by this module. */
+/** Keys a long-running role took out of its environment at start (holdKey), by variable name. */
+const held = new Map<string, Hex>();
+
+/** Reads a 32-byte hex key: the one held in memory for that variable, else the environment at call time. Never
+ *  logged. */
 export function readKey(envName: string): Hex {
+  const h = held.get(envName);
+  if (h) return h;
   const v = process.env[envName];
   if (!v || !/^0x[0-9a-fA-F]{64}$/.test(v)) throw new KeyMissing(`${envName} is not set to a 32-byte hex key`);
   return v as Hex;
+}
+
+/** For a long-running role (attest, keep, health): moves the key from the environment into this module's memory, so
+ *  no child process (the AGATE_NOTIFY_CMD notifier) can inherit it (fix round M3, as the writers' takeKey). */
+export function holdKey(envName: string): Hex {
+  const k = readKey(envName);
+  held.set(envName, k);
+  delete process.env[envName];
+  return k;
 }
 
 /** The address of the key in envName, without keeping the key. */
@@ -45,6 +61,8 @@ export interface SenderOptions {
   maxReplacements?: number;
   /** how long to keep waiting after the last replacement before giving up on this send */
   giveUpS?: number;
+  /** 13.7 (Oct 3): the per-key send lock, held around each send flight (another index's process may share the key) */
+  lock?: SendLock;
 }
 
 const appSendError = (e: unknown) => {
@@ -111,9 +129,28 @@ export class TxSender implements Sender {
   }
 
   send(fn: CallName | string, args: readonly unknown[]): Promise<SendResult> {
-    const run = this.queue.then(() => this.sendNow(fn, args));
+    const run = this.queue.then(() => this.flight(fn, args));
     this.queue = run.catch(() => undefined);
     return run;
+  }
+
+  /** One send flight under the per-key lock (13.7): a lock held elsewhere past its wait gives up this send (the next
+   *  tick retries); after another holder the nonce is re-read at `pending`. */
+  private async flight(fn: CallName | string, args: readonly unknown[]): Promise<SendResult> {
+    const lock = this.o.lock;
+    if (!lock) return this.sendNow(fn, args);
+    const got = await lock.acquire({ role: this.o.role });
+    if (!got) {
+      this.log.push(`${fn}: key busy (another process holds ${lock.path} past ${lock.waitMs} ms); not sent, the next tick retries`);
+      console.log(JSON.stringify({ t: this.o.now(), role: this.o.role, event: "send_lock_busy", fn }));
+      return { ok: false, sent: false, error: "key busy: another process holds the send lock" };
+    }
+    if (got.otherHolder) this.nonce = null;
+    try {
+      return await this.sendNow(fn, args);
+    } finally {
+      lock.release();
+    }
   }
 
   private async fees(): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }> {

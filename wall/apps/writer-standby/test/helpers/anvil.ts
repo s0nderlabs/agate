@@ -25,7 +25,7 @@ export const KEYS = [
   "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
   "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
   "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",
-  "0x47e179ec197488593b187f80a8eb0da603e8b1ba7bfd8f2c5c1b2d8b6b35b9b0",
+  "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a", // anvil #4 (was a non-default key until recheck r1, I1)
   "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
 ] as const;
 export const ADDR = KEYS.map((k) => privateKeyToAccount(k).address) as Address[];
@@ -33,8 +33,10 @@ export const ZERO: Address = "0x0000000000000000000000000000000000000000";
 export const SELECTOR = 2183018362218727504n;
 
 export const ROOT = resolve(import.meta.dir, "../../../../..");
-const OUT = join(ROOT, "contracts/out");
+// AGATE_CONTRACTS_OUT: a builder's own forge output (FOUNDRY_OUT), e.g. to run these tests on a contract not yet in contracts/out
+const OUT = process.env.AGATE_CONTRACTS_OUT || join(ROOT, "contracts/out");
 export const PANELS_FILE = join(ROOT, "wall/packages/sources/panels/default.json");
+export const LAUNCH_PANELS_FILE = join(ROOT, "wall/packages/sources/panels/launch.json");
 export const haveAnvil = Boolean(Bun.which("anvil") && existsSync(join(OUT, "AgateIndex.sol/AgateIndex.json")));
 
 export interface Profile {
@@ -120,6 +122,8 @@ export interface DeployOptions {
   epochTs?: number;
   /** Panels to register (default: every panel of default.json). */
   gpus?: string[];
+  /** The panel file to register from (default panels/default.json; panels/launch.json for the launch panel). */
+  panelsFile?: string;
 }
 
 export async function deployIndex(a: Anvil, o: DeployOptions = {}): Promise<Deployed> {
@@ -146,7 +150,7 @@ export async function deployIndex(a: Anvil, o: DeployOptions = {}): Promise<Depl
   };
   const ix = await linkedIndex(a);
   const index = await deploy(a, ix.abi, ix.bytecode, [init]);
-  const file = await Bun.file(PANELS_FILE).json();
+  const file = await Bun.file(o.panelsFile ?? PANELS_FILE).json();
   const panels: Panel[] = [];
   for (const d of file.deploy as { gpu: string; gpuId: Hex; recipeHash: Hex; family: number[]; famQ: number[]; liveAtStartMask: number }[]) {
     if (o.gpus && !o.gpus.includes(d.gpu)) continue;

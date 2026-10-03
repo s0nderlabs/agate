@@ -20,6 +20,8 @@ fs_permissions = [
   # the deploy-script tests' throwaway files (gitignored; never next to the real deployments files)
   { access = "read-write", path = "./cache/test-deployments" },
   { access = "read", path = "./test/market/vectors" },
+  # no read outside the repo: OwnerAction.s.sol takes an action file outside it as its JSON
+  # (AGATE_OWNER_ACTION="$(cat '<path>')", BUILD-SPEC 13.3, 15.2)
 ]
 remappings = [
   "forge-std/=lib/forge-std/src/",

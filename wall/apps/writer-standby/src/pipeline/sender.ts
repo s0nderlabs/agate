@@ -36,10 +36,13 @@ export interface TxMeta {
   action: "post" | "repost" | "close" | "backfill" | "cre";
   /** What the transaction carries: `${gpuId}:${day}:${slice}` per entry, `close:${gpuId}:${day}`. */
   tags: string[];
-  /** Unix second after which this content must not be sent any more (F1); a pending one is then cancelled. */
+  /** Unix second after which this content must not be sent any more (REPOST_END, 8.1); a pending one is then cancelled. */
   deadline?: number;
   dayId?: number;
   slice?: number;
+  /** Before a replacement: false when the content can no longer land (its day closed or was carried, E3); the
+   * replacement is then a cancel. Not journaled: a restart falls back to the deadline. */
+  useful?: () => Promise<boolean>;
 }
 
 export interface SendResult {
@@ -364,7 +367,9 @@ export class TxSender {
           reverts = true;
         }
       }
-      cancel = past || reverts;
+      let useless = false;
+      if (!past && !reverts && f.meta.useful) useless = !(await f.meta.useful().catch(() => true));
+      cancel = past || reverts || useless;
     }
     const t = await this.sign(f.nonce, f.to, f.data, f.gas, { maxFeePerGas: maxFee, maxPriorityFeePerGas: tip }, cancel);
     this.journal(f, t, last.hash);

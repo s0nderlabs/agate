@@ -2,19 +2,24 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   One watcher process (__ROLE__ = log | attest | keep | health) for one index, as a launchd agent. TEMPLATE: nothing
-  installs or loads it; make one copy per role (Label and log paths carry the role).
+  installs or loads it; make one copy per role and per index (Label and log paths carry both: __INDEX8__ = the index
+  address's first 8 hex digits after 0x, lowercase; a second index needs its own Labels, 13.7).
   launchd jobs hang on files under ~/Documents (macOS privacy prompt), so the job runs a copy of wall/ outside it
   (__APP__, e.g. ~/.agate-wall/app/wall) and keeps its data in AGATE_WALL_HOME (~/.agate-wall).
   No key in this file: run-watcher.sh asks AGATE_KEY_CMD for the role's key at start (attest: the attester key,
   keep: the keeper key; log and health need none) and exports it only to that process.
-  To use: replace __HOME__, __APP__, __BUN__, __RPC_URLS__ (two URLs, comma separated), __CHAIN_ID__ (10143 on Monad
-  testnet), __INDEX__, __PANELS__, __FROM_BLOCK__, __ROLE__, __KEY_CMD__; copy to ~/Library/LaunchAgents/;
+  RPC (13.6): __RPC_URLS_CMD__ is a command the process runs once at start to print its URL list (Alchemy first, the
+  Monad public RPC second, Alchemy's wss URL for wake-ups). It holds no secret itself; the Alchemy key is read from
+  Keychain at start and never written anywhere. XML-escape it here (& as &amp;):
+    k="$(security find-generic-password -s agate.alchemy-api-key -a api-key -w)" &amp;&amp; printf 'https://monad-testnet.g.alchemy.com/v2/%s,https://testnet-rpc.monad.xyz,wss://monad-testnet.g.alchemy.com/v2/%s' "$k" "$k"
+  To use: replace __HOME__, __APP__, __BUN__, __RPC_URLS_CMD__, __CHAIN_ID__ (10143 on Monad testnet), __INDEX__,
+  __INDEX8__, __PANELS__, __FROM_BLOCK__, __ROLE__, __KEY_CMD__; copy to ~/Library/LaunchAgents/;
   `launchctl bootstrap gui/$(id -u) <plist>`.
 -->
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>xyz.s0nderlabs.agate-watcher-__ROLE__</string>
+  <string>xyz.s0nderlabs.agate-watcher-__ROLE__-__INDEX8__</string>
   <key>ProgramArguments</key>
   <array>
     <string>/bin/sh</string>
@@ -27,8 +32,8 @@
   <dict>
     <key>BUN</key>
     <string>__BUN__</string>
-    <key>AGATE_RPC_URLS</key>
-    <string>__RPC_URLS__</string>
+    <key>AGATE_RPC_URLS_CMD</key>
+    <string>__RPC_URLS_CMD__</string>
     <key>AGATE_CHAIN_ID</key>
     <string>__CHAIN_ID__</string>
     <key>AGATE_INDEX</key>
@@ -49,8 +54,8 @@
   <key>ThrottleInterval</key>
   <integer>10</integer>
   <key>StandardOutPath</key>
-  <string>__HOME__/.agate-wall/watcher/__ROLE__.stdout.log</string>
+  <string>__HOME__/.agate-wall/watcher/__ROLE__-__INDEX8__.stdout.log</string>
   <key>StandardErrorPath</key>
-  <string>__HOME__/.agate-wall/watcher/__ROLE__.stderr.log</string>
+  <string>__HOME__/.agate-wall/watcher/__ROLE__-__INDEX8__.stderr.log</string>
 </dict>
 </plist>

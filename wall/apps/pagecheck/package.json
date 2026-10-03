@@ -1,0 +1,18 @@
+{
+  "name": "@agate/pagecheck",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@agate/report": "workspace:*",
+    "@agate/sources": "workspace:*",
+    "@agate/watcher": "workspace:*"
+  }
+}

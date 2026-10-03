@@ -1,0 +1,21 @@
+{
+  "name": "@agate/repair",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/main.ts watch",
+    "cli": "bun run src/cli.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@agate/pagecheck": "workspace:*",
+    "@agate/report": "workspace:*",
+    "@agate/sources": "workspace:*",
+    "@agate/watcher": "workspace:*",
+    "viem": "^2.57.2"
+  }
+}

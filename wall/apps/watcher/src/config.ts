@@ -1,5 +1,7 @@
 // Environment, panels, the clock cache and the chain wiring shared by the four watcher processes and the guardian CLI.
-// Env: AGATE_RPC_URLS (two or more, comma separated; AGATE_RPC_URL = one, raises RPC_SINGLE), AGATE_INDEX,
+// Env: AGATE_RPC_URLS_CMD (13.6, Oct 3: a command run once at start that prints the URL list; the Alchemy URL holds an
+// API key, so every URL is a secret: redacted in every log line, alert and file) or AGATE_RPC_URLS (two or more,
+// comma separated; AGATE_RPC_URL = one, raises RPC_SINGLE); ws(s):// entries are websocket endpoints, AGATE_INDEX,
 // AGATE_PANELS (JSON Panel[] or {panels}), AGATE_WALL_HOME (default ~/.agate-wall), AGATE_CHAIN_ID (expected),
 // AGATE_FROM_BLOCK (the index's deployment block), AGATE_LOG_CHUNK (getLogs range, default 100),
 // AGATE_CONFIRMATIONS, AGATE_GAS_MEASURED (JSON {attest, closeDay, carryDay, veto, suspend}), AGATE_MAX_FEE_GWEI,
@@ -7,16 +9,17 @@
 // the logger runs without AGATE_INDEX on a profile clock, AGATE_PROFILE and AGATE_EPOCH_TS, 13.3 step 2).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { installScrubber, type RpcEndpoints, resolveRpcEndpoints, scrubSecrets } from "@agate/report/env";
 import type { Address, Clocks, Hex } from "@agate/report/types";
 import type { Panel } from "@agate/sources/types";
 import { AlertSink } from "./alerts.ts";
 import { agateIndexAbi } from "@agate/report/abi";
 import type { Abi } from "viem";
 import { abiProblems } from "./chain/abi-check.ts";
-import { parseRpcUrls, RpcPool } from "./chain/rpc.ts";
+import { RpcPool } from "./chain/rpc.ts";
 import { EventIndexer, ViemIndex } from "./chain/viem-index.ts";
 import { wallClock, type WallClock } from "./clock.ts";
-import { wallHome, writeAtomic } from "./fsutil.ts";
+import { setFileScrubber, wallHome, writeAtomic } from "./fsutil.ts";
 import type { PanelRef } from "./scenario.ts";
 
 export function env(name: string, fallback?: string): string {
@@ -48,6 +51,20 @@ export interface Wall {
   view: ViemIndex;
   clock: WallClock;
   panels: PanelRef[];
+  /** the endpoints read at start (13.6): http in failover order, ws for wake-up subscriptions */
+  endpoints: RpcEndpoints;
+}
+
+/**
+ * 13.6: the RPC endpoints from AGATE_RPC_URLS_CMD (run once), AGATE_RPC_URLS or AGATE_RPC_URL; both variables are then
+ * deleted from env so no child inherits them. From here on every console line, stdout and stderr write (unless
+ * `console` is false: tests), every file this process writes and every alert passes through scrubSecrets.
+ */
+export function readEndpoints(env: Record<string, string | undefined> = process.env, o: { console?: boolean; run?: (cmd: string) => string } = {}): RpcEndpoints {
+  const e = o.run ? resolveRpcEndpoints(env, o.run) : resolveRpcEndpoints(env);
+  if (o.console !== false) installScrubber(e);
+  setFileScrubber((t) => scrubSecrets(t, e));
+  return e;
 }
 
 /** The clocks and chain id an earlier start read from the chain (<dir>/clocks.json), or null. */
@@ -75,18 +92,18 @@ async function clocksOf(view: ViemIndex, dir: string, chainId: number): Promise<
   }
 }
 
-export async function connect(role: string, now: () => number): Promise<Wall> {
+export async function connect(role: string, now: () => number, o: { endpoints?: RpcEndpoints; console?: boolean } = {}): Promise<Wall> {
+  // first: no line may print a URL before the scrubber knows them
+  const endpoints = o.endpoints ?? readEndpoints(process.env, o.console === false ? { console: false } : {});
   const stale = abiProblems(agateIndexAbi as Abi);
   if (stale.length > 0) throw new Error(`@agate/report's abi.ts is not the v4.3 interface (${stale.join("; ")}): run \`cd contracts && forge build\` then \`cd wall && bun run gen:abi\``);
   const home = wallHome();
   const index = env("AGATE_INDEX") as Address;
   const dir = join(home, "watcher", index.toLowerCase());
   const alerts = new AlertSink(join(home, "alerts", "alerts.jsonl"), { now, role, index, ...(process.env.AGATE_NOTIFY_CMD ? { notifyCmd: process.env.AGATE_NOTIFY_CMD } : {}) });
-  const urls = parseRpcUrls(process.env);
-  if (urls.length === 0) throw new Error("set AGATE_RPC_URLS (two URLs from different providers, 13.4)");
   const cachedId = cachedClocks(dir)?.chainId;
   const pool = await RpcPool.create({
-    urls,
+    urls: endpoints.http,
     ...(process.env.AGATE_CHAIN_ID ? { expectChainId: Number(process.env.AGATE_CHAIN_ID) } : {}),
     ...(cachedId !== undefined ? { fallbackChainId: cachedId } : {}),
     timeoutMs: 10_000,
@@ -100,7 +117,7 @@ export async function connect(role: string, now: () => number): Promise<Wall> {
   // per-profile RPC timeout and stale bound (13.4): min(10 s, slice / 10), max(30 s, slice / 4)
   pool.retune(Math.min(10_000, Math.max(1_000, (clock.slice / 10) * 1000)), Math.max(30, clock.slice / 4));
   const panels = loadPanels(env("AGATE_PANELS"));
-  return { home, index, dir, logDir: process.env.AGATE_WATCHER_LOG_DIR || dir, alerts, pool, view, clock, panels };
+  return { home, index, dir, logDir: process.env.AGATE_WATCHER_LOG_DIR || dir, alerts, pool, view, clock, panels, endpoints };
 }
 
 export function eventIndexer(w: Wall): EventIndexer {

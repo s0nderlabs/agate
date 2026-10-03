@@ -387,8 +387,7 @@ export function hand(ctx: RuleContext, c: CandidateRecord, relaxed: boolean): Ha
           const anyInside = others.some((o) => r.t === "int" && r.lo <= o.v && o.v <= r.hi);
           // W1: only a writer-region look that could not read the page shows a writer-side block (another writer's
           // value outside the range, possibly a thief's, is no evidence)
-          const lookFailed = ctx.looksOf(i).some((lk) => typeof lk.cell !== "number");
-          if (!anyInside && lookFailed) {
+          if (!anyInside && ctx.blockConfirmed(i)) {
             r = hull(r, { t: "int", lo: e, hi: e });
             row.from = "complete+e (writer-side block)";
           }
@@ -408,6 +407,15 @@ export function hand(ctx: RuleContext, c: CandidateRecord, relaxed: boolean): Ha
         why.push(`slot ${i}: HELD without a range`);
       }
       ranges.set(i, r);
+    }
+    // J (Oct 3): never hand-sign a record that holds a slot, or takes it OUT after it was IN, while the watcher reads
+    // it FRESH, unless a writer-region look confirmed the block; with a confirmed block the rows above apply
+    if (ctx.withheld(c, i) && !ctx.blockConfirmed(i)) {
+      ok = false;
+      row.result = "fail";
+      row.why = "withheld";
+      row.from = `withheld (${KIND_NAME[k]} while the watcher reads it FRESH; no writer-region look confirms a block)`;
+      why.push(`slot ${i}: withheld (${KIND_NAME[k]} while the watcher reads it FRESH) without a confirmed block: run look from the writer's region`);
     }
   }
   if (relaxed && anyFams.size > 0) {

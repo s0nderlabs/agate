@@ -3,9 +3,19 @@
 // re-checks the chain and asks the operator to confirm.
 import type { Address, GpuModel, Hex } from "@agate/report/types";
 import { Kind, Status } from "@agate/report/types";
+import { existsSync } from "node:fs";
+import { readStatus } from "../../pagecheck/src/index.ts";
 import {
+  ACTION_KIND_NAME,
+  actionFieldsText,
+  printable,
   type AlertSink,
   buildScenario,
+  dayLabel,
+  entryWhen,
+  ownerEntries,
+  type ReaderBook,
+  readerUrlFromEvents,
   type CandidateRecord,
   computeRecord,
   dayEnd,
@@ -28,8 +38,9 @@ import {
 } from "@agate/watcher";
 
 export interface LookReader {
-  /** Fetch every page of the panel now from this machine and parse it: per source, per GPU, a state and value. */
-  (sourceIds: string[]): Promise<Record<string, Partial<Record<GpuModel, { state: string; valueU: number }>>>>;
+  /** Fetch every page of the panel now from this machine and parse it: per source, per GPU, a state and value.
+   *  readers (8.6): a source's reader in force when a swap applies today (url and parserVersion). */
+  (sourceIds: string[], readers?: Record<string, { url: string; parserVersion: string }>): Promise<Record<string, Partial<Record<GpuModel, { state: string; valueU: number; why?: string }>>>>;
 }
 
 export interface CliDeps {
@@ -48,6 +59,12 @@ export interface CliDeps {
   look?: LookReader;
   beats?: RoleBeat[];
   writerRegion?: string; // the label that marks a look as taken from the writer's region (default "writer")
+  /** 15.1: the page check's status file of this index (<home>/pagecheck/<index 8 hex>/status.json) */
+  pagecheckStatus?: string;
+  /** keycheck: a transaction's sender and block (read only) */
+  tx?: (hash: Hex) => Promise<{ from: Address; blockNumber: bigint | null } | null>;
+  /** 8.6: readers in force, so rule R reads each swapped slot from its own reader's log line */
+  readers?: ReaderBook;
 }
 
 const $ = (u: number) => (u / 1e6).toFixed(2);
@@ -69,7 +86,9 @@ export function panelOf(d: CliDeps, gpu: string | undefined): PanelRef {
 async function scenarioFor(d: CliDeps, p: PanelRef, day?: number) {
   await d.events.sync();
   d.log.refresh?.();
-  const b = await buildScenario({ view: d.view, events: new EventIndex(d.events), log: d.log, guardian: d.glog, alerts: d.alerts, clock: d.clock, panel: p }, d.now(), day);
+  const idx = new EventIndex(d.events);
+  const readerUrl = d.readers ? readerUrlFromEvents(d.readers, p, idx.of("ReaderSwapped", p.gpuId)) : null;
+  const b = await buildScenario({ view: d.view, events: idx, log: d.log, guardian: d.glog, alerts: d.alerts, clock: d.clock, panel: p, ...(readerUrl ? { readerUrl } : {}) }, d.now(), day);
   if (!b) throw new Error(`${p.gpu}: nothing to evaluate`);
   return b;
 }
@@ -133,6 +152,13 @@ function printEvaluation(d: CliDeps, ev: Evaluation, detail: boolean): void {
 export async function status(d: CliDeps, args: string[]): Promise<void> {
   const c = d.clock;
   const now = d.now();
+  // the queued entries, voided writers and reader history below come from the events: read them now, not as of the
+  // attester's (or an earlier command's) last sync
+  try {
+    await d.events.sync();
+  } catch (e) {
+    d.out(`events not synced (${e instanceof Error ? e.message.split("\n")[0] : String(e)}): owner entries and reader history may be stale`);
+  }
   const panels = flag(args, "--gpu") ? [panelOf(d, flag(args, "--gpu"))] : d.panels;
   for (const p of panels) {
     const head = await d.view.head(p.gpuId);
@@ -145,12 +171,16 @@ export async function status(d: CliDeps, args: string[]): Promise<void> {
       d.out(`  pending ${head - 1}: source ${x.source} digest ${x.digest} value ${$(x.value)} changed ${x.changed} needsSign ${x.needsSign} postedAt ${x.postedAt} finalAt ${x.finalAt} attestedAt ${x.attestedAt}`);
       const b = await scenarioFor(d, p);
       if (b.inconsistent.length) d.out(`  INCONSISTENT: ${b.inconsistent.join("; ")}`);
-      printEvaluation(d, evaluate(b.scenario), false);
+      const ev = evaluate(b.scenario);
+      printEvaluation(d, ev, false);
+      const st = ev.guardian.stuck;
+      if (st)
+        d.out(`  step 3b: no R11 or R12 candidate: liveness veto due by ${st.due} (VETO_BY ${st.vetoBy} = graceStart + GRACE - REOPEN_WAIT, or the alert + GUARD_ACT if later; ${st.due >= now ? `in ${st.due - now} s` : `${now - st.due} s late`}). Meanwhile check the day's kept evidence (the logger's hourly page copies, the trackers, the looks) and sign by R11 or R12 where a look settles a slot; vetoed, the day is carried at the last value and labelled "carried, unverified" (6.6, 9.6)`);
     }
     const fixes: string[] = [];
     for (let j = head - 1; j >= head - 8 && fixes.length < 7; j--) {
       const x = await d.view.record(p.gpuId, j);
-      if (x.exists && x.isFinal) fixes.push(`${j}: ${$(x.rec.value)}${x.rec.status === Status.CARRIED ? (x.rec.dropped ? " CARRIED (dropped)" : " CARRIED") : ""}`);
+      if (x.exists && x.isFinal) fixes.push(`${j}: ${$(x.rec.value)} ${dayLabel(x.rec, x.isFinal, await d.view.reopenedAt(p.gpuId, j), head, j)}${x.rec.status === Status.CARRIED && x.rec.dropped ? " (dropped)" : ""}`);
     }
     d.out(`  last final fixes: ${fixes.join(" | ") || "none"}`);
   }
@@ -158,12 +188,72 @@ export async function status(d: CliDeps, args: string[]): Promise<void> {
   for (const w of ws) if (!/^0x0{40}$/i.test(w)) d.out(`writer ${w}: suspended ${await d.view.isSuspended(w)} balance ${await d.view.balance(w)} wei`);
   const voided = d.events.all().filter((e) => e.name === "Vetoed");
   for (const e of voided.slice(-5)) if (e.name === "Vetoed") d.out(`voided: ${e.source} for day ${e.day} (veto by ${e.by})`);
-  for (const e of d.events.all()) if (e.name === "ActionQueued") d.out(`queued owner action ${e.id}: eta ${e.eta}${e.eta > now ? ` (in ${e.eta - now} s)` : " (executable)"}`);
+  await ownerQueue(d, args.includes("--all"));
+  readerHistory(d);
+  pagecheck(d);
   for (const b of d.beats ?? []) {
     const hb = readBeat(b.path);
     d.out(`heartbeat ${b.role}: ${hb ? `${now - hb.at} s old (${hb.lastAction})` : "missing"}${hb && now - hb.at > 3 * b.periodS ? " LOST" : ""}`);
   }
+  const notes = d.alerts.open().filter((a) => a.code === "REPAIR_NOTE");
+  for (const a of notes) d.out(`repair note: ${a.message}`);
   await alerts(d, []);
+}
+
+const gpuName = (d: CliDeps) => (g: Hex) => d.panels.find((p) => lc(p.gpuId) === lc(g))?.gpu ?? g;
+
+/** 10 (Oct 3): only entries the chain still holds (queuedEta(id) != 0), with kind and fields, eta, window end and
+ *  "in N s" / "executable, window ends in N s"; executed and cancelled ones never; expired ones only with --all. */
+export async function ownerQueue(d: CliDeps, all: boolean): Promise<void> {
+  const now = d.now();
+  const xs = await ownerEntries(d.events.all(), (id) => d.view.queuedEta(id), d.clock.day, now);
+  const live = xs.filter((x) => x.state !== "expired");
+  const name = gpuName(d);
+  const line = (x: (typeof xs)[number]) => {
+    if (x.type === "action") {
+      const k = x.action!.kind!;
+      return `${ACTION_KIND_NAME[k] ?? `kind ${k}`} ${actionFieldsText(x.action!, name)}: id ${x.id} eta ${x.eta}, ${entryWhen(x, now)}`;
+    }
+    const r = x.reader!;
+    const p = d.panels.find((q) => lc(q.gpuId) === lc(r.gpuId));
+    return `reader swap ${name(r.gpuId)} slot ${r.slot}${p?.sources[r.slot] ? ` (${p.sources[r.slot]})` : ""}: url ${printable(r.url)} parserVersion ${printable(r.parserVersion)} reason "${printable(r.reason)}": id ${x.id} eta ${x.eta}, ${entryWhen(x, now)}`;
+  };
+  d.out(`queued owner actions and reader swaps (live): ${live.length === 0 ? "none" : ""}`);
+  for (const x of live) d.out(`  ${line(x)}`);
+  if (all) {
+    const dead = xs.filter((x) => x.state === "expired");
+    d.out(`expired (queue again to use): ${dead.length === 0 ? "none" : ""}`);
+    for (const x of dead) d.out(`  ${line(x)}`);
+  }
+}
+
+/** 10 (Oct 3): every swapped slot's reader history (fromDay, url, parserVersion, reason), from ReaderSwapped. */
+export function readerHistory(d: CliDeps): void {
+  const by = new Map<string, string[]>();
+  const name = gpuName(d);
+  for (const e of d.events.all()) {
+    if (e.name !== "ReaderSwapped") continue;
+    const p = d.panels.find((q) => lc(q.gpuId) === lc(e.gpuId));
+    const k = `${name(e.gpuId)} slot ${e.slot}${p?.sources[e.slot] ? ` (${p.sources[e.slot]})` : ""}`;
+    by.set(k, [...(by.get(k) ?? []), `from day ${e.fromDay}: ${printable(e.url)} ${printable(e.parserVersion)} "${printable(e.reason)}"`]);
+  }
+  for (const [k, v] of by) d.out(`reader history ${k}: ${v.join(" | ")}`);
+}
+
+/** 15.1: the page check's status file (@agate/pagecheck's StatusFile): the pairs in a gap run (review or fault), one
+ *  line each; a pair never compared yet ("unknown": no tracker row or no VALID reading) is counted apart, not a run. */
+export function pagecheck(d: CliDeps): void {
+  if (!d.pagecheckStatus || !existsSync(d.pagecheckStatus)) return;
+  const st = readStatus(d.pagecheckStatus);
+  if (!st || !Array.isArray(st.pairs)) {
+    d.out("page check: status.json unreadable");
+    return;
+  }
+  const runs = st.pairs.filter((p) => p.state === "review" || p.state === "fault");
+  const unknown = st.pairs.filter((p) => p.state === "unknown").length;
+  d.out(`page check (as of ${st.at}): ${st.pairs.length} pair(s), ${runs.length} in a gap run${unknown ? `, ${unknown} not compared yet` : ""}${st.trackersDownIntervals ? `, trackers down ${st.trackersDownIntervals} interval(s)` : ""}`);
+  for (const p of runs)
+    d.out(`  ${p.sourceId} ${p.gpu} (slot ${p.slot}): ${p.state}, ${p.gapBps === null ? "-" : `${(p.gapBps / 100).toFixed(1)}%`} apart (reading ${p.own === null ? "-" : $(p.own)} vs ${p.tracker ?? "tracker"} ${p.t === null ? "-" : $(p.t)}) since ${p.runStartAt ?? "-"}, ${p.gapped} gapped comparison(s)`);
 }
 
 export async function alerts(d: CliDeps, args: string[]): Promise<void> {
@@ -205,14 +295,29 @@ export async function look(d: CliDeps, args: string[]): Promise<void> {
   const only = flag(args, "--source");
   const ids = [...new Set(p.sources)].filter((s) => !only || s === only);
   const now = d.now();
-  const res = await d.look(ids);
+  // the looks are the evidence R3, R4b and R12 need, often during an RPC outage: an unreachable chain never stops them
+  // being fetched and recorded (the readers then come from the events already on disk)
+  try {
+    await d.events.sync();
+  } catch (e) {
+    d.out(`events not synced (${e instanceof Error ? e.message.split("\n")[0] : String(e)}): readers in force from the events on disk, which may miss a swap executed since`);
+  }
+  // 8.6: each slot with its reader in force today (the newest executed swap whose fromDay has begun)
+  const today = dayIdAt(d.clock, now);
+  const readers: Record<string, { url: string; parserVersion: string }> = {};
+  for (const e of d.events.all()) {
+    if (e.name !== "ReaderSwapped" || lc(e.gpuId) !== lc(p.gpuId) || e.fromDay > today) continue;
+    const src = p.sources[e.slot];
+    if (src) readers[src] = { url: e.url, parserVersion: e.parserVersion };
+  }
+  const res = await d.look(ids, readers);
   const writerRegion = region === (d.writerRegion ?? "writer") || args.includes("--writer-region");
   for (const id of ids) {
     const row = res[id]?.[p.gpu];
     const state = (row?.state ?? "FAILED") as never;
     const valueU = row?.state === "VALID" ? row.valueU : 0;
     d.glog.addLook({ gpu: p.gpu, gpuId: p.gpuId, sourceId: id, interval: intervalAt(d.clock, now), at: now, state, valueU, region, writerRegion });
-    d.out(`look ${id} (slot ${p.sources.indexOf(id)}): ${row?.state ?? "FAILED"} ${valueU ? $(valueU) : ""}`);
+    d.out(`look ${id} (slot ${p.sources.indexOf(id)}): ${row?.state ?? "FAILED"} ${valueU ? $(valueU) : ""}${readers[id] ? ` (reader ${printable(readers[id]!.parserVersion)} at ${printable(readers[id]!.url)})` : ""}${row?.why ? ` (${printable(row.why)})` : ""}`);
   }
   d.out(`recorded ${ids.length} look(s) from region ${region}${writerRegion ? " (the writer's region)" : ""}`);
   const head = await d.view.head(p.gpuId);
@@ -280,7 +385,9 @@ export async function suspend(d: CliDeps, args: string[]): Promise<boolean> {
       }
     }
   }
-  if (evidence === 0) d.out("WARNING: no R8 memo for this writer on the last two days (R8 (c) needs both days, each confirmed by a writer-region look)");
+  const keyAlerts = d.alerts.open().filter((a) => a.code === "KEY_MISMATCH" && a.writer && lc(a.writer) === lc(writer));
+  for (const a of keyAlerts) d.out(`R8 (d) evidence: ${a.message} (run guardian keycheck ${writer} first; confirmed: suspend at once, R7 does not apply)`);
+  if (evidence === 0 && keyAlerts.length === 0) d.out("WARNING: no R8 memo for this writer on the last two days (R8 (c) needs both days, each confirmed by a writer-region look) and no KEY_MISMATCH (R8 (d))");
   if (!(await confirm(d, "yes", `suspend writer ${writer}: it posts and closes nothing until the owner appoints a NEW address (R6)`))) return false;
   const res = await d.senderFor("AGATE_GUARDIAN_KEY").send("suspend", [writer]);
   d.out(res.ok ? `suspended: ${res.txHash}` : `not sent or failed: ${res.error}`);
@@ -310,6 +417,12 @@ export async function attest(d: CliDeps, args: string[]): Promise<boolean> {
     return false;
   }
   const passing = ev.candidates.filter((x) => x.r11.ok);
+  // 6.4 (Oct 3): a record that withholds a slot is never hand-signed until a writer-region look confirms the block
+  const withheld = (r12 ? c.r12 : c.r11).slots.filter((s) => s.why === "withheld").map((s) => s.slot);
+  if (withheld.length > 0) {
+    d.out(`refused: ${writer}'s record withholds slot ${withheld.join(", ")} (held, or taken out after being in, while the watcher reads it FRESH) and no look from the writer's region confirms a block: run look from the writer's region (6.4); without one, step 3b applies`);
+    return false;
+  }
   if (!r12) {
     if (!c.r11.ok) {
       d.out(`refused: ${writer}'s value ${$(c.value)} is outside its strict hand range (${c.r11.why.join("; ")})`);
@@ -405,8 +518,124 @@ export async function replaced(d: CliDeps, args: string[]): Promise<Evaluation |
   return out;
 }
 
+interface KeySide {
+  values?: number[];
+  readAt?: number;
+  txHash?: string;
+}
+
+/** The writer's accumulator backstop (8.5 step 2, its getLogs failed): a day, not a slice. Either the onchain counts
+ *  and sums differ from what its log explains, or bits are set for slices it never read. */
+interface AccData {
+  slots?: number[];
+  onchain?: { counts?: number[]; sums?: number[] };
+  logged?: { counts?: number[]; sums?: number[] };
+  slices?: number[];
+}
+
+/** keycheck for a backstop alert: readings() now beside the alert's two sides, and the writer's ReadingsPosted events
+ *  of the day with their senders. Confirmed: every slice it says it never read still has its bit set; or the chain
+ *  still shows the alert's counts and sums and they differ from the log's. Read only. */
+async function keycheckDay(d: CliDeps, message: string, writer: Address, gpuId: Hex, day: number, data: AccData): Promise<boolean> {
+  const arr = (x: readonly number[] | undefined, f: (n: number) => string = String) => `[${(x ?? []).map((v) => f(Number(v))).join(", ")}]`;
+  d.out(`KEY_MISMATCH ${gpuName(d)(gpuId)} day ${day} (accumulator check) writer ${writer}: ${message}`);
+  const r = await d.view.readings(gpuId, day, writer);
+  const counts = r.counts.map(Number);
+  const sums = r.sums.map(Number);
+  d.out(`  readings() now: sliceBits ${r.sliceBits.toString(2)} counts ${arr(counts)} sums ${arr(sums, $)}`);
+  const evs = d.events.all().filter((e) => e.name === "ReadingsPosted" && lc(e.gpuId) === lc(gpuId) && e.day === day && lc(e.writer) === lc(writer));
+  let foreign = false;
+  for (const ev of evs) {
+    if (ev.name !== "ReadingsPosted") continue;
+    const tx = ev.tx && d.tx ? await d.tx(ev.tx) : null;
+    if (tx && lc(tx.from) !== lc(writer)) foreign = true;
+    d.out(`  event: slice ${ev.slice} readAt ${ev.readAt} values [${ev.values.map($).join(", ")}]${ev.tx ? ` tx ${ev.tx}` : ""}${tx ? ` from ${tx.from}` : ""}`);
+  }
+  if (evs.length === 0) d.out("  no ReadingsPosted event of that day by this writer in the event index (events may lag: sync)");
+  let ok: boolean;
+  let why: string;
+  if (data.slices && data.slices.length > 0) {
+    ok = data.slices.every((h) => ((r.sliceBits >> BigInt(h)) & 1n) === 1n);
+    why = ok ? "" : "a listed slice has no bit set onchain";
+    d.out(`  slices the writer never read, per the alert: ${data.slices.join(", ")}`);
+  } else {
+    d.out(`  onchain per the alert: counts ${arr(data.onchain?.counts)} sums ${arr(data.onchain?.sums, $)}`);
+    d.out(`  expected from the writer's log: counts ${arr(data.logged?.counts)} sums ${arr(data.logged?.sums, $)}`);
+    const same = (x: readonly number[] | undefined, y: readonly number[]) => x !== undefined && x.length === y.length && x.every((v, i) => Number(v) === y[i]);
+    const sameAsAlert = same(data.onchain?.counts, counts) && same(data.onchain?.sums, sums);
+    const differsFromLog = !(same(data.logged?.counts, counts) && same(data.logged?.sums, sums));
+    ok = sameAsAlert && differsFromLog;
+    why = !sameAsAlert ? "the chain moved since the alert (later posts that day); compare the events above with the writer's log" : "the chain matches the writer's log";
+  }
+  if (ok && foreign) {
+    ok = false;
+    why = "an event of that day was not sent by the writer's key";
+  }
+  if (ok) d.out(`  confirmed: the chain holds readings ${writer}'s log does not explain. R8 (d): guardian suspend ${writer} at once, then the owner appoints a new key (R6)`);
+  else d.out(`  NOT confirmed (${why})`);
+  return ok;
+}
+
+/** 8.5, 10 (Oct 3): the KEY_MISMATCH evidence. For each open alert of the writer (optionally one day), re-read the
+ *  ReadingsPosted event of that slice, its transaction and readings(), print it beside the alert's logged side, and
+ *  say "confirmed" when the chain still shows what the alert says it showed (and that differs from the log).
+ *  Read only, no key. Returns the number confirmed. */
+export async function keycheck(d: CliDeps, args: string[]): Promise<number> {
+  const writer = args[0] as Address | undefined;
+  if (!writer || !/^0x[0-9a-fA-F]{40}$/.test(writer)) throw new Error("keycheck <writer> [--day d]");
+  const dayArg = flag(args, "--day");
+  await d.events.sync();
+  const list = d.alerts.open().filter((a) => a.code === "KEY_MISMATCH" && a.writer && lc(a.writer) === lc(writer) && (dayArg === undefined || a.day === Number(dayArg)));
+  if (list.length === 0) {
+    d.out(`no open KEY_MISMATCH alert for ${writer}${dayArg !== undefined ? ` on day ${dayArg}` : ""}`);
+    return 0;
+  }
+  let confirmed = 0;
+  for (const a of list) {
+    const data = (a.data ?? {}) as { gpuId?: Hex; day?: number; slice?: number; onchain?: KeySide; logged?: KeySide | null; txHash?: string; via?: string };
+    const gpuId = (data.gpuId ?? a.gpuId) as Hex | undefined;
+    const day = data.day ?? a.day;
+    const slice = data.slice ?? a.slot;
+    if (gpuId && day !== undefined && slice === undefined && data.via === "accumulators") {
+      if (await keycheckDay(d, a.message, writer, gpuId, day, a.data as AccData)) confirmed++;
+      continue;
+    }
+    if (!gpuId || day === undefined || slice === undefined) {
+      d.out(`${a.id}: the alert does not name gpu, day and slice; cannot check`);
+      continue;
+    }
+    const name = gpuName(d)(gpuId);
+    d.out(`KEY_MISMATCH ${name} day ${day} slice ${slice} writer ${writer}: ${a.message}`);
+    const logged = data.logged ?? null;
+    d.out(`  logged by the writer: ${logged ? `readAt ${logged.readAt} values [${(logged.values ?? []).map($).join(", ")}]` : "no reading line (a slice it never read)"}`);
+    const said = data.onchain ?? {};
+    d.out(`  onchain per the alert: readAt ${said.readAt ?? "-"} values [${(said.values ?? []).map($).join(", ")}] tx ${said.txHash ?? data.txHash ?? "-"}`);
+    const evs = d.events.all().filter((e) => e.name === "ReadingsPosted" && lc(e.gpuId) === lc(gpuId) && e.day === day && lc(e.writer) === lc(writer) && e.slice === slice);
+    const ev = evs[evs.length - 1];
+    if (!ev || ev.name !== "ReadingsPosted") {
+      d.out("  chain now: no ReadingsPosted event of that slice by this writer (events may lag: sync, or check readings())");
+      continue;
+    }
+    const txh = ev.tx ?? (said.txHash as Hex | undefined) ?? (data.txHash as Hex | undefined);
+    const tx = txh && d.tx ? await d.tx(txh) : null;
+    d.out(`  chain now: ReadingsPosted readAt ${ev.readAt} values [${ev.values.map($).join(", ")}]${txh ? ` tx ${txh}` : ""}${tx ? ` from ${tx.from} block ${tx.blockNumber ?? "pending"}` : ""}`);
+    const r = await d.view.readings(gpuId, day, writer);
+    d.out(`  readings(): sliceBits ${r.sliceBits.toString(2)} counts [${r.counts.join(", ")}]`);
+    const sameAsAlert = (said.readAt === undefined || said.readAt === ev.readAt) && (said.values === undefined || JSON.stringify(said.values) === JSON.stringify(ev.values));
+    const differsFromLog = !logged || logged.readAt !== ev.readAt || JSON.stringify(logged.values ?? []) !== JSON.stringify(ev.values);
+    const fromOk = !tx || lc(tx.from) === lc(writer); // TX_ORIGIN: the writer's own key signed it
+    if (sameAsAlert && differsFromLog && fromOk) {
+      confirmed++;
+      d.out(`  confirmed: another party posted with ${writer}'s key. R8 (d): guardian suspend ${writer} at once, then the owner appoints a new key (R6)`);
+    } else d.out(`  NOT confirmed (${!sameAsAlert ? "the chain differs from the alert" : !differsFromLog ? "the chain matches the writer's log" : "the transaction was not sent by the writer's key"})`);
+  }
+  return confirmed;
+}
+
 export const HELP = `guardian <command>
-  status [--gpu H100]                                   head, lag, pending record, verdicts, heartbeats, alerts
+  status [--gpu H100] [--all] [--index addr]           head, lag, pending record, verdicts, step 3b deadline, day labels,
+                                                        live owner actions and reader swaps (--all: expired ones too),
+                                                        reader history, page check, heartbeats, alerts
   alerts [--all]                                        open alerts by deadline
   check <gpu> <day>                                     the full rule R table for every candidate
   look <gpu> --region <label> [--source id] [--writer-region]   fetch pages now from this machine; logged as looks
@@ -414,6 +643,7 @@ export const HELP = `guardian <command>
   suspend <writer>                                      R8 evidence, then suspend (AGATE_GUARDIAN_KEY)
   attest <gpu> <day> --writer <addr> --digest <hex> [--r12]   R11 (or R12) by hand (AGATE_GUARDIAN_KEY)
   block <gpu> --source <id> --from <day> [--to <day>]   R4b: flag a page blocked for the watcher (needs a writer-region look)
+  keycheck <writer> [--day d]                           KEY_MISMATCH evidence re-read from the chain (read only)
   kick <gpu>                                            the keeper's job by hand (AGATE_KICK_KEY)
   replaced <gpu> <day>                                  recompute a replaced writer's record (F8) and its R8 view`;
 
@@ -441,6 +671,9 @@ export async function run(d: CliDeps, argv: string[]): Promise<number> {
         return (await attest(d, args)) ? 0 : 1;
       case "kick":
         return (await kick(d, args)) ? 0 : 1;
+      case "keycheck":
+        await keycheck(d, args);
+        return 0;
       case "block":
         return (await block(d, args)) ? 0 : 1;
       case "replaced":

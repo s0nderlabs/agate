@@ -18,7 +18,9 @@ test.skipIf(!archivePresent())("logger on archived hours equals the sources arch
     const dir = mkdtempSync(join(tmpdir(), "agate-archive-"));
     const store = new LogStore(dir);
     let now = h.startSec;
-    const fx = listHours().map((x) => readArchived(x, "fx_ecb")).filter((b): b is string => b !== null).at(-1) ?? null;
+    // the ECB file the logger had at that hour (the newest archived at or before it): the file is daily, so the newest
+    // one overall (fetched after midnight UTC) lacks the previous business day's rate an hour of the day before needs
+    const fx = listHours().filter((x) => x.startSec <= h.startSec).map((x) => readArchived(x, "fx_ecb")).filter((b): b is string => b !== null).at(-1) ?? null;
     const lg = new Logger({
       clock: { slice: 3_600, epochTs: 0 },
       api: pure as unknown as LoggerApi,

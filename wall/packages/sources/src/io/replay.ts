@@ -8,6 +8,11 @@
 // served from the latest archived hour at or before that real time.
 // Requesters: a path prefix /r/<role>/<sourceId> (or header X-Agate-Role) selects a per-role script, so e2e can show
 // one page differently to one writer or to the watcher.
+// Oct 3 (7.9): a slot whose reader was swapped still fetches /<sourceId> (the reader decides only the parser); a page
+// step "redesigned" renders the scripted prices in a second synthetic layout every "/1" parser reads as NO_ROW; the
+// page check's trackers: /t_gputable (the archived t_gputable.all.gz of the mapped hour, or a scripted body) and
+// /t_gpu_economy/<h100-sxm|h200|b200> (scripted only, else 404: the logger keeps no GPU Economy data files). Fix round:
+// the archived GPUTable file follows the scripted price steps (the mapped provider's on-demand rows of that GPU).
 import type { GpuModel } from "@agate/report/types";
 import { parse, reasonOf } from "../pure/parse.ts";
 import { ECB, SOURCES } from "../pure/recipe.ts";
@@ -30,7 +35,25 @@ export interface GpuStep {
 }
 export interface PageStep {
   from: StepAt;
-  state: "ok" | "broken" | "http-503" | "hang" | "gzip-raw";
+  state: "ok" | "broken" | "http-503" | "hang" | "gzip-raw" | "redesigned";
+}
+/** GPUTable's provider name per sourceId and its GPU names (15.1's table; the page check's TRACKER_MAP agrees, a
+ *  pagecheck test pins it). */
+export const GPUTABLE_PROVIDER: Readonly<Record<string, string>> = { p_verda: "Verda", p_nebius: "Nebius", p_lambda: "Lambda Labs", p_coreweave: "CoreWeave", p_civo: "Civo", p_hyperstack: "Hyperstack" };
+export const GPUTABLE_GPU: Readonly<Record<GpuModel, string>> = { H100: "H100 SXM", H200: "H200", B200: "B200" };
+/** GPU Economy's per-GPU data files, by the path segment the page check fetches. */
+export const GPU_ECONOMY_FILES = ["h100-sxm", "h200", "b200"] as const;
+export type GpuEconomyFile = (typeof GPU_ECONOMY_FILES)[number];
+/** A tracker file from a step on: a JSON body in the tracker's own field names (synthetic numbers only), or an HTTP
+ * status (a tracker outage). */
+export interface TrackerStep {
+  from: StepAt;
+  body?: unknown;
+  status?: number;
+}
+export interface TrackerScript {
+  gputable?: TrackerStep[];
+  gpuEconomy?: Partial<Record<GpuEconomyFile, TrackerStep[]>>;
 }
 export interface ScriptedSource {
   gpus?: Partial<Record<GpuModel, GpuStep[]>>;
@@ -43,6 +66,8 @@ export interface ReplayScenario {
   fx?: Record<string, string>;
   /** false: never serve archived pages (scripted only; a source with no script answers 404). */
   archive?: boolean;
+  /** The page check's tracker files (15.1), scripted. */
+  trackers?: TrackerScript;
 }
 export interface ReplayOptions {
   port?: number; // 0 = any free port
@@ -70,7 +95,7 @@ function current<T extends { from: StepAt }>(steps: readonly T[] | undefined, da
   return best;
 }
 
-const PAGE_STATES = ["ok", "broken", "http-503", "hang", "gzip-raw"];
+const PAGE_STATES = ["ok", "broken", "http-503", "hang", "gzip-raw", "redesigned"];
 const GPU_STATES = ["not-rentable", "missing", "garbled"];
 
 /** Refuses a scenario that could not be served exactly as written (a typo must fail at start, not mid-demo). */
@@ -106,6 +131,24 @@ export function checkScenario(sc: ReplayScenario): void {
   for (const [d, r] of Object.entries(sc.fx ?? {})) {
     if (dayNumber(d) === null) throw new Error(`fx: bad date ${d}`);
     fxMicro({ date: d, usdPerEur: r });
+  }
+  const tracker = (steps: TrackerStep[] | undefined, where: string) => {
+    if (steps !== undefined && !Array.isArray(steps)) throw new Error(`${where}: steps must be a list`);
+    for (const st of steps ?? []) {
+      at(st.from, where);
+      const status = st.status ?? 200;
+      if (!Number.isSafeInteger(status) || status < 200 || status > 599) throw new Error(`${where}: bad status ${String(st.status)}`);
+      if (status === 200 && (st.body === undefined || JSON.stringify(st.body) === undefined)) throw new Error(`${where}: a 200 step needs a JSON body`);
+    }
+  };
+  const tr = sc.trackers;
+  if (tr !== undefined) {
+    for (const k of Object.keys(tr)) if (k !== "gputable" && k !== "gpuEconomy") throw new Error(`trackers: unknown tracker ${k}`);
+    tracker(tr.gputable, "trackers gputable");
+    for (const [f, steps] of Object.entries(tr.gpuEconomy ?? {})) {
+      if (!(GPU_ECONOMY_FILES as readonly string[]).includes(f)) throw new Error(`trackers gpuEconomy: unknown file ${f}`);
+      tracker(steps, `trackers gpuEconomy ${f}`);
+    }
   }
 }
 
@@ -187,7 +230,7 @@ export class Replay {
       for (const [g, s] of Object.entries(gpuSteps) as [GpuModel, GpuStep][]) {
         base[g] = s.state ? { state: s.state } : { price: s.price!, count: s.count ?? 8 };
       }
-      body = renderPage(id, base, { broken: pageStep?.state === "broken" });
+      body = renderPage(id, base, { broken: pageStep?.state === "broken", redesigned: pageStep?.state === "redesigned" });
       headers["x-agate-scripted"] = "1";
     }
     if (pageStep?.state === "gzip-raw") {
@@ -196,6 +239,64 @@ export class Replay {
     }
     headers["content-type"] = body.startsWith("[") || body.startsWith("{") ? "application/json" : "text/html; charset=utf-8";
     return new Response(body, { headers });
+  }
+
+  /** A tracker file at t: GPUTable's (`file` undefined) or one GPU Economy file. Scripted steps win; GPUTable falls
+   * back to the archived hour; anything else is 404. */
+  tracker(name: string, file: string | undefined, t: number): Response {
+    const r = this.resolve(t);
+    const headers: Record<string, string> = { "x-agate-demo": `${r.day}/${r.slice}`, "x-agate-page-time": String(Math.floor(r.real)), "content-type": "application/json" };
+    if (r.hour) headers["x-agate-hour"] = `${r.hour.date}T${r.hour.hour}`;
+    const tr = this.o.scenario?.trackers;
+    let steps: TrackerStep[] | undefined;
+    if (name === "t_gputable" && file === undefined) steps = tr?.gputable;
+    else if (name === "t_gpu_economy" && file !== undefined && (GPU_ECONOMY_FILES as readonly string[]).includes(file)) steps = tr?.gpuEconomy?.[file as GpuEconomyFile];
+    else return new Response("unknown tracker file", { status: 404, headers });
+    const step = current(steps, r.day, r.slice);
+    if (step) {
+      headers["x-agate-scripted"] = "1";
+      const status = step.status ?? 200;
+      if (status !== 200) return new Response("scripted tracker outage", { status, headers });
+      return new Response(JSON.stringify(step.body), { headers });
+    }
+    if (name === "t_gputable" && r.hour) {
+      const archived = readArchived(r.hour, "t_gputable");
+      if (archived !== null) {
+        headers["x-agate-page-time"] = String(pageTimeOf(r.hour, "t_gputable", this.o.rawDir ?? rawDir()));
+        const adjusted = this.followScriptedPrices(archived, r.day, r.slice);
+        if (adjusted !== archived) headers["x-agate-scripted"] = "1";
+        return new Response(adjusted, { headers });
+      }
+    }
+    return new Response("no tracker file for this hour", { status: 404, headers });
+  }
+
+  /** The archived GPUTable file with every scripted price step in force applied to the mapped provider's on-demand
+   *  rows of that GPU (fix round, audit M2): a scripted page step is a price change the trackers show too, so the
+   *  demo's step raises no false "likely parser fault". The real-calendar index never reads the replay. */
+  followScriptedPrices(archived: string, day: number, slice: number): string {
+    const changes: { provider: string; gpu: string; price: number }[] = [];
+    for (const [id, x] of Object.entries(this.o.scenario?.scripted ?? {})) {
+      const provider = GPUTABLE_PROVIDER[id];
+      if (!provider) continue;
+      for (const [g, steps] of Object.entries(x.gpus ?? {}) as [GpuModel, GpuStep[]][]) {
+        const st = current(steps, day, slice);
+        if (st?.price !== undefined && st.state === undefined) changes.push({ provider, gpu: GPUTABLE_GPU[g], price: Number(st.price) });
+      }
+    }
+    if (changes.length === 0) return archived;
+    let j: { data?: unknown };
+    try {
+      j = JSON.parse(archived) as { data?: unknown };
+    } catch {
+      return archived;
+    }
+    if (!Array.isArray(j.data)) return archived;
+    for (const row of j.data as Record<string, unknown>[]) {
+      const c = changes.find((x) => row && row.provider === x.provider && row.gpu === x.gpu && row.pricing_type === "on_demand" && row.commitment_months === null);
+      if (c) row.price_per_hour_usd = c.price;
+    }
+    return JSON.stringify(j);
   }
 
   /** The archived page's own rows as synthetic cells, so a scripted step changes one GPU and keeps the others. */
@@ -213,7 +314,8 @@ export class Replay {
   }
 }
 
-/** Starts the replay server. GET /<sourceId>, /fx_ecb, /r/<role>/<sourceId>; GET /_at returns the clock mapping. */
+/** Starts the replay server. GET /<sourceId>, /fx_ecb, /r/<role>/<sourceId>, /t_gputable, /t_gpu_economy/<file>
+ * (also under /r/<role>/); GET /_at returns the clock mapping. */
 export function startReplay(o: ReplayOptions): { url: string; port: number; replay: Replay; stop: () => void } {
   const replay = new Replay(o);
   const now = o.now ?? (() => Math.floor(Date.now() / 1000));
@@ -232,6 +334,10 @@ export function startReplay(o: ReplayOptions): { url: string; port: number; repl
         parts = parts.slice(2);
       }
       if (parts.length === 1 && parts[0] === "_at") return Response.json(replay.resolve(t));
+      if (parts[0] === "t_gputable" || parts[0] === "t_gpu_economy") {
+        if (parts.length > 2) return new Response("not found", { status: 404 });
+        return replay.tracker(parts[0], parts[1], t);
+      }
       if (parts.length !== 1) return new Response("not found", { status: 404 });
       return replay.answer(parts[0]!, t, role);
     },

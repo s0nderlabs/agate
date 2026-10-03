@@ -159,6 +159,16 @@ export function dayOfInterval(c: WallClock, k: number): number {
 export function graceStart(c: WallClock, d: number, registeredAt: number): number {
   return Math.max(dayEnd(c, d), registeredAt);
 }
+/** 6.6 step 3b (Oct 3): the guardian may put the liveness veto off until VETO_BY = graceStart + GRACE - REOPEN_WAIT
+ *  (dayEnd + 18 h on PRODUCTION): a veto by then carries the day at graceStart + GRACE, as an immediate one would. */
+export function vetoBy(c: { day: number; grace: number; reopenWait: number; epochTs: number; epochDay: number }, d: number, registeredAt: number): number {
+  const end = c.epochTs + (d + 1 - c.epochDay) * c.day;
+  return Math.max(end, registeredAt) + c.grace - c.reopenWait;
+}
+/** ... and must send it by max(VETO_BY, alert + GUARD_ACT). */
+export function vetoDue(vetoByS: number, alertAt: number, guardAct: number): number {
+  return Math.max(vetoByS, alertAt + guardAct);
+}
 /** R1's settle point: the watcher's states are known through interval k(d, SLICES-1) + 1 + GAP. */
 export function settleInterval(c: WallClock, d: number): number {
   return kOf(c, d, c.slices - 1) + 1 + c.gap;

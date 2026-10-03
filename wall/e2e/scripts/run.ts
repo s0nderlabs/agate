@@ -6,7 +6,7 @@ import { writeFileSync } from "node:fs";
 import { archivePresent } from "../src/archive.ts";
 import { haveAnvil } from "../src/chain.ts";
 import { printReport, type RunReport } from "../src/report.ts";
-import { SCENARIOS } from "../src/scenarios.ts";
+import { haveSandbox, SCENARIOS } from "../src/scenarios.ts";
 
 const args = process.argv.slice(2);
 const verbose = args.includes("--verbose");
@@ -30,6 +30,10 @@ const reports: RunReport[] = [];
 for (const s of pick) {
   if (s.needsArchive && !archivePresent()) {
     console.log(`== ${s.name}: SKIPPED (no archive at AGATE_RAW_DIR)`);
+    continue;
+  }
+  if (s.needsSandbox && !haveSandbox()) {
+    console.log(`== ${s.name}: SKIPPED (needs macOS sandbox-exec)`);
     continue;
   }
   const t0 = Date.now();

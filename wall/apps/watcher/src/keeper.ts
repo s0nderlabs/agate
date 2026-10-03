@@ -30,10 +30,19 @@ export class Keeper {
   private lastTick: number | null = null;
   // LV-3: no case-1 drop until this time (one slice after a wake or an RPC recovery), so the attester acts first
   private holdDropUntil = -Infinity;
+  /** 8.1 / 9.3 (fix round, audit M3): after an RPC recovery or a machine sleep, no close before then (one CLOSE_GRACE,
+   *  capped at the head day's earliest REPOST_END), so both writers' backlogs land first */
+  private holdCloseUntil = -Infinity;
+  private recoveredAt = -Infinity;
   private rpcFailed = false;
   readonly sent: { at: number; fn: string; gpuId: Hex; ok: boolean; error?: string }[] = [];
 
   constructor(readonly x: KeeperDeps) {}
+
+  private recover(now: number): void {
+    this.recoveredAt = now;
+    this.holdCloseUntil = Math.max(this.holdCloseUntil, now + this.x.clock.closeGrace);
+  }
 
   private get backoff(): number {
     const c = this.x.clock;
@@ -46,6 +55,7 @@ export class Keeper {
     if (woke) {
       this.nextTry.clear();
       this.holdDropUntil = now + this.x.clock.slice;
+      if (this.lastTick !== null) this.recover(now); // a sleep, not the first start
     }
     this.lastTick = now;
     for (const g of this.x.gpuIds) {
@@ -67,6 +77,7 @@ export class Keeper {
     if (this.rpcFailed) {
       this.rpcFailed = false;
       this.holdDropUntil = Math.max(this.holdDropUntil, now + c.slice);
+      this.recover(now);
     }
     const pendingUnfinal = r.exists && !r.isFinal && r.rec.status !== Status.CARRIED;
     let fn: "closeDay" | "carryDay" | null = null;
@@ -78,14 +89,20 @@ export class Keeper {
       const pick = fn ? this.x.attesterPick?.(g) : null;
       const picked = pick && pick.day === head - 1 && pick.digest.toLowerCase() === r.rec.digest.toLowerCase() && pick.at >= now - 2 * c.slice;
       if (fn && (now < this.holdDropUntil || picked)) fn = null;
-    } else if (now >= dayEnd(c, head) + c.closeGrace) fn = "closeDay";
-    else if (now >= dayEnd(c, head)) fn = "carryDay";
+    } else if (now >= dayEnd(c, head) + c.closeGrace) {
+      // an outage that ended after the day did: the writers' backlogs first (the close would cut the second one),
+      // never past the earliest REPOST_END (dayEnd + GRACE - slice), where the writers stop reposting: repeated
+      // recoveries or wakes cannot push the close and its carry fallback out without bound (recheck r1, M1)
+      const end = dayEnd(c, head);
+      fn = this.recoveredAt > end && now < Math.min(this.holdCloseUntil, end + c.grace - c.slice) ? null : "closeDay";
+    } else if (now >= dayEnd(c, head)) fn = "carryDay";
     if (!fn) {
       this.nextTry.set(g.toLowerCase(), now + this.backoff);
       return;
     }
     let res = await this.x.sender.send(fn, [g]);
-    if (!res.ok && !res.sent && fn === "closeDay") res = await this.x.sender.send((fn = "carryDay"), [g]);
+    // a busy key (another index's process holds the send lock, 13.7) is no refusal: retry after the backoff
+    if (!res.ok && !res.sent && fn === "closeDay" && !/^key busy/.test(res.error ?? "")) res = await this.x.sender.send((fn = "carryDay"), [g]);
     this.sent.push({ at: now, fn, gpuId: g, ok: res.ok, ...(res.error ? { error: res.error } : {}) });
     this.x.onSend?.(fn, g, res.ok, res.error);
     // after a success try again at once (catch-up); after a refusal wait the backoff

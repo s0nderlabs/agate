@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The page check (BUILD-SPEC 15.1) for one index, as a launchd agent. TEMPLATE: nothing installs or loads it; make
+  one copy per index (Label and log paths carry __INDEX8__ = the index address's first 8 hex digits after 0x,
+  lowercase, 13.7).
+  launchd jobs hang on files under ~/Documents (macOS privacy prompt), so the job runs a copy of wall/ outside it
+  (__APP__, e.g. ~/.agate-wall/app/wall) and keeps its data in AGATE_WALL_HOME (~/.agate-wall).
+  No key and no RPC: the page check reads the watcher's log and cached clocks and two public tracker files; it refuses
+  to start with any key variable set. __TRACKER_BASE_URL__: empty for the real-calendar index; the replay server's
+  base URL for a demo index (its /t_gputable and /t_gpu_economy/<gpu> routes, 7.9).
+  To use: replace __HOME__, __APP__, __BUN__, __INDEX__, __INDEX8__, __PANELS__, __TRACKER_BASE_URL__; copy to
+  ~/Library/LaunchAgents/; `launchctl bootstrap gui/$(id -u) <plist>`. Start it after the watcher logger.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>xyz.s0nderlabs.agate-pagecheck-__INDEX8__</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>__APP__/apps/pagecheck/launchd/run-pagecheck.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__APP__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BUN</key>
+    <string>__BUN__</string>
+    <key>AGATE_INDEX</key>
+    <string>__INDEX__</string>
+    <key>AGATE_PANELS</key>
+    <string>__PANELS__</string>
+    <key>AGATE_WALL_HOME</key>
+    <string>__HOME__/.agate-wall</string>
+    <key>TRACKER_BASE_URL</key>
+    <string>__TRACKER_BASE_URL__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/.agate-wall/pagecheck/pagecheck-__INDEX8__.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.agate-wall/pagecheck/pagecheck-__INDEX8__.stderr.log</string>
+</dict>
+</plist>

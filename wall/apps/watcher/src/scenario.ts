@@ -4,7 +4,7 @@ import type { Address, GpuModel, Hex, IndexRecord, SlotState } from "@agate/repo
 import { AlertCode, Status } from "@agate/report/types";
 import type { AlertSink } from "./alerts.ts";
 import type { EventSource, IndexView, WallEvent } from "./chain/types.ts";
-import { fullBits, kOf, type WallClock } from "./clock.ts";
+import { dayOfInterval, fullBits, kOf, type WallClock } from "./clock.ts";
 import { initialState, sameState } from "./formula.ts";
 import type { GuardianLogView } from "./guardian-log.ts";
 import type { LogSource } from "./log/store.ts";
@@ -57,6 +57,8 @@ export interface BuildDeps {
   /** Final records never change: their history rows are cached here across calls. */
   cache?: Map<string, HistoryDay>;
   historyDays?: number;
+  /** 8.6: the URL whose log line holds slot i's reading on `day` (its reader in force); undefined = the registered one */
+  readerUrl?: (slot: number, day: number) => string | undefined;
 }
 
 export interface Built {
@@ -268,7 +270,7 @@ export async function buildScenario(x: BuildDeps, now: number, day?: number): Pr
   const minDay = Math.min(d, ...hist.keys());
   const from = kOf(c, minDay, 0) - c.slices;
   const to = Number.MAX_SAFE_INTEGER;
-  const log = x.panel.sources.map((s) => x.log.slotLog(s, x.panel.gpu, from, to));
+  const log = x.panel.sources.map((s, i) => x.log.slotLog(s, x.panel.gpu, from, to, x.readerUrl ? (k) => x.readerUrl!(i, dayOfInterval(c, k)) : undefined));
   const looks: Look[] = [];
   if (x.guardian) {
     for (const l of x.guardian.looks(g)) {
@@ -282,8 +284,8 @@ export async function buildScenario(x: BuildDeps, now: number, day?: number): Pr
 
   const scenario: RuleScenario = {
     version: 1,
-    clock: { day: c.day, slices: c.slices, minReadings: c.minReadings, qMin: c.qMin, signAll: c.signAll, epochTs: c.epochTs, epochDay: c.epochDay, tPend: c.tPend, grace: c.grace },
-    gpu: { gpuId: g, nSlots: n, family, famQ, liveFrom, liveUntil, firstDay },
+    clock: { day: c.day, slices: c.slices, minReadings: c.minReadings, qMin: c.qMin, signAll: c.signAll, epochTs: c.epochTs, epochDay: c.epochDay, tPend: c.tPend, grace: c.grace, reopenWait: c.reopenWait },
+    gpu: { gpuId: g, nSlots: n, family, famQ, liveFrom, liveUntil, firstDay, registeredAt: Number(cfg.registeredAt) },
     day: d,
     now,
     firstRecordDay: frd.exists ? Number(frd.day) : null,

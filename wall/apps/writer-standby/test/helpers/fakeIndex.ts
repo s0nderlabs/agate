@@ -3,9 +3,10 @@
 // model of the formula: that is builder A's (the anvil tests run the real contract).
 import { decodeReport } from "@agate/report";
 import type { Address, Clocks, GpuConfig, Hex, Readings } from "@agate/report/types";
+import { NEVER } from "@agate/report/types";
 import type { Panel } from "@agate/sources/types";
-import type { IndexChain, SendResult, TxMeta } from "../../src/pipeline/chain.ts";
-import { RpcDownError } from "../../src/pipeline/rpc.ts";
+import type { IndexChain, PostedEvent, ReaderVersionView, SendResult, TxMeta } from "../../src/pipeline/chain.ts";
+import { RpcDownError, RpcError } from "../../src/pipeline/rpc.ts";
 import { type Clock, clockOf, dayEnd, deriveClock, sliceStart } from "../../src/core/index.ts";
 import { fakeSources } from "./fakeSources.ts";
 
@@ -29,7 +30,7 @@ export class FakeIndex {
   readonly acc = new Map<string, Acc>();
   readonly suspended = new Set<string>();
   readonly posts: { at: number; writer: Address; entries: { gpuId: Hex; dayId: number; slice: number; readAt: number; values: number[] }[] }[] = [];
-  readonly closes: { at: number; caller: Address; gpuId: Hex; day: number; source: Address }[] = [];
+  readonly closes: { at: number; caller: Address; gpuId: Hex; day: number; source: Address; bits: bigint; seq: number; carried?: boolean }[] = [];
   /** Per writer: the next n posts are mined but change nothing (a forwarder try/catch swallowing a revert). */
   readonly swallow = new Map<string, number>();
   /** Per writer: posts are refused by eth_call until this unix second. */
@@ -40,8 +41,28 @@ export class FakeIndex {
   skew = 0;
   writers: [Address, Address] = [PRIMARY, STANDBY];
   /** Every postReport call, accepted or not: (time, writer, the days it carried). */
-  readonly calls: { at: number; writer: Address; days: number[]; slices: number[] }[] = [];
+  readonly calls: { at: number; writer: Address; days: number[]; slices: number[]; seq: number }[] = [];
   readonly metas: TxMeta[] = [];
+  /** Registration time of every GPU (graceStart = max(dayEnd, registeredAt)); default: before the epoch. */
+  registeredAt: number;
+  /** Blocks: one per accepted post or close, at the index's time (block 0 = genesis). */
+  readonly blockTimes: number[];
+  /** ReadingsPosted events, in block order. */
+  readonly events: (PostedEvent & { writer: Address })[] = [];
+  /** eth_getLogs: refuses every call (a node without logs) / refuses a range wider than this. */
+  logsFail = false;
+  logsMaxRange = Number.POSITIVE_INFINITY;
+  logsCalls = 0;
+  /** Executed reader swaps per `${gpuId}:${slot}` (4.15). */
+  readonly readerSwaps = new Map<string, ReaderVersionView[]>();
+  /** Slot windows per `${gpuId}:${slot}` (default: live from firstDay, never removed). */
+  readonly windows = new Map<string, { liveFrom: number; liveUntil: number }>();
+  /** Entries of these slices are mined but skipped without a trace (a slot the chain never takes). */
+  readonly dropSlices = new Set<number>();
+  /** The next n readings() calls answer an empty record (a lagging node). */
+  staleReads = 0;
+  /** A global order of posts and closes. */
+  seq = 0;
 
   constructor(
     readonly clocks: Clocks,
@@ -50,6 +71,19 @@ export class FakeIndex {
   ) {
     this.clock = clockOf(clocks);
     for (const p of panels) this.heads.set(p.gpuId as Hex, firstDay);
+    this.registeredAt = this.clock.epochTs - 1;
+    this.blockTimes = [this.clock.epochTs - 1];
+  }
+
+  private block(): number {
+    this.blockTimes.push(this.time);
+    return this.blockTimes.length - 1;
+  }
+
+  /** The keeper's carryDay: the head day is closed as CARRIED. */
+  carry(g: Hex) {
+    this.heads.set(g, this.heads.get(g)! + 1);
+    this.closes.push({ at: this.time, caller: "0x000000000000000000000000000000000000c0de", gpuId: g, day: this.heads.get(g)! - 1, source: "0x0000000000000000000000000000000000000000", bits: 0n, seq: ++this.seq, carried: true });
   }
 
   key(g: Hex, d: number, w: Address) {
@@ -69,7 +103,7 @@ export class FakeIndex {
     this.check();
     const lw = w.toLowerCase();
     const rep = decodeReport(hex);
-    this.calls.push({ at: this.time, writer: w, days: rep.entries.map((e) => e.dayId), slices: rep.entries.map((e) => e.slice) });
+    this.calls.push({ at: this.time, writer: w, days: rep.entries.map((e) => e.dayId), slices: rep.entries.map((e) => e.slice), seq: ++this.seq });
     if (this.time < (this.refuseUntil.get(lw) ?? 0)) return { ok: false, sent: false, error: "A2_NotActiveWriter" };
     if (!this.writers.some((x) => x.toLowerCase() === lw) || this.suspended.has(lw)) return { ok: false, sent: false, error: "A2_NotActiveWriter" };
     if (rep.version !== 1 || rep.chainSelector !== SELECTOR || rep.index.toLowerCase() !== INDEX.toLowerCase()) {
@@ -83,7 +117,9 @@ export class FakeIndex {
     }
     const c = this.clock;
     const applied: (typeof this.posts)[number]["entries"] = [];
+    let blk: number | undefined;
     for (const e of rep.entries) {
+      if (this.dropSlices.has(e.slice)) continue;
       const p = this.panels.find((x) => x.gpuId === e.gpuId);
       if (!p || e.values.length !== p.slots.length) continue; // E1
       if (e.slice >= c.slices) continue; // E2
@@ -105,6 +141,8 @@ export class FakeIndex {
       a.lastPostAt = this.time;
       this.acc.set(this.key(e.gpuId, e.dayId, w), a);
       applied.push({ gpuId: e.gpuId, dayId: e.dayId, slice: e.slice, readAt, values: [...e.values] });
+      blk ??= this.block();
+      this.events.push({ writer: w, gpuId: e.gpuId, day: e.dayId, slice: e.slice, readAt, values: [...e.values].map(Number), block: blk, txHash });
     }
     this.posts.push({ at: this.time, writer: w, entries: applied });
     return { ok: true, sent: true, txHash };
@@ -128,7 +166,8 @@ export class FakeIndex {
     if (!afterPend && !this.complete(g, d, source) && caller.toLowerCase() !== source.toLowerCase()) return { ok: false, sent: false, error: "C4_CallerNotAllowed" };
     if (!isWriter && !this.complete(g, d, source)) return { ok: false, sent: false, error: "C4_CallerNotAllowed" };
     this.heads.set(g, d + 1);
-    this.closes.push({ at: this.time, caller, gpuId: g, day: d, source });
+    this.block();
+    this.closes.push({ at: this.time, caller, gpuId: g, day: d, source, bits: this.accOf(g, d, source).bits, seq: ++this.seq });
     return { ok: true, sent: true, txHash: `0x${"c".repeat(64)}` as Hex };
   }
 
@@ -151,7 +190,7 @@ export class FakeIndex {
             nSlots: p?.slots.length ?? 0,
             nFamilies: p?.families.length ?? 0,
             firstDay: self.firstDay,
-            registeredAt: BigInt(self.time),
+            registeredAt: BigInt(self.registeredAt),
             lastCarryAt: BigInt(self.time),
             head: self.heads.get(g) ?? 0,
           };
@@ -160,7 +199,11 @@ export class FakeIndex {
       readings: (g, d, writer) =>
         guard((): Readings => {
           const a = self.accOf(g, d, writer);
-          return { sums: a.sums, counts: a.counts, sliceBits: a.bits, late: false, anyValid: a.anyValid, lastPostAt: BigInt(a.lastPostAt) };
+          if (self.staleReads > 0) {
+            self.staleReads -= 1;
+            return { sums: a.sums.map(() => 0), counts: a.counts.map(() => 0), sliceBits: 0n, late: false, anyValid: false, lastPostAt: 0n };
+          }
+          return { sums: [...a.sums], counts: [...a.counts], sliceBits: a.bits, late: false, anyValid: a.anyValid, lastPostAt: BigInt(a.lastPostAt) };
         }),
       writers: () => guard(() => self.writers),
       isSuspended: (x) => guard(() => self.suspended.has(x.toLowerCase())),
@@ -178,7 +221,30 @@ export class FakeIndex {
       resync: () => guard(() => undefined),
       exclusive: async (fn) => fn(),
       adopt: async () => false,
+      readerHistory: (g, slot) => guard(() => [...(self.readerSwaps.get(`${g}:${slot}`) ?? [])]),
+      slotWindow: (g, slot) => guard(() => self.windows.get(`${g}:${slot}`) ?? { liveFrom: self.firstDay, liveUntil: NEVER }),
+      blockNumber: () => guard(() => self.blockTimes.length - 1),
+      blockAt: (n) =>
+        guard(() => {
+          if (n < 0 || n >= self.blockTimes.length) throw new Error(`no block ${n}`);
+          return self.blockTimes[n]!;
+        }),
+      postedBy: (writer, from, to) =>
+        guard(() => {
+          self.logsCalls += 1;
+          if (self.logsFail) throw new Error("eth_getLogs is not served here");
+          if (to - from + 1 > self.logsMaxRange) throw new RpcError(`block range too large (max ${self.logsMaxRange})`, -32_005);
+          return self.events.filter((e) => e.writer.toLowerCase() === writer.toLowerCase() && e.block >= from && e.block <= to).map(({ writer: _w, ...e }) => e);
+        }),
     };
+  }
+
+  /** A reader swap executed now, effective from fromDay (4.15). */
+  swap(g: Hex, slot: number, fromDay: number, url: string, parserVersion: string) {
+    const k = `${g}:${slot}`;
+    const h = this.readerSwaps.get(k) ?? [];
+    h.push({ fromDay, executedAt: BigInt(this.time), readerHash: `0x${"0".repeat(64)}`, url, parserVersion, reason: "test" });
+    this.readerSwaps.set(k, h);
   }
 }
 

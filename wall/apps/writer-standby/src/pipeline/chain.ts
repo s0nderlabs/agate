@@ -2,7 +2,7 @@
 // through the RPC pool (failover), sends through the key's TxSender (13.4).
 import { agateIndexAbi } from "@agate/report/abi";
 import type { Address, Clocks, GpuConfig, Hex, Readings } from "@agate/report/types";
-import { decodeFunctionResult, encodeFunctionData } from "viem";
+import { decodeEventLog, decodeFunctionResult, encodeEventTopics, encodeFunctionData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { KeyLock } from "./lock.ts";
 import type { AlertFn, RpcPool } from "./rpc.ts";
@@ -10,6 +10,27 @@ import { type SenderTiming, type SendResult, type Shape, type TxJournal, type Tx
 
 export type { SendResult, TxMeta } from "./sender.ts";
 export { errText } from "./sender.ts";
+
+/** One ReadingsPosted event of this writer (the public record of a slice it posted, 4.5 E9). */
+export interface PostedEvent {
+  gpuId: Hex;
+  day: number;
+  slice: number;
+  readAt: number;
+  values: number[];
+  block: number;
+  txHash?: Hex;
+}
+
+/** An executed reader swap as readerHistory returns it (4.15). */
+export interface ReaderVersionView {
+  fromDay: number;
+  executedAt: bigint;
+  readerHash: Hex;
+  url: string;
+  parserVersion: string;
+  reason: string;
+}
 
 export interface IndexChain {
   readonly index: Address;
@@ -34,6 +55,16 @@ export interface IndexChain {
   exclusive<T>(fn: () => Promise<T>, untilMs: number): Promise<T | undefined>;
   /** Takes over an unmined transaction another program sent with this key. */
   adopt(hash: Hex, meta: TxMeta): Promise<boolean>;
+  /** 4.15: a slot's executed reader swaps (absent on an index built before them: then nothing is swapped). */
+  readerHistory?(gpuId: Hex, slot: number): Promise<readonly ReaderVersionView[]>;
+  /** A slot's window (liveFrom, liveUntil), for E8b. */
+  slotWindow?(gpuId: Hex, slot: number): Promise<{ liveFrom: number; liveUntil: number }>;
+  /** The latest block number. */
+  blockNumber?(): Promise<number>;
+  /** A block's timestamp. */
+  blockAt?(n: number): Promise<number>;
+  /** This index's ReadingsPosted events of `writer` in blocks [from, to] (eth_getLogs; a node may refuse a wide range). */
+  postedBy?(writer: Address, from: number, to: number): Promise<PostedEvent[]>;
 }
 
 export interface IndexChainOptions {
@@ -117,5 +148,42 @@ export function indexChain(o: IndexChainOptions): IndexChain & { sender: TxSende
     },
     exclusive: (fn, until) => sender.exclusive(fn, until),
     adopt: (hash, meta) => sender.adopt(hash, meta),
+    readerHistory: async (g, slot) => {
+      const h = await read<readonly ReaderVersionView[]>("readerHistory", [g, slot]);
+      return h.map((x) => ({ ...x, fromDay: Number(x.fromDay) }));
+    },
+    slotWindow: async (g, slot) => {
+      const [liveFrom, liveUntil] = await read<readonly [number, number]>("slotWindow", [g, slot]);
+      return { liveFrom: Number(liveFrom), liveUntil: Number(liveUntil) };
+    },
+    blockNumber: async () => Number(BigInt((await o.pool.request("eth_blockNumber")) as string)),
+    blockAt: async (n) => {
+      const b = (await o.pool.request("eth_getBlockByNumber", [`0x${n.toString(16)}`, false])) as { timestamp?: string } | null;
+      if (!b?.timestamp) throw new Error(`no block ${n}`);
+      return Number(BigInt(b.timestamp));
+    },
+    postedBy: async (writer, from, to) => {
+      const topics = encodeEventTopics({ abi: agateIndexAbi, eventName: "ReadingsPosted", args: { writer } } as never);
+      const logs = (await o.pool.request("eth_getLogs", [{ address: o.index, fromBlock: `0x${from.toString(16)}`, toBlock: `0x${to.toString(16)}`, topics }])) as {
+        data: Hex;
+        topics: Hex[];
+        blockNumber: string;
+        transactionHash?: Hex;
+      }[];
+      return logs.map((l) => {
+        const ev = decodeEventLog({ abi: agateIndexAbi, data: l.data, topics: l.topics as [Hex, ...Hex[]], eventName: "ReadingsPosted" } as never) as unknown as {
+          args: { gpuId: Hex; day: number; writer: Address; slice: number; readAt: bigint; values: readonly number[] };
+        };
+        return {
+          gpuId: ev.args.gpuId,
+          day: Number(ev.args.day),
+          slice: Number(ev.args.slice),
+          readAt: Number(ev.args.readAt),
+          values: ev.args.values.map(Number),
+          block: Number(BigInt(l.blockNumber)),
+          ...(l.transactionHash ? { txHash: l.transactionHash } : {}),
+        };
+      });
+    },
   };
 }

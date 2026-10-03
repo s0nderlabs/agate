@@ -69,6 +69,9 @@ struct Store {
     mapping(bytes32 => mapping(uint32 => mapping(address => AccS))) accs;
     mapping(bytes32 => mapping(uint32 => mapping(address => bool))) voided;
     mapping(bytes32 => mapping(uint32 => uint64)) reopenedAt;
+    // reader swaps (4.15): each slot's executed swaps, oldest first; the reason of a queued swap id (eta in queued)
+    mapping(bytes32 => mapping(uint8 => IAgateIndex.ReaderVersion[])) readers;
+    mapping(bytes32 => string) readerReason;
 }
 
 /// The deploy-time profile (the index's immutables), passed to the libraries.

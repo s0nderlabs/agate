@@ -168,9 +168,22 @@ export function attesterMargin(c: Clock): number {
   return Math.max(30, Math.floor(c.slice / 12));
 }
 
-/** F1: the last second at which any entry of day d may still be sent (backfill excepted). */
+/** F1's repost point: reposts aim to have landed by here, so a close at dayEnd + CLOSE_GRACE finds them. Since Oct 3 a
+ * logged entry whose bit is still missing is reposted after it only while its day is open, until repostEnd. */
 export function sendDeadline(c: Clock, d: number): number {
   return dayEnd(c, d) + c.closeGrace - margin(c);
+}
+
+/** graceStart(d) = max(dayEnd(d), registeredAt): every carry clock of a GPU starts here (3; a backfilled day's is the
+ * registration time). An unknown registeredAt gives dayEnd(d), the earliest possible graceStart. */
+export function graceStart(c: Clock, d: number, registeredAt?: number): number {
+  return Math.max(dayEnd(c, d), registeredAt ?? 0);
+}
+
+/** REPOST_END (8.1 step 2, Oct 3): the last second a logged in-slice entry of a still-open day d may be reposted,
+ * graceStart + GRACE - slice (82,800 s after graceStart on PRODUCTION). */
+export function repostEnd(c: Clock, d: number, registeredAt?: number): number {
+  return graceStart(c, d, registeredAt) + c.grace - c.slice;
 }
 
 /** The earliest second closeDay can succeed for day d (C1). */

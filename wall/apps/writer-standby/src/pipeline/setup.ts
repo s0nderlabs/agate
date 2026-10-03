@@ -1,8 +1,9 @@
 // Environment, panels and the startup checks both bun writers run before their first tick.
 import { readFileSync } from "node:fs";
+import { installScrubber, type RpcEndpoints, resolveRpcEndpoints, scrubSecrets } from "@agate/report/env";
 import type { Address, Hex } from "@agate/report/types";
 import type { Panel, SourcesPureApi } from "@agate/sources/types";
-import { asSourcesApi, type Clock, clockMismatches, clockOf, neededSources, takeReading } from "../core/index.ts";
+import { asSourcesApi, type Clock, clockMismatches, clockOf, neededSources, planReaders, takeReading } from "../core/index.ts";
 import type { IndexChain } from "./chain.ts";
 import type { PageReader } from "./fetch.ts";
 import type { Shape } from "./sender.ts";
@@ -22,16 +23,24 @@ export function takeKey(name: string): Hex {
   return v as Hex;
 }
 
-/** AGATE_RPC_URLS (two or more, comma-separated); AGATE_RPC_URL alone is a one-element list (RPC_SINGLE). */
+/** The RPC endpoints (13.6): AGATE_RPC_URLS_CMD (a command run once at start, printing the list; the Alchemy URL carries
+ * a key), else AGATE_RPC_URLS (two or more, comma-separated), else AGATE_RPC_URL (one: RPC_SINGLE). Afterwards both
+ * list variables are gone from `e` (pass process.env), so no child inherits them. Errors never echo a URL. */
+export function rpcEndpointsFromEnv(e: Record<string, string | undefined> = process.env, run?: (cmd: string) => string): RpcEndpoints {
+  const r = run ? resolveRpcEndpoints(e, run) : resolveRpcEndpoints(e);
+  delete e.AGATE_RPC_URL;
+  return { http: [...new Set(r.http)], ws: [...new Set(r.ws)] };
+}
+
+/** The HTTP endpoints of rpcEndpointsFromEnv, in failover order. */
 export function rpcUrlsFromEnv(e: Record<string, string | undefined> = process.env): string[] {
-  const list = (e.AGATE_RPC_URLS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (list.length === 0 && e.AGATE_RPC_URL) list.push(e.AGATE_RPC_URL.trim());
-  if (list.length === 0) throw new Error("missing environment variable AGATE_RPC_URLS (two or more RPC URLs, comma-separated)");
-  for (const u of list) if (!/^https?:\/\//.test(u)) throw new Error(`bad RPC URL in AGATE_RPC_URLS: ${u.slice(0, 12)}...`);
-  return [...new Set(list)];
+  return rpcEndpointsFromEnv(e).http;
+}
+
+/** Turns on 13.6's redaction for this process: stdout and stderr scrubbed, and the scrub function for files. */
+export function redaction(endpoints: RpcEndpoints): (s: string) => string {
+  installScrubber(endpoints);
+  return (s: string) => scrubSecrets(s, endpoints);
 }
 
 /** MEASURED overrides (gas units): AGATE_GAS_POST, AGATE_GAS_CLOSE, AGATE_GAS_ONREPORT. Unset: builder A's figures. */
@@ -59,10 +68,16 @@ export function maxFeeFromEnv(e: Record<string, string | undefined> = process.en
 
 /** AGATE_PANELS: a JSON file holding Panel[] (or {panels: Panel[]}), one per GPU registered on this index. */
 export function loadPanels(path: string): Panel[] {
-  const j = JSON.parse(readFileSync(path, "utf8")) as Panel[] | { panels: Panel[] };
+  return loadPanelFile(path).panels;
+}
+
+/** The panel file with the panel tool's flags (panels/launch.json carries includeOverCap: 7.10). */
+export function loadPanelFile(path: string): { panels: Panel[]; flags: { includeOverCap?: boolean; includeEur?: boolean } } {
+  const j = JSON.parse(readFileSync(path, "utf8")) as Panel[] | { panels: Panel[]; flags?: { includeOverCap?: boolean; includeEur?: boolean } };
   const panels = Array.isArray(j) ? j : j.panels;
   if (!Array.isArray(panels) || panels.length === 0) throw new Error(`${path}: no panels`);
-  return panels;
+  const flags = Array.isArray(j) ? {} : { ...(j.flags ?? {}) };
+  return { panels, flags };
 }
 
 export async function loadSourcesApi(): Promise<SourcesPureApi> {
@@ -107,14 +122,16 @@ export async function startupChecks(chain: IndexChain, panels: readonly Panel[],
   return { clock: clockOf(c), panels: active, chainSelector: BigInt(c.chainSelector), slot, warnings };
 }
 
-/** The direct reading path: fetch every page from this machine, parse with @agate/sources. */
+/** The direct reading path: fetch every page from this machine, parse with @agate/sources; with the day's readers
+ * in force (8.6) each distinct URL is fetched once and each GPU parsed with its slot's parser version. */
 export function directSource(api: SourcesPureApi, panels: readonly Panel[], reader: PageReader): ReadingSource {
   const defs = neededSources(api, panels);
   return {
     async take(at) {
       const t0 = Date.now();
-      const { pages, fx } = await reader.readAll(defs, at.readAt);
-      return { reading: takeReading(api, panels, defs, at, pages, fx), via: "direct", ms: Date.now() - t0 };
+      const plans = at.readers ? planReaders(api, defs, panels, at.readers) : undefined;
+      const { pages, fx } = await reader.readAll(defs, at.readAt, plans);
+      return { reading: takeReading(api, panels, defs, at, pages, fx, plans), via: "direct", ms: Date.now() - t0 };
     },
   };
 }

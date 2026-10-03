@@ -16,6 +16,9 @@ function current<T extends { from: StepAt }>(steps: readonly T[] | undefined, da
 
 export class Truth {
   private readonly hourCache = new Map<string, ReturnType<typeof valuesOfHour>>();
+  /** 7.9, 8.6: whether the reader in force on a replay day reads the "redesigned" layout of that source and GPU
+   *  (a swapped v2 reader); every registered "/1" reader reads it as no row. */
+  readsRedesign: (sourceId: string, gpu: GpuModel, replayDay: number) => boolean = () => false;
   constructor(
     readonly replay: Replay,
     readonly scenario: ReplayScenario,
@@ -30,7 +33,8 @@ export class Truth {
     const r = this.replay.resolve(t);
     const sc = this.script(id, role);
     const page = current(sc?.page, r.day, r.slice);
-    if (page && page.state !== "ok" && page.state !== "gzip-raw") return 0;
+    if (page?.state === "redesigned" && !this.readsRedesign(id, gpu, r.day)) return 0;
+    if (page && page.state !== "ok" && page.state !== "gzip-raw" && page.state !== "redesigned") return 0;
     if (page?.state === "gzip-raw") return 0; // compressed bytes without Content-Encoding: unreadable
     const step = current(sc?.gpus?.[gpu], r.day, r.slice);
     if (step) return step.price !== undefined ? Number(parseMicro(step.price)) : 0;

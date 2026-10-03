@@ -78,8 +78,11 @@ describe("keeper loop", () => {
     const k = new Keeper({ view: w.chain, sender: w.chain.sender(KEEPER), clock: w.c, gpuIds: [w.panel.gpuId], tickS: 10 });
     await k.tick(w.now);
     expect(w.m.g(w.panel.gpuId).head).toBe(OCT1); // incomplete source? no: complete, but C1 not reached yet
-    await w.run((OCT1 + 1) * T + w.c.closeGrace + 10);
-    await k.tick(w.now);
+    // ticked every 10 s, as the process does (a longer gap reads as a machine sleep, which holds the close, fix round M3)
+    for (let t = w.now + 10; t <= (OCT1 + 1) * T + w.c.closeGrace + 10; t += 10) {
+      await w.run(t);
+      await k.tick(t);
+    }
     expect(w.m.g(w.panel.gpuId).head).toBe(OCT1 + 1);
     expect(k.sent.at(-1)).toMatchObject({ fn: "closeDay", ok: true });
     // day OCT1+2 has no data: carried at graceStart + GRACE
@@ -92,6 +95,41 @@ describe("keeper loop", () => {
     expect(r.postedAt).toBeGreaterThanOrEqual((OCT1 + 3) * T + w.c.grace);
     expect(k.sent.every((s) => s.ok || s.error !== undefined)).toBe(true);
     expect(w.chain.sender(KEEPER).calls.filter((c) => !c.ok)).toEqual([]);
+  });
+});
+
+describe("keeper after an outage (fix round, audit M3)", () => {
+  test("an RPC outage that ended after the day did: no close before the recovery + CLOSE_GRACE; one before it never waits", async () => {
+    const pages = new Pages(BASE);
+    const w = new World({ firstDay: OCT1, pages: pages.fn, writers: [{ net: "w1", close: "never" }], keeper: false, guardian: null });
+    await w.run((OCT1 + 1) * T + 10);
+    const k = new Keeper({ view: w.chain, sender: w.chain.sender(KEEPER), clock: w.c, gpuIds: [w.panel.gpuId], tickS: 10 });
+    await k.tick(w.now);
+    // the chain is unreachable for the keeper from dayEnd until well past F1 (World.run resets the flag each step)
+    const back = (OCT1 + 1) * T + w.c.closeGrace + 60;
+    for (let t = w.now + 10; t < back; t += 10) {
+      await w.run(t);
+      w.chain.down = true;
+      await k.tick(t);
+      w.chain.down = false;
+    }
+    for (let t = back; t < back + w.c.closeGrace; t += 10) {
+      await w.run(t);
+      await k.tick(t);
+      expect(w.m.g(w.panel.gpuId).head).toBe(OCT1); // held: the writers' backlogs go first
+    }
+    for (let t = back + w.c.closeGrace; t <= back + w.c.closeGrace + 30; t += 10) {
+      await w.run(t);
+      await k.tick(t);
+    }
+    expect(w.m.g(w.panel.gpuId).head).toBe(OCT1 + 1);
+    expect(k.sent.at(-1)).toMatchObject({ fn: "closeDay", ok: true });
+    // the same keeper on the next day, no outage: it closes at dayEnd + CLOSE_GRACE, no hold
+    for (let t = w.now + 10; t <= (OCT1 + 2) * T + w.c.closeGrace + 20; t += 10) {
+      await w.run(t);
+      await k.tick(t);
+    }
+    expect(w.m.g(w.panel.gpuId).head).toBe(OCT1 + 2);
   });
 });
 

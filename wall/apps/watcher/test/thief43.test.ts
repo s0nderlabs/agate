@@ -1,9 +1,14 @@
 // The v4.3 thief round (thief_v43.py: I, H, N1, J, K) on the TS harness, with the pass conditions of fix round 1
 // (BUILD-SPEC 6.7 change note). Profile TEST.
 import { describe, expect, test } from "bun:test";
-import { AlertCode } from "@agate/report/types";
+import { AlertCode, Kind } from "@agate/report/types";
 import { cent, median } from "../src/formula.ts";
+import { RuleContext } from "../src/rule/context.ts";
+import { evaluate } from "../src/rule/decide.ts";
+import type { LogCell } from "../src/rule/types.ts";
+import { hand } from "../src/rule/verdicts.ts";
 import { Pages, W_ADDR, World, type WorldOptions } from "../src/sim/world.ts";
+import { A, D as HD, scen, slotLog, steady, TEST, writer } from "./helpers.ts";
 
 const OCT1 = 20_727;
 const T = 2_400;
@@ -130,6 +135,132 @@ describe("J (stated residual): a withholding freeze without a standby is final a
     expect(w.m.isFinal(r, w.now)).toBe(true);
     expect(w.guardianActs.filter((a) => a.act.startsWith("suspend"))).toEqual([]);
     expect(w.raised(AlertCode.R9_UNCHANGED_NOT_STRICT, D)).toBe(true);
+  });
+});
+
+// ------------------------------------------------------------------ J fix (Oct 3, BUILD-SPEC 6.4 "withheld slot")
+
+const U_BASE = [3_000_000, 3_200_000, 3_400_000, 3_600_000, 3_800_000];
+const flat = () => U_BASE.map((v) => slotLog(TEST, HD - 1, HD + 1, () => v));
+const withholding = (slot: number) => writer(TEST, A, 0, (_h, i) => (i === slot ? 0 : U_BASE[i]!));
+/** a look from the writer's region during the day after HD (in HD + 1, inside GUARD_ACT) */
+const look = (slot: number, cell: LogCell) => ({ slot, interval: (HD + 1) * 12 + 1, at: (HD + 1) * 2_400 + 300, cell, region: "writer", writerRegion: true });
+
+describe("J (Oct 3): R11 and R12 never hand-sign a withheld slot without a confirmed block", () => {
+  test("J: R11 and R12 refuse a withheld FRESH slot without a confirmed block", () => {
+    // slot 1 HELD by the only writer while the watcher reads 3.20 all day: no look, or a look that read the page
+    for (const looks of [[], [look(1, 3_200_000)]]) {
+      const sc = scen({ log: flat(), pre: steady(U_BASE), writers: [withholding(1)], pendingNeedsSign: true });
+      sc.looks = looks;
+      const ctx = new RuleContext(sc);
+      expect(ctx.withheld(sc.pending!, 1)).toBe(true);
+      for (const relaxed of [false, true]) {
+        const v = hand(ctx, sc.pending!, relaxed);
+        expect(v.ok).toBe(false);
+        expect(v.slots[1]).toMatchObject({ result: "fail", why: "withheld" });
+        expect(v.why.join(" ")).toContain("run look from the writer's region");
+      }
+      const ev = evaluate(sc);
+      expect(ev.guardian.r11).toBeNull();
+      expect(ev.guardian.r12).toBeNull();
+    }
+  });
+
+  test("J: a confirmed writer-region block lets R11 and R12 judge the row as before", () => {
+    for (const cell of ["FAILED", "NO_ROW", "BAD_VALUE", "NOT_RENTABLE"] as const) {
+      const sc = scen({ log: flat(), pre: steady(U_BASE), writers: [withholding(1)], pendingNeedsSign: true });
+      sc.looks = [look(1, cell)];
+      const ctx = new RuleContext(sc);
+      expect(ctx.blockConfirmed(1)).toBe(true);
+      const r11 = hand(ctx, sc.pending!, false);
+      expect(r11.ok).toBe(true);
+      expect(r11.slots[1]).toMatchObject({ result: "inside", from: "complete", range: { t: "int", lo: 3_200_000, hi: 3_200_000 } });
+      expect(hand(ctx, sc.pending!, true).ok).toBe(true);
+    }
+    // a look of another slot, or one taken before the day began, confirms nothing
+    const sc = scen({ log: flat(), pre: steady(U_BASE), writers: [withholding(1)], pendingNeedsSign: true });
+    sc.looks = [look(2, "FAILED"), { ...look(1, "FAILED"), at: HD * 2_400 - 10 }];
+    expect(hand(new RuleContext(sc), sc.pending!, false).ok).toBe(false);
+  });
+
+  test("J: a slot taken OUT after being IN (pre.wasIn) is withheld; a never-IN slot kept out is not", () => {
+    // slot 4 at HOLD_DAYS: one more day without readings takes it OUT (a changed record)
+    const pre = steady(U_BASE);
+    pre[4] = { e: 3_800_000, miss: 5, inMedian: true, wasIn: true };
+    const sc = scen({ log: flat(), pre, writers: [withholding(4)] });
+    expect(sc.pending!.kinds[4]).toBe(Kind.OUT);
+    const ctx = new RuleContext(sc);
+    expect(ctx.withheld(sc.pending!, 4)).toBe(true);
+    expect(hand(ctx, sc.pending!, false).ok).toBe(false);
+    expect(hand(ctx, sc.pending!, true).ok).toBe(false);
+    sc.looks = [look(4, "FAILED")];
+    const ctx2 = new RuleContext(sc);
+    const r11 = hand(ctx2, sc.pending!, false);
+    expect(r11.ok).toBe(true); // confirmed: left out at c's own membership
+    expect(r11.slots[4]!.result).toBe("skip");
+    // never IN (wasIn false): kept out is not withholding (STRICT and FIX-OK judge that membership)
+    const pre3 = steady(U_BASE);
+    pre3[4] = { e: 0, miss: 0, inMedian: false, wasIn: false };
+    const sc3 = scen({ log: flat(), pre: pre3, writers: [withholding(4)] });
+    expect(sc3.pending!.kinds[4]).toBe(Kind.OUT);
+    expect(new RuleContext(sc3).withheld(sc3.pending!, 4)).toBe(false);
+    expect(hand(new RuleContext(sc3), sc3.pending!, false).slots[4]!.why).not.toBe("withheld");
+  });
+
+  test("J: a slot c reads fresh (MIN_READINGS or more) is never withheld", () => {
+    // six readings of twelve (MIN_READINGS) are fresh; five are not
+    const six = writer(TEST, A, 0, (h, i) => (i === 1 && h >= 6 ? 0 : U_BASE[i]!));
+    const sc = scen({ log: flat(), pre: steady(U_BASE), writers: [six] });
+    expect(sc.pending!.kinds[1]).toBe(Kind.FRESH);
+    expect(new RuleContext(sc).withheld(sc.pending!, 1)).toBe(false);
+    expect(hand(new RuleContext(sc), sc.pending!, false).ok).toBe(true);
+    const five = writer(TEST, A, 0, (h, i) => (i === 1 && h >= 5 ? 0 : U_BASE[i]!));
+    const sc5 = scen({ log: flat(), pre: steady(U_BASE), writers: [five], pendingNeedsSign: true });
+    expect(sc5.pending!.kinds[1]).toBe(Kind.HELD);
+    expect(new RuleContext(sc5).withheld(sc5.pending!, 1)).toBe(true);
+    // and a slot the watcher does not read FRESH is never withheld (the HELD rows of other classes apply)
+    const dark = flat();
+    dark[1] = slotLog(TEST, HD - 1, HD + 1, (d) => (d === HD ? "NO_ROW" : 3_200_000));
+    const scd = scen({ log: dark, pre: steady(U_BASE), writers: [withholding(1)], pendingNeedsSign: true });
+    expect(new RuleContext(scd).withheld(scd.pending!, 1)).toBe(false);
+  });
+
+  test("J: the attester's verdicts are unchanged", () => {
+    // STRICT refuses the kind; FIX-OK's HELD/FRESH row accepts a writer-side block within the complete range
+    // (residual 1), with or without a look, so the attester countersigns a needsSign withholding record by FIX-OK
+    const verdicts = (looks: ReturnType<typeof look>[]) => {
+      const sc = scen({ log: flat(), pre: steady(U_BASE), writers: [withholding(1)], pendingNeedsSign: true });
+      sc.looks = looks;
+      const ev = evaluate(sc);
+      const c = ev.candidates[0]!;
+      return { strict: c.strict.ok, fixOk: c.fixOk.ok, near: c.near.ok, gate: c.gate.ok, tier: c.tier, action: ev.action.kind, r11: c.r11.ok };
+    };
+    const none = verdicts([]);
+    const confirmed = verdicts([look(1, "FAILED")]);
+    expect(none).toEqual({ strict: false, fixOk: true, near: false, gate: true, tier: 2, action: "attest", r11: false });
+    expect(confirmed).toEqual({ ...none, r11: true });
+  });
+});
+
+describe("J world: a stolen sole writer that withholds a slot through its exit is never hand-signed", () => {
+  test("with the guardian acting the exit day is vetoed by 6.6 step 3b and carried; every day final within LAG_MAX", async () => {
+    const D = OCT1 + 2;
+    const pages = new Pages(BASE);
+    const withhold = (d: number, _h: number, _t: number, v: number[]) => v.map((x, i) => (i === 4 && d >= D ? 0 : x));
+    const w = new World({ firstDay: OCT1, pages: pages.fn, writers: [{ net: "w1", values: withhold }], guardian: GUARD });
+    await w.run(ds(D + 9));
+    // D..D+4 hold slot 4 unchanged (residual 1: final by itself); D+5 must take it OUT, a changed record
+    expect(rec(w, D + 4).kinds[4]).toBe(Kind.HELD);
+    const signed = w.guardianActs.filter((a) => a.day >= D + 5 && /^R1[12] signed/.test(a.act));
+    expect(signed).toEqual([]);
+    const liveness = w.guardianActs.filter((a) => a.day === D + 5 && a.act === "veto done" && (a.why ?? "").startsWith("liveness"));
+    expect(liveness.length).toBeGreaterThan(0);
+    const r = rec(w, D + 5);
+    expect(r.carried && !r.dropped).toBe(true);
+    expect(r.value).toBe(rec(w, D + 4).value);
+    expect(w.days(OCT1, D + 5).filter((x) => !x.final || x.lag > w.c.lagMax)).toEqual([]);
+    expect(w.days(OCT1, D + 7).filter((x) => x.lag > w.c.lagMax)).toEqual([]); // the later days too, so far
+    expect(w.guardianActs.filter((a) => a.act.startsWith("suspend"))).toEqual([]);
   });
 });
 

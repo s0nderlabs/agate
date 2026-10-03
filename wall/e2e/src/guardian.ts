@@ -1,12 +1,15 @@
 // The scripted honest guardian (6.6's procedure at GUARD_ACT), acting only through the guardian CLI's commands
-// (check, look, attest, attest --r12, veto, suspend, kick) with the operator's confirmations typed in. It never
-// signs or vetoes anything the CLI itself would refuse: the CLI re-checks R11, R12 and F2 before every send.
+// (check, look, attest, attest --r12, veto, suspend, kick, keycheck) with the operator's confirmations typed in. It
+// never signs or vetoes anything the CLI itself would refuse: the CLI re-checks R11, R12 and F2 before every send.
+// Since Oct 3 it is wired as the CLI is: the index's own guardian log (13.7), readers in force (8.6), the per-key
+// send lock, the page check's status file and the transaction reader keycheck uses.
 import { join } from "node:path";
+import type { Hex } from "@agate/report/types";
 import { AlertCode, Status } from "@agate/report/types";
-import { EventIndexer, GuardianLog, httpFetchPage, LogStore, RpcDown, ViemIndex } from "@agate/watcher";
+import { EventIndexer, GuardianLog, guardianLogDir, httpFetchPage, LogStore, ReaderBook, RpcDown, ViemIndex } from "@agate/watcher";
 import { type CliDeps, check, run } from "../../apps/guardian/src/commands.ts";
 import { lookReader } from "../../apps/guardian/src/look.ts";
-import type { GuardianSpec, World } from "./world.ts";
+import { READER_API, type GuardianSpec, type World } from "./world.ts";
 
 const lc = (a: string) => a.toLowerCase();
 
@@ -19,25 +22,35 @@ export interface GuardianAct {
   detail?: string;
 }
 
-export async function startGuardian(w: World, spec: GuardianSpec): Promise<{ acts: GuardianAct[]; lines: string[] }> {
+export interface GuardianHandle {
+  acts: GuardianAct[];
+  lines: string[];
+  /** Runs one CLI command as the operator would (answer: what they type at the confirmation); returns its exit code
+   *  and the lines it printed. */
+  cli: (argv: string[], answer?: string) => Promise<{ code: number; out: string[] }>;
+}
+
+export async function startGuardian(w: World, spec: GuardianSpec): Promise<GuardianHandle> {
   const pool = await w.watchPool("guardian");
   const view = new ViemIndex(pool, w.dep.index);
   const alerts = w.watchAlerts("guardian");
   const answers: string[] = [];
   const lines: string[] = [];
   const acts: GuardianAct[] = [];
+  let capture: string[] | null = null;
   const look = lookReader({ fetchPage: httpFetchPage, base: `${w.replay.url}/r/look`, timeoutMs: 2_000, now: () => w.now });
   const deps: CliDeps = {
     view,
-    events: new EventIndexer({ pool, address: w.dep.index, dir: join(w.home, "guardian", "events"), fromBlock: w.dep.fromBlock, chunk: 5_000n }),
+    events: new EventIndexer({ pool, address: w.dep.index, dir: join(guardianLogDir(w.home, w.dep.index), "events"), fromBlock: w.dep.fromBlock, chunk: 5_000n }),
     log: new LogStore(w.watcherDir),
-    glog: new GuardianLog(join(w.home, "guardian")),
+    glog: new GuardianLog(guardianLogDir(w.home, w.dep.index)),
     alerts,
     clock: w.wc,
     panels: w.panels,
     now: () => w.now,
     out: (l) => {
       lines.push(l);
+      capture?.push(l);
       if (lines.length > 4_000) lines.splice(0, 1_000);
     },
     prompt: async () => answers.shift() ?? "",
@@ -45,6 +58,16 @@ export async function startGuardian(w: World, spec: GuardianSpec): Promise<{ act
     look,
     beats: w.roleBeats(),
     writerRegion: "writer",
+    pagecheckStatus: join(w.home, "pagecheck", w.dep.index.slice(2, 10).toLowerCase(), "status.json"),
+    ...(w.readersOn ? { readers: new ReaderBook(READER_API, w.panels, w.wc) } : {}),
+    tx: async (hash: Hex) => {
+      try {
+        const t = await w.a.pub.getTransaction({ hash });
+        return { from: t.from, blockNumber: t.blockNumber };
+      } catch {
+        return null;
+      }
+    },
   };
   const seen = new Map<string, number>();
   let lastKick = -Infinity;
@@ -53,6 +76,19 @@ export async function startGuardian(w: World, spec: GuardianSpec): Promise<{ act
     const code = await run(deps, argv);
     answers.length = 0;
     return code;
+  };
+  const handle: GuardianHandle = {
+    acts,
+    lines,
+    cli: async (argv, answer) => {
+      const out: string[] = [];
+      capture = out;
+      try {
+        return { code: await cli(argv, answer), out };
+      } finally {
+        capture = null;
+      }
+    },
   };
 
   w.guardianTick = async (now) => {
@@ -64,6 +100,7 @@ export async function startGuardian(w: World, spec: GuardianSpec): Promise<{ act
       else throw e;
     }
   };
+  const keyChecked = new Set<string>();
   const act = async (now: number) => {
     if (spec.from !== undefined && now < spec.from) return;
     await pool.tick(now);
@@ -75,6 +112,19 @@ export async function startGuardian(w: World, spec: GuardianSpec): Promise<{ act
       for (const p of w.panels) {
         const code = await cli(["kick", p.gpu]);
         acts.push({ at: now, gpu: p.gpu, day: -1, act: "kick", code });
+      }
+    }
+    // 8.5, R8 (d): a KEY_MISMATCH is checked against the chain with keycheck, then the writer is suspended at once
+    if (spec.keycheck) {
+      for (const a of open.filter((x) => x.code === AlertCode.KEY_MISMATCH && x.writer && now >= x.at + spec.delay)) {
+        const writer = a.writer!;
+        if (keyChecked.has(lc(writer)) || (await view.isSuspended(writer as `0x${string}`))) continue;
+        keyChecked.add(lc(writer));
+        const code = await cli(["keycheck", writer]);
+        acts.push({ at: now, gpu: "-", day: a.day ?? -1, act: `keycheck ${writer}`, code });
+        if (!lines.slice(-40).some((l) => l.includes("confirmed: another party posted") || l.includes("confirmed: the chain holds readings"))) continue;
+        const s = await cli(["suspend", writer], "yes");
+        acts.push({ at: now, gpu: "-", day: a.day ?? -1, act: `suspend ${writer}`, code: s, detail: "R8 (d): KEY_MISMATCH confirmed by keycheck" });
       }
     }
     for (const p of w.panels) {
@@ -136,6 +186,5 @@ export async function startGuardian(w: World, spec: GuardianSpec): Promise<{ act
       if (r12Time) acts.push({ at: now, gpu: p.gpu, day: d, act: "nothing qualifies", detail: g.r12Why.join("; ") });
     }
   };
-  return { acts, lines };
+  return handle;
 }
-

@@ -122,6 +122,7 @@ export const SOURCES: readonly SourceDef[] = [
     url: "https://api.verda.com/v1/instance-types",
     currency: "USD",
     parserVersion: "verda/1",
+    hosts: ["api.verda.com", "verda.com", "www.verda.com", "api.datacrunch.io", "datacrunch.io", "www.datacrunch.io"],
     rules: {
       H100: verda("H100", "H100 SXM5 80GB"),
       H200: verda("H200", "H200 SXM5 141GB"),
@@ -134,6 +135,7 @@ export const SOURCES: readonly SourceDef[] = [
     url: "https://docs.nebius.com/compute/resources/pricing.md",
     currency: "USD",
     parserVersion: "nebius/1",
+    hosts: ["docs.nebius.com", "nebius.com", "www.nebius.com"],
     rules: { H100: nebius("H100"), H200: nebius("H200"), B200: nebius("B200") },
   },
   {
@@ -142,6 +144,7 @@ export const SOURCES: readonly SourceDef[] = [
     url: "https://lambda.ai/pricing",
     currency: "USD",
     parserVersion: "lambda/1",
+    hosts: ["lambda.ai", "www.lambda.ai", "lambdalabs.com", "www.lambdalabs.com"],
     rules: { H100: lambda("NVIDIA H100 SXM"), B200: lambda("NVIDIA B200 SXM6") },
   },
   {
@@ -150,6 +153,7 @@ export const SOURCES: readonly SourceDef[] = [
     url: "https://www.coreweave.com/pricing",
     currency: "USD",
     parserVersion: "coreweave/1",
+    hosts: ["www.coreweave.com", "coreweave.com", "docs.coreweave.com"],
     rules: {
       H100: coreweave("hgx-h100", "NVIDIA HGX H100"),
       H200: coreweave("hgx-h200", "NVIDIA HGX H200"),
@@ -162,6 +166,7 @@ export const SOURCES: readonly SourceDef[] = [
     url: "https://www.civo.com/pricing",
     currency: "USD",
     parserVersion: "civo/1",
+    hosts: ["www.civo.com", "civo.com"],
     rules: {
       H100: civo("NVIDIA H100 SXM GPU pricing", "8 x NVIDIA H100 - 80GB"),
       H200: civo("NVIDIA H200 SXM GPU pricing", "8 x NVIDIA H200 - 141GB HBM3e"),
@@ -174,6 +179,7 @@ export const SOURCES: readonly SourceDef[] = [
     url: "https://www.hyperstack.cloud/gpu-pricing",
     currency: "USD",
     parserVersion: "hyperstack/1",
+    hosts: ["www.hyperstack.cloud", "hyperstack.cloud"],
     rules: {
       H100: hyperstack("NVIDIA H100 SXM", '"NVIDIA H100 NVLink" (a PCIe card with a bridge) or "NVIDIA H100" (PCIe)'),
       H200: hyperstack("NVIDIA H200 SXM", "any other H200 row"),
@@ -186,6 +192,7 @@ export const SOURCES: readonly SourceDef[] = [
     url: "https://www.seeweb.it/en/products/cloud-server-gpu",
     currency: "EUR",
     parserVersion: "seeweb/1",
+    hosts: ["www.seeweb.it", "seeweb.it"],
     rules: { H100: seeweb("NVIDIA H100"), H200: seeweb("NVIDIA H200") },
   },
   {
@@ -194,6 +201,7 @@ export const SOURCES: readonly SourceDef[] = [
     url: "https://gcore.com/pricing/ai",
     currency: "EUR",
     parserVersion: "gcore/1",
+    hosts: ["gcore.com", "www.gcore.com"],
     rules: { H100: gcore("H100"), H200: gcore("H200") },
   },
 ];
@@ -243,9 +251,9 @@ export const HELD_OUT = ["together", "scaleway", "deepinfra", "amazonaws", "aws.
 /** Trackers are display only (7.1): never a slot, never an index input. */
 export const TRACKERS = ["gpuprice.fyi", "gputable", "gpu.ai", "gpueconomy", "getdeploying"] as const;
 
-/** Throws when a source id, company or URL names a forbidden, held-out or tracker source. */
-export function assertAllowed(def: Pick<SourceDef, "id" | "company" | "url">): void {
-  const hay = `${def.id} ${def.company} ${def.url}`.toLowerCase();
+/** Throws when a source id, company, URL or allowed host names a forbidden, held-out or tracker source. */
+export function assertAllowed(def: Pick<SourceDef, "id" | "company" | "url"> & { hosts?: readonly string[] }): void {
+  const hay = `${def.id} ${def.company} ${def.url} ${(def.hosts ?? []).join(" ")}`.toLowerCase();
   for (const bad of [...FORBIDDEN, ...HELD_OUT, ...TRACKERS]) {
     if (hay.includes(bad)) throw new Error(`source ${def.id} names ${bad}, which must never be an index input (BUILD-SPEC 7.1)`);
   }

@@ -69,6 +69,8 @@ export class FakeChain implements IndexView, EventSource {
   async reopenedAt(g: Hex, d: number) { this.up(); return this.m.g(g).reopenedAt.get(d) ?? 0; }
   async firstRecordDay(g: Hex) { this.up(); const f = this.m.g(g).firstRecordDay; return { exists: f !== null, day: f ?? 0 }; }
   async balance(a: Address) { this.up(); return this.balances.get(a.toLowerCase()) ?? 100n * 10n ** 18n; }
+  async queuedEta(id: Hex) { this.up(); return this.m.queuedEta(id, this.now()); }
+  async readerHistory(g: Hex, slot: number) { this.up(); return (this.m.readerHistory.get(`${g.toLowerCase()}:${slot}`) ?? []).map((x) => ({ fromDay: x.fromDay, url: x.url, parserVersion: x.parserVersion, reason: x.reason })); }
 
   // ------------------------------------------------------------------ events
   async sync() { this.up(); }

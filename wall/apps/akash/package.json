@@ -1,0 +1,15 @@
+{
+  "name": "@agate/akash",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./compute": "./src/akash.ts"
+  },
+  "scripts": {
+    "start": "bun run src/cli.ts watch",
+    "run-once": "bun run src/cli.ts run",
+    "test": "bun test"
+  }
+}

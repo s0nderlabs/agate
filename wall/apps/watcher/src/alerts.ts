@@ -3,8 +3,9 @@
 // Every index's processes share the file (one AGATE_WALL_HOME, same gpuIds), so a sink given its index stamps it on
 // its alerts and ids, sees only its own index's alerts and unscoped ones (the writers'), and clears only its own.
 import { closeSync, existsSync, openSync, readSync, statSync } from "node:fs";
+import { childEnv } from "@agate/report/env";
 import type { Alert, AlertCode, Address, Hex } from "@agate/report/types";
-import { appendLine } from "./fsutil.ts";
+import { appendLine, scrubText } from "./fsutil.ts";
 
 export interface StoredAlert extends Alert {
   /** the index whose process raised it (lowercase); absent: unscoped (a writer, a logger started before the index) */
@@ -23,10 +24,12 @@ export interface RaiseInput {
   deadline?: number;
   message: string;
   data?: unknown;
+  /** one alert per owner action or reader swap id (9.4, 8.6): two entries of one slot never share an alert */
+  key?: string;
 }
 
-export function alertId(a: { code: string; gpuId?: string; day?: number; slot?: number; writer?: string; index?: string }): string {
-  const id = `${a.code}:${a.gpuId ?? "-"}:${a.day ?? "-"}:${a.slot ?? "-"}:${a.writer?.toLowerCase() ?? "-"}`;
+export function alertId(a: { code: string; gpuId?: string; day?: number; slot?: number; writer?: string; index?: string; key?: string }): string {
+  const id = `${a.code}:${a.gpuId ?? "-"}:${a.day ?? "-"}:${a.slot ?? "-"}:${a.writer?.toLowerCase() ?? "-"}${a.key ? `:${a.key.toLowerCase()}` : ""}`;
   return a.index ? `${id}@${a.index.toLowerCase()}` : id;
 }
 
@@ -38,6 +41,16 @@ export interface AlertSinkOptions {
   role?: string;
   /** The index this process serves (AGATE_INDEX): scopes what it raises, reads and clears. */
   index?: string;
+}
+
+/** Line breaks and tabs become spaces, every other C0 or C1 control and DEL becomes "?". */
+export function oneLine(s: string): string {
+  return s.replace(/\r\n|[\n\r\t\u2028\u2029]/g, " ").replace(/[\u0000-\u001f\u007f-\u009f]/g, "?");
+}
+
+/** The notifier's whole environment. */
+export function notifyEnv(): Record<string, string> {
+  return childEnv();
 }
 
 export class AlertSink {
@@ -102,14 +115,16 @@ export class AlertSink {
     const old = this.byId.get(id);
     const open = old && old.cleared === undefined ? old : undefined;
     const deadline = open?.deadline !== undefined && x.deadline !== undefined ? Math.min(open.deadline, x.deadline) : (x.deadline ?? open?.deadline);
-    const a: StoredAlert = { id, code: x.code as AlertCode, severity: x.severity, at: open ? open.at : now, message: x.message };
+    // 13.6: an alert never carries a configured RPC URL (message and data are scrubbed before they are stored)
+    // one printable line: a chain string in a message (a swap's url or reason) can carry no terminal escape (M1)
+    const a: StoredAlert = { id, code: x.code as AlertCode, severity: x.severity, at: open ? open.at : now, message: scrubText(oneLine(x.message)) };
     if (scope) a.index = scope;
     if (x.gpuId) a.gpuId = x.gpuId;
     if (x.day !== undefined) a.day = x.day;
     if (x.slot !== undefined) a.slot = x.slot;
     if (x.writer) a.writer = x.writer;
     if (deadline !== undefined && Number.isFinite(deadline)) a.deadline = deadline;
-    if (x.data !== undefined) a.data = x.data;
+    if (x.data !== undefined) a.data = JSON.parse(scrubText(JSON.stringify(x.data, (_k, v) => (typeof v === "bigint" ? v.toString() : v)))) as unknown;
     if (open && open.severity === a.severity && open.message === a.message && open.deadline === a.deadline) return open;
     if (open) a.updated = now;
     this.write(a);
@@ -146,7 +161,8 @@ export class AlertSink {
 
   private notify(a: StoredAlert): void {
     try {
-      const p = Bun.spawn(["/bin/sh", "-c", this.o.notifyCmd!], { stdin: "pipe", stdout: "ignore", stderr: "ignore" });
+      // PATH and HOME only: a role key or an RPC URL in this process's environment never reaches the notifier (M3)
+      const p = Bun.spawn(["/bin/sh", "-c", this.o.notifyCmd!], { env: notifyEnv(), stdin: "pipe", stdout: "ignore", stderr: "ignore" });
       p.stdin.write(JSON.stringify(a));
       p.stdin.end();
     } catch {

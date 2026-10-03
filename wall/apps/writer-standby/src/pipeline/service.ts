@@ -14,7 +14,8 @@ import { ReadingLog, type Role, wallHome } from "./log.ts";
 import { alertSink } from "./ops.ts";
 import { type AlertFn, RpcDownError, RpcPool } from "./rpc.ts";
 import { timingFor } from "./sender.ts";
-import { directSource, env, jsonSay, loadPanels, loadSourcesApi, maxFeeFromEnv, measuredFromEnv, rpcUrlsFromEnv, type StartInfo, startupChecks, takeKey } from "./setup.ts";
+import type { RpcEndpoints } from "@agate/report/env";
+import { directSource, env, jsonSay, loadPanelFile, loadSourcesApi, maxFeeFromEnv, measuredFromEnv, redaction, rpcEndpointsFromEnv, type StartInfo, startupChecks, takeKey } from "./setup.ts";
 import { type ReadingSource, Writer } from "./writer.ts";
 
 export interface SourceContext {
@@ -29,6 +30,14 @@ export interface SourceContext {
   direct: ReadingSource;
   say: (event: string, data?: Record<string, unknown>) => void;
   alert: AlertFn;
+  /** The writer's local log (the CRE runner logs its run lines here, 8.2 (4)). */
+  log: ReadingLog;
+  /** The RPC endpoints from AGATE_RPC_URLS_CMD or AGATE_RPC_URLS (secret: never into a file or a child, 13.6). */
+  endpoints: RpcEndpoints;
+  /** The panel file's flags (panels/launch.json: includeOverCap, 7.10). */
+  panelFlags: { includeOverCap?: boolean; includeEur?: boolean };
+  /** 13.6's scrub function for anything written to a file. */
+  scrub: (s: string) => string;
 }
 
 export interface ServiceOptions {
@@ -72,6 +81,9 @@ function recall(path: string, panels: readonly Panel[]): Memo | undefined {
 }
 
 export async function runService(o: ServiceOptions): Promise<void> {
+  // 13.6 first: the endpoints are read once (a command's output stays in memory) and every printed line is scrubbed
+  const endpoints = rpcEndpointsFromEnv(process.env);
+  const scrub = redaction(endpoints);
   const say = jsonSay(o.role);
   const home = wallHome();
   const index = env("AGATE_INDEX") as Address;
@@ -83,13 +95,15 @@ export async function runService(o: ServiceOptions): Promise<void> {
   }
   const key = takeKey(o.keyEnv);
   const writerAddr = privateKeyToAccount(key).address;
-  const alert = alertSink({ home, writer: writerAddr });
-  const urls = rpcUrlsFromEnv();
-  const panelsAll = loadPanels(env("AGATE_PANELS"));
+  const alert = alertSink({ home, writer: writerAddr, index, scrub, ...(process.env.AGATE_NOTIFY_CMD ? { notifyCmd: process.env.AGATE_NOTIFY_CMD } : {}) });
+  const urls = endpoints.http;
+  const panelFile = loadPanelFile(env("AGATE_PANELS"));
+  const panelsAll = panelFile.panels;
   const api = await loadSourcesApi();
   const expectChainId = process.env.AGATE_CHAIN_ID ? Number(process.env.AGATE_CHAIN_ID) : undefined;
   const pool = new RpcPool({ urls, ...(expectChainId ? { expectChainId } : {}), timeoutMs: 10_000, staleS: 30, alert });
   const log = new ReadingLog(home, o.role);
+  log.scrub = scrub;
   let stop = false;
   for (const s of ["SIGINT", "SIGTERM"] as const) process.on(s, () => (stop = true));
 
@@ -134,7 +148,9 @@ export async function runService(o: ServiceOptions): Promise<void> {
 
   const fetcher = makeFetcher({ role: o.role, timeoutMs: timeoutFor(clock), retryBefore: () => sliceAt(clock, nowS()).end }, clock);
   const direct = directSource(api, panels, new PageReader(fetcher, process.env.SOURCE_BASE_URL || undefined));
-  const source = o.makeSource ? await o.makeSource({ api, panels, clock, chain: real, info, home, pool, key, direct, say, alert }) : direct;
+  const source = o.makeSource
+    ? await o.makeSource({ api, panels, clock, chain: real, info, home, pool, key, direct, say, alert, log, endpoints, panelFlags: panelFile.flags, scrub })
+    : direct;
   const tickS = tickPeriod(clock);
   const writer = new Writer({
     role: o.role,
@@ -149,6 +165,13 @@ export async function runService(o: ServiceOptions): Promise<void> {
     alert,
     heartbeatDir: join(home, o.role),
     tickS,
+    api,
+    readerCache: join(home, o.role, `readers-${index.slice(2, 10).toLowerCase()}.json`),
+    keyCheck: {
+      ...(process.env.AGATE_LOGS_CHUNK ? { chunk: Number(process.env.AGATE_LOGS_CHUNK) } : {}),
+      ...(process.env.AGATE_LOGS_CALLS ? { callsPerTick: Number(process.env.AGATE_LOGS_CALLS) } : {}),
+      ...(process.env.AGATE_LOGS_BACKLOG ? { backlogBlocks: Number(process.env.AGATE_LOGS_BACKLOG) } : {}),
+    },
   });
 
   let lastInitError = "";

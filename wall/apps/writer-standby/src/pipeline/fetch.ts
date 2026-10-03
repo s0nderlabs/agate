@@ -1,7 +1,7 @@
 // Page fetching for the bun writers: one GET per page, honest user agent, a timeout, one retry while it still
 // starts inside the slice (7.7). Replay pages carry their own time in X-Agate-Page-Time (7.4, 7.9).
 import type { SourceDef } from "@agate/sources/types";
-import { type Clock, ECB_ID, ECB_URL, type PageResult, pageUrl, userAgent, utcDate } from "../core/index.ts";
+import { type Clock, ECB_ID, ECB_URL, fetchesOf, type PageResult, pageUrl, type SourcePlan, userAgent, utcDate } from "../core/index.ts";
 
 export type Fetcher = (url: string) => Promise<PageResult>;
 
@@ -68,7 +68,9 @@ export function timeoutFor(c: Clock): number {
   return Math.min(40, Math.max(1, c.slice / 10)) * 1000;
 }
 
-/** Fetches every needed page once (in parallel) plus the ECB file, reused within one UTC day. */
+/** Fetches every needed page once (in parallel) plus the ECB file, reused within one UTC day. With reader plans
+ * (8.6) each distinct URL in force is fetched once and the pages are keyed by pageKey; a refused reader's URL is
+ * never fetched. */
 export class PageReader {
   private ecb?: { date: string; page: PageResult };
   constructor(
@@ -76,16 +78,14 @@ export class PageReader {
     private readonly base?: string,
   ) {}
 
-  async readAll(defs: readonly SourceDef[], at: number): Promise<{ pages: Record<string, PageResult>; fx?: PageResult }> {
+  async readAll(defs: readonly SourceDef[], at: number, plans?: readonly SourcePlan[]): Promise<{ pages: Record<string, PageResult>; fx?: PageResult }> {
     const wantFx = defs.some((d) => d.currency === "EUR");
-    const [fx, ...results] = await Promise.all([
-      wantFx ? this.fx(at) : Promise.resolve(undefined),
-      ...defs.map((d) => this.fetcher(pageUrl(d.id, d.url, this.base))),
-    ]);
+    const jobs = plans ? fetchesOf(plans, this.base) : defs.map((d) => ({ sourceId: d.id, key: d.id, url: d.url, fetchUrl: pageUrl(d.id, d.url, this.base) }));
+    const urls = [...new Set(jobs.map((j) => j.fetchUrl))];
+    const [fx, ...results] = await Promise.all([wantFx ? this.fx(at) : Promise.resolve(undefined), ...urls.map((u) => this.fetcher(u))]);
+    const byUrl = new Map(urls.map((u, i) => [u, results[i]!]));
     const pages: Record<string, PageResult> = {};
-    defs.forEach((d, i) => {
-      pages[d.id] = results[i]!;
-    });
+    for (const j of jobs) pages[j.key] = byUrl.get(j.fetchUrl)!;
     return fx ? { pages, fx } : { pages };
   }
 

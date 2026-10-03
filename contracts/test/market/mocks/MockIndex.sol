@@ -317,4 +317,33 @@ contract MockIndex is IAgateIndex {
     function actionId(Action calldata) external pure override returns (bytes32) {
         revert NotImplemented();
     }
+
+    function queueReaderSwap(bytes32, uint8, Reader calldata, string calldata)
+        external
+        pure
+        override
+        returns (bytes32)
+    {
+        revert NotImplemented();
+    }
+
+    function executeReaderSwap(bytes32, uint8, Reader calldata) external pure override {
+        revert NotImplemented();
+    }
+
+    function cancelReaderSwap(bytes32, uint8, Reader calldata) external pure override {
+        revert NotImplemented();
+    }
+
+    function readerSwapId(bytes32, uint8, Reader calldata) external pure override returns (bytes32) {
+        revert NotImplemented();
+    }
+
+    function readerHistory(bytes32, uint8) external pure override returns (ReaderVersion[] memory) {
+        revert NotImplemented();
+    }
+
+    function readerAt(bytes32, uint8, uint32) external pure override returns (bool, ReaderVersion memory) {
+        revert NotImplemented();
+    }
 }

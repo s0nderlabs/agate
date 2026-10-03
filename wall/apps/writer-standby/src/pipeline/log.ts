@@ -24,6 +24,20 @@ export interface ReadingLine {
   txHash?: Hex;
   ms?: number; // how long the reading (or the whole CRE simulate run) took
   error?: string;
+  /** The CRE run this reading came from (its run line was logged before the CLI started; 8.2, 8.5). */
+  runId?: string;
+}
+
+/** A CRE simulate run about to start (8.2 (4)): logged before the CLI is spawned, so a post the CLI broadcast whose
+ * output this writer could not parse is told apart from a post that is not its own (8.5: KEY_UNVERIFIED). */
+export interface RunLine {
+  kind: "run";
+  index: Address;
+  role: Role;
+  dayId: number;
+  slice: number;
+  startedAt: number;
+  runId: string;
 }
 
 export interface SendLine {
@@ -76,18 +90,20 @@ export interface WakeLine {
   slept: number | null; // null: a fresh start
 }
 
-export type LogLine = ReadingLine | SendLine | TxLine | AbandonLine | SkipLine | WakeLine;
+export type LogLine = ReadingLine | SendLine | TxLine | AbandonLine | SkipLine | WakeLine | RunLine;
 
 export function wallHome(): string {
   return process.env.AGATE_WALL_HOME || join(homedir(), ".agate-wall");
 }
 
 function timeOf(l: LogLine): number {
-  return l.kind === "reading" ? l.readAt : l.at;
+  return l.kind === "reading" ? l.readAt : l.kind === "run" ? l.startedAt : l.at;
 }
 
 export class ReadingLog implements TxJournal {
   readonly dir: string;
+  /** Applied to every serialized line before it is written (13.6: RPC URLs never reach a file). */
+  scrub?: (s: string) => string;
   constructor(
     home: string,
     readonly role: Role,
@@ -97,8 +113,10 @@ export class ReadingLog implements TxJournal {
     mkdirSync(this.dir, { recursive: true });
   }
 
+  /** One line, one append of the whole line (13.7: two writer processes never interleave inside a line). */
   append(line: LogLine): void {
-    appendFileSync(join(this.dir, `${utcDate(timeOf(line))}.jsonl`), `${JSON.stringify(line)}\n`);
+    const text = JSON.stringify(line);
+    appendFileSync(join(this.dir, `${utcDate(timeOf(line))}.jsonl`), `${this.scrub ? this.scrub(text) : text}\n`);
   }
 
   private *lines(from: number, to: number): Generator<LogLine> {
@@ -121,6 +139,20 @@ export class ReadingLog implements TxJournal {
     const out: ReadingLine[] = [];
     for (const l of this.lines(from, to)) {
       if (l.kind === "reading" && l.index.toLowerCase() === index.toLowerCase() && l.readAt >= from && l.readAt < to) out.push(l);
+    }
+    return out;
+  }
+
+  /** Every reading line of one index day (readAt inside the day), oldest first. */
+  readingLines(index: Address, c: Clock, d: number): ReadingLine[] {
+    return this.readings(index, dayStart(c, d), dayEnd(c, d));
+  }
+
+  /** The CRE run lines of one index day, oldest first. */
+  runLines(index: Address, c: Clock, d: number): RunLine[] {
+    const out: RunLine[] = [];
+    for (const l of this.lines(dayStart(c, d), dayEnd(c, d))) {
+      if (l.kind === "run" && l.index.toLowerCase() === index.toLowerCase() && l.dayId === d) out.push(l);
     }
     return out;
   }

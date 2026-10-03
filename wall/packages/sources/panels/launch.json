@@ -1,0 +1,375 @@
+{
+ "generatedBy": "wall/packages/sources/scripts/panel.ts",
+ "flags": {
+  "includeEur": false,
+  "includeOverCap": true,
+  "reserve": {}
+ },
+ "archiveHours": 49,
+ "archiveRange": [
+  "2026-09-30T17",
+  "2026-10-02T17"
+ ],
+ "panels": [
+  {
+   "gpu": "H100",
+   "spec": "H100-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955",
+   "families": [
+    {
+     "name": "Verda",
+     "famQ": 1
+    },
+    {
+     "name": "Nebius",
+     "famQ": 1
+    },
+    {
+     "name": "Lambda",
+     "famQ": 1
+    },
+    {
+     "name": "CoreWeave",
+     "famQ": 1
+    },
+    {
+     "name": "Civo",
+     "famQ": 1
+    },
+    {
+     "name": "Hyperstack",
+     "famQ": 1
+    }
+   ],
+   "slots": [
+    {
+     "slot": 0,
+     "sourceId": "p_verda",
+     "family": 0,
+     "liveAtStart": true
+    },
+    {
+     "slot": 1,
+     "sourceId": "p_nebius",
+     "family": 1,
+     "liveAtStart": true
+    },
+    {
+     "slot": 2,
+     "sourceId": "p_lambda",
+     "family": 2,
+     "liveAtStart": true
+    },
+    {
+     "slot": 3,
+     "sourceId": "p_coreweave",
+     "family": 3,
+     "liveAtStart": true
+    },
+    {
+     "slot": 4,
+     "sourceId": "p_civo",
+     "family": 4,
+     "liveAtStart": true
+    },
+    {
+     "slot": 5,
+     "sourceId": "p_hyperstack",
+     "family": 5,
+     "liveAtStart": false
+    }
+   ]
+  },
+  {
+   "gpu": "H200",
+   "spec": "H200-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0xf7b3c4797305bd1433be196119ae5d6df4a433cffbf8d02c22048cc3a487b30d",
+   "families": [
+    {
+     "name": "Verda",
+     "famQ": 1
+    },
+    {
+     "name": "Nebius",
+     "famQ": 1
+    },
+    {
+     "name": "CoreWeave",
+     "famQ": 1
+    },
+    {
+     "name": "Civo",
+     "famQ": 1
+    },
+    {
+     "name": "Hyperstack",
+     "famQ": 1
+    }
+   ],
+   "slots": [
+    {
+     "slot": 0,
+     "sourceId": "p_verda",
+     "family": 0,
+     "liveAtStart": true
+    },
+    {
+     "slot": 1,
+     "sourceId": "p_nebius",
+     "family": 1,
+     "liveAtStart": true
+    },
+    {
+     "slot": 2,
+     "sourceId": "p_coreweave",
+     "family": 2,
+     "liveAtStart": true
+    },
+    {
+     "slot": 3,
+     "sourceId": "p_civo",
+     "family": 3,
+     "liveAtStart": true
+    },
+    {
+     "slot": 4,
+     "sourceId": "p_hyperstack",
+     "family": 4,
+     "liveAtStart": true
+    }
+   ]
+  },
+  {
+   "gpu": "B200",
+   "spec": "B200-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x0a5bf357b491308f9e8b00f22d9d58b1c984046be5b4a94a21a59038b996dd27",
+   "families": [
+    {
+     "name": "Verda",
+     "famQ": 1
+    },
+    {
+     "name": "Nebius",
+     "famQ": 1
+    },
+    {
+     "name": "Lambda",
+     "famQ": 1
+    },
+    {
+     "name": "CoreWeave",
+     "famQ": 1
+    },
+    {
+     "name": "Hyperstack",
+     "famQ": 1
+    }
+   ],
+   "slots": [
+    {
+     "slot": 0,
+     "sourceId": "p_verda",
+     "family": 0,
+     "liveAtStart": true
+    },
+    {
+     "slot": 1,
+     "sourceId": "p_nebius",
+     "family": 1,
+     "liveAtStart": true
+    },
+    {
+     "slot": 2,
+     "sourceId": "p_lambda",
+     "family": 2,
+     "liveAtStart": true
+    },
+    {
+     "slot": 3,
+     "sourceId": "p_coreweave",
+     "family": 3,
+     "liveAtStart": true
+    },
+    {
+     "slot": 4,
+     "sourceId": "p_hyperstack",
+     "family": 4,
+     "liveAtStart": true
+    }
+   ]
+  }
+ ],
+ "deploy": [
+  {
+   "gpu": "H100",
+   "spec": "H100-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955",
+   "recipeHash": "0x815a2dac8891801a0d68af0edb442e086871641c09841e15b171dfb986f25b1a",
+   "family": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 31
+  },
+  {
+   "gpu": "H200",
+   "spec": "H200-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0xf7b3c4797305bd1433be196119ae5d6df4a433cffbf8d02c22048cc3a487b30d",
+   "recipeHash": "0x827d522003fde1517f16f3ea1e4633de3bbfa8af77802e00db8c0942fd8dc1cc",
+   "family": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 31
+  },
+  {
+   "gpu": "B200",
+   "spec": "B200-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x0a5bf357b491308f9e8b00f22d9d58b1c984046be5b4a94a21a59038b996dd27",
+   "recipeHash": "0x333a1e28323786643a1196031972483841e4e6d9621c6e287947be2ca1b26474",
+   "family": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 31
+  }
+ ],
+ "choices": [
+  {
+   "gpu": "H100",
+   "live": [
+    "p_verda",
+    "p_nebius",
+    "p_lambda",
+    "p_coreweave",
+    "p_civo"
+   ],
+   "reserve": "p_hyperstack",
+   "displayOnly": [
+    {
+     "sourceId": "p_seeweb",
+     "reasons": [
+      "EUR price (display-only by default; flag --include-eur)"
+     ]
+    },
+    {
+     "sourceId": "p_gcore",
+     "reasons": [
+      "EUR price (display-only by default; flag --include-eur)"
+     ]
+    }
+   ],
+   "validHours": {
+    "p_verda": 49,
+    "p_nebius": 49,
+    "p_lambda": 49,
+    "p_coreweave": 49,
+    "p_civo": 49,
+    "p_hyperstack": 49,
+    "p_seeweb": 42,
+    "p_gcore": 41
+   },
+   "warnings": [
+    "p_civo page is 196542 bytes, 79% of CRE's cap"
+   ]
+  },
+  {
+   "gpu": "H200",
+   "live": [
+    "p_verda",
+    "p_nebius",
+    "p_coreweave",
+    "p_civo",
+    "p_hyperstack"
+   ],
+   "reserve": null,
+   "displayOnly": [
+    {
+     "sourceId": "p_seeweb",
+     "reasons": [
+      "EUR price (display-only by default; flag --include-eur)"
+     ]
+    },
+    {
+     "sourceId": "p_gcore",
+     "reasons": [
+      "EUR price (display-only by default; flag --include-eur)",
+      "no VALID H200 hour in the archive (49 hours read)"
+     ]
+    }
+   ],
+   "validHours": {
+    "p_verda": 49,
+    "p_nebius": 49,
+    "p_coreweave": 49,
+    "p_civo": 49,
+    "p_hyperstack": 49,
+    "p_seeweb": 42,
+    "p_gcore": 0
+   },
+   "warnings": [
+    "p_civo page is 196542 bytes, 79% of CRE's cap"
+   ]
+  },
+  {
+   "gpu": "B200",
+   "live": [
+    "p_verda",
+    "p_nebius",
+    "p_lambda",
+    "p_coreweave",
+    "p_hyperstack"
+   ],
+   "reserve": null,
+   "displayOnly": [
+    {
+     "sourceId": "p_civo",
+     "reasons": [
+      "no VALID B200 hour in the archive (49 hours read)"
+     ]
+    }
+   ],
+   "validHours": {
+    "p_verda": 49,
+    "p_nebius": 49,
+    "p_lambda": 49,
+    "p_coreweave": 49,
+    "p_civo": 0,
+    "p_hyperstack": 49
+   },
+   "warnings": []
+  }
+ ]
+}

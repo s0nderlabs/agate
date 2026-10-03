@@ -200,4 +200,41 @@ contract GasTest is IndexBase {
         _measure("carryDay case 2 worst (four formulas)", keeper, abi.encodeCall(IAgateIndex.carryDay, (GPU)));
         assertEq(rec(d + 1).source, w2);
     }
+
+    // ------------------------------------------------------------------ owner calls (4.11, 4.15; forge scripts only)
+
+    function _b(uint256 n) internal pure returns (string memory) {
+        bytes memory b = new bytes(n);
+        for (uint256 i; i < n; ++i) {
+            b[i] = bytes1(uint8(97 + (i % 26)));
+        }
+        return string(b);
+    }
+
+    /// 4.14: queueReaderSwap and executeReaderSwap with a 100-byte URL and a 100-byte reason (parser "lambda/2").
+    function test_gas_readerSwap_100B() public {
+        IAgateIndex.Reader memory r;
+        r.url = string.concat("https://", _b(92));
+        r.parserVersion = "lambda/2";
+        string memory why = _b(100);
+        assertEq(bytes(r.url).length, 100);
+        _measure("queueReaderSwap (100-byte url and reason)", owner, abi.encodeCall(IAgateIndex.queueReaderSwap, (GPU, 7, r, why)));
+        warpTo(block.timestamp + 2 * uint256(P.day));
+        _measure("executeReaderSwap (100-byte url and reason)", owner, abi.encodeCall(IAgateIndex.executeReaderSwap, (GPU, 7, r)));
+        _measure("queueReaderSwap again (another slot)", owner, abi.encodeCall(IAgateIndex.queueReaderSwap, (GPU, 8, r, why)));
+        _measure("cancelReaderSwap", owner, abi.encodeCall(IAgateIndex.cancelReaderSwap, (GPU, 8, r)));
+    }
+
+    /// The owner queue with the 14 DAY window: queue, execute and cancel of an action.
+    function test_gas_ownerQueue_window() public {
+        IAgateIndex.Action memory a;
+        a.kind = IAgateIndex.ActionKind.ATTESTER;
+        a.addr = keeper;
+        _measure("queue (ATTESTER)", owner, abi.encodeCall(IAgateIndex.queue, (a)));
+        warpTo(block.timestamp + 2 * uint256(P.day));
+        _measure("execute (ATTESTER)", owner, abi.encodeCall(IAgateIndex.execute, (a)));
+        a.addr = stranger;
+        _measure("queue (ATTESTER, second)", owner, abi.encodeCall(IAgateIndex.queue, (a)));
+        _measure("cancel (ATTESTER)", owner, abi.encodeCall(IAgateIndex.cancel, (a)));
+    }
 }

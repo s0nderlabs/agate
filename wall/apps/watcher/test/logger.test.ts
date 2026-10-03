@@ -8,14 +8,14 @@ import { join } from "node:path";
 import type { SourceDef } from "@agate/sources/types";
 import { AlertSink } from "../src/alerts.ts";
 import { Heartbeat, LockHeld, takeLock } from "../src/fsutil.ts";
-import { Logger, type LoggerApi, type Page } from "../src/log/logger.ts";
+import { httpFetchPage, Logger, type LoggerApi, type Page } from "../src/log/logger.ts";
 import { cellOf, LogStore } from "../src/log/store.ts";
 
 const rule = { product: "x", form: "SXM", priceClass: "on-demand", instance: "per-GPU of the 8-GPU instance, else of the 1-GPU instance", rentable: "assumed-rentable", effectiveDate: "a price shown from date X counts from 00:00 UTC of X", tax: "excluding VAT", notes: "" } as const;
 const SOURCES: SourceDef[] = [
-  { id: "p_a", company: "A", url: "https://a.example/p", currency: "USD", parserVersion: "1", rules: { H100: rule } },
-  { id: "p_b", company: "B", url: "https://b.example/p", currency: "USD", parserVersion: "1", rules: { H100: rule, H200: rule } },
-  { id: "p_eur", company: "E", url: "https://e.example/p", currency: "EUR", parserVersion: "1", rules: { H100: rule } },
+  { id: "p_a", company: "A", url: "https://a.example/p", currency: "USD", parserVersion: "1", rules: { H100: rule }, hosts: ["a.example"] },
+  { id: "p_b", company: "B", url: "https://b.example/p", currency: "USD", parserVersion: "1", rules: { H100: rule, H200: rule }, hosts: ["b.example"] },
+  { id: "p_eur", company: "E", url: "https://e.example/p", currency: "EUR", parserVersion: "1", rules: { H100: rule }, hosts: ["e.example"] },
 ];
 const api: LoggerApi = {
   SOURCES,
@@ -188,5 +188,25 @@ describe("logger", () => {
     const child = Bun.spawnSync(["bun", "-e", `import { takeLock } from "${join(import.meta.dir, "../src/fsutil.ts")}"; try { takeLock("${join(dir, "x.lock")}"); console.log("got"); } catch (e) { console.log(e.constructor.name); }`]);
     expect(child.stdout.toString().trim()).toBe("LockHeld");
     expect(readdirSync(dir)).toContain("x.lock");
+  });
+
+  test("a followed redirect is recorded as location (15.2's moved); a direct page has none", async () => {
+    const srv = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: (req: Request): Response => (new URL(req.url).pathname === "/old" ? Response.redirect(`http://127.0.0.1:${new URL(req.url).port}/new`, 301) : new Response(JSON.stringify({ H100: 3_400_000 }))),
+    });
+    try {
+      const base = `http://127.0.0.1:${srv.port}`;
+      const moved = await httpFetchPage(`${base}/old`, 5_000);
+      expect([moved.ok, moved.httpStatus, moved.location]).toEqual([true, 200, `${base}/new`]);
+      expect((await httpFetchPage(`${base}/new`, 5_000)).location).toBeUndefined();
+      const s = setup({ fetch: (url) => ({ ...page(JSON.stringify({ H100: 3_400_000, H200: 4_000_000 })), ...(url.includes("a.example") ? { location: "https://a.example/new" } : {}) }) });
+      for (let t = 1000; t < 1200; t++) await s.tick(t);
+      expect(s.store.get("p_a", 5)!.location).toBe("https://a.example/new");
+      expect(s.store.get("p_b", 5)!.location).toBeUndefined();
+    } finally {
+      srv.stop(true);
+    }
   });
 });

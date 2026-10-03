@@ -2,18 +2,35 @@
 // persists them (restart-safe) and decodes them into WallEvents.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type Abi, decodeEventLog, type Log } from "viem";
+import { type Abi, decodeEventLog, type Log, parseAbi } from "viem";
 import { agateIndexAbi } from "@agate/report/abi";
 import type { Address, Clocks, GpuConfig, Hex, IndexRecord, Readings, SlotState } from "@agate/report/types";
 import { appendLine, writeAtomic } from "../fsutil.ts";
 import type { RpcPool } from "./rpc.ts";
 import { type Detail, type EventSource, evKey, type IndexView, type WallEvent } from "./types.ts";
 
+/** The Oct 3 events and views (4.11, 4.15), so the watcher decodes them whether or not abi.ts was regenerated yet;
+ *  an entry abi.ts already has is not added twice. */
+const OCT3_ABI = parseAbi([
+  "event ActionExecuted(bytes32 indexed id, (uint8 kind, uint8 slot, address addr, bytes32 gpuId, uint32 day, uint8 mode) action)",
+  "event ActionCancelled(bytes32 indexed id)",
+  "event ReaderSwapQueued(bytes32 indexed id, bytes32 indexed gpuId, uint8 slot, string url, string parserVersion, string reason, uint64 eta)",
+  "event ReaderSwapped(bytes32 indexed id, bytes32 indexed gpuId, uint8 slot, uint32 fromDay, bytes32 readerHash, string url, string parserVersion, string reason)",
+  "event ReaderSwapCancelled(bytes32 indexed id, bytes32 indexed gpuId, uint8 slot)",
+  "function queuedEta(bytes32 id) view returns (uint64)",
+  "function readerHistory(bytes32 gpuId, uint8 slot) view returns ((uint32 fromDay, uint64 executedAt, bytes32 readerHash, string url, string parserVersion, string reason)[])",
+]);
+
+export const WATCHER_ABI: Abi = [
+  ...(agateIndexAbi as Abi),
+  ...(OCT3_ABI as Abi).filter((x) => !(agateIndexAbi as Abi).some((y) => y.type === x.type && "name" in y && "name" in x && y.name === x.name)),
+];
+
 export class ViemIndex implements IndexView {
   constructor(
     readonly pool: RpcPool,
     readonly address: Address,
-    readonly abi: Abi = agateIndexAbi as Abi,
+    readonly abi: Abi = WATCHER_ABI,
   ) {}
   private read<T>(functionName: string, args: readonly unknown[] = []): Promise<T> {
     return this.pool.call((c) => c.readContract({ address: this.address, abi: this.abi, functionName, args: args as unknown[] }) as Promise<T>);
@@ -82,6 +99,13 @@ export class ViemIndex implements IndexView {
   balance(a: Address) {
     return this.pool.call((c) => c.getBalance({ address: a }));
   }
+  async queuedEta(id: Hex) {
+    return Number(await this.read<bigint>("queuedEta", [id]));
+  }
+  async readerHistory(g: Hex, slot: number) {
+    const h = await this.read<readonly { fromDay: number; url: string; parserVersion: string; reason: string }[]>("readerHistory", [g, slot]);
+    return h.map((x) => ({ fromDay: Number(x.fromDay), url: x.url, parserVersion: x.parserVersion, reason: x.reason }));
+  }
 }
 
 function norm(d: Detail): Detail {
@@ -91,7 +115,7 @@ function norm(d: Detail): Detail {
 const N = (x: unknown) => Number(x as bigint | number);
 
 /** Decodes one AgateIndex log into a WallEvent (null for events rule R does not use). */
-export function decodeWallEvent(log: Log, abi: Abi = agateIndexAbi as Abi): WallEvent | null {
+export function decodeWallEvent(log: Log, abi: Abi = WATCHER_ABI): WallEvent | null {
   let dec: { eventName: string; args: Record<string, unknown> };
   try {
     dec = decodeEventLog({ abi, data: log.data, topics: log.topics }) as never;
@@ -99,7 +123,7 @@ export function decodeWallEvent(log: Log, abi: Abi = agateIndexAbi as Abi): Wall
     return null;
   }
   const a = dec.args;
-  const base = { key: evKey(Number(log.blockNumber), Number(log.logIndex)), gpuId: (a.gpuId ?? "0x") as Hex, day: N(a.day ?? 0) };
+  const base = { key: evKey(Number(log.blockNumber), Number(log.logIndex)), gpuId: (a.gpuId ?? "0x") as Hex, day: N(a.day ?? 0), ...(log.transactionHash ? { tx: log.transactionHash as Hex } : {}) };
   switch (dec.eventName) {
     case "ReadingsPosted":
       return { ...base, name: "ReadingsPosted", writer: a.writer as Address, slice: N(a.slice), readAt: N(a.readAt), values: (a.values as number[]).map(Number), validMask: N(a.validMask), late: Boolean(a.late) };
@@ -126,9 +150,24 @@ export function decodeWallEvent(log: Log, abi: Abi = agateIndexAbi as Abi): Wall
       return { ...base, gpuId: "0x" as Hex, name: "WriterSuspended", writer: a.writer as Address, by: a.by as Address };
     case "ActionQueued":
       {
-        const act = a.action as { kind?: unknown; addr?: unknown; mode?: unknown } | undefined;
-        return { ...base, gpuId: "0x" as Hex, name: "ActionQueued", id: a.id as Hex, eta: N(a.eta), ...(act ? { kind: N(act.kind ?? 0), addr: act.addr as Address, mode: N(act.mode ?? 0) } : {}) };
+        const act = a.action as { kind?: unknown; slot?: unknown; addr?: unknown; gpuId?: unknown; day?: unknown; mode?: unknown } | undefined;
+        return {
+          ...base, gpuId: "0x" as Hex, day: 0, name: "ActionQueued", id: a.id as Hex, eta: N(a.eta),
+          ...(act ? { kind: N(act.kind ?? 0), slot: N(act.slot ?? 0), addr: act.addr as Address, actionGpuId: act.gpuId as Hex, actionDay: N(act.day ?? 0), mode: N(act.mode ?? 0) } : {}),
+        };
       }
+    case "ActionExecuted": {
+      const act = a.action as { kind?: unknown } | undefined;
+      return { ...base, gpuId: "0x" as Hex, day: 0, name: "ActionExecuted", id: a.id as Hex, ...(act ? { kind: N(act.kind ?? 0) } : {}) };
+    }
+    case "ActionCancelled":
+      return { ...base, gpuId: "0x" as Hex, day: 0, name: "ActionCancelled", id: a.id as Hex };
+    case "ReaderSwapQueued":
+      return { ...base, day: 0, name: "ReaderSwapQueued", id: a.id as Hex, slot: N(a.slot), url: String(a.url), parserVersion: String(a.parserVersion), reason: String(a.reason), eta: N(a.eta) };
+    case "ReaderSwapped":
+      return { ...base, day: 0, name: "ReaderSwapped", id: a.id as Hex, slot: N(a.slot), fromDay: N(a.fromDay), readerHash: a.readerHash as Hex, url: String(a.url), parserVersion: String(a.parserVersion), reason: String(a.reason) };
+    case "ReaderSwapCancelled":
+      return { ...base, day: 0, name: "ReaderSwapCancelled", id: a.id as Hex, slot: N(a.slot) };
     default:
       return null;
   }

@@ -152,20 +152,24 @@ contract ReviewConformanceTest is IndexBase {
         assertEq(ix.head(GPU), d1);
     }
 
-    /// 4.11: a queued action has no expiry and survives an OWNER rotation: the new owner can execute an action the
-    /// old owner queued, any time later. Pinned so the runbook cancels stale actions after a rotation.
-    function test_queuedActionSurvivesOwnerRotation_andNeverExpires() public {
+    /// 4.11 (Oct 3, the execute window): a queued action survives an OWNER rotation, but only until
+    /// eta + ACTION_WINDOW_DAYS * DAY; a year later it is dead (it was executable for ever before Oct 3).
+    function test_queuedActionSurvivesOwnerRotation_untilItsWindowEnds() public {
         address newAtt = makeAddr("newAttester");
         IAgateIndex.Action memory a = _act(IAgateIndex.ActionKind.ATTESTER, 0, newAtt, IAgateIndex.WriterMode.TX_ORIGIN);
+        bytes32 id = keccak256(abi.encode(a));
         vm.prank(owner);
         ix.queue(a);
         address owner2 = makeAddr("owner2");
         _queueExec(_act(IAgateIndex.ActionKind.OWNER, 0, owner2, IAgateIndex.WriterMode.TX_ORIGIN));
         assertEq(ix.owner(), owner2);
+        assertGt(ix.queuedEta(id), 0, "inherited by the new owner");
         vm.warp(block.timestamp + 365 * uint256(P.day));
+        assertEq(ix.queuedEta(id), 0);
         vm.prank(owner2);
+        vm.expectPartialRevert(IAgateIndex.ActionExpired.selector);
         ix.execute(a);
-        assertEq(ix.attester(), newAtt);
+        assertEq(ix.attester(), att);
     }
 
     /// 4.5 / 4.11: FORWARDER has no checks. With WORKFLOW_OWNER mode on a forwarder that does not authenticate

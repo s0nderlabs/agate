@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The repair agent (BUILD-SPEC 15.2), one process for every index, as a launchd agent. TEMPLATE: nothing installs or
+  loads it.
+  launchd jobs hang on files under ~/Documents (macOS privacy prompt), so the job runs a copy of wall/ outside it
+  (__APP__, e.g. ~/.agate-wall/app/wall) and keeps its data in AGATE_WALL_HOME (~/.agate-wall). __REPO__ is the
+  the operator's checkout (only printed in the notes' commands; the agent never writes there).
+  No key: the agent refuses to start with any *_KEY, *_KEY_CMD, CRE_ETH_PRIVATE_KEY or ANTHROPIC_API_KEY variable
+  (the last so `claude -p` uses Claude Code's own sign-in). __CLAUDE_BIN__ is the Claude Code CLI's absolute
+  path (e.g. __HOME__/.local/bin/claude). PATH must hold node (tsc runs on it) and the Claude CLI's folder.
+  RPC (13.6, read only: readerHistory, queuedEta): __RPC_URLS_CMD__ prints the URL list at start, in memory only; it
+  holds no secret itself. XML-escape it here (& as &amp;):
+    k="$(security find-generic-password -s agate.alchemy-api-key -a api-key -w)" &amp;&amp; printf 'https://monad-testnet.g.alchemy.com/v2/%s,https://testnet-rpc.monad.xyz' "$k"
+  __INDEXES__: the served index addresses, comma separated; __PANELS__: the panel file (AGATE_PANELS_<index8>
+  overrides per index); __RAW_DIR__: the logger archive (__HOME__/.agate-index-logger/data/raw), read only.
+  To use: replace every __NAME__; copy to ~/Library/LaunchAgents/; `launchctl bootstrap gui/$(id -u) <plist>`.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>xyz.s0nderlabs.agate-repair</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>__APP__/apps/repair/launchd/run-repair.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__APP__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BUN</key>
+    <string>__BUN__</string>
+    <key>PATH</key>
+    <string>__PATH__</string>
+    <key>AGATE_INDEXES</key>
+    <string>__INDEXES__</string>
+    <key>AGATE_PANELS</key>
+    <string>__PANELS__</string>
+    <key>AGATE_WALL_HOME</key>
+    <string>__HOME__/.agate-wall</string>
+    <key>AGATE_RAW_DIR</key>
+    <string>__RAW_DIR__</string>
+    <key>AGATE_CLAUDE_BIN</key>
+    <string>__CLAUDE_BIN__</string>
+    <key>AGATE_REPO</key>
+    <string>__REPO__</string>
+    <key>AGATE_RPC_URLS_CMD</key>
+    <string>__RPC_URLS_CMD__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/.agate-wall/repair/repair.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.agate-wall/repair/repair.stderr.log</string>
+</dict>
+</plist>

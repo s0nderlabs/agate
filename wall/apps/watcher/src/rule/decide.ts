@@ -3,6 +3,7 @@
 import { digestOf } from "@agate/report";
 import type { Address } from "@agate/report/types";
 import { Kind } from "@agate/report/types";
+import { vetoBy as vetoByOf, vetoDue } from "../clock.ts";
 import { cent, computeRecord, median } from "../formula.ts";
 import { lower, RuleContext } from "./context.ts";
 import type {
@@ -89,6 +90,7 @@ export function evaluate(sc: RuleScenario): Evaluation {
   const W = ctx.W();
   const alerts: AlertDraft[] = [];
   const guardAct = ctx.guardAct;
+  const vetoBy = vetoByOf({ day: sc.clock.day, grace: sc.clock.grace ?? sc.clock.day, reopenWait: sc.clock.reopenWait ?? Math.floor(sc.clock.day / 4), epochTs: sc.clock.epochTs, epochDay: sc.clock.epochDay }, d, sc.gpu.registeredAt ?? 0);
 
   const slots: SlotView[] = [];
   for (let i = 0; i < ctx.n; i++) {
@@ -176,7 +178,7 @@ export function evaluate(sc: RuleScenario): Evaluation {
       if (best) action = best.isPending ? { kind: "attest", writer: best.source, digest: best.digest, why: `countersign, tier ${best.tier}` } : { kind: "select", writer: best.source, digest: best.digest, why: `select, tier ${best.tier} over the pending tier ${pv.tier}` };
       else {
         action = { kind: "none", why: "needsSign and no STRICT or FIX-OK candidate" };
-        alerts.push({ code: "R1_NO_CANDIDATE", severity: "action", deadline: (sc.alertRaisedAt ?? sc.now) + guardAct, message: `day ${d}: needsSign record of ${pending.source} (${pending.value}) has no candidate the attester can sign; guardian procedure (6.6): R11, then R12 with looks, then R3`, data: { tiers: verdicts.map((v) => ({ source: v.source, tier: v.tier, why: [...v.strict.why.slice(0, 2), ...v.fixOk.why.slice(0, 2)] })) } });
+        alerts.push({ code: "R1_NO_CANDIDATE", severity: "action", deadline: (sc.alertRaisedAt ?? sc.now) + guardAct, message: `day ${d}: needsSign record of ${pending.source} (${pending.value}) has no candidate the attester can sign; guardian procedure (6.6): R11, then R12 with looks, then R3; else the liveness veto (step 3b), which may wait until ${vetoBy}`, data: { tiers: verdicts.map((v) => ({ source: v.source, tier: v.tier, why: [...v.strict.why.slice(0, 2), ...v.fixOk.why.slice(0, 2)] })), vetoBy } });
       }
     } else {
       const b = pick(othersComplete);
@@ -225,6 +227,9 @@ export function evaluate(sc: RuleScenario): Evaluation {
   // (which gets the same steps) or carries within B instead of dropping at HOLD_MOVE. Never an R8 reason.
   if (!vetoTarget && pv && pending && pending.needsSign && pending.attestedAt === 0 && r12Ready && !r12)
     vetoTarget = { writer: pv.source, digest: pv.digest, reasons: ["liveness: no candidate passes R11 or R12 (6.6 step 3b; never an R8 reason)"], liveness: true };
+  // Oct 3: with no R11 or R12 candidate the liveness veto may be deferred to VETO_BY (the guardian checks the kept
+  // evidence meanwhile); it is due by the later of VETO_BY and the alert plus GUARD_ACT
+  const stuck = pending && pending.needsSign && pending.attestedAt === 0 && !r11 && !r12 ? { vetoBy, due: vetoDue(vetoBy, sc.alertRaisedAt ?? sc.now, guardAct) } : undefined;
 
   // R8 (a) (b) (c): with R7 not applying
   const r8: { writer: Address; reason: string }[] = [];
@@ -343,7 +348,7 @@ export function evaluate(sc: RuleScenario): Evaluation {
     slots,
     candidates: verdicts,
     action,
-    guardian: { r11, r12: r12Ready ? r12 : null, r12Ready, r12Why, looksNeeded: [...looksNeeded], veto: vetoTarget, r8 },
+    guardian: { r11, r12: r12Ready ? r12 : null, r12Ready, r12Why, looksNeeded: [...looksNeeded], veto: vetoTarget, r8, ...(stuck ? { stuck } : {}) },
     alerts,
   };
 }

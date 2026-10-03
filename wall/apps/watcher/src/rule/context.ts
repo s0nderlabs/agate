@@ -323,6 +323,21 @@ export class RuleContext {
     return (this.sc.looks ?? []).filter((lk) => lk.slot === i && lk.writerRegion && lk.at >= start);
   }
 
+  /** A writer-side block of slot i is confirmed: one of those looks could not read the page (its cell is not a
+   *  number). The W1 row of R12 and the withheld-slot refusal (6.4, Oct 3) share this set. */
+  blockConfirmed(i: number): boolean {
+    return this.looksOf(i).some((lk) => typeof lk.cell !== "number");
+  }
+
+  /** 6.4 (Oct 3, the J fix; fix round M1): c withholds slot i when it is readable, the watcher reads it FRESH, c has
+   *  fewer than MIN_READINGS readings of it, and c shows any kind but FRESH where the expected kind is FRESH (live, and
+   *  IN before or an entry day). Judged from the expected membership, so a never-IN slot kept OUT on an entry day is
+   *  withheld too, not only HELD or OUT after pre.wasIn. */
+  withheld(c: { kinds: readonly number[]; counts: readonly number[] }, i: number): boolean {
+    if (!this.readable(i) || this.cls(i) !== "FRESH" || c.counts[i]! >= this.MR) return false;
+    return this.expected(i).exp === Kind.FRESH && c.kinds[i] !== Kind.FRESH;
+  }
+
   dayStart(d = this.d): number {
     const c = this.sc.clock;
     return c.epochTs + (d - c.epochDay) * c.day;

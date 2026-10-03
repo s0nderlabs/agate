@@ -4,6 +4,7 @@
 // Revert leaves the state untouched (a failed eth_call).
 import type { Address, Clocks, Hex, IndexRecord, Readings, SlotState } from "@agate/report/types";
 import { NEVER, P_MAX, P_MIN, Status, TICK } from "@agate/report/types";
+import { ACTION_WINDOW_DAYS, actionIdOf, type ActionFields, readerHashOf, readerSwapIdOf } from "../chain/owner.ts";
 import { carryPost, computeRecord, type Computed, type GpuShape, initialState, readable } from "../formula.ts";
 
 export class Revert extends Error {}
@@ -380,6 +381,82 @@ export class ModelIndex {
       if (!(e instanceof Revert)) throw e;
     }
     return kase;
+  }
+
+  // ------------------------------------------------------------------ owner queue and reader swaps (4.11, 4.15)
+  // The guardian's status and the watcher's alerts read these; the owner check is left out (tests call them as owner).
+
+  readonly queued = new Map<string, number>(); // id -> eta
+  private readonly swapReason = new Map<string, string>();
+  readonly readerHistory = new Map<string, { fromDay: number; executedAt: number; readerHash: Hex; url: string; parserVersion: string; reason: string }[]>();
+
+  private window(): number {
+    return ACTION_WINDOW_DAYS * this.C.day;
+  }
+  queuedEta(id: Hex, now: number): number {
+    const eta = this.queued.get(lc(id));
+    return eta !== undefined && now <= eta + this.window() ? eta : 0;
+  }
+  private take(id: Hex, now: number): void {
+    const eta = this.queued.get(lc(id));
+    req(eta !== undefined, `NotQueued(${id})`);
+    req(now >= eta, `TimelockActive(${eta})`);
+    req(now <= eta + this.window(), `ActionExpired(${id}, ${eta + this.window()})`);
+    this.queued.delete(lc(id));
+  }
+  queueAction(a: ActionFields, now: number): Hex {
+    const id = actionIdOf(a);
+    req(this.queuedEta(id, now) === 0, `AlreadyQueued(${id})`);
+    const eta = now + this.clocks.timelock;
+    this.queued.set(lc(id), eta);
+    this.emit("ActionQueued", "0x" as Hex, 0, now, { id, eta, kind: a.kind, slot: a.slot, addr: a.addr, actionGpuId: a.gpuId, actionDay: a.day, mode: a.mode });
+    return id;
+  }
+  executeAction(a: ActionFields, now: number): void {
+    const id = actionIdOf(a);
+    this.take(id, now);
+    this.emit("ActionExecuted", "0x" as Hex, 0, now, { id, kind: a.kind });
+  }
+  cancelAction(a: ActionFields, now: number): void {
+    const id = actionIdOf(a);
+    req(this.queued.has(lc(id)), `NotQueued(${id})`);
+    this.queued.delete(lc(id));
+    this.emit("ActionCancelled", "0x" as Hex, 0, now, { id });
+  }
+  queueReaderSwap(gpuId: Hex, slot: number, url: string, parserVersion: string, reason: string, now: number): Hex {
+    const g = this.g(gpuId);
+    req(slot < g.nSlots, "BadSlot");
+    const id = readerSwapIdOf(g.gpuId, slot, url, parserVersion);
+    req(this.queuedEta(id, now) === 0, `AlreadyQueued(${id})`);
+    const eta = now + this.clocks.timelock;
+    this.queued.set(lc(id), eta);
+    this.swapReason.set(lc(id), reason);
+    this.emit("ReaderSwapQueued", g.gpuId, 0, now, { id, slot, url, parserVersion, reason, eta });
+    return id;
+  }
+  executeReaderSwap(gpuId: Hex, slot: number, url: string, parserVersion: string, now: number): number {
+    const g = this.g(gpuId);
+    const id = readerSwapIdOf(g.gpuId, slot, url, parserVersion);
+    this.take(id, now);
+    const fromDay = this.dayId(now + this.C.slice) + 1;
+    const key = `${lc(g.gpuId)}:${slot}`;
+    const h = this.readerHistory.get(key) ?? [];
+    req(h.length === 0 || h[h.length - 1]!.fromDay < fromDay, `ReaderSwapPending(${fromDay})`);
+    const reason = this.swapReason.get(lc(id)) ?? "";
+    const readerHash = readerHashOf(url, parserVersion);
+    h.push({ fromDay, executedAt: now, readerHash, url, parserVersion, reason });
+    this.readerHistory.set(key, h);
+    this.swapReason.delete(lc(id));
+    this.emit("ReaderSwapped", g.gpuId, 0, now, { id, slot, fromDay, readerHash, url, parserVersion, reason });
+    return fromDay;
+  }
+  cancelReaderSwap(gpuId: Hex, slot: number, url: string, parserVersion: string, now: number): void {
+    const g = this.g(gpuId);
+    const id = readerSwapIdOf(g.gpuId, slot, url, parserVersion);
+    req(this.queued.has(lc(id)), `NotQueued(${id})`);
+    this.queued.delete(lc(id));
+    this.swapReason.delete(lc(id));
+    this.emit("ReaderSwapCancelled", g.gpuId, 0, now, { id, slot });
   }
 
   // ------------------------------------------------------------------ views

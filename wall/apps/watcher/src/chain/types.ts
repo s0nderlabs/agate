@@ -31,12 +31,18 @@ export interface IndexView {
   reopenedAt(g: Hex, d: number): Promise<number>;
   firstRecordDay(g: Hex): Promise<{ exists: boolean; day: number }>;
   balance(a: Address): Promise<bigint>;
+  /** 4.11 (Oct 3): the eta of a live queued action or reader swap; 0 when none, executed, cancelled or expired. */
+  queuedEta(id: Hex): Promise<number>;
+  /** 4.15 (Oct 3): a slot's executed reader swaps, oldest first (empty: the registered recipe's reader). */
+  readerHistory(g: Hex, slot: number): Promise<{ fromDay: number; url: string; parserVersion: string; reason: string }[]>;
 }
 
 interface Ev {
   key: string; // unique and ordered: "<block 12 digits>:<logIndex 6 digits>"
   gpuId: Hex;
   day: number;
+  /** the transaction that emitted it (absent in events indexed before Oct 3 and in the fake chain) */
+  tx?: Hex;
 }
 export type WallEvent =
   | (Ev & { name: "ReadingsPosted"; writer: Address; slice: number; readAt: number; values: number[]; validMask: number; late: boolean })
@@ -49,7 +55,13 @@ export type WallEvent =
   | (Ev & { name: "Attested"; by: Address; source: Address; digest: Hex; finalAt: number })
   | (Ev & { name: "RecordReplaced"; by: Address; oldSource: Address; newSource: Address; oldValue: number; newValue: number; oldDigest: Hex; newDigest: Hex })
   | (Ev & { name: "WriterSuspended"; writer: Address; by: Address })
-  | (Ev & { name: "ActionQueued"; id: Hex; eta: number; kind?: number; addr?: Address; mode?: number });
+  | (Ev & { name: "ActionQueued"; id: Hex; eta: number; kind?: number; slot?: number; addr?: Address; actionGpuId?: Hex; actionDay?: number; mode?: number })
+  | (Ev & { name: "ActionExecuted"; id: Hex; kind?: number })
+  | (Ev & { name: "ActionCancelled"; id: Hex })
+  // reader swaps (4.15): gpuId is the swap's GPU, day 0
+  | (Ev & { name: "ReaderSwapQueued"; id: Hex; slot: number; url: string; parserVersion: string; reason: string; eta: number })
+  | (Ev & { name: "ReaderSwapped"; id: Hex; slot: number; fromDay: number; readerHash: Hex; url: string; parserVersion: string; reason: string })
+  | (Ev & { name: "ReaderSwapCancelled"; id: Hex; slot: number });
 
 export type WallEventName = WallEvent["name"];
 

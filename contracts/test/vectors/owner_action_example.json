@@ -1,0 +1,21 @@
+{
+ "_note": "Synthetic. The action file the repair agent writes (BUILD-SPEC 15.2) and OwnerAction.s.sol reads (13.3): one READER entry per affected (gpuId, slot) of one index, the reason written by the program. Keys starting with _ are comments.",
+ "actions": [
+  {
+   "kind": "READER",
+   "gpuId": "0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955",
+   "slot": 3,
+   "url": "https://lambda.ai/service/gpu-cloud",
+   "parserVersion": "lambda/2",
+   "reason": "redesign since 2026-10-09T06:00:00Z; 6 of 6 reads NO_ROW, tracker within 10% on 3 of 3 saved pages; draft d-20261009-0601-p_lambda"
+  },
+  {
+   "kind": "READER",
+   "gpuId": "0xf7b3c4797305bd1433be196119ae5d6df4a433cffbf8d02c22048cc3a487b30d",
+   "slot": 2,
+   "url": "https://lambda.ai/service/gpu-cloud",
+   "parserVersion": "lambda/2",
+   "reason": "redesign since 2026-10-09T06:00:00Z; 6 of 6 reads NO_ROW, tracker within 10% on 3 of 3 saved pages; draft d-20261009-0601-p_lambda"
+  }
+ ]
+}

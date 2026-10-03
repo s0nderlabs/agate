@@ -12,6 +12,9 @@ export type SynthGpu =
 export interface SynthOptions {
   /** Break the source's structural anchor (a renamed header, a moved section): the parser must refuse. */
   broken?: boolean;
+  /** A second synthetic layout (the same for every source, never a copy of a real page) that every "/1" parser reads
+   * as NO_ROW for every GPU: the replay's "redesigned" page step (7.9), for the repair agent's loop (15.2). */
+  redesigned?: boolean;
   /** Nebius only: a dated change, "from <date>" block with the main prices, "before" block with these. */
   dated?: { date: string; before: Partial<Record<GpuModel, string>> };
 }
@@ -290,10 +293,44 @@ const RENDERERS: Record<string, (p: SynthPage, o: SynthOptions) => string> = {
   p_gcore: gcore,
 };
 
+const REDESIGN_NAMES: Record<GpuModel, string> = { H100: "NVIDIA H100 SXM", H200: "NVIDIA H200 SXM", B200: "NVIDIA B200" };
+
+/** The redesigned layout: one card per GPU with the GPU count, the on-demand price per GPU-hour (or per instance-hour
+ * when only that is known) and a spot price beside it (a v2 reader must pick the on-demand cell, never the spot one). */
+function redesigned(sourceId: string, p: SynthPage): string {
+  const cur = sourceId === "p_seeweb" || sourceId === "p_gcore" ? "\u20ac" : "$";
+  const cards: string[] = [];
+  for (const g of ["H100", "H200", "B200"] as GpuModel[]) {
+    const x = p[g];
+    if (!x || ("state" in x && x.state === "missing")) continue;
+    let count = 8;
+    let onDemand: string;
+    if ("state" in x) onDemand = x.state === "not-rentable" ? "Sold out" : "call us maybe";
+    else if ("raw" in x) {
+      count = x.count;
+      onDemand = x.raw;
+    } else if ("instance" in x) {
+      count = x.count;
+      onDemand = x.count === 1 ? `${cur}${x.instance} per GPU per hour` : `${cur}${x.instance} per hour for ${x.count} GPUs`;
+    } else {
+      count = x.count ?? 8;
+      onDemand = `${cur}${x.price} per GPU per hour`;
+    }
+    cards.push(
+      `<article class="gpu-card" data-model="${g}"><h4 class="gpu-card__name">${REDESIGN_NAMES[g]}</h4><dl>` +
+        `<dt>GPUs per instance</dt><dd class="gpu-card__count">${count}</dd>` +
+        `<dt>On-demand</dt><dd class="gpu-card__price gpu-card__price--ondemand">${onDemand}</dd>` +
+        `<dt>Spot</dt><dd class="gpu-card__price gpu-card__price--spot">${cur}0.99 per GPU per hour</dd></dl></article>`,
+    );
+  }
+  return `<!doctype html><html><head><title>GPU cloud rates</title></head><body><main id="rates"><h1>Cloud GPU rates</h1>
+<section class="gpu-cards" aria-label="On-demand and spot rates">${cards.join("\n")}</section></main></body></html>`;
+}
+
 export function renderPage(sourceId: string, page: SynthPage, o: SynthOptions = {}): string {
   const r = RENDERERS[sourceId];
   if (!r) throw new Error(`no synthetic renderer for ${sourceId}`);
-  return r(page, o);
+  return o.redesigned ? redesigned(sourceId, page) : r(page, o);
 }
 
 /** An ECB eurofxref file (hist-90d shape) from rates by date. */

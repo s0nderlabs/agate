@@ -9,6 +9,7 @@ import { AlertCode } from "@agate/report/types";
 import type { AlertSink } from "../alerts.ts";
 import { intervalAt, intervalStart, utcDate } from "../clock.ts";
 import { appendLine, type Heartbeat, writeAtomic } from "../fsutil.ts";
+import { type ReadGroup, urlTag } from "../readers.ts";
 import type { LogStore } from "./store.ts";
 
 export const ECB_ID = "fx_ecb";
@@ -26,12 +27,16 @@ export interface Page {
   sha256: string;
   pageTime?: number;
   error?: string;
+  /** the final URL when the fetch followed a redirect to another URL (15.2: the repair agent's "moved") */
+  location?: string;
 }
 
 export interface LoggerApi {
   SOURCES: readonly SourceDef[];
   parse(sourceId: string, body: string, ctx: { utcDate: string; nowSec: number; fx?: FxRate }): ParseResult;
   parseEcb(body: string, forUtcDate: string): FxRate | null;
+  /** 8.6: parse with one installed parser version (a reader swap's); absent: only registered readers can be read */
+  parseWith?(parserVersion: string, body: string, ctx: { utcDate: string; nowSec: number; fx?: FxRate }): ParseResult;
 }
 
 export interface LoggerOptions {
@@ -53,13 +58,17 @@ export interface LoggerOptions {
   writeRaw?: boolean;
   /** the wall clock in seconds, read when a fetch completes (the retry is timed from its end) */
   now?: () => number;
+  /** 8.6 (Oct 3): the reads of a source in interval k with the readers in force (ReaderBook.plan); absent or empty: one
+   *  read of the registered URL with the registered parser */
+  readers?: (sourceId: string, k: number) => ReadGroup[];
 }
 
 interface Sched {
   k: number;
   at: number;
   attempt: 1 | 2;
-  first?: { page: Page; fetchedAt: number };
+  /** first attempt's pages by URL (the retry fetches only the URLs that failed) */
+  first?: Map<string, { page: Page; fetchedAt: number }>;
   scheduledAt: number;
 }
 
@@ -83,8 +92,14 @@ export class Logger {
   private get slice() {
     return this.o.clock.slice;
   }
-  private url(def: { id: string; url: string }) {
-    return this.o.baseUrl ? `${this.o.baseUrl.replace(/\/+$/, "")}/${def.id}` : def.url;
+  /** The URL fetched: the reader's, or under the replay override `<base>/<sourceId>` (one route per source, 7.9). */
+  private url(def: { id: string; url: string }, readerUrl?: string) {
+    return this.o.baseUrl ? `${this.o.baseUrl.replace(/\/+$/, "")}/${def.id}` : (readerUrl ?? def.url);
+  }
+  private plan(def: SourceDef, k: number): ReadGroup[] {
+    const p = this.o.readers?.(def.id, k);
+    if (p && p.length > 0) return p;
+    return [{ url: def.url, registeredUrl: true, gpus: this.gpusOf(def).map((gpu) => ({ gpu, parserVersion: def.parserVersion, registeredParser: true })) }];
   }
   private file(k: number) {
     return join(this.o.dir, "log", `${utcDate(intervalStart(this.o.clock, k))}.jsonl`);
@@ -129,7 +144,7 @@ export class Logger {
       const s = this.sched.get(def.id);
       if (s && s.k < kNow && !this.pending(def.id, s.k)) {
         if (!this.o.store.has(def.id, s.k)) {
-          if (s.first) this.writeLine(def, s, s.first.page, s.first.fetchedAt, 1);
+          if (s.first) this.writeAll(def, s, s.first, 1);
           else this.writeMissed(def.id, s.k);
         }
         this.sched.delete(def.id);
@@ -169,23 +184,48 @@ export class Logger {
     this.sched.set(def.id, { k: kNow, at: Math.floor(at), attempt: 1, scheduledAt: Math.floor(at) });
   }
 
+  /** One fetch per distinct URL in force (8.6); a URL that failed is retried once if the retry still starts inside
+   *  the interval. A group whose every reader this build may not use is not fetched (its line says why). */
   private async fetchOne(def: SourceDef, s: Sched, now: number): Promise<void> {
-    const page = await this.safeFetch(this.url(def));
-    const fetchedAt = now;
+    const pages = new Map(s.first ?? []);
+    for (const g of this.plan(def, s.k)) {
+      if (g.gpus.every((x) => x.problem)) continue;
+      if (pages.get(g.url)?.page.ok) continue; // the retry fetches only what failed
+      pages.set(g.url, { page: await this.safeFetch(this.url(def, g.url)), fetchedAt: now });
+    }
     const doneAt = this.o.now ? Math.floor(this.o.now()) : now;
     const end = intervalStart(this.o.clock, s.k + 1);
-    if (page.ok || s.attempt === 2) {
-      this.writeLine(def, s, page, fetchedAt, s.attempt);
+    const failed = [...pages.values()].some((x) => !x.page.ok);
+    if (!failed || s.attempt === 2) {
+      this.writeAll(def, s, pages, s.attempt);
       this.sched.set(def.id, { ...s, at: Infinity });
       return;
     }
     const gap = ((30 + this.o.rand() * 90) * this.slice) / 3_600;
-    const retryAt = Math.ceil(Math.max(doneAt, fetchedAt) + gap);
-    if (retryAt < end) this.sched.set(def.id, { ...s, attempt: 2, at: retryAt, first: { page, fetchedAt } });
+    const retryAt = Math.ceil(Math.max(doneAt, now) + gap);
+    if (retryAt < end) this.sched.set(def.id, { ...s, attempt: 2, at: retryAt, first: pages });
     else {
-      this.writeLine(def, s, page, fetchedAt, 1);
+      this.writeAll(def, s, pages, 1);
       this.sched.set(def.id, { ...s, at: Infinity });
     }
+  }
+
+  private writeAll(def: SourceDef, s: Sched, pages: Map<string, { page: Page; fetchedAt: number }>, attempts: number): void {
+    for (const g of this.plan(def, s.k)) {
+      const got = pages.get(g.url);
+      if (got) this.writeLine(def, s, got.page, got.fetchedAt, attempts, g);
+      else if (g.gpus.every((x) => x.problem)) this.writeRefused(def, s, g);
+    }
+  }
+
+  /** 8.6: a reader this build may not use reads as no reading: MISSED (unknown to rule R, never dark), with why. */
+  private writeRefused(def: SourceDef, s: Sched, g: ReadGroup): void {
+    const gpus: WatcherReading["gpus"] = {};
+    for (const x of g.gpus) gpus[x.gpu] = { state: "MISSED", valueU: 0 };
+    const line: WatcherReading = { sourceId: def.id, interval: s.k, scheduledAt: s.scheduledAt, fetchedAt: 0, attempts: 0, httpStatus: 0, bytes: 0, sha256: "", gpus, error: g.gpus.map((x) => `${x.gpu} ${x.problem!.code === "missing" ? "READER_MISSING" : "READER_REFUSED"}: ${x.problem!.why}`).join("; ") };
+    if (!g.registeredUrl) line.url = g.url;
+    line.parsers = Object.fromEntries(g.gpus.map((x) => [x.gpu, x.parserVersion]));
+    this.persist(def, line, { ok: false, httpStatus: 0, body: "", bytes: 0, sha256: "" });
   }
 
   private async safeFetch(url: string): Promise<Page> {
@@ -223,7 +263,7 @@ export class Logger {
     return GPUS.filter((g) => def.rules[g] !== undefined);
   }
 
-  private writeLine(def: SourceDef, s: Sched, page: Page, fetchedAt: number, attempts: number): void {
+  private writeLine(def: SourceDef, s: Sched, page: Page, fetchedAt: number, attempts: number, group?: ReadGroup): void {
     const gpus: WatcherReading["gpus"] = {};
     const line: WatcherReading = {
       sourceId: def.id,
@@ -237,24 +277,38 @@ export class Logger {
       gpus,
     };
     if (page.error) line.error = page.error;
+    if (page.location) line.location = page.location;
+    // 8.6: the GPUs this URL is read for, each with its parser in force; a GPU whose reader may not be used is MISSED
+    const reads = group?.gpus ?? this.gpusOf(def).map((gpu) => ({ gpu, parserVersion: def.parserVersion, registeredParser: true }));
+    if (group && !group.registeredUrl) line.url = group.url;
+    if (reads.some((x) => !x.registeredParser)) line.parsers = Object.fromEntries(reads.map((x) => [x.gpu, x.parserVersion]));
+    const usable = reads.filter((x) => !("problem" in x) || !x.problem);
+    const refused = reads.filter((x) => "problem" in x && x.problem);
+    for (const x of refused) gpus[x.gpu] = { state: "MISSED", valueU: 0 };
+    if (refused.length > 0) line.error = [line.error, ...refused.map((x) => `${x.gpu} ${"problem" in x && x.problem!.code === "missing" ? "READER_MISSING" : "READER_REFUSED"}: ${"problem" in x ? x.problem!.why : ""}`)].filter(Boolean).join("; ");
     const set = (state: ReadState, v = 0) => {
-      for (const g of this.gpusOf(def)) gpus[g] = { state, valueU: v };
+      for (const x of usable) gpus[x.gpu] = { state, valueU: v };
     };
     if (!page.ok) set("FAILED");
     else {
       const nowSec = page.pageTime ?? fetchedAt;
       const date = utcDate(nowSec);
       const parse = (fx?: FxRate) => {
-        let res: ParseResult;
-        try {
-          res = this.o.api.parse(def.id, page.body, fx ? { utcDate: date, nowSec, fx } : { utcDate: date, nowSec });
-        } catch (e) {
-          res = {};
-          line.error = `parser threw: ${String(e)}`;
-        }
-        for (const g of this.gpusOf(def)) {
-          const r = res[g];
-          gpus[g] = r ? { state: r.state, valueU: r.state === "VALID" ? r.valueU : 0 } : { state: "NO_ROW", valueU: 0 };
+        const ctx = fx ? { utcDate: date, nowSec, fx } : { utcDate: date, nowSec };
+        const byVersion = new Map<string, ParseResult>();
+        for (const x of usable) {
+          let res = byVersion.get(x.parserVersion);
+          if (!res) {
+            try {
+              res = x.registeredParser || !this.o.api.parseWith ? this.o.api.parse(def.id, page.body, ctx) : this.o.api.parseWith(x.parserVersion, page.body, ctx);
+            } catch (e) {
+              res = {};
+              line.error = `parser threw: ${String(e)}`;
+            }
+            byVersion.set(x.parserVersion, res);
+          }
+          const r = res[x.gpu];
+          gpus[x.gpu] = r ? { state: r.state, valueU: r.state === "VALID" ? r.valueU : 0 } : { state: "NO_ROW", valueU: 0 };
         }
       };
       if (def.currency === "EUR") {
@@ -280,10 +334,10 @@ export class Logger {
   }
 
   private persist(def: SourceDef, line: WatcherReading, page: Page): void {
-    if (this.o.store.has(def.id, line.interval) && this.o.store.get(def.id, line.interval)!.attempts > 0) return;
+    if ((this.o.store.get(def.id, line.interval, line.url)?.attempts ?? 0) > 0) return;
     appendLine(this.file(line.interval), line);
     this.o.store.add(line);
-    if (page.ok && this.o.writeRaw !== false) this.saveRaw(def.id, line.interval, page);
+    if (page.ok && this.o.writeRaw !== false) this.saveRaw(line.url ? `${def.id}.${urlTag(line.url)}` : def.id, line.interval, page);
     if (page.ok) this.lastSuccess.set(def.id, line.fetchedAt);
     writeAtomic(join(this.o.dir, "status", `${def.id}.json`), JSON.stringify({ sourceId: def.id, interval: line.interval, at: line.fetchedAt, states: line.gpus, lastSuccess: this.lastSuccess.get(def.id) ?? null }));
     this.log.push(`${def.id}@${line.interval}:${Object.values(line.gpus).map((g) => g?.state).join(",") || "?"}`);
@@ -322,6 +376,7 @@ export async function httpFetchPage(url: string, timeoutMs: number): Promise<Pag
       sha256: new Bun.CryptoHasher("sha256").update(raw).digest("hex"),
     };
     if (pt && /^\d+$/.test(pt)) page.pageTime = Number(pt);
+    if (res.redirected && res.url && res.url !== url) page.location = res.url;
     if (!page.ok) page.error = `HTTP ${res.status}`;
     return page;
   } catch (e) {

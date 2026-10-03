@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The Akash traded-price reader (BUILD-SPEC 16), one process for every index (display only, never an index input),
+  as a launchd agent. TEMPLATE: nothing installs or loads it.
+  launchd jobs hang on files under ~/Documents (macOS privacy prompt), so the job runs a copy of wall/ outside it
+  (__APP__, e.g. ~/.agate-wall/app/wall) and writes AGATE_WALL_HOME/akash/akash-traded.json.
+  No key and no RPC of ours: it reads Akash's public REST endpoints with an honest user agent.
+  To use: replace __HOME__, __APP__, __BUN__ (and __INTERVAL_S__, default 3600); copy to ~/Library/LaunchAgents/;
+  `launchctl bootstrap gui/$(id -u) <plist>`.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>xyz.s0nderlabs.agate-akash</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>__APP__/apps/akash/launchd/run-akash.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__APP__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BUN</key>
+    <string>__BUN__</string>
+    <key>AGATE_WALL_HOME</key>
+    <string>__HOME__/.agate-wall</string>
+    <key>AGATE_AKASH_INTERVAL_S</key>
+    <string>__INTERVAL_S__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/.agate-wall/akash/akash.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.agate-wall/akash/akash.stderr.log</string>
+</dict>
+</plist>

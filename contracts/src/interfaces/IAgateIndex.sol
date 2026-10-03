@@ -14,6 +14,8 @@ uint32 constant NEVER = type(uint32).max; // liveFrom / liveUntil "not set"
 uint8 constant REPORT_VERSION = 1;
 uint8 constant N_WRITERS = 2; // writer slot 0 = primary (CRE), 1 = standby; fixed order for C3
 uint8 constant N_GUARDIANS = 2;
+uint8 constant ACTION_WINDOW_DAYS = 14; // a queued action or reader swap is executable from eta to eta + 14 DAY
+bytes32 constant READER_SWAP_TAG = keccak256("agate.ReaderSwap.v1"); // separates reader swap ids from Action ids
 
 /// @title IAgateIndex: the wall
 /// @notice Writers post hourly readings; the contract computes one daily fix per GPU from ONE writer's stored
@@ -182,7 +184,7 @@ interface IAgateIndex is IReceiver {
     }
 
     /// A timelocked owner change. id = keccak256(abi.encode(action)). Fields the kind does not use must be zero
-    /// (BadAction). A queued action never expires; cancel stale ones after an OWNER rotation (BUILD-SPEC 13.4).
+    /// (BadAction). A queued action is executable from eta to eta + ACTION_WINDOW_DAYS * DAY (ActionExpired after).
     struct Action {
         ActionKind kind;
         uint8 slot;
@@ -190,6 +192,22 @@ interface IAgateIndex is IReceiver {
         bytes32 gpuId;
         uint32 day;
         WriterMode mode;
+    }
+
+    /// A slot's reader: the page it fetches and the parser version that reads it (BUILD-SPEC 4.15, 7.6).
+    struct Reader {
+        string url; // "https://...", 9 to 256 bytes
+        string parserVersion; // 1 to 32 bytes, e.g. "lambda/2"
+    }
+
+    /// One executed swap of a slot's reader. Before the first entry the registered recipe's reader applies.
+    struct ReaderVersion {
+        uint32 fromDay; // the first index day read with this reader
+        uint64 executedAt;
+        bytes32 readerHash; // keccak256(abi.encode(url, parserVersion))
+        string url;
+        string parserVersion;
+        string reason;
     }
 
     // ------------------------------------------------------------------ events
@@ -270,6 +288,26 @@ interface IAgateIndex is IReceiver {
     event ActionQueued(bytes32 indexed id, Action action, uint64 eta);
     event ActionExecuted(bytes32 indexed id, Action action);
     event ActionCancelled(bytes32 indexed id);
+    event ReaderSwapQueued(
+        bytes32 indexed id,
+        bytes32 indexed gpuId,
+        uint8 slot,
+        string url,
+        string parserVersion,
+        string reason,
+        uint64 eta
+    );
+    event ReaderSwapped(
+        bytes32 indexed id,
+        bytes32 indexed gpuId,
+        uint8 slot,
+        uint32 fromDay,
+        bytes32 readerHash,
+        string url,
+        string parserVersion,
+        string reason
+    );
+    event ReaderSwapCancelled(bytes32 indexed id, bytes32 indexed gpuId, uint8 slot);
 
     // ------------------------------------------------------------------ errors
 
@@ -314,6 +352,7 @@ interface IAgateIndex is IReceiver {
     error AlreadyQueued(bytes32 id);
     error NotQueued(bytes32 id);
     error TimelockActive(uint64 eta);
+    error ActionExpired(bytes32 id, uint64 deadline);
     error BadAction();
     error RoleTaken(address account);
     error ZeroAddress();
@@ -324,6 +363,8 @@ interface IAgateIndex is IReceiver {
     error SlotWindowNotOpen(uint8 slot);
     error LiveUntilTooEarly(uint32 day);
     error DayBegun(uint32 day);
+    error BadReader();
+    error ReaderSwapPending(bytes32 gpuId, uint8 slot, uint32 fromDay);
 
     // ------------------------------------------------------------------ writers
 
@@ -370,9 +411,22 @@ interface IAgateIndex is IReceiver {
         uint32 liveAtStartMask
     ) external;
 
+    /// eta = now + timelock. Refused while the same action is live-queued; one past its window may be queued afresh.
     function queue(Action calldata action) external returns (bytes32 id);
+    /// From eta to eta + ACTION_WINDOW_DAYS * DAY (the deadline second included), then ActionExpired.
     function execute(Action calldata action) external;
+    /// Live or expired.
     function cancel(Action calldata action) external;
+
+    /// Reader swap (BUILD-SPEC 4.15): a timelocked change of one slot's reader, with a reason, public at queue. id =
+    /// readerSwapId(gpuId, slot, reader); the reason is not part of it. Shares the queue, timelock and window with
+    /// the actions (queuedEta serves both). Effective from fromDay = dayId(now + slice) + 1; changes nothing recorded.
+    function queueReaderSwap(bytes32 gpuId, uint8 slot, Reader calldata reader, string calldata reason)
+        external
+        returns (bytes32 id);
+    function executeReaderSwap(bytes32 gpuId, uint8 slot, Reader calldata reader) external;
+    /// Live or expired.
+    function cancelReaderSwap(bytes32 gpuId, uint8 slot, Reader calldata reader) external;
 
     // ------------------------------------------------------------------ views (never revert unless noted)
 
@@ -431,8 +485,21 @@ interface IAgateIndex is IReceiver {
     function guardians() external view returns (address[2] memory);
     function isSuspended(address writer) external view returns (bool);
     function forwarder() external view returns (address forwarderAddress, WriterMode mode);
-    function queuedEta(bytes32 id) external view returns (uint64 eta); // 0 = not queued
+    /// An action or reader swap id's eta; 0 when nothing live is queued under it (never queued, executed, cancelled,
+    /// or past its window).
+    function queuedEta(bytes32 id) external view returns (uint64 eta);
     function actionId(Action calldata action) external pure returns (bytes32);
+
+    // readers (4.15; never revert: an unknown gpu or slot gives an empty history and swapped = false)
+    /// keccak256(abi.encode(READER_SWAP_TAG, gpuId, slot, keccak256(abi.encode(reader.url, reader.parserVersion))))
+    function readerSwapId(bytes32 gpuId, uint8 slot, Reader calldata reader) external pure returns (bytes32);
+    /// Every executed swap of the slot, oldest first (fromDay strictly increasing).
+    function readerHistory(bytes32 gpuId, uint8 slot) external view returns (ReaderVersion[] memory);
+    /// The newest swap with fromDay <= day; swapped = false: the registered recipe's reader applies.
+    function readerAt(bytes32 gpuId, uint8 slot, uint32 day)
+        external
+        view
+        returns (bool swapped, ReaderVersion memory version);
 
     // clock
     function clocks() external view returns (Clocks memory);

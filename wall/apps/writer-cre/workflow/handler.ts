@@ -1,6 +1,9 @@
 // The primary writer's workflow body (BUILD-SPEC 8.2): fetch every page once, parse with @agate/sources, build one
 // entry per registered GPU for the current slice, write the report. It only reads and reports: no memory, no
 // smoothing. main.ts wires it to the CRE runner; the bun runner (../src/runner.ts) schedules simulate runs.
+// Oct 3 (8.6): the config's `readers` (swapped slots of the run's day) choose each slot's URL and parser version;
+// each distinct URL is fetched once (under sourceBaseUrl, /<sourceId>); a version this compiled workflow lacks, or a
+// reader off the source's hosts, reads nothing for that slot (0), never another reader.
 import * as sourcesModule from "@agate/sources/pure";
 import type { Address, GpuModel } from "@agate/report/types";
 import type { Panel, SourcesPureApi } from "@agate/sources/types";
@@ -12,6 +15,7 @@ import {
   ECB_ID,
   ECB_URL,
   entryToJson,
+  fetchesOf,
   flatFields,
   flattenLogs,
   neededSources,
@@ -19,8 +23,12 @@ import {
   type PageResult,
   pageUrl,
   parsePages,
+  planNotes,
+  planReaders,
   readAtFor,
   reportHex,
+  type SlotReaders,
+  type SourcePlan,
   unflatten,
   userAgent,
 } from "@agate/writer-standby/core";
@@ -47,6 +55,8 @@ export type Config = {
   skewS?: number; // readAt lag behind the run start (default min(2, slice / 20)), see readAtFor
   clock: ClockConfig;
   panels: Panel[];
+  /** The readers of swapped slots for the run's day: gpuId -> slot -> {url, parserVersion} or {refused} (8.6). */
+  readers?: SlotReaders;
 };
 
 export type Flat = Record<string, number>;
@@ -82,13 +92,29 @@ function fetchPage(s: HTTPSendRequester, url: string, cfg: Config): PageResult {
   }
 }
 
-/** Node mode: every page once (ECB first when an EUR source is read), parsed, flattened to numbers. */
+function plansOf(cfg: Config): SourcePlan[] | undefined {
+  return cfg.readers && Object.keys(cfg.readers).length ? planReaders(api(), neededSources(api(), cfg.panels), cfg.panels, cfg.readers) : undefined;
+}
+
+/** Node mode: every page once (ECB first when an EUR source is read), parsed, flattened to numbers. With readers in
+ * force, each distinct URL once and each GPU parsed with its slot's version. */
 export function readPages(s: HTTPSendRequester, cfg: Config, readAt: number): Flat {
   const defs = neededSources(api(), cfg.panels);
   const fx = needsFx(defs) ? fetchPage(s, pageUrl(ECB_ID, ECB_URL, cfg.sourceBaseUrl), cfg) : undefined;
+  const plans = plansOf(cfg);
   const pages: Record<string, PageResult> = {};
-  for (const d of defs) pages[d.id] = fetchPage(s, pageUrl(d.id, d.url, cfg.sourceBaseUrl), cfg);
-  return flattenLogs(parsePages(api(), defs, pages, fx, readAt).logs);
+  if (plans) {
+    const got = new Map<string, PageResult>();
+    for (const f of fetchesOf(plans, cfg.sourceBaseUrl)) {
+      let pg = got.get(f.fetchUrl);
+      if (!pg) {
+        pg = fetchPage(s, f.fetchUrl, cfg);
+        got.set(f.fetchUrl, pg);
+      }
+      pages[f.key] = pg;
+    }
+  } else for (const d of defs) pages[d.id] = fetchPage(s, pageUrl(d.id, d.url, cfg.sourceBaseUrl), cfg);
+  return flattenLogs(parsePages(api(), defs, pages, fx, readAt, plans).logs);
 }
 
 export const onCron = (runtime: Runtime<Config>, _payload: CronPayload): string => {
@@ -101,6 +127,11 @@ export const onCron = (runtime: Runtime<Config>, _payload: CronPayload): string 
     .sendRequest(runtime, readPages, ConsensusAggregationByFields<Flat>(fields))(cfg, readAt)
     .result();
   const { rows, logs } = unflatten(defs, flat);
+  const plans = plansOf(cfg);
+  if (plans) {
+    const notes = planNotes(plans);
+    for (const l of logs) Object.assign(l, notes[l.sourceId] ?? {});
+  }
   const entries = buildEntries(api(), cfg.panels, rows, dayId, slice, readAt);
   const valid = Object.fromEntries(
     cfg.panels.map((p) => [p.gpu as GpuModel, entries.find((e) => e.gpuId === p.gpuId)?.values.filter((v) => v > 0).length ?? 0]),

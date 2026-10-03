@@ -12,7 +12,7 @@ import { RpcDown, RpcPool } from "../src/chain/rpc.ts";
 import { TxSender } from "../src/chain/sender.ts";
 import { deriveClocks, PROFILES } from "../src/clock.ts";
 import { connect } from "../src/config.ts";
-import { writeAtomic } from "../src/fsutil.ts";
+import { setFileScrubber, writeAtomic } from "../src/fsutil.ts";
 import { spawnAnvil } from "../../../scripts/anvil.ts";
 
 const KEY_ENV = "AGATE_TEST_SENDER_KEY";
@@ -312,11 +312,14 @@ describe("the chain id at start (no AGATE_CHAIN_ID) and a start with every URL d
     for (const k of ["AGATE_RPC_URL", "AGATE_CHAIN_ID", "AGATE_WATCHER_LOG_DIR"] as const) delete process.env[k];
     try {
       writeAtomic(cache, JSON.stringify(clocks, big)); // a cache from before the chain id was kept
-      await expect(connect("log", nowS)).rejects.toBeInstanceOf(RpcDown);
+      await expect(connect("log", nowS, { console: false })).rejects.toBeInstanceOf(RpcDown);
+      expect(process.env.AGATE_RPC_URLS).toBeUndefined(); // read once, then deleted (13.6)
+      process.env.AGATE_RPC_URLS = "http://127.0.0.1:1,http://127.0.0.1:2";
       writeAtomic(cache, JSON.stringify({ ...clocks, chainId: 10_143 }, big));
-      const w = await connect("log", nowS);
+      const w = await connect("log", nowS, { console: false });
       expect([w.pool.chainId, w.clock.slice, w.clock.epochTs]).toEqual([10_143, clocks.slice, 1_000]);
     } finally {
+      setFileScrubber(null);
       for (const k of keys) {
         if (saved[k] === undefined) delete process.env[k];
         else process.env[k] = saved[k];

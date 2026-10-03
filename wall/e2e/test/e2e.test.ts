@@ -5,14 +5,14 @@ import { describe, expect, test } from "bun:test";
 import { archivePresent } from "../src/archive.ts";
 import { haveAnvil } from "../src/chain.ts";
 import { printReport } from "../src/report.ts";
-import { SCENARIOS } from "../src/scenarios.ts";
+import { haveSandbox, SCENARIOS } from "../src/scenarios.ts";
 
 const on = process.env.AGATE_E2E === "1" && haveAnvil();
 const only = process.env.AGATE_E2E_ONLY?.split(",").filter(Boolean);
 
 describe("wall e2e on anvil", () => {
   for (const s of SCENARIOS) {
-    const skip = !on || (only !== undefined && !only.includes(s.name)) || (s.needsArchive === true && !archivePresent());
+    const skip = !on || (only !== undefined && !only.includes(s.name)) || (s.needsArchive === true && !archivePresent()) || (s.needsSandbox === true && !haveSandbox());
     test.skipIf(skip)(s.name, async () => {
       const r = await s.run();
       if (!r.ok) console.log(printReport(r, true));
