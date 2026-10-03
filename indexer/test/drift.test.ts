@@ -14,7 +14,7 @@ const ROOT = join(import.meta.dirname, "..");
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
 
 // BOTS-SPEC Appendix D: every Kuru event topic found in the deployed OrderBook implementation on Monad testnet
-// (0x72caE0a99C19B574e8a6De558F43fc1D019c9374, Oct 3 2026; full hashes in bots-indexer-20261003/deployed-code-check.txt).
+// (0x72caE0a99C19B574e8a6De558F43fc1D019c9374, Oct 3 2026).
 const KURU_TOPICS: Record<string, string> = {
   OrderCreated: "0xb81bbaf150467ef3096ed6220cb963abc169bffd2eb88f26c47359ef344cf94c",
   OrderCanceled: "0xd9c089818ef223629c2af53488dc47cf2867f157caca778ce77aaa742b8c1079",

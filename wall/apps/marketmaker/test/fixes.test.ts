@@ -1,4 +1,4 @@
-// Phase 3 audit fixes that have no audit test of their own (fix-log.md): one dollar for every configured factory
+// Audit fixes that have no audit test of their own: one dollar for every configured factory
 // (M-L1), recovery and orphan books beyond the quotable months (M-L4), a state file of another chain set aside (P-M3,
 // for the maker too), and a settle refused GAS_CAP preceded by sync chunks (P-M1).
 import { afterEach, describe, expect, test } from "bun:test";

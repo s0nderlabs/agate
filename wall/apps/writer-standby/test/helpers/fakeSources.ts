@@ -1,5 +1,5 @@
 // A synthetic stand-in for @agate/sources/pure: JSON pages {"H100": "2.99", "H200": null} (null = sold out).
-// Only for writer tests; the real parsers are builder B's. Versions "<id>/1" are registered; "f_a/2" is an installed
+// Only for writer tests; the real parsers are @agate/sources'. Versions "<id>/1" are registered; "f_a/2" is an installed
 // later version (a reader swap target) that reads the same prices from the page's "v2" object instead.
 import type { Hex } from "@agate/report/types";
 import type { Currency, FxRate, Panel, PanelSlot, ParseContext, ParseResult, ReaderRef, ReaderSwap, SourceDef, SourcesPureApi } from "@agate/sources/types";

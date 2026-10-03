@@ -17,7 +17,7 @@ import {EnvKey} from "./EnvKey.sol";
 /// Local anvil only with --sender: Anvil's default accounts carry a 7702 sweeper on Monad testnet and must never be
 /// funded there.
 ///
-/// With the owner key (phase 4, the operator's command; the key never on a command line or in a file, and the
+/// With the owner key (at the testnet deploy, the operator's command; the key never on a command line or in a file, and the
 /// key-free public RPC on forge's command line):
 ///
 ///   AGATE_OWNER_KEY="$(security find-generic-password -s agate.wall.owner -a private-key -w)" \

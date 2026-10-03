@@ -70,7 +70,7 @@ export interface Reading {
   sources: SourceLog[];
 }
 
-/** Runtime check that the sources package exports the pure API (it is built by another builder). */
+/** Runtime check that the sources package exports the pure API (a separate package). */
 export function asSourcesApi(m: unknown): SourcesPureApi {
   const x = m as Partial<SourcesPureApi>;
   for (const k of ["parse", "parseEcb", "toValueU", "slotValues", "recipeHash", "gpuIdOf", "parseWith", "sourceOfVersion", "readerAllowed", "readerProblem", "readerInForce"] as const) {

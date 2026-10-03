@@ -5,7 +5,7 @@
   loads it.
   launchd jobs hang on files under ~/Documents (macOS privacy prompt), so the job runs a copy of wall/ outside it
   (__APP__, e.g. ~/.agate-wall/app/wall) and keeps its data in AGATE_WALL_HOME (~/.agate-wall). __REPO__ is the
-  the operator's checkout (only printed in the notes' commands; the agent never writes there).
+  operator's checkout (only printed in the notes' commands; the agent never writes there).
   No key: the agent refuses to start with any *_KEY, *_KEY_CMD, CRE_ETH_PRIVATE_KEY or ANTHROPIC_API_KEY variable
   (the last so `claude -p` uses Claude Code's own sign-in). __CLAUDE_BIN__ is the Claude Code CLI's absolute
   path (e.g. __HOME__/.local/bin/claude). PATH must hold node (tsc runs on it) and the Claude CLI's folder.

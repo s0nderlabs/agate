@@ -2,13 +2,13 @@
 // (chain time, balances, books, its own orders by s_orders, series views, the index walk), reconciles its order list,
 // marks and checks the loss limit, decides per book (3.5), funds the due books (3.4), sends sequentially (each send
 // simulated first by the sender), winds down and settles (3.7), then heartbeats.
-// Phase 3 audit fixes in here: the band of a newer public index value (M-H1, fair.ts), the D1 hold before settle
+// Audit fixes in here: the band of a newer public index value (M-H1, fair.ts), the D1 hold before settle
 // (M-H2), condition 2 as an urgent requote under the day's budget with a safety cancel of the crossed orders only as
 // its fallback (M-M2, M-L2), the pending id scan kept after any send that may have gone out (M-M3), a mark that
 // never switches the loss limit off (M-M4), one dollar for every configured factory (M-L1), recovery and orphan
 // books beyond the quotable months (M-L4), a state file of another chain set aside (P-M3), and a settle refused
 // GAS_CAP preceded by sync chunks (P-M1). Since recheck R2-M1 the band also holds the attester's possible select and,
-// with the wall two or more days behind, all of [F, C] (MM_INDEX_BEHIND); since the checkpoint review a one-shot CLI
+// with the wall two or more days behind, all of [F, C] (MM_INDEX_BEHIND); since the code review a one-shot CLI
 // tick places nothing and a dry run moves no MON alert.
 import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";

@@ -1,7 +1,7 @@
 // BOTS-SPEC 4.3 to 4.5: daily claims, the final sweep and the budget (MS 6.6, audit S-M2).
 // For each series with open positions, every tick: kPrev from previewSync (days applied by anyone count), due when
 // kPrev >= lastClaimK + claimEveryDays (or kPrev == N and the sweep is not done); the D1 hold (MS 6.6 v2, fixed by the
-// phase 3 audit P-H1) keeps our bot from forcing ANY day the call would apply that the wall has not provided, or any
+// audit P-H1) keeps our bot from forcing ANY day the call would apply that the wall has not provided, or any
 // later day that would cross its last resort before the call lands (recheck R1-L1), checked again right before each
 // claimMany. Candidates come from one preview with MS 4.5's exact integers:
 // daily = true and claimable >= $0.01; in the sweep (kPrev == N) claimable >= $0.01, or q >= 1 token and claimable > 0.
@@ -423,7 +423,7 @@ export class Payer {
     }, 0n);
     let plan = await this.d.sender.plan(this.claimSpec(info, ids, c, ids.length > 1));
     if (!plan.ok && plan.error === "GAS_CAP" && ids.length > 1) {
-      // over the cap (the LIMIT table is Ethereum-priced until phase 4 re-measures on Monad): two smaller batches
+      // over the cap (the LIMIT table is Ethereum-priced until the testnet deploy re-measures on Monad): two smaller batches
       const mid = Math.ceil(ids.length / 2);
       const a = await this.claimBatch(v, ids.slice(0, mid), t, rep);
       if (a === "budget" || a === "held") return a;

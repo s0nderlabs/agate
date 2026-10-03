@@ -1,4 +1,4 @@
-# local instructions for Claude Code, never committed
+# local assistant settings, never committed
 CLAUDE.md
 .claude/
 # secrets and local state
@@ -40,7 +40,7 @@ raw/
 # python
 __pycache__/
 *.pyc
-# build specs, the spec's reference model and the login experiments stay local (agents read them on disk)
+# build specs, the spec's reference model and the login experiments stay local
 docs/wall/BUILD-SPEC.md
 docs/market/BUILD-SPEC.md
 docs/market/BOTS-SPEC.md

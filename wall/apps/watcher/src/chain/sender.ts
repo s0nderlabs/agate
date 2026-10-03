@@ -1,6 +1,6 @@
 // Transactions per BUILD-SPEC 4.14 and 13.4: eth_call at `pending` first (never send what it says reverts); gas
 // limit min(CAP, ceil(1.5 * max(estimate, MEASURED))), CAP = 2 * MEASURED, GAS_CAP when 1.5 * estimate > CAP
-// (provisional until builder A publishes MEASURED: MEASURED = estimate, CAP = 3 * estimate); fees from the RPC capped by
+// (provisional until MEASURED is published: MEASURED = estimate, CAP = 3 * estimate); fees from the RPC capped by
 // AGATE_MAX_FEE_GWEI; one sender per key, sends sequential; nonce from `pending` at start, after a wake and after any
 // error, else a local counter; rebroadcast unchanged after max(3 blocks, 30 s), replace with the same nonce and +25%
 // fees after max(120 s, slice / 4), NONCE_STUCK after three replacements; "nonce too low" resolved by receipt.
@@ -50,7 +50,7 @@ export interface SenderOptions {
   role: string;
   alerts?: AlertSink;
   abi?: Abi;
-  /** builder A's published worst case per call shape (4.14); absent = provisional */
+  /** the contracts' published worst case per call shape (4.14); absent = provisional */
   measured?: Partial<Record<CallName | string, bigint>>;
   maxFeeGwei?: number;
   now: () => number;

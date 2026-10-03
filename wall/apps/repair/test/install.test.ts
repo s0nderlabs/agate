@@ -3,7 +3,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { install, SANDBOX_TESTS, REVIEW_ONLY_TESTS } from "../src/install.ts";
+import { install, SANDBOX_TESTS, UNSANDBOXED_TESTS } from "../src/install.ts";
 import { Spawner } from "../src/spawn.ts";
 import { GOOD_V2 } from "./canned.ts";
 import { cleanup, tmp } from "./world.ts";
@@ -98,13 +98,13 @@ describe("repair install", () => {
     expect(argv.slice(5)).toEqual(SANDBOX_TESTS.map((t) => join("packages", "sources", "test", `${t}.test.ts`)));
     const text = r.out.join("\n");
     expect(text).toContain("bun test (sandboxed: 8 pure test files of packages/sources): passed");
-    expect(text).toContain("read the draft line by line before the commit review");
-    expect(text).toContain("next: review and commit");
+    expect(text).toContain("read the draft line by line before committing it");
+    expect(text).toContain("next: run those tests and commit, then");
     expect(existsSync(join(WALL, "packages", "sources", "src", "pure", "parsers", "lambda.v2.ts"))).toBe(false); // the real repo untouched
   }, 60_000);
-  test("every sources test file is either run in the sandbox or named as review-only (a new one forces a decision)", () => {
+  test("every sources test file is either run in the sandbox or named as unsandboxed (a new one forces a decision)", () => {
     const files = readdirSync(join(WALL, "packages", "sources", "test")).filter((f) => f.endsWith(".test.ts")).map((f) => f.replace(/\.test\.ts$/, "")).sort();
-    expect(files).toEqual([...SANDBOX_TESTS, ...REVIEW_ONLY_TESTS].sort());
+    expect(files).toEqual([...SANDBOX_TESTS, ...UNSANDBOXED_TESTS].sort());
   });
   test.skipIf(!MAC)("a draft that escapes gate 1 still cannot reach the network or start a program from install's tests", async () => {
     // a canned draft with a matching note that would pass gate 1 is the case above; here the sandbox itself is shown

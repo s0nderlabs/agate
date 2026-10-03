@@ -35,7 +35,7 @@ export interface ProfileOptions {
   wallRoot?: string;
 }
 
-/** The sandbox profile of 15.2 (fix round Oct 3, audit B1): later rules win, so the read allowances come last. */
+/** The sandbox profile of 15.2: later rules win, so the read allowances come last. */
 export function sandboxProfile(o: ProfileOptions): string {
   const wall = real(o.wallRoot ?? WALL_ROOT);
   const draft = real(o.draftDir);

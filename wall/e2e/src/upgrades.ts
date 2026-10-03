@@ -1,4 +1,4 @@
-// The Oct 3 upgrade scenarios (BUILD-SPEC 17.2 Integrate, the phase 2b wall upgrades): the reader swap taking effect
+// The Oct 3 upgrade scenarios (BUILD-SPEC 17.2, the wall upgrades): the reader swap taking effect
 // at the next day start (4.15, 8.6), owner actions and swaps that expire (4.11), the writers reposting through a long
 // RPC outage inside GRACE (8.1, with 13.6's redaction checked on every file), KEY_MISMATCH on a second user of a
 // writer's key (8.5, R8 (d)), the page check's review and fault alerts (15.1), two indexes side by side on one chain
@@ -746,7 +746,7 @@ const repairLoop: Scenario = {
             const inc = agent!.store.all().find((x) => f.startsWith(x.id));
             const n = inc ? (JSON.parse(readFileSync(join(cfg!.dir, "notes", `${inc.id}.json`), "utf8")) as { draft?: { path: string; sha256: string } }) : {};
             action = { file, incident: inc?.id ?? "", actions: j.actions, ...(n.draft ? { draft: n.draft } : {}) };
-            // the operator: repair install (in memory here), commit, restart; then queue exactly the action file's swaps
+            // the operator: repair install (in memory here), test and commit, restart; then queue exactly the action file's swaps
             if (!action.draft) throw new Error("the note names no draft");
             const un = await installDraft(w, action.draft.path, LAMBDA_V2, action.draft.sha256);
             w.cleanups.push(un);

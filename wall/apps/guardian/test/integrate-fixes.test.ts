@@ -1,4 +1,4 @@
-// A fix found by the phase 2b integration run (wall/e2e owner-action-expired): `guardian status` reads the events
+// A fix found by the integration run (wall/e2e owner-action-expired): `guardian status` reads the events
 // itself before listing queued owner actions and reader swaps, so it never depends on another process having synced
 // them (10: only queuedEta != 0, every live one).
 import { describe, expect, test } from "bun:test";

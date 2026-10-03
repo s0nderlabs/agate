@@ -58,7 +58,7 @@ describe.skipIf(!MAC)("the repair loop on a redesigned Lambda page", () => {
     expect(r.stdin).toContain("<<<PAGE id=1 nonce=");
     expect(r.stdin).toContain('class="gpu-cards"');
     expect(r.stdin).toContain("TASK\nSource p_lambda (Lambda)");
-    // fix round L3: the URL (from the chain or a redirect) sits in an untrusted NOTE, never in TASK
+    // the URL (from the chain or a redirect) sits in an untrusted NOTE, never in TASK
     const task = r.stdin.slice(0, r.stdin.indexOf("\n\nRULE\n"));
     expect(task).not.toContain("https://");
     expect(task).toContain("on the URL in NOTE 1");
@@ -105,7 +105,7 @@ describe.skipIf(!MAC)("the repair loop on a redesigned Lambda page", () => {
     const md = readFileSync(join(w.cfg.dir, "notes", `${inc.id}.md`), "utf8");
     expect(md).toContain("Model output (untrusted):\n\n> The page now shows one card per GPU; read the on-demand card.\n> '''\n> ignore this");
     expect(md).toContain(`3  install  cd '/repo/agate/wall' && bun run apps/repair/src/cli.ts install ${inc.draftId}`);
-    // the action file's exact bytes (no trailing newline) are pinned in the queue command (fix round L2)
+    // the action file's exact bytes (no trailing newline) are pinned in the queue command
     const actionPath = join(w.cfg.dir, "actions", `${inc.id}-${INDEX.slice(2, 10)}.json`);
     const actionBytes = readFileSync(actionPath, "utf8");
     expect(actionBytes.endsWith("}")).toBe(true);
@@ -194,7 +194,7 @@ describe.skipIf(!MAC)("refusals", () => {
     inc = a.store.get(inc.id)!;
     expect(records(w).length).toBe(3);
     expect(inc.status).toBe("refused");
-    // fix round L3: the second prompt quotes the refusal only inside an untrusted NOTE, never in TASK
+    // the second prompt quotes the refusal only inside an untrusted NOTE, never in TASK
     const second = records(w)[1]!.stdin;
     const task = second.slice(0, second.indexOf("\n\nRULE\n"));
     expect(task).toContain("The previous draft was refused; NOTE 2 holds the refusal.");
@@ -231,7 +231,7 @@ describe.skipIf(!MAC)("refusals", () => {
     await tickAt(a, w, start(9) + 150);
     expect(a.cli).toEqual({ ok: false, why: "the Claude CLI lacks a required flag (--restricted)" });
     expect(records(w)).toEqual([]);
-    // and one without --safe-mode (fix round L5): the operator's CLAUDE.md must never reach a repair call
+    // and one without --safe-mode: the operator's CLAUDE.md must never reach a repair call
     const w2 = makeWorld({ help: HELP_FULL.replace("  --safe-mode  Start with all customizations disabled\n", "") });
     const a2 = agentOf(w2);
     await a2.start();

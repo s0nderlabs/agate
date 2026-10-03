@@ -34,8 +34,8 @@ import {EnvKey} from "./EnvKey.sol";
 /// for ever (seen Oct 2 2026, n = 1).
 ///
 /// An entry's index can be overridden with AGATE_INDEX_<name> (e.g. AGATE_INDEX_demo); a set variable that is not a
-/// nonzero address with code stops the run (envIndex), it never falls back to the config's index. Testnet runs only in
-/// phase 4 with the operator's go, the key read into the forge process's environment only (BUILD-SPEC 10.1), never
+/// nonzero address with code stops the run (envIndex), it never falls back to the config's index. Testnet runs only at
+/// the testnet deploy with the operator's go, the key read into the forge process's environment only (BUILD-SPEC 10.1), never
 /// onto a command line or into a file:
 ///
 ///   AGATE_DEPLOYER_KEY="$(security find-generic-password -s agate.deployer -a private-key -w)" \

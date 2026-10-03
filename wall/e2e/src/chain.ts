@@ -1,4 +1,4 @@
-// A private local anvil with the real AgateIndex (builder A's forge build, its libraries linked here the way forge
+// A private local anvil with the real AgateIndex (the contracts' forge build, its libraries linked here the way forge
 // links them), Anvil's default test accounts, and a clock the harness owns: anvil's block time is frozen
 // (timestamp interval 0) and only moves when warp() moves it. Local chain only, never a public network.
 import { existsSync } from "node:fs";

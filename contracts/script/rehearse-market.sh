@@ -9,7 +9,7 @@
 #                                                  ListSeries, one openShort and one openLong through the router,
 #                                                  the deployments JSON printed
 #   contracts/script/rehearse-market.sh fork-test  forge test against the fork for every test/market test gated on
-#                                                  MONAD_FORK_URL (test/market/fork/*, audit/KuruSquatFork.t.sol);
+#                                                  MONAD_FORK_URL (test/market/fork/*, adversarial/KuruSquatFork.t.sol);
 #                                                  extra arguments go to forge test, e.g. --isolate
 #
 # Refuses to start under AGATE_ANVIL_MIN_FREE_GB GB free (default 30, the floor anvil-safe applies too) and checks

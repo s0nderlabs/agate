@@ -6,7 +6,7 @@ import {IAgateIndex} from "../src/interfaces/IAgateIndex.sol";
 import {IReceiver} from "../src/interfaces/IReceiver.sol";
 
 /// Pins the wire format shared with wall/packages/report (vector written by its scripts/gen-example.ts).
-/// The index builder adds: assertEq(index.digestOf(...), v.digest) once AgateIndex exists.
+/// DigestVector.t.sol checks the same vector against AgateIndex's digestOf.
 contract ReportVectorTest is Test {
     string internal json;
 

@@ -1,6 +1,6 @@
 // Local chains for the payer's tests: a local anvil or an anvil fork of Monad testnet, always through anvil-safe
-// (wall/scripts/anvil.ts), after a free-disk check; the market contracts from a Foundry build of contracts/ (the
-// builder's own FOUNDRY_OUT); a clock the test owns (anvil's timestamp interval 0: time moves only by warp()).
+// (wall/scripts/anvil.ts), after a free-disk check; the market contracts from a Foundry build of contracts/ (or
+// a separate FOUNDRY_OUT); a clock the test owns (anvil's timestamp interval 0: time moves only by warp()).
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";

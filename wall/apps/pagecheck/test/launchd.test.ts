@@ -1,4 +1,4 @@
-// The launchd template and run script of the pagecheck app (BUILD-SPEC 13.2, 13.7): written, never loaded by a builder.
+// The launchd template and run script of the pagecheck app (BUILD-SPEC 13.2, 13.7): written, never loaded by a test.
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";

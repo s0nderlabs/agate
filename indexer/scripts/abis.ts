@@ -54,7 +54,7 @@ export const kuruOrderBookAbi = parseAbi([
   "error SlippageExceeded()",
 ]);
 
-/** The forge out folder: AGATE_FORGE_OUT (a builder's own FOUNDRY_OUT), else contracts/out. */
+/** The forge out folder: AGATE_FORGE_OUT (a separate FOUNDRY_OUT), else contracts/out. */
 export function forgeOut(): string {
   return process.env.AGATE_FORGE_OUT ?? join(import.meta.dirname, "../../contracts/out");
 }

@@ -13,8 +13,11 @@ import type { NoteJson } from "./note.ts";
 
 /** The sources test files install runs in the sandbox: every one that needs no network and starts no program. */
 export const SANDBOX_TESTS = ["readers", "parsers", "recipe", "money", "hostile", "launch-panel", "archive", "ecb"] as const;
-/** The others open a local server or start tsc: they run at the commit review, after the operator has read the draft. */
-export const REVIEW_ONLY_TESTS = ["io", "pure", "replay", "replay-upgrades"] as const;
+/** The others open a local server or start tsc: the operator runs them unsandboxed (note step 4), after reading the draft. */
+export const UNSANDBOXED_TESTS = ["io", "pure", "replay", "replay-upgrades"] as const;
+
+/** The unsandboxed test files as paths from wall/. */
+export const unsandboxedPaths = (): string => UNSANDBOXED_TESTS.map((t) => `packages/sources/test/${t}.test.ts`).join(" ");
 
 export interface InstallOptions {
   draftId: string;
@@ -102,9 +105,9 @@ export async function install(o: InstallOptions): Promise<number> {
   const tail = `${t.stdout}\n${t.stderr}`.trim().split("\n").slice(-6).join("\n");
   o.out(`bun test (sandboxed: ${SANDBOX_TESTS.length} pure test files of packages/sources): ${t.code === 0 ? "passed" : `FAILED (exit ${t.code})`}`);
   o.out(tail);
-  o.out(`not run here (they open a local server or start a program): ${REVIEW_ONLY_TESTS.map((x) => `${x}.test.ts`).join(", ")}; the commit review runs them with the draft loaded and unsandboxed`);
-  o.out("the gates are a filter, not a proof: read the draft line by line before the commit review (once committed it runs inside the writers and the watcher, beside their keys)");
-  o.out("next: review and commit, then copy the committed wall/ to the launchd app copy and restart the readers (note step 5), then execute after eta (note step 6)");
+  o.out(`not run here (they open a local server or start a program): ${UNSANDBOXED_TESTS.map((x) => `${x}.test.ts`).join(", ")}; run them yourself with the draft loaded before committing (note step 4): bun test ${unsandboxedPaths()}`);
+  o.out("the gates are a filter, not a proof: read the draft line by line before committing it (once installed it runs inside the writers and the watcher, beside their keys)");
+  o.out("next: run those tests and commit, then copy the committed wall/ to the launchd app copy and restart the readers (note step 5), then execute after eta (note step 6)");
   return t.code === 0 ? 0 : 1;
 }
 

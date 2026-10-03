@@ -5,8 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {AgateIndex} from "../../src/AgateIndex.sol";
 import {IAgateIndex} from "../../src/interfaces/IAgateIndex.sol";
 
-/// The index's digestOf against the TypeScript vector (report_example.json, written by the report package), as the
-/// fixed ReportVector test asks of the index builder.
+/// The index's digestOf against the TypeScript vector (report_example.json, written by the report package), the
+/// counterpart of the ReportVector test.
 contract DigestVectorTest is Test {
     function test_digestOfMatchesTypeScript() public {
         string memory json = vm.readFile(string.concat(vm.projectRoot(), "/test/vectors/report_example.json"));

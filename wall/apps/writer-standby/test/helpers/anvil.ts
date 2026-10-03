@@ -1,4 +1,4 @@
-// A private anvil with the real AgateIndex (builder A's forge build, its four libraries linked here), the real
+// A private anvil with the real AgateIndex (the contracts' forge build, its four libraries linked here), the real
 // panels (wall/packages/sources/panels/default.json) and Anvil's default test accounts. Local chain only.
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -33,7 +33,7 @@ export const ZERO: Address = "0x0000000000000000000000000000000000000000";
 export const SELECTOR = 2183018362218727504n;
 
 export const ROOT = resolve(import.meta.dir, "../../../../..");
-// AGATE_CONTRACTS_OUT: a builder's own forge output (FOUNDRY_OUT), e.g. to run these tests on a contract not yet in contracts/out
+// AGATE_CONTRACTS_OUT: a separate forge output (FOUNDRY_OUT), e.g. to run these tests on a contract not yet in contracts/out
 const OUT = process.env.AGATE_CONTRACTS_OUT || join(ROOT, "contracts/out");
 export const PANELS_FILE = join(ROOT, "wall/packages/sources/panels/default.json");
 export const LAUNCH_PANELS_FILE = join(ROOT, "wall/packages/sources/panels/launch.json");

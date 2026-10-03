@@ -119,9 +119,11 @@ describe.skipIf(!HAVE)("archive backtest (GPUTable fallback)", () => {
 });
 
 // GPU Economy's per-GPU files are not in the logger archive; the source check of Oct 2 saved one read of each (outside
-// the repo). AGATE_TRACKER_SAMPLES overrides the folder. Compared with our parsers on the logger's 08 UTC pages.
-const GE_DIR = process.env.AGATE_TRACKER_SAMPLES || join(homedir(), ".agate-tracker-samples");
-const HAVE_GE = existsSync(join(GE_DIR, "gpueconomy_gpu_h100-sxm.gz")) && existsSync(join(RAW, "2026-10-02", "08", "p_lambda.all.gz"));
+// the repo). AGATE_TRACKER_SAMPLES names that folder; unset, these tests are skipped. Compared with our parsers on the
+// logger's 08 UTC pages.
+const GE_DIR = process.env.AGATE_TRACKER_SAMPLES ?? "";
+const HAVE_GE = GE_DIR !== "" && existsSync(join(GE_DIR, "gpueconomy_gpu_h100-sxm.gz")) && existsSync(join(RAW, "2026-10-02", "08", "p_lambda.all.gz"));
+if (!HAVE_GE) console.log("GPU Economy samples absent: skipping their parity tests (set AGATE_TRACKER_SAMPLES to the saved files' folder)");
 
 describe.skipIf(!HAVE_GE)("GPU Economy's saved files (Oct 2, n = 1 read)", () => {
   test("parse, select and agree with the clouds' own pages on 16 of 16 pairs (hand-checked values)", () => {

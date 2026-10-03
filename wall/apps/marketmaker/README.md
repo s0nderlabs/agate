@@ -43,11 +43,11 @@ The process runs `AGATE_KEY_CMD` itself and keeps the key in memory only (audit 
 readable in its exec-time environment (`ps -wwE`) for its whole life. Tests pass a throwaway key in `AGATE_MM_KEY`
 instead; never put the real key there.
 
-`launchd/xyz.s0nderlabs.agate-marketmaker.plist.template` is the agent (written, never loaded by a builder). Config:
+`launchd/xyz.s0nderlabs.agate-marketmaker.plist.template` is the agent (written, never loaded by a test). Config:
 `AGATE_MM_CONFIG` (JSON of BOTS-SPEC 3.11; an unknown field is refused). Files under
 `~/.agate-wall/market/marketmaker/`: `state.json`, `heartbeat.json`, `quotes.jsonl` (one line per requote),
 `budget-<day>.json`, the lock. Alerts go to `~/.agate-wall/alerts/alerts.jsonl` (`MM_*`, `GAS_CAP`, `NONCE_STUCK`;
-since the phase 3 audit also `MM_FORCE_HELD`, action, and `MM_MARK_FALLBACK`, info; since recheck R2-M1
+since the audit also `MM_FORCE_HELD`, action, and `MM_MARK_FALLBACK`, info; since recheck R2-M1
 `MM_INDEX_BEHIND`, action). `GAS_CAP` is keyed by bot, shape and target; a `sync` chunk or a `settle` the maker answers
 with smaller calls is only logged.
 
@@ -89,7 +89,7 @@ Without them the `KILL` file only waits for the next start.
 - **Float**: `DeployMarket`'s one-time mint of 10,000,000 tUSD to the bot (`botFloat`, MS 10.3). The bot never holds
   the deployer key. Under `dollarLowU` (500,000 tUSD) in wallet plus margin it raises `MM_FLOAT_LOW` and redeems idle
   pairs. **Top-up**: a one-off `cast send <dollar> 'mint(address,uint256)' <bot> <amount>` from the deployer (the
-  dollar's minter; phase 4 runbook), then `rebase` so the top-up is not counted as profit.
+  dollar's minter; testnet deploy runbook), then `rebase` so the top-up is not counted as profit.
 - **Loss limit**: the mark is wallet + margin dollars + bid locks + each series at its own fair
   (`(T x fair + Sh x (C - fair)) / U`); under `baseline - maxLossU` (500,000 tUSD) the kill switch engages with
   `MM_LOSS_LIMIT`. A person decides: `unkill` (re-armed from there) or `rebase`. A series whose index walk finds no
@@ -133,5 +133,5 @@ The fork runner checks the disk (refuses under 30 GB free), starts an anvil-safe
 left. Build the artifacts first: `cd contracts && FOUNDRY_OUT=$HOME/.agate-build/p1/out
 FOUNDRY_CACHE_PATH=$HOME/.agate-build/p1/cache forge build src/market test/market/mocks/MockIndex.sol`.
 
-`test/audit/` holds the phase 3 audit's probes, flipped by the fix round to assert the fixed behaviour; `test/fixes.test.ts`
+`test/adversarial/` holds the audit's probes, flipped by the fix round to assert the fixed behaviour; `test/fixes.test.ts`
 covers the fixes without an audit test of their own.

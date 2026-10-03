@@ -1,4 +1,4 @@
-// MS 6.6 D1 as fixed by the phase 3 audit (P-H1, M-H2): forcedDay over every day a sync-bearing call would apply, and
+// MS 6.6 D1 as fixed by the audit (P-H1, M-H2): forcedDay over every day a sync-bearing call would apply, and
 // (recheck R1-L1) every later day within the margin of its last resort, which the call's own sync forces if it crosses
 // before the call lands.
 import { describe, expect, test } from "bun:test";

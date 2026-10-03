@@ -167,7 +167,7 @@ export interface WriterProc {
 
 export const SENDER_TIMING: SenderTiming = { pollMs: 20, rebroadcastMs: 2_000, replaceMs: 6_000, waitMs: 3_000, lockWaitMs: 2_000 };
 
-/** Builder A's published worst cases (4.14), the watcher's AGATE_GAS_MEASURED. */
+/** The contracts' published worst cases (4.14), the watcher's AGATE_GAS_MEASURED. */
 export const WATCH_MEASURED = { attest: 413_775n, closeDay: 630_218n, veto: 114_750n } as const;
 
 export const index8 = (index: string) => index.slice(2, 10).toLowerCase();

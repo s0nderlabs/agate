@@ -1,4 +1,4 @@
-// Fixes found by the phase 2b integration run (wall/e2e reader-swap and owner-action-expired), on the fake index:
+// Fixes found by the integration run (wall/e2e reader-swap and owner-action-expired), on the fake index:
 // an attester restarted after a reader swap was queued still announces it (9.4); two swaps of one slot raise two
 // alerts and the execute of one clears only its own (8.6: one alert per swap id); a swap that expires unexecuted
 // leaves no install reminder open.
@@ -40,7 +40,7 @@ const attester = (w: World, alerts: AlertSink, events: EventSource, check: (v: s
   new Attester({ view: w.chain, events, log: w.log, alerts, sender: w.chain.sender(ATTESTER), clock: w.c, panels: [w.panel], decisionsPath: null, tickS: 10, readerCheck: (_s, r) => check(r.parserVersion), ...(announcedPath ? { announcedPath } : {}) });
 const swapAlerts = (a: AlertSink) => a.open().filter((x) => x.code === AlertCode.ONCHAIN_EVENT && x.severity === "action");
 
-describe("integration fixes (phase 2b)", () => {
+describe("integration fixes", () => {
   test("a swap queued while no attester ran is announced by the next attester process (events on disk from the last one)", async () => {
     const w = world();
     await w.run(w.now + 2 * T); // some history: posts and closes

@@ -14,7 +14,7 @@ import { type AlertFn, RpcDownError, RpcError, type RpcPool } from "./rpc.ts";
 
 export type Shape = "postReport" | "closeDay" | "onReport";
 
-/** Builder A's published worst cases (forge test --gas-report --isolate, PRODUCTION clock, 3 GPUs of 15 slots in 15
+/** The contracts' published worst cases (forge test --gas-report --isolate, PRODUCTION clock, 3 GPUs of 15 slots in 15
  * families, two writers): postReport and onReport 3 x 15 on a day's first slice, closeDay with the first writer
  * below quorum (both writers computed). */
 export const MEASURED: Readonly<Record<Shape, bigint>> = { postReport: 512_718n, closeDay: 630_218n, onReport: 518_247n };

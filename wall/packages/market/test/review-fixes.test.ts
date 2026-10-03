@@ -1,4 +1,4 @@
-// The Oct 3 code review's findings on the shared layer (phase 3 checkpoint), each fixed:
+// The Oct 3 code review's findings on the shared layer, each fixed:
 //   3. MarketScanner.reset while running gave consumers no sign: it now bumps `epoch` (the payer rebuilds on it);
 //   5. GAS_CAP was one alert per target for every bot and shape, raised by a call its caller then split and cleared by
 //      the smaller call in the same breath (and notified again every tick), and cleared by the other bot's sends;

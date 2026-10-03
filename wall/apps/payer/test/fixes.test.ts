@@ -1,4 +1,4 @@
-// Phase 3 audit fixes of the payer and lister that have no audit test of their own (fix-log.md): a front-run list
+// Audit fixes of the payer and lister that have no audit test of their own: a front-run list
 // or createMarket clears its alerts (P-L1), the lister's reserve in the claims' budget (P-L2).
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";

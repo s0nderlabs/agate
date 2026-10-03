@@ -1,4 +1,4 @@
-// The Oct 3 code review's findings on the maker (phase 3 checkpoint), each fixed:
+// The Oct 3 code review's findings on the maker, each fixed:
 //   2. with no maker process running, a CLI request (unkill, rebase, cancel-all) booted one and ran a full tick that
 //      minted, deposited and placed a ladder, then exited: a ladder nobody requotes (Kuru orders never expire). The
 //      one-shot tick now places, mints and deposits nothing; cancels and the crossed orders' cancel still go;

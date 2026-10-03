@@ -36,7 +36,7 @@ contract KuruMarketStub {
     }
 }
 
-/// @notice BUILD-SPEC 12.2 (builder B): a Kuru V1 Router stand-in for the factory's I24 tests. deployProxy's checks,
+/// @notice BUILD-SPEC 12.2: a Kuru V1 Router stand-in for the factory's I24 tests. deployProxy's checks,
 /// its CREATE2 address over the market parameters only (so a front-run with our parameters is the same market),
 /// computeAddress, closing permissionless deployment (RC4) and pausing a market come from KuruRouterBase, shared with
 /// MockKuruRouter; verifiedMarket answers zeros for a market it did not make. Test switches of its own: deploy

@@ -63,7 +63,7 @@ async function boot(): Promise<Booted> {
     log: say,
   });
   mm = new MarketMaker({ reads: rt.reads, sender, deployments: rt.deployments, config, dir: rt.dir, alerts: rt.alerts, ...(budget ? { budget } : {}), dryRun: rt.dryRun, nowMs: () => Date.now(), log: say, heartbeat: new Heartbeat(join(rt.dir, "heartbeat.json"), ROLE, "-") });
-  say("started", { maker: sender.from, dryRun: rt.dryRun, chainId: rt.pool.chainId, rpc: rt.pool.redactedUrls(), factories: config.factories.filter((f) => rt.deployments.factories[f]), gasLimits: process.env.AGATE_MARKET_GAS_LIMITS ? "AGATE_MARKET_GAS_LIMITS" : "the Foundry table (Ethereum prices; phase 4 sets AGATE_MARKET_GAS_LIMITS from Monad)" });
+  say("started", { maker: sender.from, dryRun: rt.dryRun, chainId: rt.pool.chainId, rpc: rt.pool.redactedUrls(), factories: config.factories.filter((f) => rt.deployments.factories[f]), gasLimits: process.env.AGATE_MARKET_GAS_LIMITS ? "AGATE_MARKET_GAS_LIMITS" : "the Foundry table (Ethereum prices; the testnet deploy sets AGATE_MARKET_GAS_LIMITS from Monad)" });
   return { mm, pool: rt.pool, ws: rt.endpoints.ws, lockFd: rt.lockFd };
 }
 

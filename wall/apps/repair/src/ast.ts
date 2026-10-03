@@ -1,4 +1,4 @@
-// Gate 1, the syntax half (BUILD-SPEC 15.2, fix round Oct 3): an allowlist on the draft's syntax tree, so the draft
+// Gate 1, the syntax half (BUILD-SPEC 15.2): an allowlist on the draft's syntax tree, so the draft
 // can reach only its arguments, its own values, the allowed helpers and a short list of plain globals. The word list
 // (purity.ts) alone did not: `(0 as any)["constr" + "uctor"]` named no forbidden word and reached the global object.
 // Every rule is syntactic and holds at run time whatever the types say (types can be bent by any, casts and array
@@ -44,7 +44,7 @@ const VALUE_IMPORT = "../text.ts";
 const bannedName = (s: string) => BANNED.has(s) || s.startsWith("__");
 /** A name or a string's cooked text for a refusal message: quoted, printable ASCII only. */
 const show = (s: string) => JSON.stringify(s.slice(0, 60)).replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
-/** Nodes whose cooked text the word check reads (recheck r1, H1): names, strings and template parts. */
+/** Nodes whose cooked text the word check reads: names, strings and template parts. */
 const TEXT_KINDS = new Set<number>([K.Identifier, K.PrivateIdentifier, K.StringLiteral, K.NoSubstitutionTemplateLiteral, K.TemplateHead, K.TemplateMiddle, K.TemplateTail, K.JsxText]);
 const isNum = (n: N) => n.kind === K.NumericLiteral || n.kind === K.BigIntLiteral;
 const isStr = (n: N) => n.kind === K.StringLiteral || n.kind === K.NoSubstitutionTemplateLiteral;
@@ -134,7 +134,7 @@ class Checker {
     return this.fail ? { ok: false, why: this.fail } : { ok: true };
   }
 
-  /** The word list on the cooked text of every name, string and template part, types included (recheck r1, H1):
+  /** The word list on the cooked text of every name, string and template part, types included:
    *  purity.ts reads the raw source, where an escape ("B\u0075n") hides the word. */
   private words(n: N): void {
     if (this.fail) return;
@@ -161,7 +161,7 @@ class Checker {
       return;
     }
     // a destructuring pattern: every name in it is a pattern binding. Its keys are property reads, so each obeys
-    // rule (c) by its cooked text, whatever its form (recheck r1, H1: `const { "constr\u0075ctor": F } = f` passed)
+    // rule (c) by its cooked text, whatever its form (`const { "constr\u0075ctor": F } = f` passed)
     for (const el of kids(name)) {
       if (el.kind !== K.BindingElement) continue;
       const key = el.propertyName as N | undefined;

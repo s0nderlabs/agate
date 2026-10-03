@@ -1,4 +1,4 @@
-// Gate 1's syntax half (BUILD-SPEC 15.2, fix round Oct 3, audit H1; recheck r1 H1): the allowlist on the draft's
+// Gate 1's syntax half (BUILD-SPEC 15.2): the allowlist on the draft's
 // syntax tree. Every escape below names no forbidden word in the raw source; each must be refused, and the canned
 // good drafts must pass.
 import { describe, expect, test } from "bun:test";
@@ -65,8 +65,8 @@ describe("escapes that name no forbidden word are refused", () => {
     ["new of a non-class import", wrap("  void new (textOf as any)();")],
     ["new of a class imported under another name", 'import { textOf as LayoutError } from "../text.ts";\nexport const extract = (b: string) => { void new (LayoutError as any)(b); return {}; };\n'],
     ["a syntax error", `${HEAD}export const extract = (b: string) => {;\n`],
-    // recheck r1 (H1): a banned name as a string-literal key in any destructuring pattern, escaped or not
-    ["a string key in a const pattern, escaped (the recheck's draft)", wrap('  const f = (x: number) => x;\n  const { "constr\\u0075ctor": F }: any = f;\n  void F;')],
+    // a banned name as a string-literal key in any destructuring pattern, escaped or not
+    ["a string key in a const pattern, escaped (an adversarial draft)", wrap('  const f = (x: number) => x;\n  const { "constr\\u0075ctor": F }: any = f;\n  void F;')],
     ["a string key in a const pattern, plain", wrap('  const f = (x: number) => x;\n  const { "constructor": F }: any = f;\n  void F;')],
     ["a single-quoted string key in a pattern", wrap("  const f = (x: number) => x;\n  const { 'constructor': F }: any = f;\n  void F;")],
     ["a string key in a parameter pattern", wrap('  const h = ({ "constr\\u0075ctor": F }: any) => F;\n  void h(body);')],
@@ -84,9 +84,9 @@ describe("escapes that name no forbidden word are refused", () => {
     ["a static member of RegExp (the last match of the whole process)", wrap("  void RegExp.input;")],
     ["RegExp.$1", wrap("  void RegExp.$1;")],
   ];
-  // the recheck r1 cases are refused for the reason they test, not by accident
+  // these cases are refused for the reason they test, not by accident
   const why: Record<string, string> = {
-    "a string key in a const pattern, escaped (the recheck's draft)": 'reads the property "constructor"',
+    "a string key in a const pattern, escaped (an adversarial draft)": 'reads the property "constructor"',
     "a string key in a const pattern, plain": 'reads the property "constructor"',
     "a single-quoted string key in a pattern": 'reads the property "constructor"',
     "a string key in a parameter pattern": 'reads the property "constructor"',
@@ -111,7 +111,7 @@ describe("escapes that name no forbidden word are refused", () => {
       if (why[name]) expect(r).toMatchObject({ why: expect.stringContaining(why[name]) });
     }, 30_000);
   }
-  test("every recheck r1 case is in the list", () => {
+  test("every adversarial case is in the list", () => {
     for (const k of Object.keys(why)) expect(cases.some(([n]) => n === k)).toBe(true);
   });
   test("a control character in a refused key reaches the reason only as a visible escape", async () => {

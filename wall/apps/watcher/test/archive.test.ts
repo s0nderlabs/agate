@@ -1,5 +1,5 @@
 // The watcher's logger on real archived pages (read from AGATE_RAW_DIR, never copied): through the real @agate/sources
-// parsers it must log exactly the values builder B's archive reader gives for the same hour. Skips without the archive.
+// parsers it must log exactly the values the sources package's archive reader gives for the same hour. Skips without the archive.
 import { expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -1,6 +1,6 @@
 // An in-memory index with the parts of AgateIndex a writer touches (A3, E1 to E7, E9 slice bits, C1, C3 and C4 of
 // rule R v4.3 in simplified form: "quorate" = any valid reading). Each writer gets its own IndexChain view. Not a
-// model of the formula: that is builder A's (the anvil tests run the real contract).
+// model of the formula: the anvil tests run the real contract.
 import { decodeReport } from "@agate/report";
 import type { Address, Clocks, GpuConfig, Hex, Readings } from "@agate/report/types";
 import { NEVER } from "@agate/report/types";

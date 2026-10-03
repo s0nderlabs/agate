@@ -27,7 +27,7 @@ export function newNonce(): string {
 }
 
 /** Removes every marker and the nonce from page text so that none is left, however deeply split markers nest
- *  (recheck r1, L3: the old eight-pass cap left a nine-deep marker). One pass with a stack: after each character a
+ *  (the old eight-pass cap left a nine-deep marker). One pass with a stack: after each character a
  *  marker ending there is dropped, and what remains is a prefix of a text that held none, so none can reassemble.
  *  Linear in the text (a pass per nesting level would be quadratic on a large page). */
 export function scrubMarkers(text: string, nonce: string): string {
@@ -77,7 +77,7 @@ export function wrapPage(p: PromptPage, nonce: string, anchors: readonly string[
   return `${p.label}\n<<<PAGE id=${p.id} nonce=${nonce}>>>\n${body}\n<<<END nonce=${nonce}>>>`;
 }
 
-/** Untrusted text the program quotes (15.3 rules 1 and 2, fix round L3): never in TASK, always wrapped like a page. */
+/** Untrusted text the program quotes (15.3 rules 1 and 2): never in TASK, always wrapped like a page. */
 export interface PromptNote {
   id: number;
   label: string; // program-written: "the URL the reader in force fetches"

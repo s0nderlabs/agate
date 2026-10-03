@@ -43,7 +43,7 @@ export function redaction(endpoints: RpcEndpoints): (s: string) => string {
   return (s: string) => scrubSecrets(s, endpoints);
 }
 
-/** MEASURED overrides (gas units): AGATE_GAS_POST, AGATE_GAS_CLOSE, AGATE_GAS_ONREPORT. Unset: builder A's figures. */
+/** MEASURED overrides (gas units): AGATE_GAS_POST, AGATE_GAS_CLOSE, AGATE_GAS_ONREPORT. Unset: the contracts' published figures. */
 export function measuredFromEnv(e: Record<string, string | undefined> = process.env): Partial<Record<Shape, bigint>> {
   const g: Partial<Record<Shape, bigint>> = {};
   const take = (k: string, s: Shape) => {

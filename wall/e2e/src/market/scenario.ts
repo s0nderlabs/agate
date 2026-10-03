@@ -1,9 +1,9 @@
-// The market's fork e2e (BOTS-SPEC 6; the phase 3 brief's integration run): one anvil-safe fork of Monad testnet, the
+// The market's fork e2e (BOTS-SPEC 6, the integration run): one anvil-safe fork of Monad testnet, the
 // demo index and the market deployed by the repo's forge scripts, demo days posted, closed and countersigned on the
 // real AgateIndex, the lister and payer and the market maker run as child processes exactly as launchd runs them,
 // users trading through the router on Kuru V1's real books, then every log of the run replayed through the indexer
 // (indexer/test/fork) and every entity compared with the chain's own views. Covered here: E1 to E5, E8 (kill and
-// unkill), E9, E10, E12, E13, E15, E16, E17, E18, E20, and the phase 3 audit's M-H1 (the pending guard on the real
+// unkill), E9, E10, E12, E13, E15, E16, E17, E18, E20, and the audit's M-H1 (the pending guard on the real
 // AgateIndex and Kuru book) and M-K1 (the payer's key from AGATE_KEY_CMD, absent from its process environment). Not covered (unit tests and the bots' own fork tests do):
 // E6, E7, E8's loss limit, E11, E14, E19.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

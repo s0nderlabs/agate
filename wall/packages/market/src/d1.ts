@@ -1,4 +1,4 @@
-// MS 6.6 (v2, finding D1), as fixed by the phase 3 audit (P-H1, M-H2): our own bots never send a sync-bearing call
+// MS 6.6 (v2, finding D1), as fixed by the audit (P-H1, M-H2): our own bots never send a sync-bearing call
 // (sync, claimMany, settle) that would FORCE a day the wall has not provided yet. The call applies days
 // startDay + kState .. startDay + kPrev - 1 (previewSync counts forced days in kPrev). A day can only be forced once
 // it is past its last resort (end + lastResort); every other day in that range is applied because it is final. Of

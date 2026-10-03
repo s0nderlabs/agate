@@ -98,7 +98,7 @@ for the next day or for its owner's Claim button (`PAYER_BUDGET_SPENT`, info, on
 payees that already hold the dollar. A payee new to the dollar costs 17,100 more per id (a zero-to-nonzero balance
 write). On a local anvil, `claimMany` of 50 ids to 50 fresh payees estimated 1,940,342 gas against the table's
 1,291,570, so every batch was refused `GAS_CAP`. `limitFor("series.claimMany")` therefore counts every payee as new
-(`FRESH_PAYEE_GAS`, `@agate/market` `limits.ts`), and a batch still over the cap is split in two until it fits. Phase 4's
+(`FRESH_PAYEE_GAS`, `@agate/market` `limits.ts`), and a batch still over the cap is split in two until it fits. The testnet deploy's
 Monad re-measurement should measure `claimMany` with fresh payees.
 
 ## Files

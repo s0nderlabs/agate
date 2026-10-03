@@ -288,7 +288,7 @@ export async function check(d: CliDeps, args: string[]): Promise<Evaluation> {
 }
 
 export async function look(d: CliDeps, args: string[]): Promise<void> {
-  if (!d.look) throw new Error("look needs the sources package (builder B) to fetch and parse pages");
+  if (!d.look) throw new Error("look needs the sources package to fetch and parse pages");
   const p = panelOf(d, args[0]);
   const region = flag(args, "--region");
   if (!region) throw new Error("look needs --region <label> (where this machine is; R3 and R4b need the writer's region)");

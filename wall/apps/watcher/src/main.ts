@@ -129,7 +129,7 @@ async function loadReaderApi(): Promise<ReaderApi | null> {
 async function loadLoggerApi(): Promise<LoggerApi> {
   const m = (await import("@agate/sources/pure")) as Partial<LoggerApi>;
   if (!Array.isArray(m.SOURCES) || typeof m.parse !== "function" || typeof m.parseEcb !== "function")
-    throw new Error("@agate/sources/pure does not export SOURCES, parse and parseEcb yet (builder B)");
+    throw new Error("@agate/sources/pure does not export SOURCES, parse and parseEcb yet");
   return m as LoggerApi;
 }
 

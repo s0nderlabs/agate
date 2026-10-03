@@ -8,7 +8,7 @@ import { agateIndexAbi } from "../src/abi.ts";
 import { ACTION_WINDOW_DAYS, AlertCode, READER_SWAP_TAG } from "../src/types.ts";
 import type { Clocks, IndexRecord, InitParams, Reader, Readings, ReaderVersion } from "../src/types.ts";
 
-// AGATE_FORGE_OUT: a forge out folder other than contracts/out (a builder's own FOUNDRY_OUT)
+// AGATE_FORGE_OUT: a forge out folder other than contracts/out (a separate FOUNDRY_OUT)
 const OUT = process.env.AGATE_FORGE_OUT ?? join(import.meta.dir, "../../../../contracts/out");
 const INDEX_ARTIFACT = join(OUT, "AgateIndex.sol/AgateIndex.json");
 const ARTIFACT = join(OUT, "IAgateIndex.sol/IAgateIndex.json");

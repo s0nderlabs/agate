@@ -1,6 +1,6 @@
 // BOTS-SPEC 2.4: the LIMIT table (MS 9.2, contracts/README.md: Foundry, Ethereum Cancun prices, execution gas) and
 // the provisional ceilings of the shapes not measured yet. AGATE_MARKET_GAS_LIMITS overrides it whole or per shape:
-// JSON {shape: {c: limit}} or {shape: limit}; phase 4 sets it from the Monad re-measurement (MS 10.4 step 7).
+// JSON {shape: {c: limit}} or {shape: limit}; the testnet deploy sets it from the Monad re-measurement (MS 10.4 step 7).
 import type { Shape } from "./types.ts";
 
 export class LimitsError extends Error {}
@@ -20,7 +20,7 @@ const PER_ID = 25_450;
  *  its balance write zero-to-nonzero, 17,100 more gas at Ethereum prices (20,000 instead of 2,900). Measured on a
  *  local anvil (Oct 3): claimMany of 50 ids to 50 fresh payees at c 0 estimated 1,940,342, above the table's
  *  1,291,570 by 1.5x, so 1.2 x estimate passed CAP and every batch was refused GAS_CAP. The LIMIT counts every
- *  payee as new (the worst case); phase 4's Monad re-measurement should measure claimMany with fresh payees. */
+ *  payee as new (the worst case); the testnet deploy's Monad re-measurement should measure claimMany with fresh payees. */
 export const FRESH_PAYEE_GAS = 17_100;
 
 const FIXED: Partial<Record<Shape, number>> = {

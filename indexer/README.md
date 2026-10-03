@@ -15,14 +15,14 @@ bun run gen:config <deployments.json> [--rpc] [--index-start demo=<block> --inde
 bun run capture             # rebuild test/fixtures/local-lifecycle.json on a local anvil (anvil-safe), by hand
 ```
 
-`config.yaml` and `src/lib/deployments.generated.ts` are generated, never edited. Until phase 4 they come from
-`test/fixtures/deployments.test.json` (the local test world that `capture` deploys); phase 4 regenerates them from
+`config.yaml` and `src/lib/deployments.generated.ts` are generated, never edited. Until the testnet deploy they come from
+`test/fixtures/deployments.test.json` (the local test world that `capture` deploys); the testnet deploy regenerates them from
 `contracts/deployments/10143.json` with `--index-start` for both indexes, so the price history starts at each index's
 first day. `gen:config` fails closed (audit M-2): for any input but the test world's file it refuses to write unless
 every index has an `--index-start` (through a factory over it), or `--no-index-start` says on purpose that the indexes
 start at the factories' start block (losing `GpuRegistered` and every day closed before the market deploy).
 
-**Phase 4 checklist** (audit L-6, L-7): (1) regenerate the committed pair from `contracts/deployments/10143.json` with
+**Testnet deploy checklist** (audit L-6, L-7): (1) regenerate the committed pair from `contracts/deployments/10143.json` with
 both `--index-start` blocks (the deploy blocks of the demo and real AgateIndex), (2) run `bun run codegen` and
 `bun run test`, (3) only then connect Envio's GitHub app. The committed pair points chain 10143 at the local test
 world's addresses until step 1. A run with another `--out` (a fork) rewrites `src/lib/deployments.generated.ts` too
@@ -132,8 +132,8 @@ it.
 `volumeTokens`, `notionalU`, `vwapU`, `trades`. Built from the series' current market only, as the price point (audit
 L-3): a replaced market's late fills stay in `Trade` as history.
 
-**MarketForward** (id: `<factory>-<gpuId>`). The forward curve of one GPU on one factory (the
-market's own prices): `label`, `currentMonth`, `nearSeries` and `nextSeries` (this month's and next month's series),
+**MarketForward** (id: `<factory>-<gpuId>`). The forward curve of one GPU on one factory ("the
+market's own" prices): `label`, `currentMonth`, `nearSeries` and `nextSeries` (this month's and next month's series),
 `nearMarkU`, `nextMarkU`, `updatedAt`, `points` (every PricePoint of the GPU, one per listed month, past months
 included: the app keeps `month >= currentMonth`, or reads only `nearMarkU` and `nextMarkU`; audit L-8).
 
@@ -165,7 +165,7 @@ and halt the indexer).
 From a DailyFix (the wall's dayLabel, wall spec 9.6; `src/lib/labels.ts`): no row: "open"; `SKIPPED`: "skipped";
 `NEEDS_SIGN`, `VETOED`, `DROPPED`: "pending"; `PENDING`: "pending" before `finalAt`, "final" from it; `FINAL`:
 "final"; `CARRIED`: "carried"; `CARRIED_UNVERIFIED`: "carried, unverified" (a carried day whose record was dropped or
-vetoed; Oct 2).
+vetoed).
 
 ## What lags, and what is live only
 
@@ -190,7 +190,7 @@ Each of these runs in `test/graphql.test.ts` against the local replay (with a fe
 field against `schema.graphql`.
 
 ```graphql
-# the forward curve of one GPU (Oct 2: the market's own prices, two points)
+# the forward curve of one GPU ("the market's own" prices, two points)
 query Forward($gpu: String!, $factory: String!) {
   MarketForward(where: {gpuId: {_eq: $gpu}, factory_id: {_eq: $factory}}) {
     label currentMonth nearMarkU nextMarkU
@@ -230,7 +230,7 @@ codegen accepted every construct.
 real ABI encodings (`test/ev.ts`: viem encodes each event from `abis/`, decodes it back, and hands it to `simulate`
 with its address, block and log index); ABI and config drift; the clock through Envio's block handler; the local replay
 of a scripted month on anvil (`test/fixtures/local-lifecycle.json`), compared with the chain's views at the last block;
-the README queries. `test/fork/` is the fork replay (phase 3, Integrate): the market fork e2e
+the README queries. `test/fork/` is the fork replay: the market fork e2e
 (`wall/e2e/scripts/market-fork.ts`, an anvil-safe fork of Monad testnet with the real AgateIndex, Kuru V1's real books
 and both bots) writes `test/fork/fixtures/fork-lifecycle.json` (every raw log of the run plus the chain's views at its
 last block) and `fork-deployments.json`, then runs `bun run test/fork/run.ts`. That script copies this folder into a

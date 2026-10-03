@@ -478,7 +478,7 @@ export class RepairAgent {
     const retry = this.budget.used(inc.id) < this.d.cfg.budgets.perIncident ? "draft" : "refused";
     if (!res.ok) return this.refuse(inc, s, ctx, `Claude: ${res.why}`, retry);
     const a = res.answer;
-    writeFileSync(join(draftDir, "notes.txt"), visible(a.notes)); // controls shown as escapes (recheck r1, L1)
+    writeFileSync(join(draftDir, "notes.txt"), visible(a.notes)); // controls shown as escapes
     if (a.extractorSource.trim() === "") return this.refuse(inc, s, ctx, `the model did not draft (it says ${a.diagnosis})`, retry);
     if (a.proposedUrl !== undefined) {
       const g5 = gate5(s.sourceId, a.proposedUrl);
@@ -578,7 +578,7 @@ export class RepairAgent {
       "It must read the pages since the incident (VALID within 10% of the trackers on every GPU they list) and read every older page exactly as the reader in force read it (same state and value). Money math, bounds and row states are added by parse(): return cells (kind price with the native decimal string and the GPU count it was quoted for, not-rentable, missing or error).",
       inc.lastRefusal ? "The previous draft was refused; NOTE 2 holds the refusal." : "",
     ].filter(Boolean).join("\n");
-    // 15.3 rules 1 and 2 (fix round L3): an onchain or redirect URL and a refusal (which can quote a page or a draft)
+    // 15.3 rules 1 and 2: an onchain or redirect URL and a refusal (which can quote a page or a draft)
     // are untrusted text, wrapped like a page, never part of TASK
     const notes: PromptNote[] = [{ id: 1, label: `NOTE 1: the URL the reader in force fetches (${inc.proposedUrl ? "a redirect's Location" : "the chain's reader history or the panel"})`, text: inc.proposedUrl ?? rf.url }];
     if (inc.lastRefusal) notes.push({ id: 2, label: "NOTE 2: why the previous draft was refused (program text that may quote a page or the draft)", text: inc.lastRefusal });

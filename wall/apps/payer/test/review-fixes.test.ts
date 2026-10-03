@@ -1,4 +1,4 @@
-// The Oct 3 code review's findings on the payer and the lister (phase 3 checkpoint), each fixed:
+// The Oct 3 code review's findings on the payer and the lister, each fixed:
 //   1. claimBatch reported "budget" whenever its id list shrank, also after a bisection or a drift re-read, which
 //      stopped every later batch and series of the tick;
 //   3. a scan that starts over while running (MarketScanner.reset: a chain reset under the cursor) left Positions

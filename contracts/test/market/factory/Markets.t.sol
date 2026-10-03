@@ -428,7 +428,7 @@ contract MarketsTest is FactoryBase {
         assertFalse(pilot.routerCanUse(ps), "the router refuses an OTHER venue");
     }
 
-    /// Model test_pilot_other_then_kuru_v1_same_address (v3.3, seal review): Kuru's V2 market recorded as OTHER while
+    /// Model test_pilot_other_then_kuru_v1_same_address (v3.3, review): Kuru's V2 market recorded as OTHER while
     /// its ABI is unverified is re-recorded as KURU_V1 at the same address in one call; address and venue both
     /// unchanged, or a usable record, is still refused.
     function test_I24_pilotOtherThenKuruV1SameAddress() public {

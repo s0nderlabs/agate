@@ -1,4 +1,4 @@
-// The writers on the real AgateIndex (builder A's forge build, libraries linked) with the real @agate/sources parsers
+// The writers on the real AgateIndex (the contracts' forge build, libraries linked) with the real @agate/sources parsers
 // reading scripted synthetic pages from the replay server. Anvil's default test keys on a private local chain only.
 import { afterEach, describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";

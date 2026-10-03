@@ -1,5 +1,5 @@
 {
- "_note": "Monad testnet, phase 4 only (the operator's go, BUILD-SPEC 10.4). Fill both index addresses after the wall's deploy; the pilot entry stays disabled until Kuru lists our token on V2 (3.4). Run with AGATE_MARKET_CONFIG=testnet and the deployer key read into the environment (10.1).",
+ "_note": "Monad testnet, the testnet deploy only (operator's go, BUILD-SPEC 10.4). Fill both index addresses after the wall's deploy; the pilot entry stays disabled until Kuru lists our token on V2 (3.4). Run with AGATE_MARKET_CONFIG=testnet and the deployer key read into the environment (10.1).",
  "chainId": 10143,
  "dollar": {
   "address": "0x0000000000000000000000000000000000000000",

@@ -16,7 +16,7 @@ import {EnvKey} from "./EnvKey.sol";
 ///   AGATE_FACTORY=0x... forge script script/ListSeries.s.sol --rpc-url anvil --broadcast --slow --non-interactive \
 ///     --unlocked --sender 0x...
 ///
-/// On testnet (phase 4) the lister is the payer key (BUILD-SPEC 6.6), read into the forge process's environment only
+/// On testnet the lister is the payer key (BUILD-SPEC 6.6), read into the forge process's environment only
 /// (10.1), never onto a command line or into a file:
 ///
 ///   AGATE_PAYER_KEY="$(security find-generic-password -s agate.market.payer -a private-key -w)" \

@@ -66,7 +66,7 @@ async function main(): Promise<number> {
   process.on("SIGTERM", stop);
   const chunkEnv = process.env.AGATE_MARKET_LOG_CHUNK;
   const app = await buildApp(rt, config, { now, stopping: () => stopping, ...(chunkEnv ? { logChunk: Math.max(10, Number(chunkEnv) | 0) } : {}) });
-  say("start", { cmd, from: rt.from, dryRun: rt.dryRun, chainId: rt.pool.chainId, factories: app.factories.map((f) => f.name), tickS: app.tickS, rpc: rt.pool.redactedUrls(), gasLimits: process.env.AGATE_MARKET_GAS_LIMITS ? "AGATE_MARKET_GAS_LIMITS" : "the Foundry table (Ethereum prices; phase 4 sets AGATE_MARKET_GAS_LIMITS from Monad)" });
+  say("start", { cmd, from: rt.from, dryRun: rt.dryRun, chainId: rt.pool.chainId, factories: app.factories.map((f) => f.name), tickS: app.tickS, rpc: rt.pool.redactedUrls(), gasLimits: process.env.AGATE_MARKET_GAS_LIMITS ? "AGATE_MARKET_GAS_LIMITS" : "the Foundry table (Ethereum prices; the testnet deploy sets AGATE_MARKET_GAS_LIMITS from Monad)" });
   if (cmd === "list-once") {
     const r = await app.tick({ payer: false });
     say("done", { listed: r.lister?.listed ?? [], created: r.lister?.created ?? [], waiting: r.lister?.waiting ?? [], owed: r.lister?.owed ?? [] });

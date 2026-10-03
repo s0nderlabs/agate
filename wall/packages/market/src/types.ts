@@ -1,5 +1,4 @@
-// The shared shapes of @agate/market (BOTS-SPEC 2, 3, 4). Fixed in one place; an app changes it only
-// here. Amounts are bigint in u (dollars) or token base units; days, months, k are numbers.
+// The shared shapes of @agate/market (BOTS-SPEC 2, 3, 4), shared by every bot; change them in one place. Amounts are bigint in u (dollars) or token base units; days, months, k are numbers.
 import type { Abi, Address, Hex, Log } from "viem";
 
 export type Side = 0 | 1; // LONG, SHORT

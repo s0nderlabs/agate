@@ -111,7 +111,7 @@ async function probe(code: string): Promise<string> {
   return String((r.rows.get("p")![d.version] as Record<string, { detail?: string }>).H100!.detail).replace(/^missing-row: /, "");
 }
 
-describe.skipIf(!MAC)("the tightened sandbox (fix round Oct 3, audit B1)", () => {
+describe.skipIf(!MAC)("the tightened sandbox", () => {
   test("a draft cannot start a program", async () => {
     const seen = await probe('(() => { const r = B.spawnSync(["/bin/echo", "escaped-7f3a"]); return "exit=" + r.exitCode + ";out=" + String(r.stdout); })()');
     expect(seen).not.toContain("escaped-7f3a");

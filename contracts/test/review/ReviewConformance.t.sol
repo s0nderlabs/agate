@@ -134,7 +134,7 @@ contract ReviewConformanceTest is IndexBase {
 
     /// 4.8 lets the attester or a guardian countersign a record that does not need it. That sets attestedAt, and
     /// AlreadyAttested then blocks every select of a better record on that day; only a veto remains. The attester
-    /// must never countersign an unchanged record (builder D).
+    /// must never countersign an unchanged record.
     function test_countersignOfUnchangedRecordBlocksLaterSelect() public {
         feedDay(d1, V, UP);
         closeEarliest(w1, d1);

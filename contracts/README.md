@@ -42,7 +42,7 @@ marked "warm accounts"). Both scripts start their chain only through `../wall/sc
 fresh impersonated addresses, and stop anvil and remove its state dir on exit (the leak check looks at this run's
 own anvil-safe run dir); the fork's
 `deployments/fork-10143.json` and its pending twin are removed again (or restored) at the end. `fork-test` runs
-every `test/market` file that reads `MONAD_FORK_URL` (`fork/KuruV1.t.sol`, `audit/KuruSquatFork.t.sol`).
+every `test/market` file that reads `MONAD_FORK_URL` (`fork/KuruV1.t.sol`, `adversarial/KuruSquatFork.t.sol`).
 
 **Deployments file.** forge runs a script before it sends anything, so `DeployMarket` writes only
 `deployments/<file>.pending`. After the broadcast, run the same config's verify step, which checks that every
@@ -212,6 +212,6 @@ least 3 times. At Monad's cold SLOAD price the same call is about 7,314 + 3 x 6,
   JUMPDEST: via_ir keeps 32-byte constants as data after the final INVALID), and no owner, pause or upgrade entry.
 - `test/market/router/Slippage.t.sol`: the router's own `SlippageExceeded` on buys and sells, against a venue that
   under-delivers without reverting.
-- `test/market/audit/`: adversarial probes; the ones that showed a hole assert the fixed behaviour
-  (`*_FIXED_*`). `KuruSquatFork.t.sol` is a fork test: it skips like `test/market/fork/`, and
+- `test/market/adversarial/`: adversarial probes (`extra/` holds a second round); the ones that showed a hole assert
+  the fixed behaviour (`*_FIXED_*`). `KuruSquatFork.t.sol` is a fork test: it skips like `test/market/fork/`, and
   `script/rehearse-market.sh fork-test` runs it too.
