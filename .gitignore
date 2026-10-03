@@ -40,3 +40,10 @@ raw/
 # python
 __pycache__/
 *.pyc
+# build specs, the spec's reference model and the login experiments stay local (agents read them on disk)
+docs/wall/BUILD-SPEC.md
+docs/market/BUILD-SPEC.md
+docs/market/BOTS-SPEC.md
+docs/market/model/
+docs/private/
+spikes/

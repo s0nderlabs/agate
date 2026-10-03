@@ -1,13 +1,13 @@
 # agate contracts
 
-Foundry project for the wall (`AgateIndex`, build spec `../docs/wall/BUILD-SPEC.md`) and the market (`src/market/`, build spec `../docs/market/BUILD-SPEC.md`).
+Foundry project for the wall (`AgateIndex`) and the market (`src/market/`).
 
 ```
 forge install --no-git foundry-rs/forge-std@v1.17.0                # lib/ is not committed
-forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.4.0  # the market (docs/market/BUILD-SPEC.md 0.2)
+forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.4.0  # the market
 forge build --sizes      # exits 1 only on Ethereum's 24 KB check (the factory); Monad allows 128 KB, see Contract sizes
 forge test
-forge test --match-path 'test/gas/*' --gas-report --isolate   # the call shapes of BUILD-SPEC 4.14
+forge test --match-path 'test/gas/*' --gas-report --isolate   # the index's call shapes
 anvil --code-size-limit 131072                                  # Monad allows 128 KB of runtime code
 AGATE_CONFIG=local-demo forge script script/DeployIndex.s.sol --rpc-url anvil --broadcast \
   --unlocked --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
@@ -23,8 +23,7 @@ the repo: `AGATE_REFERENCE_MODEL=/path/to/reference_model.py python3 test/vector
 ## Market
 
 The GPU-hour market (`src/market/`): a series per GPU and month with its token, a factory per (index, dollar) that
-lists series and records their Kuru V1 market, a router for one-click flows, and the test dollar. Build spec:
-`../docs/market/BUILD-SPEC.md`; reference model: `../docs/market/model` (`python3 -m unittest`).
+lists series and records their Kuru V1 market, a router for one-click flows, and the test dollar.
 
 ```
 forge build --sizes      # prints the sizes, then exits 1: the factory is over Ethereum's 24 KB (EIP-170), not Monad's 128 KB
@@ -45,7 +44,7 @@ own anvil-safe run dir); the fork's
 `deployments/fork-10143.json` and its pending twin are removed again (or restored) at the end. `fork-test` runs
 every `test/market` file that reads `MONAD_FORK_URL` (`fork/KuruV1.t.sol`, `audit/KuruSquatFork.t.sol`).
 
-**Deployments file (BUILD-SPEC 10.3).** forge runs a script before it sends anything, so `DeployMarket` writes only
+**Deployments file.** forge runs a script before it sends anything, so `DeployMarket` writes only
 `deployments/<file>.pending`. After the broadcast, run the same config's verify step, which checks that every
 address has code (and each router is its factory's) and only then writes `deployments/<file>`:
 
@@ -56,7 +55,7 @@ AGATE_MARKET_CONFIG=local forge script script/DeployMarket.s.sol --sig 'verify()
 If it refuses (a broadcast that failed or was cut off), rerun `DeployMarket` (it reuses what landed), then verify
 again. Pending files are gitignored; the deploy-script tests write theirs under `cache/test-deployments/`.
 
-**Keys (phase 4 only, BUILD-SPEC 10.1).** `DeployMarket` reads `AGATE_DEPLOYER_KEY` and `ListSeries` reads
+**Keys (testnet deploy only).** `DeployMarket` reads `AGATE_DEPLOYER_KEY` and `ListSeries` reads
 `AGATE_PAYER_KEY` from the forge process's environment (`script/EnvKey.sol`) and sign with that key; the key goes into
 the environment of that one command (`AGATE_DEPLOYER_KEY="$(security find-generic-password ...)" forge script ...`),
 never onto a command line or into a file. A variable that is set must be a nonzero 0x-prefixed hex key, or the run
@@ -71,7 +70,7 @@ pull. Do not read series views from inside a dollar hook (tUSD and Kuru's USDC h
 router, `attachMarket` records as KURU_V1 only markets Kuru's Router lists (`verifiedMarket`) for the series' token and
 the dollar. A market the router cannot use may be re-recorded at the same address under another venue (the pilot's
 OTHER to KURU_V1 once the V1 ABI is proven). The app refuses as payee the series, its token, its market, the
-factory, the router, and Kuru's MarginAccount and Router (BUILD-SPEC 6.2).
+factory, the router, and Kuru's MarginAccount and Router.
 
 ### Contract sizes
 
@@ -89,7 +88,7 @@ compiler warning.
 | AgateDollar | 3,899 | 5,926 |
 | AgateToken | 3,555 | 5,453 |
 
-### Gas (BUILD-SPEC 9.1 step 4, 9.2)
+### Gas
 
 Measured in Foundry at Ethereum's Cancun prices, `--isolate`, every account and slot cold. **used**: execution gas
 before refunds. **LIMIT**: the smallest execution gas at which the call succeeds and applies every pending day (binary
@@ -100,7 +99,7 @@ the final claims c = 0 means every day applied). Series and factory shapes run o
 and December (N = 31); router shapes and `createMarket` on Kuru V1's deployed code on a fork (block 67,606,265;
 `createMarket` measured the same at 67,582,358), with the MockKuruOrderBook figure beside them. Monad bills the gas
 limit and prices cold state higher (cold SLOAD about 8,100 instead of 2,100, cold account about 10,100 instead of
-2,600; BUILD-SPEC Appendix C), so phase 4 re-measures every shape with `eth_estimateGas` on Monad testnet and
+2,600), so the testnet deploy re-measures every shape with `eth_estimateGas` on Monad testnet and
 publishes the larger of each pair (10.4 step 7). Senders use `gasLimit = min(1.5 x LIMIT, ceil(1.2 x estimate))` (9.1
 step 3), with LIMIT from the row of the same shape and c.
 
@@ -186,7 +185,7 @@ Kuru (45,000 to 52,000 on the mock).
 3), 2,829 for a day without one; the smallest gas at which it answers is the same, and the cold account access
 (2,600) is the caller's, paid out of SYNC_ROUND_GAS. FIX_CALL_GAS = 100,000 is 13.7 times that, and the test asserts at
 least 3 times. At Monad's cold SLOAD price the same call is about 7,314 + 3 x 6,000 = 25,314, still under a third of
-100,000; phase 4 measures it on the deployed wall (10.4 step 2).
+100,000; the testnet deploy measures it on the deployed wall.
 
 ### Tests
 
@@ -195,7 +194,7 @@ least 3 times. At Monad's cold SLOAD price the same call is about 7,314 + 3 x 6,
   over one of three listed Novembers per run, each run with a random index month (15 percent of days outside the
   band, late and carried records, some indexes that stop or revert). `SeriesInvariant.t.sol`: I1, I1b, I2 to I5, I9
   (everyone exits in `afterInvariant`, with assertions), I12, I26, I29, I30, I31, I36; `RouterInvariant.t.sol`: I25,
-  I33, I37. `NegativeControls.t.sol`: each harness of BUILD-SPEC 11 (`Harness.sol`, deployed through the test factory
+  I33, I37. `NegativeControls.t.sol`: each negative-control harness (`Harness.sol`, deployed through the test factory
   `NCFactory`) driven by the same handler in runs of 128 calls must be caught by its invariant within 256 runs
   (complement I1b, floor_mint I1, unstream_short I1, unchecked_top I1, operator_self I30, no_gas_reserve I26,
   keep_surplus I25, any_owner I33), and the same driver on the correct contracts finds nothing. The series index sits
@@ -213,6 +212,6 @@ least 3 times. At Monad's cold SLOAD price the same call is about 7,314 + 3 x 6,
   JUMPDEST: via_ir keeps 32-byte constants as data after the final INVALID), and no owner, pause or upgrade entry.
 - `test/market/router/Slippage.t.sol`: the router's own `SlippageExceeded` on buys and sells, against a venue that
   under-delivers without reverting.
-- `test/market/audit/`: the phase 2 auditors' probes; the ones that showed a hole assert the fixed behaviour
+- `test/market/audit/`: adversarial probes; the ones that showed a hole assert the fixed behaviour
   (`*_FIXED_*`). `KuruSquatFork.t.sol` is a fork test: it skips like `test/market/fork/`, and
   `script/rehearse-market.sh fork-test` runs it too.
