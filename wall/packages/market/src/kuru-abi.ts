@@ -1,0 +1,52 @@
+// Kuru V1 testnet: the subset the bots and the indexer use. Every selector and topic below was found in the deployed
+// implementations on Oct 3 2026 (BOTS-SPEC Appendix D). Argument names follow Kuru's OrderBook.sol.
+import { parseAbi } from "viem";
+
+export const kuruOrderBookAbi = parseAbi([
+  "function addBuyOrder(uint32 _price, uint96 size, bool _postOnly)",
+  "function addSellOrder(uint32 _price, uint96 _size, bool _postOnly)",
+  "function batchUpdate(uint32[] buyPrices, uint96[] buySizes, uint32[] sellPrices, uint96[] sellSizes, uint40[] orderIdsToCancel, bool postOnly)",
+  "function batchCancelOrders(uint40[] _orderIds)",
+  "function batchCancelOrdersNoRevert(uint40[] _orderIds)",
+  "function placeAndExecuteMarketBuy(uint96 _quoteSize, uint256 _minAmountOut, bool _isMargin, bool _isFillOrKill) payable returns (uint256)",
+  "function placeAndExecuteMarketSell(uint96 _size, uint256 _minAmountOut, bool _isMargin, bool _isFillOrKill) payable returns (uint256)",
+  "function getL2Book() view returns (bytes)",
+  "function getL2Book(uint32 _bidPricePoints, uint32 _askPricePoints) view returns (bytes)",
+  "function bestBidAsk() view returns (uint256, uint256)",
+  "function marketState() view returns (uint8)",
+  "function getMarketParams() view returns (uint32, uint96, address, uint256, address, uint256, uint32, uint96, uint96, uint256, uint256)",
+  "function s_orders(uint40) view returns (address ownerAddress, uint96 size, uint40 prev, uint40 next, uint40 flippedId, uint32 price, uint32 flippedPrice, bool isBuy)",
+  "function s_buyPricePoints(uint256) view returns (uint40 head, uint40 tail)",
+  "function s_sellPricePoints(uint256) view returns (uint40 head, uint40 tail)",
+  "function s_orderIdCounter() view returns (uint40)",
+  "event OrderCreated(uint40 orderId, address owner, uint96 size, uint32 price, bool isBuy)",
+  "event OrderCanceled(uint40 orderId, address owner, uint32 price, uint96 size, bool isBuy)",
+  "event OrdersCanceled(uint40[] orderId, address owner)",
+  "event Trade(uint40 orderId, address makerAddress, bool isBuy, uint256 price, uint96 updatedSize, address takerAddress, address txOrigin, uint96 filledSize)",
+  "event FlipOrderCreated(uint40 orderId, uint40 flippedId, address owner, uint96 size, uint32 price, uint32 flippedPrice, bool isBuy)",
+  "event FlippedOrderCreated(uint40 orderId, uint40 flippedId, address owner, uint96 size, uint32 price, uint32 flippedPrice, bool isBuy)",
+  "event FlipOrderUpdated(uint40 orderId, uint96 size)",
+  "event FlipOrdersCanceled(uint40[] orderIds, address owner)",
+  "event MarketStateUpdated(uint8 previousState, uint8 newState)",
+  "error MarketStateError()",
+  "error OnlyOwnerAllowedError()",
+  "error OrderAlreadyFilledOrCancelled()",
+  "error PostOnlyError()",
+  "error PriceError()",
+  "error SizeError()",
+  "error TickSizeError()",
+  "error LengthMismatch()",
+  "error InsufficientLiquidity()",
+  "error SlippageExceeded()",
+]);
+
+export const kuruMarginAccountAbi = parseAbi([
+  "function deposit(address _user, address _token, uint256 _amount) payable",
+  "function withdraw(uint256 _amount, address _token)",
+  "function batchWithdrawMaxTokens(address[] _tokens)",
+  "function getBalance(address _user, address _token) view returns (uint256)",
+  "event Deposit(address owner, address token, uint256 amount)",
+  "event Withdrawal(address owner, address token, uint256 amount)",
+  "error InsufficientBalance()",
+  "error ProtocolPaused()",
+]);

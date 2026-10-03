@@ -1,0 +1,22 @@
+{
+  "name": "@agate/market",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./abi": "./src/abi.ts",
+    "./kuru": "./src/kuru-abi.ts",
+    "./types": "./src/types.ts",
+    "./math": "./src/math.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "gen:abi": "bun run scripts/gen-abi.ts"
+  },
+  "dependencies": {
+    "@agate/report": "workspace:*",
+    "@agate/watcher": "workspace:*",
+    "viem": "^2.57.2"
+  }
+}

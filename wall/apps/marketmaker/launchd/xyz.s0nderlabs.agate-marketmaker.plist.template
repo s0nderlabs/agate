@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The market maker (BOTS-SPEC 2.8, 3) as a launchd agent. TEMPLATE: nothing installs or loads it.
+  launchd jobs hang on files under ~/Documents (macOS privacy prompt), so the job runs a copy of wall/ outside it
+  (__APP__, e.g. ~/.agate-wall/app/wall) with a copy of the deployments file beside it (__DEPLOYMENTS__) and keeps its
+  data in AGATE_WALL_HOME (~/.agate-wall/market/marketmaker).
+  No key in this file: the maker process runs AGATE_KEY_CMD itself at start and keeps the key in memory only (never an
+  exported variable, so `ps -wwE` cannot show it; audit M-K1):
+    security find-generic-password -s agate.market.bot -a private-key -w
+  RPC (wall spec 13.6): __RPC_URLS_CMD__ prints the URL list (Alchemy first, the Monad public RPC second, Alchemy's
+  wss URL for wake-ups); XML-escape it here (& as &amp;):
+    k="$(security find-generic-password -s agate.alchemy-api-key -a api-key -w)" &amp;&amp; printf 'https://monad-testnet.g.alchemy.com/v2/%s,https://testnet-rpc.monad.xyz,wss://monad-testnet.g.alchemy.com/v2/%s' "$k" "$k"
+  To use: replace __HOME__, __APP__, __BUN__, __RPC_URLS_CMD__, __CHAIN_ID__ (10143), __DEPLOYMENTS__, __MM_CONFIG__
+  (a JSON file of 3.11, or an empty value for the defaults), __KEY_CMD__; copy to ~/Library/LaunchAgents/;
+  `launchctl bootstrap gui/$(id -u) <plist>`.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>xyz.s0nderlabs.agate-marketmaker</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>__APP__/apps/marketmaker/launchd/run-marketmaker.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__APP__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BUN</key>
+    <string>__BUN__</string>
+    <key>AGATE_RPC_URLS_CMD</key>
+    <string>__RPC_URLS_CMD__</string>
+    <key>AGATE_CHAIN_ID</key>
+    <string>__CHAIN_ID__</string>
+    <key>AGATE_DEPLOYMENTS</key>
+    <string>__DEPLOYMENTS__</string>
+    <key>AGATE_MM_CONFIG</key>
+    <string>__MM_CONFIG__</string>
+    <key>AGATE_WALL_HOME</key>
+    <string>__HOME__/.agate-wall</string>
+    <key>AGATE_KEY_CMD</key>
+    <string>__KEY_CMD__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/.agate-wall/market/marketmaker/stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.agate-wall/market/marketmaker/stderr.log</string>
+</dict>
+</plist>

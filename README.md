@@ -24,8 +24,9 @@ GPU rental prices move fast, and there is no open way to lock one in. Renters ca
 ## Repository
 
 - `contracts/`: the index contract `AgateIndex` and the market contracts in `src/market/` (Foundry). `forge install --no-git foundry-rs/forge-std@v1.17.0 && forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.4.0 && forge test`
-- `wall/`: the price readers, the two writers (Chainlink CRE and a standby), the watcher and attester, the guardian CLI, a page check that compares each price with public price trackers, a repair agent that drafts a fix when a cloud changes its page (a person approves every change, which then takes effect after a 48-hour notice), a reader of traded GPU prices on the Akash chain (shown for comparison only), and end-to-end and chaos tests on a local chain. `cd wall && bun install && bun test`
+- `wall/`: the price readers, the two writers (Chainlink CRE and a standby), the watcher and attester, the guardian CLI, a page check that compares each price with public price trackers, a repair agent that drafts a fix when a cloud changes its page (a person approves every change, which then takes effect after a 48-hour notice), a reader of traded GPU prices on the Akash chain (shown for comparison only), the market bots (a market maker that keeps buy and sell orders on Kuru for every open month, a lister that opens each new month's market, and a payer that pays out daily positions), and end-to-end and chaos tests on a local chain and on a fork of Monad testnet. `cd wall && bun install && bun test`
+- `indexer/`: an Envio HyperIndex indexer of the market, the index and the Kuru order books, serving balances, positions, payouts, daily prices and each month's market price over GraphQL. `cd indexer && bun install && bun run test`
 
 ## Status
 
-Early. The index and its checking system are built and tested on local chains. The market contracts are built and tested, including against Kuru's testnet order books on a fork. The bots, the indexer, the testnet deployment and the app are next.
+Early. The index and its checking system are built and tested on local chains. The market contracts, the bots and the indexer are built and tested, including against Kuru's testnet order books on a fork. The testnet deployment and the app are next.

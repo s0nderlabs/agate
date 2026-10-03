@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "bun"],
+    "typeRoots": ["./node_modules/@types", "../wall/node_modules/@types"]
+  },
+  "include": ["scripts/capture-local.ts", "envio-env.d.ts"],
+  "exclude": ["node_modules", "generated", ".envio"]
+}

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The daily payer and lister (BOTS-SPEC 4) as a launchd agent: one process for every factory of the deployments file.
+  TEMPLATE: nothing installs or loads it.
+  launchd jobs hang on files under ~/Documents (macOS privacy prompt), so the job runs a copy of wall/ outside it
+  (__APP__, e.g. ~/.agate-wall/app/wall), with a copy of the deployments file next to it (__DEPLOYMENTS__), and keeps
+  its data in AGATE_WALL_HOME (~/.agate-wall; the payer's files are under market/payer/).
+  No key and no URL in this file: the payer process runs AGATE_KEY_CMD itself once at start and keeps the key in
+  memory only (never an exported variable, so `ps -wwE` cannot show it; audit M-K1).
+  __KEY_CMD__ (XML-escaped): security find-generic-password -s agate.market.payer -a private-key -w
+  __RPC_URLS_CMD__: the wall's command that prints the URL list (Alchemy first, the public RPC second, Alchemy's wss
+  for wake-ups); it reads the Alchemy key from Keychain at start, XML-escape it here (& as &amp;).
+  To use: replace __HOME__, __APP__, __BUN__, __RPC_URLS_CMD__, __CHAIN_ID__ (10143), __DEPLOYMENTS__,
+  __PAYER_CONFIG__ (a JSON file of BOTS-SPEC 4.7, or an empty object file for every default), __KEY_CMD__; copy to
+  ~/Library/LaunchAgents/; `launchctl bootstrap gui/$(id -u) <plist>`.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>xyz.s0nderlabs.agate-payer</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>__APP__/apps/payer/launchd/run-payer.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__APP__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BUN</key>
+    <string>__BUN__</string>
+    <key>AGATE_RPC_URLS_CMD</key>
+    <string>__RPC_URLS_CMD__</string>
+    <key>AGATE_CHAIN_ID</key>
+    <string>__CHAIN_ID__</string>
+    <key>AGATE_DEPLOYMENTS</key>
+    <string>__DEPLOYMENTS__</string>
+    <key>AGATE_PAYER_CONFIG</key>
+    <string>__PAYER_CONFIG__</string>
+    <key>AGATE_WALL_HOME</key>
+    <string>__HOME__/.agate-wall</string>
+    <key>AGATE_KEY_CMD</key>
+    <string>__KEY_CMD__</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/.agate-wall/market/payer/payer.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.agate-wall/market/payer/payer.stderr.log</string>
+</dict>
+</plist>

@@ -1,0 +1,431 @@
+enum Venue { NONE KURU_V1 OTHER }
+enum BandGrade { RULE STALE SEEDED }
+enum Side { LONG SHORT }
+enum SeriesState { LISTED ACCRUING FINAL }
+enum PositionStatus { OPEN CLOSED_FINAL CLOSED_WITH_TOKEN UNSTREAMED }
+enum FixStatus { NONE FULL DEGRADED DEMO CARRIED }
+enum DayState { NEEDS_SIGN PENDING FINAL VETOED DROPPED CARRIED CARRIED_UNVERIFIED SKIPPED }
+enum Flow { OPEN_LONG OPEN_LONG_DAILY OPEN_SHORT CLOSE_LONG CLOSE_SHORT CLOSE_LONG_DAILY }
+enum OrderStatus { ACTIVE FILLED CANCELED }
+enum BookSide { BID ASK }
+enum MarkSource { TRADE MID NONE }
+enum KuruState { ACTIVE SOFT_PAUSED HARD_PAUSED }
+enum ActionStatus { QUEUED EXECUTED CANCELLED }
+
+type Account {
+  id: ID!                                   # address, lowercase
+  firstSeenAt: BigInt!
+  nextDripAt: BigInt
+  tokenBalances: [TokenBalance!]! @derivedFrom(field: "account")
+  shortBalances: [ShortBalance!]! @derivedFrom(field: "account")
+  dollarBalances: [DollarBalance!]! @derivedFrom(field: "account")
+  positionsOwned: [Position!]! @derivedFrom(field: "owner")
+  positionsPaid: [Position!]! @derivedFrom(field: "payee")
+  flows: [RouterFlow!]! @derivedFrom(field: "user")
+}
+
+type Factory {
+  id: ID!                                   # factory address
+  name: String!                             # deployments key: demo, real, pilot
+  tag: String!
+  index: PriceIndex!
+  dollar: String!
+  router: String!
+  clockAnchor: BigInt                       # startTs - startDay * day, from the first series
+  day: Int
+  series: [Series!]! @derivedFrom(field: "factory")
+}
+
+type Series {
+  id: ID!                                   # series address
+  factory: Factory!
+  index: PriceIndex!
+  gpuId: String! @index
+  label: String!                            # H100
+  month: Int! @index                        # year * 12 + (month - 1)
+  monthLabel: String!                       # 2026-11
+  token: Token!
+  name: String!
+  symbol: String!
+  startDay: Int!
+  n: Int!
+  startTs: BigInt!
+  endTs: BigInt!
+  day: Int!
+  lastResort: BigInt!
+  floor: BigInt!
+  cap: BigInt!
+  x0: BigInt!
+  bandGrade: BandGrade!
+  anchorCarried: Int!
+  anchorMinFresh: Int!
+  anchorLate: Boolean!
+  k: Int!
+  sum: BigInt!
+  state: SeriesState!
+  lastFixDay: Int
+  ledger: BigInt!                           # equals the series' state().ledger
+  tokenSupply: BigInt!
+  shortSupply: BigInt!
+  openPositions: Int!
+  qInPositionsLong: BigInt!
+  qInPositionsShort: BigInt!
+  market: Market
+  venue: Venue!
+  pricePoint: PricePoint
+  listedAt: BigInt!
+  listedBlock: BigInt!
+  days: [SeriesDay!]! @derivedFrom(field: "series")
+  positions: [Position!]! @derivedFrom(field: "series")
+}
+
+type Token {
+  id: ID!                                   # token address
+  series: Series!
+  supply: BigInt!
+}
+
+type TokenBalance {
+  id: ID!                                   # <token>-<account>
+  token: Token!
+  series: Series! @index
+  account: Account! @index
+  balance: BigInt!
+}
+
+type ShortBalance {
+  id: ID!                                   # <series>-<account>
+  series: Series! @index
+  account: Account! @index
+  balance: BigInt!
+}
+
+type DollarBalance {
+  id: ID!                                   # <dollar>-<account>
+  dollar: String!
+  account: Account! @index
+  balance: BigInt!
+}
+
+type Position {
+  id: ID!                                   # <series>-<positionId>
+  series: Series! @index
+  positionId: BigInt!
+  owner: Account! @index
+  payee: Account! @index
+  operator: Account
+  side: Side!
+  q: BigInt!
+  paid: BigInt!
+  daily: Boolean!
+  openedK: Int!
+  openedAt: BigInt!
+  openTo: String!
+  status: PositionStatus! @index
+  lastClaimAt: BigInt
+  closedAmount: BigInt
+  closedTo: String
+  closedBy: String
+  closedAt: BigInt
+  claims: [Claim!]! @derivedFrom(field: "position")
+}
+
+type Claim {
+  id: ID!                                   # <block>-<logIndex>
+  position: Position! @index
+  series: Series! @index
+  payee: Account! @index
+  amount: BigInt!
+  paidTotal: BigInt!
+  k: Int!
+  by: String
+  timestamp: BigInt!
+  block: BigInt!
+  txHash: String
+}
+
+type Mint {
+  id: ID!
+  series: Series! @index
+  payer: Account! @index
+  to: String!
+  q: BigInt!
+  cost: BigInt!
+  timestamp: BigInt!
+  txHash: String
+}
+
+type Redeem {
+  id: ID!
+  series: Series! @index
+  holder: Account! @index
+  to: String!
+  q: BigInt!
+  paid: BigInt!
+  timestamp: BigInt!
+  txHash: String
+}
+
+type Settle {
+  id: ID!
+  series: Series! @index
+  holder: Account! @index
+  side: Side!
+  q: BigInt!
+  paid: BigInt!
+  to: String!
+  timestamp: BigInt!
+  txHash: String
+}
+
+type SeriesDay {
+  id: ID!                                   # <series>-<k>
+  series: Series! @index
+  k: Int!
+  day: Int!
+  x: BigInt!
+  c: BigInt!
+  status: FixStatus!
+  flags: Int!
+  late: Boolean!
+  incomplete: Boolean!
+  forced: Boolean!
+  belowFloor: Boolean!
+  aboveCap: Boolean!
+  carried: Boolean!
+  sumAfter: BigInt!
+  appliedAt: BigInt!
+}
+
+type RouterFlow {
+  id: ID!                                   # <block>-<logIndex>
+  router: String!
+  user: Account! @index
+  series: Series! @index
+  flow: Flow!
+  tokens: BigInt!
+  dollarsIn: BigInt!
+  dollarsOut: BigInt!
+  refund: BigInt!
+  tokensIn: BigInt!
+  tokensOut: BigInt!
+  net: BigInt!                              # dollarsOut - dollarsIn, can be negative
+  positionIds: [BigInt!]!
+  timestamp: BigInt!
+  block: BigInt!
+  txHash: String
+}
+
+type Drip {
+  id: ID!
+  account: Account! @index
+  amount: BigInt!
+  nextAt: BigInt!
+  timestamp: BigInt!
+}
+
+type Market {
+  id: ID!                                   # market address
+  series: Series! @index
+  venue: Venue!
+  created: Boolean!
+  by: String!
+  previous: String
+  current: Boolean!
+  state: KuruState!
+  recordedAt: BigInt!
+  orders: [BookOrder!]! @derivedFrom(field: "market")
+  trades: [Trade!]! @derivedFrom(field: "market")
+}
+
+type BookOrder {
+  id: ID!                                   # <market>-<orderId>
+  market: Market! @index
+  series: Series! @index
+  orderId: BigInt!
+  owner: String! @index
+  isBuy: Boolean!
+  price: BigInt!                            # u per token
+  size: BigInt!                             # Kuru size units at creation
+  remaining: BigInt!
+  status: OrderStatus! @index
+  isFlip: Boolean!
+  flippedId: BigInt
+  flippedPrice: BigInt
+  createdAt: BigInt!
+  updatedAt: BigInt!
+}
+
+type BookLevel {
+  id: ID!                                   # <market>-<bid|ask>-<price>
+  market: Market! @index
+  side: BookSide! @index
+  price: BigInt!
+  size: BigInt!                             # Kuru size units resting
+  orders: Int!
+}
+
+type Trade {
+  id: ID!                                   # <block>-<logIndex>
+  market: Market! @index
+  series: Series! @index
+  orderId: BigInt!
+  maker: String! @index
+  taker: String!
+  txOrigin: String! @index
+  takerIsBuy: Boolean!
+  priceU: BigInt!
+  tokens: BigInt!                           # base units
+  notionalU: BigInt!
+  makerRemaining: BigInt!
+  dayId: Int!
+  timestamp: BigInt!
+  block: BigInt!
+  txHash: String
+}
+
+type PricePoint {
+  id: ID!                                   # series address
+  series: Series!
+  market: Market
+  forward: MarketForward! @index
+  gpuId: String!
+  month: Int!
+  monthLabel: String!
+  lastTradePriceU: BigInt
+  lastTradeAt: BigInt
+  bestBidU: BigInt
+  bestAskU: BigInt
+  midU: BigInt
+  markU: BigInt
+  markSource: MarkSource!
+  updatedAt: BigInt!
+}
+
+type DailyCandle {
+  id: ID!                                   # <series>-<dayId>
+  series: Series! @index
+  dayId: Int!
+  open: BigInt!
+  high: BigInt!
+  low: BigInt!
+  close: BigInt!
+  volumeTokens: BigInt!
+  notionalU: BigInt!
+  vwapU: BigInt!
+  trades: Int!
+}
+
+type MarketForward {
+  id: ID!                                   # <factory>-<gpuId>
+  factory: Factory! @index
+  gpuId: String! @index
+  label: String!
+  currentMonth: Int
+  nearSeries: Series
+  nextSeries: Series
+  nearMarkU: BigInt
+  nextMarkU: BigInt
+  updatedAt: BigInt!
+  points: [PricePoint!]! @derivedFrom(field: "forward")
+}
+
+type PriceIndex {
+  id: ID!                                   # index address
+  names: [String!]!                         # factory names over it
+  tPend: Int!
+  gpus: [IndexGpu!]! @derivedFrom(field: "index")
+}
+
+type IndexGpu {
+  id: ID!                                   # <index>-<gpuId>
+  index: PriceIndex! @index
+  gpuId: String!
+  recipeHash: String!
+  firstDay: Int!
+  registeredAt: BigInt!
+}
+
+type DailyFix {
+  id: ID!                                   # <index>-<gpuId>-<day>
+  index: PriceIndex! @index
+  gpuId: String! @index
+  day: Int! @index
+  date: String!                             # YYYY-MM-DD of the index day
+  value: BigInt!
+  status: FixStatus!
+  fresh: Int!
+  held: Int!
+  freshMedian: BigInt!
+  changed: Boolean!
+  needsSign: Boolean!
+  late: Boolean!
+  incomplete: Boolean!
+  source: String
+  digest: String
+  postedAt: BigInt
+  finalAt: BigInt                           # null: not known yet (needs the attester, or vetoed or dropped)
+  attestedAt: BigInt
+  attestedBy: String
+  replaced: Boolean!
+  vetoed: Boolean!
+  vetoCount: Int!
+  dropped: Boolean!
+  state: DayState! @index
+  updatedAt: BigInt!
+  events: [FixEvent!]! @derivedFrom(field: "fix")
+}
+
+type FixEvent {
+  id: ID!                                   # <block>-<logIndex>
+  fix: DailyFix! @index
+  kind: String!                             # DayClosed, Attested, RecordReplaced, Vetoed, FixDropped, DayCarried, DaySkipped
+  value: BigInt
+  by: String
+  source: String
+  timestamp: BigInt!
+  txHash: String
+}
+
+type OwnerAction {
+  id: ID!                                   # <index>-<actionId>
+  index: PriceIndex! @index
+  actionId: String!
+  kind: Int!
+  slot: Int!
+  addr: String!
+  gpuId: String!
+  day: Int!
+  mode: Int!
+  eta: BigInt
+  status: ActionStatus!
+  queuedAt: BigInt
+  executedAt: BigInt
+  cancelledAt: BigInt
+}
+
+type ReaderSwap {
+  id: ID!                                   # <index>-<swapId>
+  index: PriceIndex! @index
+  swapId: String!
+  gpuId: String!
+  slot: Int!
+  url: String!
+  parserVersion: String!
+  reason: String!
+  eta: BigInt
+  fromDay: Int
+  readerHash: String
+  status: ActionStatus!
+  queuedAt: BigInt
+  executedAt: BigInt
+  cancelledAt: BigInt
+}
+
+type WriterSuspension {
+  id: ID!                                   # <block>-<logIndex>
+  index: PriceIndex! @index
+  writer: String!
+  by: String!
+  timestamp: BigInt!
+}

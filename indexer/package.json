@@ -1,0 +1,27 @@
+{
+  "name": "agate-indexer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "codegen": "envio codegen",
+    "dev": "envio dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.capture.json",
+    "gen:abis": "bun run scripts/gen-abis.ts",
+    "gen:config": "bun run scripts/gen-config.ts",
+    "capture": "bun run scripts/capture-local.ts"
+  },
+  "dependencies": {
+    "envio": "3.12.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.4",
+    "typescript": "7.0.2",
+    "viem": "2.57.2",
+    "vitest": "5.0.3"
+  }
+}

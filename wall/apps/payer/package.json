@@ -1,0 +1,20 @@
+{
+  "name": "@agate/payer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/main.ts run",
+    "test": "bun test test/",
+    "test:fork": "AGATE_PAYER_FORK=1 bun test test/fork/"
+  },
+  "dependencies": {
+    "@agate/market": "workspace:*",
+    "@agate/report": "workspace:*",
+    "@agate/watcher": "workspace:*",
+    "viem": "^2.57.2"
+  }
+}
