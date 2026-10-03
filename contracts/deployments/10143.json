@@ -1,0 +1,19 @@
+{
+  "chainId": 10143,
+  "dollar": "0x3A0513b2A19EE92eb3f73Dd06EefEe4D477CbF38",
+  "kuru": {
+    "router": "0x7EFbE105Ca7415dE98F96622173458ac1c054630",
+    "marginAccount": "0xd029C2D98ff85D8F64799017fE00a59B1159CE02"
+  },
+  "factories": {
+    "real": {
+      "index": "0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36",
+      "dollar": "0x3A0513b2A19EE92eb3f73Dd06EefEe4D477CbF38",
+      "tag": "",
+      "factory": "0xEdBE3e696944443bBCe7eb3CD04E626e9396a0b5",
+      "router": "0x4F4C14E7421dA83C398e04e4b5CeA2543f903c9c",
+      "tPend": 21600,
+      "startBlock": 67954341
+    }
+  }
+}

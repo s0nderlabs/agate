@@ -1,0 +1,148 @@
+{
+ "_note": "Monad testnet, the demo-clock index (DEMO profile: a 600-second day, 4 slices; day 1 is 2026-11-01 and starts at the deploy block). Deployed fresh for each demo session by ops/testnet/demo-session.sh, with the owner key. Same roles and forwarder as testnet-production.json. gpus: bun run packages/sources/scripts/deploy-gpus.ts testnet-demo (panels/launch.json).",
+ "profile": {
+  "day": 600,
+  "slices": 4,
+  "minReadings": 2,
+  "qMin": 1,
+  "demoLabel": true,
+  "signAll": false,
+  "epochDay": 20758,
+  "epochFromBlock": true,
+  "firstDay": 20758
+ },
+ "chainSelector": 2183018362218727504,
+ "roles": {
+  "owner": "0x016575774F23c2c43Ea1217a080FFC7db61EE681",
+  "primary": "0xF0be5c7461c0743acDE590A22BcCb66Fc2112335",
+  "standby": "0x7AB94Da3958d82dF236529c57e46B6D11FE90e92",
+  "attester": "0x98BEd8aD0d00D74F7D540d523a1f7Ee43673fdF1",
+  "guardian0": "0x10280466C8c6eF47152523717dd83D3c97f95F02",
+  "guardian1": "0x0000000000000000000000000000000000000000"
+ },
+ "forwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192",
+ "deployMockForwarder": false,
+ "writerMode": 0,
+ "gpus": [
+  {
+   "gpu": "H100",
+   "spec": "H100-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955",
+   "recipeHash": "0x815a2dac8891801a0d68af0edb442e086871641c09841e15b171dfb986f25b1a",
+   "family": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 31
+  },
+  {
+   "gpu": "H200",
+   "spec": "H200-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0xf7b3c4797305bd1433be196119ae5d6df4a433cffbf8d02c22048cc3a487b30d",
+   "recipeHash": "0x827d522003fde1517f16f3ea1e4633de3bbfa8af77802e00db8c0942fd8dc1cc",
+   "family": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 31
+  },
+  {
+   "gpu": "B200",
+   "spec": "B200-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x0a5bf357b491308f9e8b00f22d9d58b1c984046be5b4a94a21a59038b996dd27",
+   "recipeHash": "0x333a1e28323786643a1196031972483841e4e6d9621c6e287947be2ca1b26474",
+   "family": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 31
+  },
+  {
+   "gpu": "B300",
+   "spec": "B300-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x08c6236b69837cbbc194f0e5543b52ec92d53b309e164e1139b0076f2151b07f",
+   "recipeHash": "0x24dde5f37a41beedad36c2677df31799ad7d18ac78717df2b8d13d95d0d1573c",
+   "family": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 7
+  },
+  {
+   "gpu": "A100",
+   "spec": "A100-SXM/on-demand-list/neocloud/v1",
+   "gpuId": "0x32422c52fa2c8e908a3d943000e08e47ac121b194f11f4d58f0149ef008418de",
+   "recipeHash": "0x0ecced91557f67aacec1e47a7beaa5ef673b2c2380d141c113ba78bdc132d5cb",
+   "family": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "famQ": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 7
+  },
+  {
+   "gpu": "L40S",
+   "spec": "L40S-PCIe/on-demand-list/neocloud/v1",
+   "gpuId": "0x5d0a54c25c386ef135340ebc802b2bc2538004e5538d436114a5b3c9398b30e4",
+   "recipeHash": "0x2b283e947b2c3b7c135dc5312acbdcf9f42f00e9b9f25f246eca064de2f1a777",
+   "family": [
+    0,
+    1,
+    2
+   ],
+   "famQ": [
+    1,
+    1,
+    1
+   ],
+   "liveAtStartMask": 7
+  }
+ ]
+}

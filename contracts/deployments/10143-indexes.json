@@ -1,0 +1,17 @@
+{
+  "chainId": 10143,
+  "production": {
+    "status": "deployed",
+    "index": "0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36",
+    "config": "testnet-production",
+    "firstDay": 20730,
+    "deployBlock": 67954220,
+    "deployBlockFrom": "receipt",
+    "pendingBlock": 67954162,
+    "at": "2026-10-03T22:57:41Z",
+    "epochTs": 0,
+    "day": 86400,
+    "slices": 24,
+    "tPend": 21600
+  }
+}

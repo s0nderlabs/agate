@@ -17,6 +17,10 @@ contracts/lib/
 # a deploy run's plan until DeployMarket verify() finds every address on chain; test files, as a backstop
 contracts/deployments/*.pending
 contracts/deployments/.test-*
+# ops/testnet: the configs a run renders for itself and the fork rehearsal's records (removed after each run)
+contracts/script/config/kit-fork-*.json
+contracts/script/config/market-kit-*.json
+contracts/deployments/fork-kit-*
 out/
 cache/
 broadcast/
