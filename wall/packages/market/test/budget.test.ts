@@ -1,7 +1,7 @@
 // BOTS-SPEC 2.6: the daily MON budget: B frozen at the day's first tick, hourly pacing, the floor, persistence across
 // a restart, the UTC day rollover in chain time, 7 days once runUntil has passed, and the alerts.
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AlertSink } from "@agate/watcher";
@@ -147,5 +147,83 @@ describe("budget, the maker's cases (BOTS-SPEC 2.6)", () => {
     expect(b.canSpend(room + 1n, true)).toEqual({ ok: true });
     b.tick(T1 + 1n, keep + 5n);
     expect(b.canSpend(6n, true)).toEqual({ ok: false, why: "FLOOR" });
+  });
+});
+
+// Oct 4 2026, live on Monad testnet: the payer's budget paced for the production horizon (about 1.36 MON a day) refused
+// the demo session's listings (about 0.53 MON each). A demo session adds its own MON, once per session and unpaced, until
+// its end; what it used is kept in session-<until>.json (review finding Oct 5: never granted again on a new UTC day).
+describe("budget, a demo session's MON (AGATE_*_SESSION_MON / _UNTIL)", () => {
+  const UNTIL = Number(T0) + 5 * 3_600;
+  const withSession = (sessionMon: number, dir = mkdtempSync(join(tmpdir(), "agate-budget-session-")), until = UNTIL) =>
+    new Budget({ dir, role: "payer", keepWei: monToWei(15), lowBalanceWei: monToWei(60), runUntil: RUN_UNTIL, lowCode: "PAYER_KEY_LOW", spentCode: "PAYER_BUDGET_SPENT", address: "0x3786e99fC370506391be896E1D327a49de6A9505", session: { wei: monToWei(sessionMon), until } });
+
+  test("the session's MON is allowed at once, on top of the paced share; the day file keeps the frozen B only", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agate-budget-session-"));
+    const b = withSession(10, dir);
+    b.tick(T0, 24n * MON + monToWei(15)); // B = 2 MON, 1/24 of it allowed in the first hour
+    const B = b.today!.budgetWei;
+    const first = (B * 3_600n) / 86_400n;
+    expect(b.allowance()).toBe(first + 10n * MON);
+    expect(b.dayLeft()).toBe(B + 10n * MON);
+    expect(b.canSpend(6n * MON, false)).toEqual({ ok: true }); // six listings' worth at 00:00
+    b.record(6n * MON, false); // the paced share first, the rest from the session
+    expect(b.sessionLeft()).toBe(10n * MON - (6n * MON - first));
+    expect(b.allowance()).toBe(10n * MON - (6n * MON - first));
+    const saved = JSON.parse(readFileSync(join(dir, `budget-${utcDay(T0)}.json`), "utf8")) as Record<string, string>;
+    expect(saved.budgetWei).toBe(B.toString());
+    const sess = JSON.parse(readFileSync(join(dir, `session-${UNTIL}.json`), "utf8")) as Record<string, string>;
+    expect(BigInt(sess.usedWei!)).toBe(6n * MON - first);
+  });
+
+  test("granted once: a restart keeps what was used, and a new UTC day grants no second session", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agate-budget-session-"));
+    const until = Number(T0) + 2 * 86_400; // a session that would span two days
+    const a = withSession(10, dir, until);
+    a.tick(T0 + 82_800n, 24n * MON + monToWei(15)); // 23:00 UTC: all of B is paced free
+    a.record(a.today!.budgetWei + 8n * MON, false); // B, then 8 MON of the session
+    expect(a.sessionLeft()).toBe(2n * MON);
+    const b = withSession(10, dir, until); // restarted with the same session
+    b.tick(T0 + 86_400n, 16n * MON + monToWei(15)); // the next UTC day
+    expect(b.sessionLeft()).toBe(2n * MON); // not 10 again
+    expect(b.allowance()).toBe((b.today!.budgetWei * 3_600n) / 86_400n + 2n * MON);
+  });
+
+  test("after its end the session grants nothing; spend past B waits for pacing", () => {
+    const b = withSession(10);
+    b.tick(BigInt(UNTIL) + 1n, 24n * MON + monToWei(15));
+    expect(b.sessionLeft()).toBe(0n);
+    expect(b.allowance()).toBe((b.today!.budgetWei * (BigInt(UNTIL) + 1n - T0 + 3_600n)) / 86_400n);
+  });
+
+  test("the floor still holds with a session; safety sends never use the session's MON", () => {
+    const b = withSession(100);
+    b.tick(T0, 16n * MON); // 1 MON above keep
+    expect(b.canSpend(2n * MON, false)).toEqual({ ok: false, why: "FLOOR" });
+    const c = withSession(10);
+    c.tick(T0, 24n * MON + monToWei(15));
+    c.record(5n * MON, true);
+    expect(c.sessionLeft()).toBe(10n * MON);
+  });
+
+  test("an unreadable session record grants nothing more (fail closed)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agate-budget-session-"));
+    writeFileSync(join(dir, `session-${UNTIL}.json`), "{not json");
+    const b = withSession(10, dir);
+    b.tick(T0, 24n * MON + monToWei(15));
+    expect(b.sessionLeft()).toBe(0n);
+  });
+});
+
+describe("sessionFromEnv", () => {
+  test("neither set is none; MON in [0, 1000] with a unix UNTIL; anything else is refused", async () => {
+    const { sessionFromEnv } = await import("../src/budget.ts");
+    expect(sessionFromEnv({}, "X")).toBeUndefined();
+    expect(sessionFromEnv({ X_SESSION_MON: "", X_SESSION_UNTIL: "" }, "X")).toBeUndefined();
+    expect(sessionFromEnv({ X_SESSION_MON: "39.5", X_SESSION_UNTIL: "1791160000" }, "X")).toEqual({ wei: monToWei(39.5), until: 1791160000 });
+    for (const bad of ["-1", "1001", "abc", "NaN", "Infinity"]) expect(() => sessionFromEnv({ X_SESSION_MON: bad, X_SESSION_UNTIL: "1791160000" }, "X")).toThrow("X_SESSION_MON is not a MON amount");
+    expect(() => sessionFromEnv({ X_SESSION_MON: "10" }, "X")).toThrow("X_SESSION_UNTIL is not a unix time");
+    expect(() => sessionFromEnv({ X_SESSION_UNTIL: "1791160000" }, "X")).toThrow("X_SESSION_MON is not a MON amount");
+    expect(() => sessionFromEnv({ X_SESSION_MON: "10", X_SESSION_UNTIL: "soon" }, "X")).toThrow("X_SESSION_UNTIL is not a unix time");
   });
 });

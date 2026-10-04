@@ -9,10 +9,10 @@
 // AGATE_DRY_RUN=1 (simulate and estimate only, never sign) with AGATE_PAYER_ADDRESS when no key is given.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { AlertSink, printable, readBeat, wallHome, Waker, WsWake } from "@agate/watcher";
+import { AlertSink, printable, readBeat, wallHome, Waker, WsWake, wsPreferFromEnv } from "@agate/watcher";
 import { buildApp, jsonLine } from "./app.ts";
 import { loadConfig } from "./config.ts";
-import { bootstrap } from "@agate/market";
+import { bootstrap, sessionFromEnv } from "@agate/market";
 
 const ROLE = "payer";
 const CODES = /^(PAYER_|LISTER_|GAS_CAP|NONCE_STUCK|RPC_)/;
@@ -65,8 +65,9 @@ async function main(): Promise<number> {
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
   const chunkEnv = process.env.AGATE_MARKET_LOG_CHUNK;
-  const app = await buildApp(rt, config, { now, stopping: () => stopping, ...(chunkEnv ? { logChunk: Math.max(10, Number(chunkEnv) | 0) } : {}) });
-  say("start", { cmd, from: rt.from, dryRun: rt.dryRun, chainId: rt.pool.chainId, factories: app.factories.map((f) => f.name), tickS: app.tickS, rpc: rt.pool.redactedUrls(), gasLimits: process.env.AGATE_MARKET_GAS_LIMITS ? "AGATE_MARKET_GAS_LIMITS" : "the Foundry table (Ethereum prices; the testnet deploy sets AGATE_MARKET_GAS_LIMITS from Monad)" });
+  const session = sessionFromEnv(process.env, "AGATE_PAYER");
+  const app = await buildApp(rt, config, { now, stopping: () => stopping, ...(session ? { session } : {}), ...(chunkEnv ? { logChunk: Math.max(10, Number(chunkEnv) | 0) } : {}) });
+  say("start", { cmd, from: rt.from, dryRun: rt.dryRun, sessionMon: session ? Number(session.wei) / 1e18 : 0, sessionUntil: session?.until ?? null, chainId: rt.pool.chainId, factories: app.factories.map((f) => f.name), tickS: app.tickS, rpc: rt.pool.redactedUrls(), send: rt.send?.redactedUrls() ?? [], gasLimits: process.env.AGATE_MARKET_GAS_LIMITS ? "AGATE_MARKET_GAS_LIMITS" : "the Foundry table (Ethereum prices; the testnet deploy sets AGATE_MARKET_GAS_LIMITS from Monad)" });
   if (cmd === "list-once") {
     const r = await app.tick({ payer: false });
     say("done", { listed: r.lister?.listed ?? [], created: r.lister?.created ?? [], waiting: r.lister?.waiting ?? [], owed: r.lister?.owed ?? [] });
@@ -78,8 +79,9 @@ async function main(): Promise<number> {
     say("done", { ...(r.payer ?? {}) });
     return 0;
   }
+  const prefer = wsPreferFromEnv(process.env);
   const wakes = rt.endpoints.ws.length
-    ? [...new Set(app.factories.map((f) => f.index.toLowerCase()))].map((address) => new WsWake({ urls: rt.endpoints.ws, address, kinds: ["logs"], onWake: () => {
+    ? [...new Set(app.factories.map((f) => f.index.toLowerCase()))].map((address) => new WsWake({ urls: rt.endpoints.ws, address, kinds: ["logs"], prefer, ...(rt.meter ? { meter: rt.meter } : {}), onWake: () => {
           // 2.3 step 5: the nonce is read again at `pending` after a wake, never below the local counter (Monad's
           // `pending` lags `latest` right after our own transaction: audit P-L3)
           app.sender.refreshNonce();

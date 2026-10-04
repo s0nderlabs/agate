@@ -5,6 +5,8 @@
 // error, else a local counter; rebroadcast unchanged after max(3 blocks, 30 s), replace with the same nonce and +25%
 // fees after max(120 s, slice / 4), NONCE_STUCK after three replacements; "nonce too low" resolved by receipt.
 // The key is read from its environment variable at the moment of signing and dropped right after.
+// Oct 4: with a send route (send-route.ts) the transaction itself, its pending nonce, its gas estimate and its receipts
+// go to the send endpoints first; the simulation and the fees stay on the read pool.
 import { type Abi, type Address, encodeFunctionData, type Hex, decodeErrorResult, BaseError, type PublicClient, keccak256 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { agateIndexAbi } from "@agate/report/abi";
@@ -12,6 +14,7 @@ import { AlertCode } from "@agate/report/types";
 import type { AlertSink } from "../alerts.ts";
 import type { SendLock } from "./keylock.ts";
 import { isRevert, RpcDown, type RpcPool, short } from "./rpc.ts";
+import type { SendPath } from "./send-route.ts";
 import type { CallName, Sender, SendResult } from "./types.ts";
 
 export class KeyMissing extends Error {}
@@ -45,6 +48,8 @@ export function addressOfEnvKey(envName: string): Address {
 
 export interface SenderOptions {
   pool: RpcPool;
+  /** the send route (Oct 4): this sender's own transactions, nonce, estimates and receipts; default the pool */
+  send?: SendPath;
   to: Address;
   keyEnv: string;
   role: string;
@@ -111,6 +116,11 @@ export class TxSender implements Sender {
 
   private sleep(ms: number) {
     return this.o.sleep ? this.o.sleep(ms) : new Promise<void>((r) => setTimeout(r, ms));
+  }
+
+  /** Where this sender's own transactions go: the send route, else the pool. */
+  private get tx(): SendPath {
+    return this.o.send ?? this.o.pool;
   }
 
   private data(fn: string, args: readonly unknown[]): Hex {
@@ -184,17 +194,17 @@ export class TxSender implements Sender {
       }
     };
     if (every) {
-      const rs = await Promise.allSettled(this.o.pool.clients().map(send));
+      const rs = await Promise.allSettled(this.tx.clients().map(send));
       const okv = rs.find((r) => r.status === "fulfilled") as PromiseFulfilledResult<"ok" | "nonce-low" | "known"> | undefined;
       if (okv) return okv.value;
       throw (rs[0] as PromiseRejectedResult).reason;
     }
-    return this.o.pool.call(send, appSendError);
+    return this.tx.call(send, appSendError);
   }
 
   private async receipt(hash: Hex) {
     try {
-      return await this.o.pool.call((c) => c.getTransactionReceipt({ hash }), (e) => `${(e as Error)?.name}`.includes("TransactionReceiptNotFound") || `${(e as Error)?.message}`.includes("could not be found"));
+      return await this.tx.call((c) => c.getTransactionReceipt({ hash }), (e) => `${(e as Error)?.name}`.includes("TransactionReceiptNotFound") || `${(e as Error)?.message}`.includes("could not be found"));
     } catch (e) {
       if (e instanceof RpcDown) throw e;
       return null;
@@ -207,7 +217,7 @@ export class TxSender implements Sender {
     if (!sim.ok) return { ok: false, sent: false, error: sim.error ?? "reverts" };
     let estimate: bigint;
     try {
-      estimate = await this.o.pool.call((c) => c.estimateGas({ account: this.from, to: this.o.to, data }));
+      estimate = await this.tx.call((c) => c.estimateGas({ account: this.from, to: this.o.to, data }));
     } catch (e) {
       return { ok: false, sent: false, error: `estimate: ${revertText(e, this.o.abi)}` };
     }
@@ -223,7 +233,7 @@ export class TxSender implements Sender {
     if (measured === undefined) this.log.push(`provisional gas for ${fn}: ${gas} (estimate ${estimate})`);
     let fees: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint };
     try {
-      if (this.nonce === null) this.nonce = await this.o.pool.call((c) => c.getTransactionCount({ address: this.from, blockTag: "pending" }));
+      if (this.nonce === null) this.nonce = await this.tx.call((c) => c.getTransactionCount({ address: this.from, blockTag: "pending" }));
       fees = await this.fees();
     } catch (e) {
       this.nonce = null;

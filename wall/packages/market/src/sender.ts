@@ -10,9 +10,11 @@
 //   6. the result carries costWei = gasLimit x effectiveGasPrice and the receipt's logs
 //   7. AGATE_DRY_RUN=1: steps 1 to 4 run and are logged; nothing is signed
 // A spend guard (the MON budget of 2.6) is asked before signing (not in a dry run) and told every receipt's cost.
+// Oct 4: with a send route (@agate/watcher's SendRoute) the transaction itself, its pending nonce, its gas estimate and
+// its receipts go to the send endpoints first; the simulation and the fees stay on the read pool.
 import { type Abi, type Address, BaseError, decodeErrorResult, decodeFunctionResult, encodeFunctionData, type Hex, keccak256, type Log, type PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { alertId, readKey, RpcDown, type RpcPool, type SendLock, type AlertSink } from "@agate/watcher";
+import { alertId, readKey, RpcDown, type RpcPool, type SendLock, type SendPath, type AlertSink } from "@agate/watcher";
 import { capFor, type LimitTable } from "./limits.ts";
 import { kuruMarginAccountAbi, kuruOrderBookAbi } from "./kuru-abi.ts";
 import type { Sender, SendResult, SendSpec, SimResult } from "./types.ts";
@@ -48,6 +50,8 @@ export interface PlanningSender extends Sender {
 
 export interface MarketSenderOptions {
   pool: RpcPool;
+  /** the send route (Oct 4): this sender's own transactions, nonce, estimates and receipts; default the pool */
+  send?: SendPath;
   role: string;
   /** the variable holding the signing key (holdKey moved it into memory); absent only in a dry run */
   keyEnv?: string;
@@ -176,6 +180,11 @@ export class MarketSender implements PlanningSender {
     this.o.log?.(event, data);
   }
 
+  /** Where this sender's own transactions go: the send route, else the pool. */
+  private get tx(): SendPath {
+    return this.o.send ?? this.o.pool;
+  }
+
   private sleep(ms: number): Promise<void> {
     return this.o.sleep ? this.o.sleep(ms) : new Promise<void>((r) => setTimeout(r, ms));
   }
@@ -220,7 +229,7 @@ export class MarketSender implements PlanningSender {
     if (!sim.ok) return { ok: false, data, ...(sim.error !== undefined ? { error: sim.error } : {}) };
     let estimate: bigint;
     try {
-      estimate = await this.o.pool.call((c) => c.estimateGas({ account: this.from, to: s.to, data, blockTag: "latest" }));
+      estimate = await this.tx.call((c) => c.estimateGas({ account: this.from, to: s.to, data, blockTag: "latest" }));
     } catch (e) {
       if (e instanceof RpcDown) throw e;
       return { ok: false, data, result: sim.result, error: `estimate: ${revertReason(e, s.abi)}` };
@@ -269,7 +278,7 @@ export class MarketSender implements PlanningSender {
 
   private async receipt(hash: Hex) {
     try {
-      return await this.o.pool.call((c) => c.getTransactionReceipt({ hash }), (e) => `${(e as Error)?.name}`.includes("TransactionReceiptNotFound") || `${(e as Error)?.message}`.includes("could not be found"));
+      return await this.tx.call((c) => c.getTransactionReceipt({ hash }), (e) => `${(e as Error)?.name}`.includes("TransactionReceiptNotFound") || `${(e as Error)?.message}`.includes("could not be found"));
     } catch (e) {
       if (e instanceof RpcDown) throw e;
       return null;
@@ -296,12 +305,12 @@ export class MarketSender implements PlanningSender {
       }
     };
     if (every) {
-      const rs = await Promise.allSettled(this.o.pool.clients().map(one));
+      const rs = await Promise.allSettled(this.tx.clients().map(one));
       const okv = rs.find((r) => r.status === "fulfilled") as PromiseFulfilledResult<"ok" | "nonce-low" | "known"> | undefined;
       if (okv) return okv.value;
       throw (rs[0] as PromiseRejectedResult).reason;
     }
-    return this.o.pool.call(one, sendAppError);
+    return this.tx.call(one, sendAppError);
   }
 
   private landed(s: SendSpec, hash: Hex, gas: bigint, rc: { status: string; effectiveGasPrice?: bigint; gasUsed?: bigint; logs: readonly Log[] }): SendResult {
@@ -341,7 +350,7 @@ export class MarketSender implements PlanningSender {
     const data = p.data!;
     try {
       if (this.nonce === null) {
-        const fetched = await this.o.pool.call((c) => c.getTransactionCount({ address: this.from, blockTag: "pending" }));
+        const fetched = await this.tx.call((c) => c.getTransactionCount({ address: this.from, blockTag: "pending" }));
         this.nonce = this.nonceFloor !== null && this.nonceFloor > fetched ? this.nonceFloor : fetched;
         this.nonceFloor = null;
       }

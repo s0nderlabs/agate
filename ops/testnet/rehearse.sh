@@ -17,9 +17,12 @@
 #                                             demo-session.sh stop, down.sh production
 #
 # Refuses under AGATE_ANVIL_MIN_FREE_GB GB free (default 30). Processes run in a private tmux server
-# (tmux -L agate-rehearsal), never the dev session; the indexer window needs Podman or Docker running. Everything the
-# run starts is stopped when it exits; the fork-kit-* records and deployments files are moved to the state dir
-# ($AGATE_KIT_STATE, default ~/.agate-kit-rehearsal/<mode>-<time>).
+# (tmux -L agate-rehearsal), never the dev session; the indexer window needs Podman or Docker running
+# (AGATE_KIT_INDEXER=0 leaves it out, beside another indexer). Everything the run starts is stopped when it exits; the
+# fork-kit-* records and deployments files are moved to the state dir ($AGATE_KIT_STATE, default
+# ~/.agate-kit-rehearsal/<mode>-<time>). A fork never uses Alchemy: with AGATE_KIT_ALCHEMY_TEST_URL=<loopback URL> (a
+# counting proxy in front of the fork, say) the session's light roles send through that stand-in instead, and the
+# attester and the keeper subscribe through its ws:// twin.
 set -euo pipefail
 MODE="${1:-}"
 MINUTES="${2:-40}"
@@ -55,7 +58,7 @@ cleanup() {
     AGATE_KIT_ROLES=rehearsal "$HERE/demo-session.sh" stop --fork >/dev/null 2>&1
     AGATE_KIT_ROLES=rehearsal "$HERE/down.sh" production --fork --shared >/dev/null 2>&1
     # the indexer's Postgres and Hasura containers outlive its window: removed with their database
-    "$HERE/indexer.sh" stop --fork >/dev/null 2>&1
+    [ "${AGATE_KIT_INDEXER:-1}" = 0 ] || "$HERE/indexer.sh" stop --fork >/dev/null 2>&1
   fi
   tmux -L agate-rehearsal kill-server 2>/dev/null
   if [ -n "$SAFE_PID" ]; then

@@ -5,10 +5,13 @@
 // the process itself (audit M-K1): a key exported by a run script stays readable in the process's exec-time
 // environment (`ps -wwE`) for its whole life, whatever holdKey deletes. The key variable itself (AGATE_MM_KEY /
 // AGATE_PAYER_KEY) still works for tests and the fork e2e, which use throwaway keys.
+// Oct 4: with send: endpoints in the list, the sender's own transactions go there first (rt.send, @agate/watcher's
+// SendRoute), counted by the process's Alchemy meter (rt.meter: <home>/rpc-meter/<UTC date>/<role>-market.json).
 import { join } from "node:path";
 import type { Address } from "viem";
-import { childEnv, type RpcEndpoints } from "@agate/report/env";
-import { addressOfEnvKey, AlertSink, holdKey, keyLockPath, readEndpoints, RpcPool, SendLock, takeLock, wallHome } from "@agate/watcher";
+import { childEnv, type RpcEndpoints, sendUrls } from "@agate/report/env";
+import type { RpcMeter } from "@agate/report/meter";
+import { addressOfEnvKey, AlertSink, holdKey, keyLockPath, meterFor, readEndpoints, RpcPool, SendLock, SendRoute, takeLock, wallHome } from "@agate/watcher";
 import { loadDeployments } from "./deployments.ts";
 import { LimitTable } from "./limits.ts";
 import { ViemReads } from "./reads.ts";
@@ -63,6 +66,10 @@ export interface Runtime {
   limits: LimitTable;
   maxFeeGwei: number;
   sendLock: SendLock;
+  /** Oct 4: the send route when the list has send: endpoints */
+  send?: SendRoute;
+  /** Oct 4: the Alchemy meter when the process has send endpoints or a websocket */
+  meter?: RpcMeter;
 }
 
 /** BOTS-SPEC 2.1 with audit M-K1: the key into this process's memory (holdKey), from AGATE_KEY_CMD run here, or from
@@ -117,5 +124,8 @@ export async function bootstrap(o: RuntimeOptions): Promise<Runtime> {
   const fee = env.AGATE_MAX_FEE_GWEI ? Number(env.AGATE_MAX_FEE_GWEI) : 200;
   if (!Number.isFinite(fee) || fee <= 0) throw new StartError("AGATE_MAX_FEE_GWEI is not a positive number");
   const sendLock = new SendLock(keyLockPath(home, from), 30_000);
-  return { role: o.role, dryRun, keyVar, from, home, dir, lockFd, alerts, pool, endpoints, deployments, reads, limits, maxFeeGwei: fee, sendLock };
+  const meter = meterFor({ home, role: o.role, scope: "market", endpoints, alerts, env });
+  meter?.start();
+  const send = sendUrls(endpoints).length > 0 ? await SendRoute.create(pool, { urls: sendUrls(endpoints), role: o.role, timeoutMs: 10_000, alerts, ...(meter ? { meter } : {}), log: (event, data) => console.log(JSON.stringify({ t: o.now(), role: o.role, event, ...data })) }) : undefined;
+  return { role: o.role, dryRun, keyVar, from, home, dir, lockFd, alerts, pool, endpoints, deployments, reads, limits, maxFeeGwei: fee, sendLock, ...(send ? { send } : {}), ...(meter ? { meter } : {}) };
 }

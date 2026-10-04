@@ -33,15 +33,16 @@ Each tick, in chain time:
    reverts is bisected and the failing ids skipped until their payout changes (`PAYER_BAD_ID`); a claim that would pay
    0 is never sent.
 
-Positions come from the payer's own log scan (4.1): `eth_getLogs` per 100 blocks up to the `finalized` block,
-through the RPC pool (Alchemy first), kept only when the emitter is a known factory or a series one of them listed.
-A rate limit (Alchemy's 429) fails over to the next URL; a halved chunk grows back; a catch-up is paced at about 10
-calls a second (audit P-M2). `cursor.json` and `state.json` name their chain, start block and factory set: a cursor or
-state of another chain or deployment (a fork rehearsal with the same `AGATE_WALL_HOME`, a testnet reset) restarts the
-scan from the start block into a fresh `events.jsonl` and sets the old state aside (audit P-M3). FixApplied is not
-scanned (the payer never reads it), and a large `events.jsonl` is compacted at start to the open positions' newest
-events (audit S-L1). A scan that starts over while running (the chain's finalized tip far below the cursor: a reset)
-rebuilds the positions from the new events and sets `state.json` aside the same way.
+Positions come from the payer's own log scan (4.1): `eth_getLogs` per 100 blocks up to the `finalized` block, through
+the RPC pool (the key-free public RPCs since Oct 4: Alchemy takes only the payer's own transactions, as a `send:`
+entry), kept only when the emitter is a known factory or a series one of them listed. A rate limit (a 429) fails over to
+the next URL; a halved chunk grows back; a catch-up is paced at about 10 calls a second (audit P-M2). `cursor.json` and
+`state.json` name their chain, start block and factory set: a cursor or state of another chain or deployment (a fork
+rehearsal with the same `AGATE_WALL_HOME`, a testnet reset) restarts the scan from the start block into a fresh
+`events.jsonl` and sets the old state aside (audit P-M3). FixApplied is not scanned (the payer never reads it), and a
+large `events.jsonl` is compacted at start to the open positions' newest events (audit S-L1). A scan that starts over
+while running (the chain's finalized tip far below the cursor: a reset) rebuilds the positions from the new events and
+sets `state.json` aside the same way.
 
 ## Run
 

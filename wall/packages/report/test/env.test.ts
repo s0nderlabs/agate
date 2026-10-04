@@ -2,7 +2,7 @@
 // fake printed by printf, and every check asserts it never comes back out.
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { childEnv, redactUrl, resolveRpcEndpoints, runRpcCommand, scrubSecrets, type RpcEndpoints } from "../src/env.ts";
+import { childEnv, redactUrl, resolveRpcEndpoints, runRpcCommand, scrubSecrets, sendUrls, type RpcEndpoints } from "../src/env.ts";
 
 const KEY = "FAKEALCHEMYKEY0123456789";
 const SPEC_CMD = `printf "http://127.0.0.1:1/v2/${KEY},http://127.0.0.1:2"`;
@@ -176,6 +176,68 @@ describe("installScrubber (a child process: the scrubber wraps that process's co
     expect(all).toContain("bytes http://127.0.0.1:1/...");
     expect(all).toContain("env after: unset");
     expect(err).toContain("uncaught http://127.0.0.1:1/...");
+    expect(exit).toBe(1);
+  });
+});
+
+describe("send: entries (Oct 4): the senders' own transactions", () => {
+  const SEND = `send:${ALCHEMY}`;
+  test("parsed into RpcEndpoints.send in order, http(s) only; reads keep the http list; the old shape has no send", () => {
+    const e = resolveRpcEndpoints(env({ AGATE_RPC_URLS_CMD: `printf '%s,%s,%s,%s' '${SEND}' '${PUBLIC}' 'send: http://127.0.0.1:9/v2/${KEY}' '${WSS}'` }));
+    expect(e).toEqual({ http: [PUBLIC], ws: [WSS], send: [ALCHEMY, `http://127.0.0.1:9/v2/${KEY}`] });
+    expect(sendUrls(e)).toEqual([ALCHEMY, `http://127.0.0.1:9/v2/${KEY}`]);
+    // backward compatible: a list without send: entries resolves exactly as before Oct 4
+    const old = resolveRpcEndpoints(env({ AGATE_RPC_URLS: `${ALCHEMY},${PUBLIC},${WSS}` }));
+    expect(old).toEqual({ http: [ALCHEMY, PUBLIC], ws: [WSS] });
+    expect("send" in old).toBe(false);
+    expect(sendUrls(old)).toEqual([]);
+    // newline-separated works too
+    expect(resolveRpcEndpoints(env({ AGATE_RPC_URLS: `${SEND}\n${PUBLIC}` }))).toEqual({ http: [PUBLIC], ws: [], send: [ALCHEMY] });
+  });
+
+  test("refused without echo: a send: websocket, a send: that is no URL, a list with send: entries only (nothing to read from)", () => {
+    const cases: [Record<string, string>, string][] = [
+      [{ AGATE_RPC_URLS_CMD: `printf '%s,%s' 'send:${WSS}' '${PUBLIC}'` }, "AGATE_RPC_URLS_CMD did not print a list of URLs"],
+      [{ AGATE_RPC_URLS_CMD: `printf '%s,%s' 'send:nope${KEY}' '${PUBLIC}'` }, "AGATE_RPC_URLS_CMD did not print a list of URLs"],
+      [{ AGATE_RPC_URLS_CMD: `printf '%s' '${SEND}'` }, "AGATE_RPC_URLS_CMD did not print a list of URLs"],
+      [{ AGATE_RPC_URLS_CMD: `printf '%s,%s' '${SEND}' '${WSS}'` }, "AGATE_RPC_URLS_CMD did not print a list of URLs"],
+      [{ AGATE_RPC_URLS: `${SEND},sendx:${PUBLIC}` }, "AGATE_RPC_URLS is not a list of http(s) or ws(s) URLs"],
+      [{ AGATE_RPC_URLS: `SEND:${ALCHEMY},${PUBLIC}` }, "AGATE_RPC_URLS is not a list of http(s) or ws(s) URLs"],
+    ];
+    for (const [e, msg] of cases) {
+      const m = errOf(() => resolveRpcEndpoints(env(e)));
+      expect(m).toBe(msg);
+      expect(m).not.toContain(KEY);
+    }
+  });
+
+  test("redaction and the scrubber cover the send endpoints", () => {
+    const e = resolveRpcEndpoints(env({ AGATE_RPC_URLS: `${SEND},${PUBLIC},send:https://rpc.other.test/?apikey=SENDQUERYSECRET99` }));
+    for (const l of [`sent via ${ALCHEMY}`, `key ${KEY}`, `HTTP request failed. URL: ${ALCHEMY}/`, "https://rpc.other.test/?apikey=SENDQUERYSECRET99", "SENDQUERYSECRET99"]) {
+      const s = scrubSecrets(l, e);
+      expect(s).not.toContain(KEY);
+      expect(s).not.toContain("SENDQUERYSECRET99");
+    }
+    expect(scrubSecrets(`send ${ALCHEMY} down`, e)).toBe("send https://monad-testnet.g.alchemy.com/... down");
+    expect(sendUrls(e).map(redactUrl)).toEqual(["https://monad-testnet.g.alchemy.com/...", "https://rpc.other.test/..."]);
+  });
+
+  test("installScrubber in a child: a send endpoint's key never shows (console, streams, an uncaught error)", async () => {
+    const mod = join(import.meta.dir, "../src/env.ts");
+    const code = `
+      import { resolveRpcEndpoints, installScrubber, sendUrls } from ${JSON.stringify(mod)};
+      const e = resolveRpcEndpoints(process.env);
+      installScrubber(e);
+      const url = sendUrls(e)[0];
+      console.log("send", e.send, "http", e.http);
+      process.stdout.write("raw " + url + "\\n");
+      setTimeout(() => { throw new Error("uncaught " + url); }, 0);
+    `;
+    const p = Bun.spawn(["bun", "-e", code], { env: { ...process.env, AGATE_RPC_URLS_CMD: `printf 'send:http://127.0.0.1:7/v2/${KEY},http://127.0.0.1:2'`, AGATE_RPC_URLS: undefined }, stdout: "pipe", stderr: "pipe" });
+    const [out, err, exit] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
+    expect(out + err).not.toContain(KEY);
+    expect(out).toContain("raw http://127.0.0.1:7/...");
+    expect(err).toContain("uncaught http://127.0.0.1:7/...");
     expect(exit).toBe(1);
   });
 });

@@ -53,6 +53,52 @@ AGATE_MARKET_E2E=1 AGATE_FORGE_OUT=<forge out dir> AGATE_FORGE_CACHE=<forge cach
 The fork's index registers the six GPUs of `fork-demo.json`, its factory three; the run checks that the lister lists
 and the maker quotes only those three.
 
+## RPC endpoints and the Alchemy budget
+
+Every process reads its RPC endpoints once at start from `AGATE_RPC_URLS_CMD` (a command printing the list; the
+Alchemy URL carries its key, so every URL is a secret, redacted in every log line, alert and file) or `AGATE_RPC_URLS`
+(`packages/report/src/env.ts`). The list is comma- or newline-separated:
+
+| Entry | Use |
+|---|---|
+| `http(s)://...` | a read endpoint: every read, in failover order (at least one) |
+| `ws(s)://...` | a websocket for the attester's and the keeper's wake-ups (the maker and the payer use one too when given) |
+| `send:http(s)://...` | a send endpoint (Oct 4): the process's own transactions only |
+
+A list without `send:` entries works as before. A sender (the watcher's `TxSender` for the attester, the keeper and the
+guardian CLI; the writers' `TxSender`, both writers and the backfill; the market bots' `MarketSender`, the maker and the
+payer with its lister) sends `eth_sendRawTransaction` and reads its pending nonce, its gas estimate and its receipts
+(the writers also their transaction by hash) at the send endpoints first, then at the read endpoints in their failover
+order (`apps/watcher/src/chain/send-route.ts`, `SendRoute` in `apps/writer-standby/src/pipeline/rpc.ts`). A send
+endpoint's own answer about the transaction (a revert, a refused nonce or fee, a known transaction, no funds; a receipt
+not found yet) is final; anything else it answers moves on: down, a timeout, HTTP 429 or 5xx, an HTTP 401, 402 or 403
+with a JSON-RPC error (a revoked or mistyped key, an app's allowlist, a billing block), a provider's limit even in an
+HTTP 200 ("Monthly capacity limit exceeded"). A send endpoint that does not answer in time is left out for a minute
+(`SEND_REST_MS`), so a send pays one timeout, not one per call. The simulation, the fees and every other read never
+reach a send endpoint, not even when every read endpoint is down. A rebroadcast goes to every endpoint. A send endpoint
+on another chain is dropped at start (RPC_FAILOVER, action). The writers' read pool also moves on from a URL that
+answers 401, 402, 403, 404, 407 or 408 with a JSON-RPC error, or names a provider's limit; a 400 or another 4xx stays
+the node's answer.
+
+`AGATE_WS_KIND=logs` subscribes to the finalized `logs` first and to Monad's speculative `monadLogs` only when a node
+refuses it (default `monad`: the other way round). Alchemy bills a websocket by the bytes it pushes, and the
+speculative stream pushes a block's events again as its commit state moves.
+
+**The meter.** A process with send endpoints or a websocket counts every call it makes to them and the bytes of every
+websocket event, prices them with Alchemy's list (`eth_getLogs` 60 CU; `eth_call`, `eth_getBlockByNumber`,
+`eth_getTransactionReceipt`, `eth_getTransactionCount`, `eth_estimateGas`, `eth_gasPrice` 20; `eth_sendRawTransaction`
+40; `eth_blockNumber`, `eth_feeHistory`, `eth_subscribe` 10; `eth_chainId` 0; any other method 26; an event 0.04 CU a
+byte) and writes the UTC day's counts to `<wall home>/rpc-meter/<YYYY-MM-DD>/<role>-<index8 or market>.json` at most
+every 60 s (`packages/report/src/meter.ts`). Every 60 s it sums the day's files against `AGATE_ALCHEMY_DAILY_CU`
+(default 400,000): at 80% one ALCHEMY_BUDGET info alert, at 100% one action alert, and from then every process sends
+through its read endpoints and polls without its websocket until 00:00 UTC. `ops/testnet/status.sh` prints the day's
+counts by process. Measured on a fork rehearsal (Oct 4): a send about 100 CU, a websocket event about 62 CU; a
+production index about 50,500 CU a day, three quarters of it the websocket (`ops/testnet/RUNBOOK.md`, "Alchemy").
+`scripts/counting-proxy.ts` is the loopback stand-in that measured it. The read prices match the Alchemy dashboard of
+Oct 4; the send prices and the websocket's 0.04 CU a byte are Alchemy's list, not yet checked against a bill: the
+RUNBOOK's first-day check compares a day's meter total with the dashboard and lowers the budget in proportion if the
+dashboard reads higher.
+
 ## Gas with six GPUs
 
 `bun run e2e/scripts/gas.ts --gwei <price> [--run-hours <h>]` measures every call below on a local anvil and prints

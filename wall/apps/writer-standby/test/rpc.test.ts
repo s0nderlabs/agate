@@ -1,10 +1,10 @@
 // RPC failover (13.4): the first URL erroring, hanging, on the wrong chain id, with a stale head; every URL down;
 // a node's own JSON-RPC error passed through; the first URL taken back after its re-probe.
 import { afterAll, describe, expect, test } from "bun:test";
-import { RpcDownError, RpcError, RpcPool, redact } from "../src/pipeline/rpc.ts";
+import { isProviderLimit, RpcDownError, RpcError, RpcPool, redact, sendFinal } from "../src/pipeline/rpc.ts";
 import type { AlertInput } from "../src/pipeline/rpc.ts";
 
-type Mode = "ok" | "http500" | "hang" | "garbage" | "revert";
+type Mode = "ok" | "http500" | "hang" | "garbage" | "revert" | "answer";
 
 interface FakeNode {
   url: string;
@@ -12,6 +12,8 @@ interface FakeNode {
   chainId: number;
   head: number;
   calls: string[];
+  /** mode "answer": every call gets this HTTP status and JSON-RPC error */
+  answer?: { status: number; error: { code: number; message: string; data?: string } };
   stop(): void;
 }
 
@@ -33,6 +35,7 @@ function node(chainId = 10_143, head = 1_000): FakeNode {
       if (n.mode === "hang") await Bun.sleep(5_000);
       const reply = (result: unknown) => Response.json({ jsonrpc: "2.0", id: body.id, result });
       if (n.mode === "revert") return Response.json({ jsonrpc: "2.0", id: body.id, error: { code: 3, message: "execution reverted", data: "0xdeadbeef" } });
+      if (n.mode === "answer") return Response.json({ jsonrpc: "2.0", id: body.id, error: n.answer!.error }, { status: n.answer!.status });
       if (body.method === "eth_chainId") return reply(`0x${n.chainId.toString(16)}`);
       if (body.method === "eth_getBlockByNumber") return reply({ number: "0x1", timestamp: `0x${n.head.toString(16)}` });
       return reply("0x2a");
@@ -146,6 +149,67 @@ describe("RPC pool", () => {
     advance(1_000);
     await p.checkHead(1_000);
     expect(p.url).toBe(a.url);
+  });
+
+  test("a provider refusing to serve (HTTP 401, 402, 403, 404, 408 with a JSON-RPC error, or a limit in an HTTP 200) moves on (fixer r1)", async () => {
+    const refusals = [
+      { status: 401, error: { code: -32600, message: "Must be authenticated!" } },
+      { status: 404, error: { code: -32601, message: "app not found" } },
+      { status: 408, error: { code: -32000, message: "request timeout" } },
+      { status: 402, error: { code: -32000, message: "Your account has reached its spending limit." } },
+      { status: 403, error: { code: -32600, message: "Unspecified origin not on whitelist." } },
+      { status: 200, error: { code: 429, message: "Monthly capacity limit exceeded." } },
+      { status: 200, error: { code: -32005, message: "Your app has exceeded its compute units per second capacity." } },
+      { status: 200, error: { code: -32000, message: "rate limit reached, try again later" } },
+    ];
+    for (const answer of refusals) {
+      const a = node();
+      const b = node();
+      const { p } = pool([a.url, b.url]);
+      await p.init();
+      a.mode = "answer";
+      a.answer = answer;
+      expect({ answer, r: await p.request("eth_blockNumber") }).toEqual({ answer, r: "0x2a" });
+      expect(p.url).toBe(b.url);
+    }
+  });
+
+  test("a node's answer stays final: HTTP 400 or 413 with a JSON-RPC error, and a revert whose text names a capacity", async () => {
+    for (const answer of [
+      { status: 400, error: { code: -32602, message: "invalid argument 0: hex string without 0x prefix" } },
+      { status: 413, error: { code: -32005, message: "response too large: ask for a smaller block range" } },
+      { status: 200, error: { code: 3, message: "execution reverted: pool capacity reached", data: "0x08c379a0" } },
+      { status: 200, error: { code: -32005, message: "block range too large (max 100)" } },
+    ]) {
+      const a = node();
+      const b = node();
+      const { p } = pool([a.url, b.url]);
+      await p.init();
+      a.mode = "answer";
+      a.answer = answer;
+      const e = await p.request("eth_call").catch((x) => x);
+      expect(e).toBeInstanceOf(RpcError);
+      expect((e as RpcError).status).toBe(answer.status);
+      expect(p.url).toBe(a.url);
+      expect(b.calls.filter((m) => m === "eth_call")).toEqual([]);
+    }
+  });
+
+  test("isProviderLimit and sendFinal: what a send endpoint's answer means", () => {
+    expect(isProviderLimit({ code: 429, message: "Monthly capacity limit exceeded." })).toBe(true);
+    expect(isProviderLimit({ code: -32000, message: "Too Many Requests" })).toBe(true);
+    expect(isProviderLimit({ code: 3, message: "execution reverted: capacity", data: "0x" })).toBe(false);
+    expect(isProviderLimit({ code: -32000, message: "pool at capacity", data: "0x08c379a0" })).toBe(false);
+    expect(isProviderLimit({ code: 429, message: "Monthly capacity limit exceeded.", data: null })).toBe(true);
+    expect(isProviderLimit({ code: -32000, message: "Your app has exceeded its compute units per second capacity.", data: { see: "https://docs" } })).toBe(true);
+    expect(isProviderLimit({ code: -32005, message: "block range too large" })).toBe(false);
+    // final: the node's word on this transaction, under HTTP 400
+    for (const m of ["execution reverted", "nonce too low", "nonce too high", "already known", "replacement transaction underpriced", "insufficient funds for gas * price + value"]) expect({ m, final: sendFinal(new RpcError(m, -32000)) }).toEqual({ m, final: true });
+    // passed on: the same words with HTTP 400 or above, and anything else
+    expect(sendFinal(new RpcError("execution reverted", 3, undefined, 400))).toBe(false);
+    expect(sendFinal(new RpcError("nonce too low", -32000, undefined, 403))).toBe(false);
+    for (const m of ["Unspecified origin not on whitelist.", "Must be authenticated!", "gas required exceeds allowance (30000000)", "method not found"]) expect({ m, final: sendFinal(new RpcError(m, -32000)) }).toEqual({ m, final: false });
+    expect(sendFinal(new Error("execution reverted"))).toBe(false);
   });
 
   test("a URL dead at start is kept (not wrong, just down) and the live one is used", async () => {

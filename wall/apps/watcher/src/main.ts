@@ -8,7 +8,7 @@ import { redactUrl } from "@agate/report/env";
 import { Attester } from "./attester.ts";
 import { keyLockPath, SendLock } from "./chain/keylock.ts";
 import { TxSender, addressOfEnvKey, holdKey, measuredFromEnv } from "./chain/sender.ts";
-import { Waker, WsWake } from "./chain/ws-wake.ts";
+import { Waker, WsWake, wsPreferFromEnv } from "./chain/ws-wake.ts";
 import { connect, env, eventIndexer, maxFeeGwei, type Wall } from "./config.ts";
 import { AlertSink } from "./alerts.ts";
 import { deriveClocks, fetchTimeoutS, PROFILES, wallClock } from "./clock.ts";
@@ -106,9 +106,11 @@ async function loop(role: string, periodS: number, tick: (now: number) => Promis
   say(role, "stop");
 }
 
-/** 9.2, 13.6: the attester and the keeper wake on monadLogs for the index (first ws URL that connects); polling stays. */
+/** 9.2, 13.6: the attester and the keeper wake on monadLogs for the index (first ws URL that connects); polling stays.
+ *  Oct 4: AGATE_WS_KIND=logs asks the finalized logs first; the meter counts the socket and closes it for the day's
+ *  Alchemy budget. */
 function wsWake(w: Wall, role: string, waker: Waker): WsWake {
-  const ws = new WsWake({ urls: w.endpoints.ws, address: w.index, kinds: ["logs"], onWake: () => waker.wake(), alerts: w.alerts, role, log: (event, data) => say(role, event, data) });
+  const ws = new WsWake({ urls: w.endpoints.ws, address: w.index, kinds: ["logs"], onWake: () => waker.wake(), alerts: w.alerts, role, log: (event, data) => say(role, event, data), prefer: wsPreferFromEnv(process.env), ...(w.meter ? { meter: w.meter } : {}) });
   ws.start();
   return ws;
 }
@@ -183,7 +185,7 @@ async function main(role: Role): Promise<void> {
   }
   const hb = new Heartbeat(heartbeatFile(w, role), role, w.index);
   const c = w.clock;
-  say(role, "start", { index: w.index, day: c.day, slices: c.slices, urls: w.pool.redactedUrls(), ws: w.endpoints.ws.map(redactUrl), panels: w.panels.map((p) => p.gpu) });
+  say(role, "start", { index: w.index, day: c.day, slices: c.slices, urls: w.pool.redactedUrls(), ws: w.endpoints.ws.map(redactUrl), send: w.send?.redactedUrls() ?? [], panels: w.panels.map((p) => p.gpu) });
 
   if (role === "log") {
     const api = await loadLoggerApi();
@@ -221,7 +223,7 @@ async function main(role: Role): Promise<void> {
     holdKey("AGATE_ATTESTER_KEY"); // out of process.env for the process's life (M3)
     const events = eventIndexer(w);
     const store = new LogStore(w.logDir);
-    const sender = new TxSender({ pool: w.pool, to: w.index, keyEnv: "AGATE_ATTESTER_KEY", role, alerts: w.alerts, measured: measuredFromEnv(process.env), ...(maxFeeGwei() !== undefined ? { maxFeeGwei: maxFeeGwei()! } : {}), now: nowS, rebroadcastS: 30, replaceS: Math.max(120, c.slice / 4), lock: sendLock(w, "AGATE_ATTESTER_KEY") });
+    const sender = new TxSender({ pool: w.pool, ...(w.send ? { send: w.send } : {}), to: w.index, keyEnv: "AGATE_ATTESTER_KEY", role, alerts: w.alerts, measured: measuredFromEnv(process.env), ...(maxFeeGwei() !== undefined ? { maxFeeGwei: maxFeeGwei()! } : {}), now: nowS, rebroadcastS: 30, replaceS: Math.max(120, c.slice / 4), lock: sendLock(w, "AGATE_ATTESTER_KEY") });
     const warn = oldGuardianLogWarning(w.home);
     if (warn) say(role, "warning", { message: warn });
     const rapi = await loadReaderApi();
@@ -241,7 +243,7 @@ async function main(role: Role): Promise<void> {
 
   if (role === "keep") {
     holdKey("AGATE_KEEPER_KEY");
-    const sender = new TxSender({ pool: w.pool, to: w.index, keyEnv: "AGATE_KEEPER_KEY", role, alerts: w.alerts, measured: measuredFromEnv(process.env), ...(maxFeeGwei() !== undefined ? { maxFeeGwei: maxFeeGwei()! } : {}), now: nowS, rebroadcastS: 30, replaceS: Math.max(120, c.slice / 4), lock: sendLock(w, "AGATE_KEEPER_KEY") });
+    const sender = new TxSender({ pool: w.pool, ...(w.send ? { send: w.send } : {}), to: w.index, keyEnv: "AGATE_KEEPER_KEY", role, alerts: w.alerts, measured: measuredFromEnv(process.env), ...(maxFeeGwei() !== undefined ? { maxFeeGwei: maxFeeGwei()! } : {}), now: nowS, rebroadcastS: 30, replaceS: Math.max(120, c.slice / 4), lock: sendLock(w, "AGATE_KEEPER_KEY") });
     const period = Math.max(1, Math.min(30, Math.floor(c.slice / 12)));
     const keeper = new Keeper({ view: w.view, sender, clock: c, gpuIds: w.panels.map((p) => p.gpuId), alerts: w.alerts, heartbeat: hb, tickS: period, attesterPick: (g) => readPickNote(pickNotePath(w.home, w.index, g)) });
     const waker = new Waker();

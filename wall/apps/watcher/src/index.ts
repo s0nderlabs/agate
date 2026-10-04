@@ -22,6 +22,7 @@ export type { IndexView, EventSource, Sender, SendResult, WallEvent, CallName, D
 export { connect, loadPanels, eventIndexer, env, type Wall } from "./config.ts";
 export { announcedPath, decisionsPath, guardianLogDir, heartbeatFile, index8, oldGuardianLogWarning, roleBeats, writerBeatFile } from "./main.ts";
 export { keyLockPath, SendLock } from "./chain/keylock.ts";
-export { Waker, WsWake, type WsLike, type WsWakeOptions } from "./chain/ws-wake.ts";
-export { readEndpoints } from "./config.ts";
+export { Waker, WsWake, wsPreferFromEnv, type WsLike, type WsPrefer, type WsWakeOptions } from "./chain/ws-wake.ts";
+export { meteredClient, SendRoute, type SendPath, type SendRouteOptions } from "./chain/send-route.ts";
+export { meterFor, readEndpoints } from "./config.ts";
 export { takeLock, LockHeld, Heartbeat, wallHome, appendLine, writeAtomic, setFileScrubber, scrubText, printable, printableLines } from "./fsutil.ts";

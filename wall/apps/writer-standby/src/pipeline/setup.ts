@@ -1,6 +1,6 @@
 // Environment, panels and the startup checks both bun writers run before their first tick.
 import { readFileSync } from "node:fs";
-import { installScrubber, type RpcEndpoints, resolveRpcEndpoints, scrubSecrets } from "@agate/report/env";
+import { installScrubber, type RpcEndpoints, resolveRpcEndpoints, scrubSecrets, sendUrls } from "@agate/report/env";
 import type { Address, Hex } from "@agate/report/types";
 import type { Panel, SourcesPureApi } from "@agate/sources/types";
 import { asSourcesApi, type Clock, clockMismatches, clockOf, neededSources, planReaders, takeReading } from "../core/index.ts";
@@ -29,7 +29,8 @@ export function takeKey(name: string): Hex {
 export function rpcEndpointsFromEnv(e: Record<string, string | undefined> = process.env, run?: (cmd: string) => string): RpcEndpoints {
   const r = run ? resolveRpcEndpoints(e, run) : resolveRpcEndpoints(e);
   delete e.AGATE_RPC_URL;
-  return { http: [...new Set(r.http)], ws: [...new Set(r.ws)] };
+  const send = [...new Set(sendUrls(r))];
+  return { http: [...new Set(r.http)], ws: [...new Set(r.ws)], ...(send.length > 0 ? { send } : {}) };
 }
 
 /** The HTTP endpoints of rpcEndpointsFromEnv, in failover order. */

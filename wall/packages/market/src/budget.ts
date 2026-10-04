@@ -51,6 +51,24 @@ export interface BudgetOptions {
   spentCode: string;
   /** the key's address (alert key) */
   address: string;
+  /** A demo session's MON (sessionFromEnv): once per session, on top of the paced budget and unpaced (a session lists
+   *  and quotes in bursts that a budget paced for the production horizon refuses), until `until`. What the session has
+   *  used is kept in session-<until>.json, so a restart or a new UTC day never grants it again. The floor holds. */
+  session?: { wei: bigint; until: number };
+}
+
+/** A demo session's MON for one bot from <prefix>_SESSION_MON and <prefix>_SESSION_UNTIL (unix seconds), both set by
+ *  demo-session.sh from its plan; neither set = none. A MON amount outside [0, 1000], or a MON amount without its
+ *  UNTIL, is refused at start. */
+export function sessionFromEnv(env: Record<string, string | undefined>, prefix: string): { wei: bigint; until: number } | undefined {
+  const mon = env[`${prefix}_SESSION_MON`]?.trim() ?? "";
+  const until = env[`${prefix}_SESSION_UNTIL`]?.trim() ?? "";
+  if (mon === "" && until === "") return undefined;
+  const n = Number(mon);
+  if (mon === "" || !Number.isFinite(n) || n < 0 || n > 1_000) throw new Error(`${prefix}_SESSION_MON is not a MON amount in [0, 1000]`);
+  const u = Number(until);
+  if (until === "" || !Number.isSafeInteger(u) || u <= 0) throw new Error(`${prefix}_SESSION_UNTIL is not a unix time (seconds)`);
+  return { wei: monToWei(n), until: u };
 }
 
 export class Budget implements SpendGuard {
@@ -60,8 +78,38 @@ export class Budget implements SpendGuard {
   /** spent since the balance was read (the floor uses balance minus this) */
   private sinceRead = 0n;
   private spentAlertDay: string | null = null;
+  /** what the session's MON has paid for so far (session-<until>.json) */
+  private sessionUsed = 0n;
 
-  constructor(readonly o: BudgetOptions) {}
+  constructor(readonly o: BudgetOptions) {
+    if (o.session) {
+      const f = this.sessionFile();
+      try {
+        if (existsSync(f)) this.sessionUsed = BigInt((JSON.parse(readFileSync(f, "utf8")) as { usedWei: string }).usedWei);
+      } catch {
+        this.sessionUsed = o.session.wei; // an unreadable record grants nothing more (fail closed)
+      }
+    }
+  }
+
+  private sessionFile(): string {
+    return join(this.o.dir, `session-${this.o.session!.until}.json`);
+  }
+
+  /** What the session's MON still holds now (0 without a session or after its end). */
+  sessionLeft(): bigint {
+    const s = this.o.session;
+    if (!s || this.t >= BigInt(s.until)) return 0n;
+    return s.wei > this.sessionUsed ? s.wei - this.sessionUsed : 0n;
+  }
+
+  /** What pacing allows the day's own budget now (B's share, before the session's MON). */
+  private pacedLeft(): bigint {
+    const d = this.day;
+    if (!d) return 0n;
+    const allowed = paced(d.budgetWei, this.t);
+    return allowed > d.spentWei ? allowed - d.spentWei : 0n;
+  }
 
   private file(day: string): string {
     return join(this.o.dir, `budget-${day}.json`);
@@ -112,20 +160,18 @@ export class Budget implements SpendGuard {
     return this.day;
   }
 
-  /** What pacing still allows the non-safety spend now. */
+  /** What pacing still allows the non-safety spend now, plus what a demo session's MON still holds (unpaced). */
   allowance(): bigint {
-    const d = this.day;
-    if (!d) return 0n;
-    const allowed = paced(d.budgetWei, this.t);
-    return allowed > d.spentWei ? allowed - d.spentWei : 0n;
+    if (!this.day) return 0n;
+    return this.pacedLeft() + this.sessionLeft();
   }
 
-  /** (Recheck R1-L2) What the day's budget still holds once pacing has freed all of it (B - spentWei): the most the
-   *  non-safety spend can still reach today, waiting included. */
+  /** (Recheck R1-L2) What the day's budget still holds once pacing has freed all of it (B - spentWei), plus what the
+   *  session's MON still holds: the most the non-safety spend can still reach today, waiting included. */
   dayLeft(): bigint {
     const d = this.day;
     if (!d) return 0n;
-    return d.budgetWei > d.spentWei ? d.budgetWei - d.spentWei : 0n;
+    return (d.budgetWei > d.spentWei ? d.budgetWei - d.spentWei : 0n) + this.sessionLeft();
   }
 
   /** Room above the floor. */
@@ -146,6 +192,15 @@ export class Budget implements SpendGuard {
 
   record(costWei: bigint, safety: boolean): void {
     if (!this.day) return;
+    // a non-safety send first takes what pacing allows the day; the rest is the session's (kept across days)
+    if (!safety && this.o.session && this.sessionLeft() > 0n) {
+      const fromDay = this.pacedLeft();
+      const over = costWei > fromDay ? costWei - fromDay : 0n;
+      if (over > 0n) {
+        this.sessionUsed += over;
+        writeAtomic(this.sessionFile(), JSON.stringify({ until: this.o.session.until, wei: this.o.session.wei.toString(), usedWei: this.sessionUsed.toString() }));
+      }
+    }
     this.day.spentWei += costWei;
     if (safety) this.day.safetyWei += costWei;
     this.day.sends += 1;

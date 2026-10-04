@@ -6,11 +6,13 @@
 // replaced (same nonce, fees + 25 %) after max(120 s, slice / 4), or cancelled (a 0-value self transfer) when its
 // content's send window has closed or it would now revert; NONCE_STUCK after three replacements; "nonce too low"
 // settled by looking up our own hashes. A send is done only when its receipt is read.
+// Oct 4: with a send route (rpc.ts SendRoute) the transaction, its nonce, its gas estimate, its receipts and its lookup
+// by hash go to the send endpoints first; the eth_call checks and the fees stay on the read pool.
 import { agateIndexAbi } from "@agate/report/abi";
 import type { Address, Hex } from "@agate/report/types";
 import { BaseError, ContractFunctionRevertedError, decodeErrorResult, keccak256, type LocalAccount, parseTransaction } from "viem";
 import type { KeyLock } from "./lock.ts";
-import { type AlertFn, RpcDownError, RpcError, type RpcPool } from "./rpc.ts";
+import { type AlertFn, RpcDownError, RpcError, type RpcPool, type SendRoute } from "./rpc.ts";
 
 export type Shape = "postReport" | "closeDay" | "onReport";
 
@@ -158,6 +160,8 @@ const isUnderpriced = (s: string) => /underpriced|replacement fee too low|fee to
 
 export interface SenderOptions {
   pool: RpcPool;
+  /** Oct 4: this key's own transactions, nonce, estimates and receipts go here first; default the pool */
+  send?: SendRoute;
   account: LocalAccount;
   index: Address;
   journal: TxJournal;
@@ -213,6 +217,15 @@ export class TxSender {
     return this.o.pool.request(method, params) as Promise<T>;
   }
 
+  /** This key's own transaction, nonce, estimate and receipts: the send route first (Oct 4), else the pool. */
+  private txRpc<T>(method: string, params: readonly unknown[] = []): Promise<T> {
+    return (this.o.send ? this.o.send.request(method, params) : this.o.pool.request(method, params)) as Promise<T>;
+  }
+
+  private broadcastAll(raw: Hex) {
+    return this.o.send ? this.o.send.broadcastAll(raw) : this.o.pool.broadcastAll(raw);
+  }
+
   private say(event: string, data?: Record<string, unknown>) {
     this.o.say?.(event, data);
   }
@@ -227,7 +240,7 @@ export class TxSender {
   }
 
   async count(tag: "latest" | "pending"): Promise<number> {
-    const get = (t: "latest" | "pending") => this.rpc<string>("eth_getTransactionCount", [this.from, t]);
+    const get = (t: "latest" | "pending") => this.txRpc<string>("eth_getTransactionCount", [this.from, t]);
     return Number(BigInt(tag === "latest" ? await get("latest") : await this.tagged(get)));
   }
 
@@ -243,7 +256,7 @@ export class TxSender {
   }
 
   private async estimate(to: Address, data: Hex): Promise<bigint> {
-    return BigInt(await this.tagged((tag) => this.rpc<string>("eth_estimateGas", [{ from: this.from, to, data }, tag])));
+    return BigInt(await this.tagged((tag) => this.txRpc<string>("eth_estimateGas", [{ from: this.from, to, data }, tag])));
   }
 
   private async fees(): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }> {
@@ -295,7 +308,7 @@ export class TxSender {
   /** First broadcast: the current URL (with failover). */
   private async broadcast(raw: Hex): Promise<{ ok: boolean; known?: boolean; nonceLow?: boolean; underpriced?: boolean; unknown?: boolean; error?: string }> {
     try {
-      await this.rpc("eth_sendRawTransaction", [raw]);
+      await this.txRpc("eth_sendRawTransaction", [raw]);
       return { ok: true };
     } catch (e) {
       const m = errMsg(e);
@@ -310,12 +323,12 @@ export class TxSender {
     f.broadcastAt = this.now();
     const t = f.txs.at(-1);
     if (!t?.raw) return;
-    const res = await this.o.pool.broadcastAll(t.raw);
+    const res = await this.broadcastAll(t.raw);
     this.say("tx_rebroadcast", { nonce: f.nonce, hash: t.hash, answers: res.map((r) => (r.ok ? "ok" : r.error.slice(0, 80))) });
   }
 
   private async receipt(hash: Hex): Promise<{ status: string; gasUsed: string } | null> {
-    return this.rpc<{ status: string; gasUsed: string } | null>("eth_getTransactionReceipt", [hash]);
+    return this.txRpc<{ status: string; gasUsed: string } | null>("eth_getTransactionReceipt", [hash]);
   }
 
   /** One look at the flight: mined, superseded, or still pending (rebroadcast or replaced when due). */
@@ -377,7 +390,7 @@ export class TxSender {
     }
     const t = await this.sign(f.nonce, f.to, f.data, f.gas, { maxFeePerGas: maxFee, maxPriorityFeePerGas: tip }, cancel);
     this.journal(f, t, last.hash);
-    const res = await this.o.pool.broadcastAll(t.raw!);
+    const res = await this.broadcastAll(t.raw!);
     const accepted = res.some((r) => r.ok || isKnown(r.error));
     this.say("tx_replace", { nonce: f.nonce, from: last.hash, to: t.hash, cancel, accepted, answers: res.map((r) => (r.ok ? "ok" : r.error.slice(0, 80))) });
     if (accepted) {
@@ -511,7 +524,7 @@ export class TxSender {
   async adopt(hash: Hex, meta: TxMeta): Promise<boolean> {
     if (this.flight) return false;
     if (await this.receipt(hash)) return false;
-    const tx = await this.rpc<{ nonce: string; to: Address; input: Hex; gas: string; maxFeePerGas?: string; maxPriorityFeePerGas?: string; gasPrice?: string } | null>("eth_getTransactionByHash", [hash]);
+    const tx = await this.txRpc<{ nonce: string; to: Address; input: Hex; gas: string; maxFeePerGas?: string; maxPriorityFeePerGas?: string; gasPrice?: string } | null>("eth_getTransactionByHash", [hash]);
     if (!tx) return false;
     const fee = BigInt(tx.maxFeePerGas ?? tx.gasPrice ?? "0");
     this.flight = {
@@ -552,7 +565,7 @@ export class TxSender {
     const meta: TxMeta = { action: first.action === "cancel" ? "post" : first.action, tags: first.tags, ...(first.deadline !== undefined ? { deadline: first.deadline } : {}) };
     let known = false;
     for (const t of txs) {
-      if ((await this.receipt(t.hash)) || (await this.rpc<unknown>("eth_getTransactionByHash", [t.hash]))) known = true;
+      if ((await this.receipt(t.hash)) || (await this.txRpc<unknown>("eth_getTransactionByHash", [t.hash]))) known = true;
     }
     if (!known) {
       const last = txs.at(-1)!;

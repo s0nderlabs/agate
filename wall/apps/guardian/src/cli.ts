@@ -50,7 +50,7 @@ async function main(argv: string[]): Promise<number> {
       }
     },
     senderFor: (keyEnv) =>
-      new TxSender({ pool: w.pool, to: w.index, keyEnv, role: keyEnv === "AGATE_KICK_KEY" ? "kick" : "guardian", alerts: w.alerts, measured: measuredFromEnv(process.env), ...(process.env.AGATE_MAX_FEE_GWEI ? { maxFeeGwei: Number(process.env.AGATE_MAX_FEE_GWEI) } : {}), now: nowS, rebroadcastS: 30, replaceS: Math.max(120, w.clock.slice / 4), lock: new SendLock(keyLockPath(w.home, addressOfEnvKey(keyEnv)), Math.max(30, w.clock.slice / 4) * 1000) }),
+      new TxSender({ pool: w.pool, ...(w.send ? { send: w.send } : {}), to: w.index, keyEnv, role: keyEnv === "AGATE_KICK_KEY" ? "kick" : "guardian", alerts: w.alerts, measured: measuredFromEnv(process.env), ...(process.env.AGATE_MAX_FEE_GWEI ? { maxFeeGwei: Number(process.env.AGATE_MAX_FEE_GWEI) } : {}), now: nowS, rebroadcastS: 30, replaceS: Math.max(120, w.clock.slice / 4), lock: new SendLock(keyLockPath(w.home, addressOfEnvKey(keyEnv)), Math.max(30, w.clock.slice / 4) * 1000) }),
     look,
     beats: roleBeats(w),
     writerRegion: process.env.AGATE_WRITER_REGION ?? "writer",

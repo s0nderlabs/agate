@@ -34,7 +34,8 @@ const index = arg("index") as Address;
 const toDay = Number(arg("to"));
 const PRICE: Record<string, number> = { H100: 3_990_000, H200: 4_780_000, B200: 6_990_000, B300: 8_710_000, A100: 2_700_000, L40S: 1_560_000 };
 
-const pub = createPublicClient({ transport: http(rpc, { timeout: 60_000 }) });
+// generous timeouts: on a loaded machine (other processes at load 15 to 30) the fork answers slowly while bots share it
+const pub = createPublicClient({ transport: http(rpc, { timeout: 120_000 }) });
 const call = (method: string, params: unknown[] = []) => pub.request({ method: method as never, params: params as never }) as Promise<unknown>;
 await call("anvil_nodeInfo").catch(() => {
   throw new Error("not an anvil node");
@@ -68,7 +69,7 @@ let sent = 0;
 let gasUsed = 0n;
 async function tx(from: Address, data: Hex, what: string): Promise<void> {
   const hash = (await call("eth_sendTransaction", [{ from, to: index, data, gas: "0x1c9c380" }])) as Hex;
-  const rc = await pub.waitForTransactionReceipt({ hash, pollingInterval: 20 });
+  const rc = await pub.waitForTransactionReceipt({ hash, pollingInterval: 20, timeout: 600_000 });
   if (rc.status !== "success") throw new Error(`${what} reverted (${hash})`);
   sent++;
   gasUsed += rc.gasUsed;

@@ -1,6 +1,8 @@
 // The process around a Writer (both writers, D10): one process per role and index (flock), the key taken from the
 // environment, the RPC pool checked, the startup checks retried while the chain is unreachable, then the tick loop
 // with a heartbeat. Signals stop it between ticks.
+// Oct 4: send: endpoints in the RPC list take the writer's own transactions first (SendRoute), counted by the
+// process's Alchemy meter (<home>/rpc-meter/<UTC date>/<role>-<index8>.json, AGATE_ALCHEMY_DAILY_CU).
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Address, Hex } from "@agate/report/types";
@@ -12,9 +14,10 @@ import { makeFetcher, PageReader, timeoutFor } from "./fetch.ts";
 import { FileLock } from "./lock.ts";
 import { ReadingLog, type Role, wallHome } from "./log.ts";
 import { alertSink } from "./ops.ts";
-import { type AlertFn, RpcDownError, RpcPool } from "./rpc.ts";
+import { type AlertFn, RpcDownError, RpcPool, SendRoute } from "./rpc.ts";
 import { timingFor } from "./sender.ts";
-import type { RpcEndpoints } from "@agate/report/env";
+import { type RpcEndpoints, sendUrls } from "@agate/report/env";
+import { dailyCuFromEnv, RpcMeter } from "@agate/report/meter";
 import { directSource, env, jsonSay, loadPanelFile, loadSourcesApi, maxFeeFromEnv, measuredFromEnv, redaction, rpcEndpointsFromEnv, type StartInfo, startupChecks, takeKey } from "./setup.ts";
 import { type ReadingSource, Writer } from "./writer.ts";
 
@@ -102,6 +105,13 @@ export async function runService(o: ServiceOptions): Promise<void> {
   const api = await loadSourcesApi();
   const expectChainId = process.env.AGATE_CHAIN_ID ? Number(process.env.AGATE_CHAIN_ID) : undefined;
   const pool = new RpcPool({ urls, ...(expectChainId ? { expectChainId } : {}), timeoutMs: 10_000, staleS: 30, alert });
+  // Oct 4: the Alchemy meter (send endpoints or a websocket) and the send route for this key's own transactions
+  const meter =
+    sendUrls(endpoints).length > 0 || endpoints.ws.length > 0
+      ? new RpcMeter({ home, role: o.role, scope: index.slice(2, 10).toLowerCase(), dailyCu: dailyCuFromEnv(process.env), alert: (a) => alert({ code: "ALCHEMY_BUDGET", severity: a.severity, message: a.message, day: a.day }), say })
+      : undefined;
+  meter?.start();
+  const route = sendUrls(endpoints).length > 0 ? new SendRoute(pool, { urls: sendUrls(endpoints), ...(meter ? { meter } : {}), alert, say }) : undefined;
   const log = new ReadingLog(home, o.role);
   log.scrub = scrub;
   let stop = false;
@@ -115,6 +125,7 @@ export async function runService(o: ServiceOptions): Promise<void> {
   for (let attempt = 0; !info && !stop; attempt++) {
     try {
       await pool.init();
+      await route?.verify();
       info = await startupChecks(indexChain({ pool, index, privateKey: key, journal: log, timing: timingFor(3_600), say }), panelsAll, api, o.expectSlot);
       remember(memo, { chainId: pool.chainId, info });
     } catch (e) {
@@ -135,6 +146,7 @@ export async function runService(o: ServiceOptions): Promise<void> {
   pool.tune(Math.min(10, Math.max(1, Math.floor(clock.slice / 10))) * 1000, Math.max(30, Math.floor(clock.slice / 4)));
   const real = indexChain({
     pool,
+    ...(route ? { send: route } : {}),
     index,
     privateKey: key,
     journal: log,
@@ -175,12 +187,15 @@ export async function runService(o: ServiceOptions): Promise<void> {
   });
 
   let lastInitError = "";
-  say("start", { index, writer: writerAddr, slot: info.slot, day: clock.day, slices: clock.slices, tPend: clock.tPend, rpcs: pool.urls.length, gpus: panels.map((p) => p.gpu) });
+  say("start", { index, writer: writerAddr, slot: info.slot, day: clock.day, slices: clock.slices, tPend: clock.tPend, rpcs: pool.urls.length, send: route?.redactedUrls() ?? [], gpus: panels.map((p) => p.gpu) });
   while (!stop) {
     try {
       if (!pool.verified) {
         await pool.init().then(
-          () => say("rpc_verified", { rpcs: pool.urls.length, chainId: pool.chainId }),
+          async () => {
+            await route?.verify();
+            say("rpc_verified", { rpcs: pool.urls.length, chainId: pool.chainId });
+          },
           (e: Error) => {
             if (!(e instanceof RpcDownError) && e.message !== lastInitError) say("warning", { message: `RPC check: ${e.message}` });
             lastInitError = e.message;

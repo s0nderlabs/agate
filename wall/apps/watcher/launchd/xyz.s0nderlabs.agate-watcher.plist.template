@@ -8,10 +8,16 @@
   (__APP__, e.g. ~/.agate-wall/app/wall) and keeps its data in AGATE_WALL_HOME (~/.agate-wall).
   No key in this file: run-watcher.sh asks AGATE_KEY_CMD for the role's key at start (attest: the attester key,
   keep: the keeper key; log and health need none) and exports it only to that process.
-  RPC (13.6): __RPC_URLS_CMD__ is a command the process runs once at start to print its URL list (Alchemy first, the
-  Monad public RPC second, Alchemy's wss URL for wake-ups). It holds no secret itself; the Alchemy key is read from
-  Keychain at start and never written anywhere. XML-escape it here (& as &amp;):
-    k="$(security find-generic-password -s agate.alchemy-api-key -a api-key -w)" &amp;&amp; printf 'https://monad-testnet.g.alchemy.com/v2/%s,https://testnet-rpc.monad.xyz,wss://monad-testnet.g.alchemy.com/v2/%s' "$k" "$k"
+  RPC (13.6): __RPC_URLS_CMD__ is a command the process runs once at start to print its URL list. Since Oct 4 Alchemy
+  serves the light roles only (ops/testnet/RUNBOOK.md, "Alchemy"; an all-Alchemy list spent 11.3M compute units in 7
+  hours that day): attest and keep send their own transactions to Alchemy first as a send: entry and take its
+  websocket for wake-ups (with AGATE_WS_KIND=logs, the finalized stream); every read goes to the key-free public RPCs;
+  log and health get the public RPCs only. The process meters its Alchemy calls against AGATE_ALCHEMY_DAILY_CU
+  (default 400,000 a UTC day). It holds no secret itself; the Alchemy key is read from Keychain at start and never
+  written anywhere. XML-escape it here (& as &amp;). attest and keep:
+    k="$(security find-generic-password -s agate.alchemy-api-key -a api-key -w)" &amp;&amp; printf 'send:https://monad-testnet.g.alchemy.com/v2/%s,https://testnet-rpc.monad.xyz,https://10143.rpc.thirdweb.com,https://rpc.ankr.com/monad_testnet,wss://monad-testnet.g.alchemy.com/v2/%s' "$k" "$k"
+  log and health:
+    printf 'https://testnet-rpc.monad.xyz,https://10143.rpc.thirdweb.com,https://rpc.ankr.com/monad_testnet'
   To use: replace __HOME__, __APP__, __BUN__, __RPC_URLS_CMD__, __CHAIN_ID__ (10143 on Monad testnet), __INDEX__,
   __INDEX8__, __PANELS__, __FROM_BLOCK__, __ROLE__, __KEY_CMD__; copy to ~/Library/LaunchAgents/;
   `launchctl bootstrap gui/$(id -u) <plist>`.
@@ -46,6 +52,8 @@
     <string>__HOME__/.agate-wall</string>
     <key>AGATE_KEY_CMD</key>
     <string>__KEY_CMD__</string>
+    <key>AGATE_WS_KIND</key>
+    <string>logs</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>

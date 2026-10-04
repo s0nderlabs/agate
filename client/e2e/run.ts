@@ -11,7 +11,11 @@
 //   bun run e2e/run.ts live [--report <file.json>]
 //       every read against the live testnet (public RPC) and AGATE_E2E_GRAPHQL or NEXT_PUBLIC_AGATE_GRAPHQL_URL
 //       (default http://localhost:8080/v1/graphql), read only
-// Sends transactions only to a loopback anvil fork; refuses anything else.
+//   AGATE_E2E_KEY_CMD='<a command printing the key>' bun run e2e/run.ts testnet --i-mean-testnet [options]
+//       the user's journey against the LIVE demo factory of a running demo session on Monad testnet, in real time
+//       (e2e/testnet.ts: its gates, its options, how it resumes); Ctrl-C finishes the step in progress, then stops
+// fork, flows and live send transactions only to a loopback anvil fork and refuse anything else; testnet is the one
+// mode that sends to Monad testnet, behind the gates in e2e/testnet.ts.
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,6 +25,7 @@ import { anvilTmp, assertFork, dfLine, rpcCall } from "./fork.ts";
 import { big, type Hooks, journey, Steps } from "./flows.ts";
 import { otherContainers, waitIndexed } from "./indexer.ts";
 import { liveReads } from "./live.ts";
+import { requestStop, runTestnet, USAGE } from "./testnet.ts";
 import { DEPLOYMENTS_FILE, World, writeDays } from "./world.ts";
 
 /** Anvil's well-known test account 1 (public; on Monad testnet it carries an EIP-7702 delegation, removed on the
@@ -188,9 +193,24 @@ async function liveMode(): Promise<number> {
   return failed.length === 0 ? 0 : 1;
 }
 
-const run = mode === "fork" ? fork : mode === "flows" ? flows : mode === "live" ? liveMode : null;
+async function testnetMode(): Promise<number> {
+  // Ctrl-C: the step in progress is finished (every transaction of it, and its checks), a wait stops at once, then the
+  // run stops (the next run continues from the chain); a second Ctrl-C quits at once. Both, and a SIGTERM, release the
+  // key's lock (the process's exit hook); a kill that skips the hook leaves a stale lock the next run takes over.
+  let hits = 0;
+  process.on("SIGINT", () => {
+    hits++;
+    if (hits > 1) process.exit(130);
+    requestStop("stopped by Ctrl-C: run the same command again to continue from what is on chain");
+    console.log("\nCtrl-C: finishing the step in progress, then stopping (Ctrl-C again to quit at once)");
+  });
+  process.on("SIGTERM", () => process.exit(143));
+  return runTestnet(args.slice(1), process.env);
+}
+
+const run = mode === "fork" ? fork : mode === "flows" ? flows : mode === "live" ? liveMode : mode === "testnet" ? testnetMode : null;
 if (!run) {
-  console.error("usage: bun run e2e/run.ts <fork|flows|live> [--report <file.json>] [--keep] [--no-indexer]");
+  console.error(`usage: bun run e2e/run.ts <fork|flows|live> [--report <file.json>] [--keep] [--no-indexer]\n${USAGE}`);
   process.exit(2);
 }
 process.exit(await run());

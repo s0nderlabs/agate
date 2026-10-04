@@ -2,12 +2,46 @@
 // wall/scripts/anvil-safe.sh (pruned history, a private home deleted on exit, a watchdog, refused under 30 GB free).
 // Block time moves only when the harness warps it (anvil's timestamp interval 0). Every helper refuses a URL that is
 // not a loopback anvil fork: nothing here can reach the public network except the fork's own read-only upstream.
+import { redactUrl as redactOne, scrubSecrets } from "../../wall/packages/report/src/env.ts";
 import { spawnAnvil } from "../../wall/scripts/anvil.ts";
 
 export const UPSTREAM = "https://testnet-rpc.monad.xyz";
 export const MIN_FREE_GB = Number(process.env.AGATE_ANVIL_MIN_FREE_GB ?? 30);
 
-export const isLoopback = (u: string) => /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/.*)?$/.test(u);
+/** Whether an http(s) URL names this machine, in any spelling the URL parser normalizes: localhost and *.localhost (any
+ *  case, trailing dots, percent-encoded), 127.0.0.0/8 (also written in decimal, hex, octal or short, e.g. 2130706433,
+ *  0x7f000001, 0177.0.0.1, 127.1), 0.0.0.0 (also 0), ::1, ::, and the IPv4-mapped or IPv4-compatible forms of
+ *  127.0.0.0/8 and 0.0.0.0 ([::ffff:127.0.0.1] reads [::ffff:7f00:1]). Not an http(s) URL: false. A name that only
+ *  resolves to this machine (a DNS entry) is not caught here: the testnet mode also asks the node itself. */
+export function isLoopback(u: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(u);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+  let host = url.hostname.toLowerCase();
+  if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1);
+  while (host.endsWith(".")) host = host.slice(0, -1);
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+  if (host === "::1" || host === "::" || host === "0.0.0.0" || host === "::ffff:0:0") return true;
+  if (/^::(ffff:)?7f[0-9a-f]{2}:[0-9a-f]{1,4}$/.test(host)) return true;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  return v4 !== null && v4[1] === "127";
+}
+
+/** "https://monad-testnet.g.alchemy.com/v2/<key>" -> "https://monad-testnet.g.alchemy.com/...": the wall's redactUrl
+ *  (scheme, host and port only; "<url>" for what does not parse), entry by entry for a comma-separated list. */
+export function redactUrl(u: string): string {
+  return u.includes(",") ? u.split(",").map(redactOne).join(",") : redactOne(u);
+}
+
+/** `s` with each of `urls`, and each long path segment, query value, user-info part or fragment of them, scrubbed by the
+ *  wall's own rule (scrubSecrets, BUILD-SPEC 13.6): one redaction policy for the wall and the e2e. */
+export function scrubUrls(s: string, urls: readonly string[]): string {
+  return scrubSecrets(s, { http: [...urls], ws: [] });
+}
 
 /** `df -Pk /`: free GB of the root volume (house rule: no anvil under 30 GB). */
 export function freeGb(): number {

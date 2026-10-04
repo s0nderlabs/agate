@@ -8,16 +8,21 @@
 // AGATE_NOTIFY_CMD, AGATE_KEY_LOW_HOURS (health: KEY_LOW under that many hours of a key's recent spend, default 24),
 // SOURCE_BASE_URL, AGATE_WATCH_SOURCES, AGATE_WATCHER_LOG_DIR (a log kept before the index existed:
 // the logger runs without AGATE_INDEX on a profile clock, AGATE_PROFILE and AGATE_EPOCH_TS, 13.3 step 2).
+// Oct 4: send:http(s):// entries are the process's send endpoints (its own transactions go there first: SendRoute),
+// AGATE_ALCHEMY_DAILY_CU (the day's Alchemy budget, default 400,000 CU; report/meter.ts), AGATE_WS_KIND (logs: the
+// finalized logs subscription first; ws-wake.ts).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { installScrubber, type RpcEndpoints, resolveRpcEndpoints, scrubSecrets } from "@agate/report/env";
-import type { Address, Clocks, Hex } from "@agate/report/types";
+import { installScrubber, type RpcEndpoints, resolveRpcEndpoints, scrubSecrets, sendUrls } from "@agate/report/env";
+import { dailyCuFromEnv, RpcMeter } from "@agate/report/meter";
+import { AlertCode, type Address, type Clocks, type Hex } from "@agate/report/types";
 import type { Panel } from "@agate/sources/types";
 import { AlertSink } from "./alerts.ts";
 import { agateIndexAbi } from "@agate/report/abi";
 import type { Abi } from "viem";
 import { abiProblems } from "./chain/abi-check.ts";
 import { RpcPool } from "./chain/rpc.ts";
+import { SendRoute } from "./chain/send-route.ts";
 import { EventIndexer, ViemIndex } from "./chain/viem-index.ts";
 import { wallClock, type WallClock } from "./clock.ts";
 import { setFileScrubber, wallHome, writeAtomic } from "./fsutil.ts";
@@ -54,6 +59,27 @@ export interface Wall {
   panels: PanelRef[];
   /** the endpoints read at start (13.6): http in failover order, ws for wake-up subscriptions */
   endpoints: RpcEndpoints;
+  /** Oct 4: the send route when the list has send: endpoints (the senders' own transactions go there first) */
+  send?: SendRoute;
+  /** Oct 4: the Alchemy meter when the process has send endpoints or a websocket */
+  meter?: RpcMeter;
+}
+
+/** Oct 4: the Alchemy meter of a process that has send endpoints or a websocket (else none: nothing to count). Its
+ *  ALCHEMY_BUDGET alerts go to `alerts`; it writes <home>/rpc-meter/<UTC date>/<role>-<scope>.json. */
+export function meterFor(o: { home: string; role: string; scope: string; endpoints: RpcEndpoints; alerts?: AlertSink; env?: Record<string, string | undefined>; nowMs?: () => number }): RpcMeter | undefined {
+  if (sendUrls(o.endpoints).length === 0 && o.endpoints.ws.length === 0) return undefined;
+  return new RpcMeter({
+    home: o.home,
+    role: o.role,
+    scope: o.scope,
+    dailyCu: dailyCuFromEnv(o.env ?? process.env),
+    ...(o.nowMs ? { nowMs: o.nowMs } : {}),
+    alert: (a) => o.alerts?.raise({ code: AlertCode.ALCHEMY_BUDGET, severity: a.severity, message: a.message, day: a.day, key: String(a.threshold) }),
+    // a new UTC day ends the earlier days' stops: their alerts would otherwise stay open for good
+    clearBefore: (day) => o.alerts?.clearWhere((a) => a.code === AlertCode.ALCHEMY_BUDGET && a.day !== undefined && a.day < day),
+    say: (event, data) => console.log(JSON.stringify({ t: Math.floor(Date.now() / 1000), role: o.role, event, ...data })),
+  });
 }
 
 /**
@@ -116,9 +142,14 @@ export async function connect(role: string, now: () => number, o: { endpoints?: 
   const view = new ViemIndex(pool, index);
   const clock = wallClock(await clocksOf(view, dir, pool.chainId));
   // per-profile RPC timeout and stale bound (13.4): min(10 s, slice / 10), max(30 s, slice / 4)
-  pool.retune(Math.min(10_000, Math.max(1_000, (clock.slice / 10) * 1000)), Math.max(30, clock.slice / 4));
+  const timeoutMs = Math.min(10_000, Math.max(1_000, (clock.slice / 10) * 1000));
+  pool.retune(timeoutMs, Math.max(30, clock.slice / 4));
   const panels = loadPanels(env("AGATE_PANELS"));
-  return { home, index, dir, logDir: process.env.AGATE_WATCHER_LOG_DIR || dir, alerts, pool, view, clock, panels, endpoints };
+  // Oct 4: the meter and the send route (send: endpoints) for this process's own transactions
+  const meter = meterFor({ home, role, scope: index.slice(2, 10).toLowerCase(), endpoints, alerts });
+  meter?.start();
+  const send = sendUrls(endpoints).length > 0 ? await SendRoute.create(pool, { urls: sendUrls(endpoints), role, timeoutMs, alerts, ...(meter ? { meter } : {}), log: (event, data) => console.log(JSON.stringify({ t: now(), role, event, ...data })) }) : undefined;
+  return { home, index, dir, logDir: process.env.AGATE_WATCHER_LOG_DIR || dir, alerts, pool, view, clock, panels, endpoints, ...(send ? { send } : {}), ...(meter ? { meter } : {}) };
 }
 
 export function eventIndexer(w: Wall): EventIndexer {

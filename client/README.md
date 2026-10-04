@@ -116,11 +116,14 @@ What the fields mean, where the chain gives a choice:
   draw the axis from the listing, start it at `Series.listedAt` and leave the hours before the first candle empty.
 - **Quote**: `bid` and `ask` are the top of the live book (0 for an empty side); `last` is the last trade, and before
   the first trade the mid on the tick (or the one side); `lastAt` (added) is null until a trade happened.
-- **Position.entry** is the average price of how what is still held was acquired (0 when unknown): for a position, the
-  volume-weighted price of its own router flow's trades; for held tokens, the user's `buyLong` buys (the router's
-  trades in its OPEN_LONG transactions) and the user's own resting bids that filled, never a pay-me-daily buy (those
+- **Position.entry** is the average price of how what is still held was acquired (0 when unknown). Router buys are
+  read from the user's own RouterFlow rows ((dollarsIn - refund) / tokens), never matched by `txOrigin`: a smart
+  account's transactions come from a bundler, and one bundle can carry other users' trades. For a pay-me-daily long,
+  its OPEN_LONG_DAILY flow; for a short position, the router's sale in its OPEN_SHORT transaction (read by that
+  transaction, taker = the router, sell side); for held tokens, the user's OPEN_LONG flows plus the user's own resting
+  bids that someone else filled (never a fill inside the user's own transactions), never a pay-me-daily buy (those
   tokens became positions) or a close-short buy-back (burned); for a short balance (minted pairs whose tokens were sold
-  through the user's resting asks, a limit short), those asks' fills, never a router sale. Held tokens count those in
+  through the user's resting asks, a limit short), those asks' fills by someone else, never a router sale. Held tokens count those in
   Kuru's margin account too (a filled limit buy, a cancelled ask land there): `inMargin` (added) is that part, which
   `withdrawMargin` brings to the wallet before a sale, a settle or a redeem.
 
@@ -274,6 +277,10 @@ bun run e2e/run.ts fork       # the whole journey on a local fork (below)
 bun run e2e/run.ts live       # every read against the live testnet and the indexer, read only
 AGATE_E2E_RPC=http://127.0.0.1:<port> AGATE_E2E_GRAPHQL=<url> AGATE_E2E_DAYS=1 bun run e2e/run.ts flows
                               # the journey alone against a fork world that is already up (listed months, a maker)
+AGATE_E2E_KEY_CMD='security find-generic-password -s <item> -a private-key -w' \
+  bun run e2e/run.ts testnet --i-mean-testnet
+                              # the journey on Monad testnet, against the live demo factory of a running demo session
+bun run e2e/session-report.ts # read only: a demo session's days, listings, books, claims, alerts and MON per key
 ```
 
 `e2e/run.ts fork` starts an anvil fork of Monad testnet through `wall/scripts/anvil-safe.sh` (refused under 30 GB
@@ -291,3 +298,112 @@ a limit long placed and cancelled and the margin withdrawn, a limit short that m
 redeemed, a day of the month final and the daily claim, then the month's end with the final claims and settle. It
 prints a table (step, tx hash, gas limit, gas used, MON at 102 gwei, checks passed) and stops everything it started.
 Nothing is sent to Monad testnet: every transaction goes to the loopback fork, which the script checks first.
+
+### The live check on Monad testnet (`e2e/run.ts testnet`)
+
+The fork mode's journey, run for real against the **demo factory of a running demo session** (ops/testnet/RUNBOOK.md,
+"A demo session"), in real time with no time travel: drip, buy long $200 (bounded by the ask it read a moment before),
+sell 10 GPU-hours (by the bid), open a short of 10 GPU-hours paid daily and close it, pay me daily $100, a post-only
+limit bid of 10 GPU-hours placed, cancelled and its deposit withdrawn; then it waits for the next final demo day and
+claims (`claimDaily`), and waits for the demo month's end for the final claims and the settle (or redeem) of what is
+left. Each step is checked through the client's reads and the indexer, and exactly where the contract fixes a number
+(what a daily position is paid at open and at each claim, a short's close, the settle). The payer app claims daily
+positions too, after each final day: whoever moves first pays, and the check is the position's paid total either way
+(the run says which). It prints the step table (transaction, hash, gas limit, gas used, the gas price the chain
+charged, MON = gas limit x that price, since Monad bills the limit) and with `--report <file.json>` writes it all.
+
+It takes as long as the session's clock: started with the session, it waits for the listing (about 16 minutes), sends
+its trades in a few minutes, claims within about 15 minutes of the next demo day's end, and ends with the month (5 hours
+after the session began, plus about 6 minutes for the last day to turn final). A line every few minutes says what it
+waits for.
+
+**Gates, each before anything is sent** (exit 2 when one refuses):
+
+- `--i-mean-testnet` is required; a loopback RPC (a local fork) is refused unless `--allow-fork` (for testing). Each
+  URL is read as `fetch` reads it, so every spelling of this machine counts: `localhost` and `*.localhost` in any case
+  or with a trailing dot, 127.0.0.0/8 in any notation (`127.0.0.2`, `127.1`, `2130706433`, `0x7f000001`, `0177.0.0.1`),
+  `0.0.0.0`, `[::1]` and `[::ffff:127.0.0.1]`. And whatever its URL says, an RPC is refused when it answers another
+  chain id than 10143, or answers `anvil_nodeInfo` or `hardhat_metadata` (a local node reached by a name or an address
+  the URL test does not know; one read each, no retry, 5 s at most; an RPC that errors on them is fine). With a list
+  in `--rpc`, every URL is asked. An `--rpc` URL is shown and written (lines, refusals, errors that quote it, the
+  `--report` file, and `e2e/session-report.ts`'s output and `--json`) by its scheme, host and port only, since a
+  provider's key rides in its path.
+- The key comes **only** from `AGATE_E2E_KEY_CMD`, a command run once (a Keychain read); the run refuses
+  `AGATE_E2E_KEY` and the like, any command-line argument holding 64 hex digits in a row anywhere (an option's value,
+  a URL, glued to other characters; the argument is not shown), a command holding a key literally (accepted only
+  against a loopback fork with `--allow-fork`), and a key that is also the value of any variable of the environment.
+  The key is never printed or written: nothing the command writes is shown, on stdout or stderr, even when it fails
+  (only its exit code), and every run of 64 or more hex digits (with or without `0x`, whatever stands beside it, and a
+  number that long in decimal) is hidden from every line the mode prints, every refusal and the `--report` file, but
+  the transaction hashes this run sent or read from the chain. Every run of 16 or more hex digits in the arguments is
+  hidden too, so a key split across two arguments shows no part of it.
+- One live run per key: a pid file in `~/.agate-e2e/locks` (per key address, and per port on a fork) is taken once the
+  key's address is known and released when the run ends, also after a Ctrl-C, and when the process exits (a second
+  Ctrl-C, SIGTERM); a second run of the same key exits 2 while the first lives (and leaves the `--report` file to the
+  first), and a lock whose process is gone (a crash, `kill -9`) is taken over, under a guard (`<lock>.takeover`, a
+  directory one process at a time can make) so two runs that find it stale at the same moment never both get it. A
+  run also refuses to start while the key has a transaction still pending (its pending nonce above its latest: a run
+  that stopped mid-send); an RPC that does not answer the pending nonce leaves the lock as the only guard.
+- The user's address, MON and tUSD are printed first; then any role refuses the run: the owner, writers, attester and
+  guardians of every index, the market admin of every factory and the dollar's minter (read on chain), and every role
+  address of `ops/testnet/lib.sh` (the real keys and the rehearsal keys, the maker and the payer among them) and of
+  the deploy configs.
+- The demo factory by default, only while its session is `active` in the index records (`10143-indexes.json`); the
+  production factory only with `--factory real` (`AGATE_E2E_FACTORY` is refused, and a demo entry that shares an
+  address with production, names the production index, or sits on an index with the production clock is refused).
+- The factory on chain names the deployments' index, router and dollar; the indexer answers and indexes this index
+  (else `--no-indexer`: chain-only checks).
+- A spend cap: `--max-dollars` (default 500 tUSD). The journey's most (each write's approval: the buy, the short's
+  collateral 10 x C, the buy-back at the ask plus 1%, pay me daily, the bid's deposit; about $460 on H100) is checked
+  against it before the first send, and each write's maximum before it is sent. A MON floor: `--min-mon` (default 1)
+  before every step.
+
+**Resumable.** Ctrl-C finishes the step in progress (every transaction of it and its checks: a Ctrl-C just after
+`== short-open` is printed still sends that step's approve and open) or stops a wait at once (for the listing, the
+book, a final day, the month's end), then stops; a second Ctrl-C quits at once.
+`--stop-after <step>` stops after a step (drip, buy, sell, short-open, short-close, daily, limit, claim, month-end,
+settle). Run the same command again: each step is looked up on chain first (this user's router flows on the month's
+series, its Kuru orders, its positions, balances and resting orders through the client's reads; the indexer up to its
+newest block and the chain's logs above it), and is skipped when done, finished when half done (a resting bid
+cancelled, a deposit withdrawn), and sent only when it was not.
+
+**Which month.** `--month`, else the newest month of the GPU in which this key already holds something or has a
+journey on this factory, finished or not (the `--report` file of an earlier run of this key, factory and GPU, or the
+key's router flows on chain: the indexer's rows, else the chain's `Routed` logs from the factory's start block or
+`--from-block`), else, for a key with no journey there yet, the factory's current month. So the same command run
+again after a finished journey (exit 0) finds every step done and sends nothing (the drip too, even after the drip
+period: a month with any flow of the key is past its drip); a new month for that key needs an
+explicit `--month`. The run prints which month it took and why.
+
+Exit codes: 0 every check passed, 1 a check failed or the run stopped on an error (the table shows what landed), 2 a
+gate refused, 3 stopped on request (Ctrl-C, `--stop-after`) with every check so far passed.
+
+Options: `--gpu H100|H200|B200` (default H100), `--rpc` (default the public RPC; several URLs separated by commas are
+tried in order, since the public RPC allows 15 requests a second per IP for every process on the machine),
+`--deployments` (default
+`contracts/deployments/10143.json`, its `-indexes.json` beside it), `--graphql` / `--no-indexer`, `--from-block` (where
+a chain scan starts without the indexer; default the factory's start block), `--listing-wait-min 60`,
+`--claim-wait-min 45`, and on a fork only `--time-travel` (the month's end is written by the kit's `days.ts` as the
+index's own writer and attester, impersonated, instead of waited for).
+
+Proven on Oct 4 on a fork of a rehearsal demo session (`ops/testnet/rehearse.sh session`'s steps: the kit's scripts,
+rehearsal keys, a private tmux server; an isolated indexer of both factories) with `--allow-fork` and an anvil test
+key: the gates refused there too (no `--allow-fork`; the rehearsal maker's key), and the journey ran in three runs that
+each resumed from the chain (`--stop-after sell`, `--stop-after claim`, then `--time-travel` for the month's end): 58 of
+58 checks, 19 transactions, gas limits 3,460,116 (0.35 MON at 102 gwei; about 0.6 at Monad's estimates, up to 1.7 x
+the fork's). A fourth run on the finished month sent nothing; a Ctrl-C during a step stopped after it; a bid left
+resting by a run that died was found, cancelled and its deposit withdrawn by the next run.
+
+### A demo session's report (`e2e/session-report.ts`)
+
+Read only (no key): per demo day of the demo index whether each GPU's record is closed, final, countersigned or
+carried, and how many slices each writer posted; the demo factory's listings; the maker's books (every level and its
+size); the claims per day and how many the payer sent (needs the indexer); the alerts of `~/.agate-wall/alerts/
+alerts.jsonl` since the session began; and per key the MON that left it since the session's deploy block (gas and any
+top-up it sent; a top-up it received reads as less spent) with its transaction count. A read that failed is said in
+words ("read failed" for a writer's slices, "record read failed" for a day's records), never as a count; with
+`--no-indexer` the indexer is "not used" and the claims are not read. Run it every 30 minutes during
+a live check: `while true; do bun run e2e/session-report.ts | tee -a session.log; sleep 1800; done`. Options:
+`--rpc`, `--deployments`, `--indexes`, `--graphql` / `--no-indexer`, `--alerts`, `--roles real|rehearsal` (a fork
+rehearsal's keys), `--state` (a snapshot it keeps when the RPC holds no state at the deploy block, as a fork's pruned
+history does), `--json <file>`.

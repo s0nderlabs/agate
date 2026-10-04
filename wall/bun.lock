@@ -24,6 +24,16 @@
         "viem": "^2.57.2",
       },
     },
+    "apps/marketmaker": {
+      "name": "@agate/marketmaker",
+      "version": "0.1.0",
+      "dependencies": {
+        "@agate/market": "workspace:*",
+        "@agate/report": "workspace:*",
+        "@agate/watcher": "workspace:*",
+        "viem": "^2.57.2",
+      },
+    },
     "apps/pagecheck": {
       "name": "@agate/pagecheck",
       "version": "0.1.0",
@@ -31,6 +41,16 @@
         "@agate/report": "workspace:*",
         "@agate/sources": "workspace:*",
         "@agate/watcher": "workspace:*",
+      },
+    },
+    "apps/payer": {
+      "name": "@agate/payer",
+      "version": "0.1.0",
+      "dependencies": {
+        "@agate/market": "workspace:*",
+        "@agate/report": "workspace:*",
+        "@agate/watcher": "workspace:*",
+        "viem": "^2.57.2",
       },
     },
     "apps/repair": {
@@ -84,6 +104,15 @@
         "viem": "^2.57.2",
       },
     },
+    "packages/market": {
+      "name": "@agate/market",
+      "version": "0.1.0",
+      "dependencies": {
+        "@agate/report": "workspace:*",
+        "@agate/watcher": "workspace:*",
+        "viem": "^2.57.2",
+      },
+    },
     "packages/report": {
       "name": "@agate/report",
       "version": "0.1.0",
@@ -109,7 +138,13 @@
 
     "@agate/guardian": ["@agate/guardian@workspace:apps/guardian"],
 
+    "@agate/market": ["@agate/market@workspace:packages/market"],
+
+    "@agate/marketmaker": ["@agate/marketmaker@workspace:apps/marketmaker"],
+
     "@agate/pagecheck": ["@agate/pagecheck@workspace:apps/pagecheck"],
+
+    "@agate/payer": ["@agate/payer@workspace:apps/payer"],
 
     "@agate/repair": ["@agate/repair@workspace:apps/repair"],
 

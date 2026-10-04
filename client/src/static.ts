@@ -19,6 +19,15 @@ export const TESTNET_DEPLOYMENTS: Deployments = {
       "router": "0x4F4C14E7421dA83C398e04e4b5CeA2543f903c9c",
       "tPend": 21600,
       "startBlock": 67954341
+    },
+    "demo": {
+      "index": "0xD2b9656b028E936CC66e34bAb3583177c985a1F8",
+      "dollar": "0x3A0513b2A19EE92eb3f73Dd06EefEe4D477CbF38",
+      "tag": "demo",
+      "factory": "0x5587986Fc552c57339b3F19451faC95Dd5850E2b",
+      "router": "0x29f9316C445f8Cb75084C179bD49dDFB9bf90711",
+      "tPend": 210,
+      "startBlock": 68138505
     }
   }
 };
@@ -29,6 +38,11 @@ export const TESTNET_INDEXES: Record<string, { index: string; firstDay: number; 
     "index": "0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36",
     "firstDay": 20730,
     "deployBlock": 67954220
+  },
+  "demo": {
+    "index": "0xD2b9656b028E936CC66e34bAb3583177c985a1F8",
+    "firstDay": 20758,
+    "deployBlock": 68138404
   }
 };
 

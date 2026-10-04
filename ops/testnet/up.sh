@@ -18,8 +18,12 @@
 # (launchd's KeepAlive), its output appended to $AGATE_KIT_STATE/logs/<name>.log from its first line (the window
 # opens idle, its output pipe is attached, then the launcher starts in it). Keys reach a process only through its key
 # command, which the process (or its run script) runs at start: security find-generic-password ... -w.
-# RPC URLs reach it only through AGATE_RPC_URLS_CMD (Alchemy's URL from the Keychain first, the public RPC second,
-# Alchemy's websocket third), which the process runs itself.
+# RPC URLs reach it only through AGATE_RPC_URLS_CMD, which the process runs itself: the public RPCs, rotated per
+# window, and with AGATE_KIT_ALCHEMY=light (the default) Alchemy for the signing windows' own transactions
+# (send:<Alchemy>, its key read from the Keychain by the command) and Alchemy's websocket for the attester and the
+# keeper (AGATE_WS_KIND=logs); "all" puts Alchemy first everywhere but the indexer, "off" leaves it out (lib.sh).
+# AGATE_ALCHEMY_DAILY_CU, when set here, reaches every window (the day's Alchemy budget, default 400,000 CU).
+# AGATE_KIT_INDEXER=0 leaves the indexer window out (a fork rehearsal beside a running indexer).
 #
 # The market maker and the payer get AGATE_MARKET_GAS_LIMITS from ops/testnet/market-gas-limits.json (another file
 # with AGATE_KIT_MARKET_GAS_LIMITS=<path>): the LIMIT table override measured on Monad, which prices some calls above
@@ -48,6 +52,8 @@ check_fork
 check_tmux_target
 
 say "up $STACK: $(kit_mode_line)"
+ALCHEMY_LINE="$(kit_alchemy_line)"
+note "$ALCHEMY_LINE"
 note "tmux $([ -n "$TMUX_SOCK" ] && echo "server -L $TMUX_SOCK, ")session $TMUX_SESSION; wall home $KIT_WALL_HOME"
 
 PROD_IX="$(records_get .production.index)"
@@ -87,14 +93,25 @@ PROD_LOG_DIR="${AGATE_KIT_PROD_LOG_DIR:-$HOME/.agate-wall/watcher/production-0}"
 if [ "$KIT_FORK" = 1 ]; then
   PORT="${KIT_RPC##*:}"
   PORT="${PORT%%/*}"
-  RPC_CMD="printf 'http://127.0.0.1:$PORT,http://localhost:$PORT'"
+  FORK_LIST="http://127.0.0.1:$PORT,http://localhost:$PORT"
   CRE_RPC="http://127.0.0.1:$PORT"
   # a fork has no production logger: the production processes read the log of a prod-log window
   PROD_LOG_DIR=""
 else
-  RPC_CMD='k="$(security find-generic-password -s agate.alchemy-api-key -a api-key -w)" && printf '"'"'https://monad-testnet.g.alchemy.com/v2/%s,https://testnet-rpc.monad.xyz,wss://monad-testnet.g.alchemy.com/v2/%s'"'"' "$k" "$k"'
+  FORK_LIST="" # per window: the public RPCs rotated by its name (lib.sh)
   CRE_RPC="$PUBLIC_RPC"
 fi
+# the RPC list command of one window (lib.sh rpc_list_cmd): the fork's URLs or the rotated public RPCs, with Alchemy
+# where the mode gives it
+rpc_cmd_of() { rpc_list_cmd "$1" "$FORK_LIST"; }
+# AGATE_RPC_URLS_CMD of a window, and AGATE_WS_KIND=logs when its list carries Alchemy's websocket
+rpc_env_of() {
+  local k
+  echo "AGATE_RPC_URLS_CMD=$(rpc_cmd_of "$1")"
+  k="$(alchemy_ws_kind "$1")"
+  if [ -n "$k" ]; then echo "AGATE_WS_KIND=$k"; fi
+  return 0
+}
 
 # KEY=VALUE lines of the base environment (the allowlist), then each window adds its own
 base_env() {
@@ -117,7 +134,8 @@ base_env() {
   # optional overrides the operator may set in the shell that runs up.sh (wall/README.md, 18.6); the market bots'
   # gas limits come from MARKET_GAS_FILE only (win_env)
   for v in AGATE_MAX_FEE_GWEI AGATE_GAS_POST AGATE_GAS_ONREPORT AGATE_GAS_CLOSE AGATE_GAS_MEASURED \
-    AGATE_KEY_LOW_HOURS AGATE_MM_CONFIG AGATE_PAYER_CONFIG; do
+    AGATE_KEY_LOW_HOURS AGATE_MM_CONFIG AGATE_PAYER_CONFIG AGATE_ALCHEMY_DAILY_CU AGATE_MM_SESSION_MON \
+    AGATE_MM_SESSION_UNTIL AGATE_PAYER_SESSION_MON AGATE_PAYER_SESSION_UNTIL; do
     if [ -n "${!v:-}" ]; then echo "$v=${!v}"; fi
   done
   return 0
@@ -137,7 +155,7 @@ win_env() {
       ;;
   esac
   case "$n" in
-    *-primary | *-standby | *-attest | *-keep | *-health | *-log) echo "AGATE_RPC_URLS_CMD=$RPC_CMD" ;;
+    *-primary | *-standby | *-attest | *-keep | *-health | *-log) rpc_env_of "$n" ;;
   esac
   case "$n" in
     *-attest | *-keep | *-health | *-log) echo "AGATE_FROM_BLOCK=${blk:-0}" ;;
@@ -162,13 +180,13 @@ win_env() {
       echo "AGATE_GUARDIAN_ADDRESS=$(role_addr guardian)"
       ;;
     shared-maker | shared-payer)
-      echo "AGATE_RPC_URLS_CMD=$RPC_CMD"
+      rpc_env_of "$n"
       echo "AGATE_DEPLOYMENTS=$KIT_DEPLOYMENTS"
       echo "AGATE_MARKET_GAS_LIMITS=$MARKET_GAS_JSON"
       if [ "$n" = shared-maker ]; then echo "AGATE_KEY_CMD=$(role_key_cmd bot)"; else echo "AGATE_KEY_CMD=$(role_key_cmd payer)"; fi
       ;;
     shared-indexer)
-      echo "AGATE_RPC_URLS_CMD=$RPC_CMD"
+      echo "AGATE_RPC_URLS_CMD=$(rpc_cmd_of "$n")"
       echo "AGATE_DEPLOYMENTS=$KIT_DEPLOYMENTS"
       echo "AGATE_KIT_RECORDS=$KIT_RECORDS"
       echo "AGATE_KIT_STATE=$KIT_STATE"
@@ -177,7 +195,7 @@ win_env() {
     shared-repair)
       echo "AGATE_INDEXES=$(echo "$PROD_IX,$DEMO_IX" | sed 's/^,//; s/,$//')"
       echo "AGATE_PANELS=$PANELS"
-      echo "AGATE_RPC_URLS_CMD=$RPC_CMD"
+      rpc_env_of "$n"
       echo "AGATE_REPO=$ROOT"
       [ -n "$CLAUDE_BIN" ] && echo "AGATE_CLAUDE_BIN=$CLAUDE_BIN"
       if [ -n "$PROD_IX" ] && [ -n "$PROD_LOG_DIR" ]; then echo "AGATE_WATCHER_LOG_DIR_$(index8 "$PROD_IX")=$PROD_LOG_DIR"; fi
@@ -254,7 +272,14 @@ case "$STACK" in
   demo) PER="demo-replay demo-log demo-primary demo-standby demo-attest demo-keep demo-pagecheck demo-health" ;;
 esac
 SHARED="shared-repair shared-akash"
-if [ -f "$KIT_DEPLOYMENTS" ]; then SHARED="shared-maker shared-payer shared-indexer $SHARED"; fi
+if [ -f "$KIT_DEPLOYMENTS" ]; then
+  if [ "${AGATE_KIT_INDEXER:-1}" = 0 ]; then
+    SHARED="shared-maker shared-payer $SHARED"
+    note "AGATE_KIT_INDEXER=0: no indexer window"
+  else
+    SHARED="shared-maker shared-payer shared-indexer $SHARED"
+  fi
+fi
 [ "$KIT_FORK" = 1 ] || SHARED="$SHARED shared-awake"
 
 if [ "$STACK" = production ] && [ "$KIT_FORK" = 0 ] && [ "$KIT_DRY" = 0 ]; then
@@ -274,7 +299,10 @@ if [ "$KIT_FORK" = 0 ] && [ "$KIT_DRY" = 0 ]; then
   for r in primary standby attester keeper bot payer; do
     keychain_has "$(role_svc "$r")" || die "no Keychain item $(role_svc "$r") (account private-key): nothing opened"
   done
-  security find-generic-password -s agate.alchemy-api-key -a api-key >/dev/null 2>&1 || die "no Keychain item agate.alchemy-api-key (account api-key): nothing opened"
+  # light or all: the Alchemy key's item (its attributes; the key itself is read by each command at its start)
+  if alchemy_real; then
+    security find-generic-password -s agate.alchemy-api-key -a api-key >/dev/null 2>&1 || die "no Keychain item agate.alchemy-api-key (account api-key): nothing opened"
+  fi
 fi
 
 # the market bots' gas limits: one source, the file, checked by the bots' own parser before anything opens

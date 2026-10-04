@@ -37,9 +37,10 @@ testnet-production.json` with the firstDay the deploy wrote.
   turns tracing off around the key, but nothing else in a traced run is meant for a log.
 - forge and the send helper (`send.ts`) always use the key-free public RPC, `https://testnet-rpc.monad.xyz`.
 - The long-running processes get key commands (`security find-generic-password ... -w`), never keys, and the RPC list
-  as a command, `AGATE_RPC_URLS_CMD`: Alchemy's URL with its key from the Keychain (`agate.alchemy-api-key`, account
-  `api-key`) first, the public RPC second, Alchemy's websocket third. Each process runs it once at start and keeps the
-  URLs in memory.
+  as a command, `AGATE_RPC_URLS_CMD`: the three public RPCs, rotated per window, and with `AGATE_KIT_ALCHEMY=light`
+  (the default since Oct 4) Alchemy's URL with its key from the Keychain (`agate.alchemy-api-key`, account `api-key`)
+  as a `send:` entry for the signing windows and Alchemy's websocket for the attester and the keeper ("Alchemy" below).
+  Each process runs it once at start and keeps the URLs in memory.
 - Each tmux window runs a launcher in `~/.agate-kit/run/<window>.sh` with a clean environment (`env -i` and a short
   allowlist); the launchers hold no key and no URL. Output goes to `~/.agate-kit/logs/<window>.log` from its first
   line (the window opens idle, its log pipe is attached, then the launcher starts in it).
@@ -178,9 +179,13 @@ few minutes).
 `shared-indexer` runs `ops/testnet/indexer.sh run`: it copies `indexer/` into `~/.agate-kit/indexer` (the repo's
 committed `config.yaml` and `src/lib/deployments.generated.ts` never change), renders `config.yaml` there from
 `contracts/deployments/10143.json` with RPC sync and each index's deploy block (`--index-start real=<block>
-demo=<block>`), and starts `envio dev` (Postgres and Hasura in Podman). The RPC URL is the first http(s) entry that
-`AGATE_RPC_URLS_CMD` prints (Alchemy), read at start into `ENVIO_RPC_URL` of the envio process only, never into a
-file; no `ENVIO_API_TOKEN` is needed. A new deployments file (a demo session) restarts indexing from scratch.
+demo=<block>`), and starts `envio dev` (Postgres and Hasura in Podman). Its RPCs are the three public ones that
+`AGATE_RPC_URLS_CMD` prints, rotated for this window (never Alchemy, in any mode: its `eth_getLogs` were two thirds of
+the Oct 4 spend, and indexer.sh leaves out an Alchemy URL it is given): the first is the sync RPC, the two others are
+Envio fallbacks (`for: fallback`, used when the sync RPC stalls), read at start into `ENVIO_RPC_URL` and
+`ENVIO_RPC_URL_FALLBACK_<n>` of the envio process only, never into a file; no `ENVIO_API_TOKEN` is needed. A new
+deployments file (a demo session) restarts indexing from scratch, and so does the first run after Oct 4's change
+(its config.yaml gained the fallback entries).
 
 GraphQL is served at `http://localhost:8080/v1/graphql` (Hasura; reads need no secret, the admin secret of
 `envio dev` is `testing`). The app reads it from `NEXT_PUBLIC_AGATE_GRAPHQL_URL` (agreed with the app's work Oct 4),
@@ -251,6 +256,74 @@ cap, the headroom (cap / gas limit) and, under 1.25, the LIMIT that restores 1.2
 2. `ops/testnet/up.sh production --restart-shared` (up.sh checks the file before it closes anything).
 3. Run `gas-headroom.ts --since <the restart's unix time>` once the bots have sent again.
 
+## Alchemy (since Oct 4)
+
+On the morning of Oct 4 every process used Alchemy first and spent 11.3M compute units in about 7 hours (eth_getLogs
+67%, eth_call 16%, eth_getBlockByNumber 11%, eth_blockNumber 5%, transactions about 0%) until the $5 spending limit cut
+all of them off. Since then the kit gives Alchemy only to the light roles. `AGATE_KIT_ALCHEMY` picks the mode for
+`up.sh`, `status.sh` and `demo-session.sh`:
+
+| Mode | Who gets Alchemy |
+|---|---|
+| `light` (default) | the signing windows (`*-primary`, `*-standby`, `*-attest`, `*-keep`, `shared-maker`, `shared-payer` with its lister) as a `send:` entry: their own transactions, nonces, gas estimates and receipts; every read stays on the public RPCs. The attester and the keeper also get its websocket (`AGATE_WS_KIND=logs`). Health, the loggers, the page check, the indexer, the repair agent, the Akash reader and `status.sh` never do. |
+| `all` | the setup of the morning of Oct 4: Alchemy first for every read and send of every window but the indexer, and its websocket; prints a warning. The meter counts only the websocket here (the reads and sends ride the read list, which it does not count), so the budget does not cover them |
+| `off` | nobody: public RPCs only |
+
+`AGATE_KIT_ALCHEMY_WS=prod` keeps the websocket for `prod-attest` and `prod-keep` only (the demo ones poll every 7 and
+12 s), `off` for nobody. The key is read from the Keychain (`agate.alchemy-api-key`, account `api-key`) by each
+process's own command at its start; `up.sh` checks that the item exists (its attributes only) in `light` and `all`.
+A fork never uses the real Alchemy: there `light` and `all` need `AGATE_KIT_ALCHEMY_TEST_URL` (a loopback stand-in) and
+are `off` without it. A real (not `--fork`) run refuses `AGATE_KIT_ALCHEMY_TEST_URL` in every mode: left exported after a
+rehearsal, it would put the stand-in first for the real processes' transactions (and, while a fork and its counting
+proxy still ran there, they would be mined on the fork and never fail over). `unset AGATE_KIT_ALCHEMY_TEST_URL` and
+run again.
+
+A send endpoint's own answer about the transaction (a revert, a refused nonce or fee, a known transaction, no funds) is
+final; anything else it answers is passed on to the public RPCs: down, a timeout, HTTP 429 or 5xx, and also HTTP 401,
+402 or 403 (a revoked or mistyped key, an app's allowlist, a billing block) and a limit named in an HTTP 200 ("Monthly
+capacity limit exceeded"). A send endpoint that does not answer in time rests for a minute, so a send pays one timeout,
+not one per call.
+
+**The budget.** Every process with Alchemy counts its calls and websocket bytes, writes them to
+`<wall home>/rpc-meter/<UTC date>/<role>-<index8 or market>.json` and sums the day's files every minute against
+`AGATE_ALCHEMY_DAILY_CU` (default 400,000: the 10.9M left to Oct 31 over the days left; set it in the shell that runs
+`up.sh`). At 80% one ALCHEMY_BUDGET info alert; at 100% one action alert, and every process sends through the public
+RPCs and polls without the websocket until 00:00 UTC, then comes back by itself. `status.sh` prints the day's compute
+units by process and the total against the budget.
+
+**Check the meter against the bill, the first day.** The meter's read prices match the Alchemy dashboard of Oct 4
+(eth_getLogs 60, eth_call and eth_getBlockByNumber 20, eth_blockNumber 10); its send prices (estimate, nonce and receipt
+20, eth_sendRawTransaction 40) and 0.04 CU a websocket byte (about 70% of the light spend) are Alchemy's list, not yet
+checked against a bill. After the first whole UTC day in light mode, compare `status.sh`'s total for that day with the
+dashboard's usage for the same UTC day (dashboard.alchemy.com, Usage). If the dashboard reads higher, lower the budget
+in proportion, `AGATE_ALCHEMY_DAILY_CU` = 400,000 x meter / dashboard, so the stop still comes before the real spend
+passes the day's share.
+
+**What it costs, measured** on two fork rehearsals (Oct 4, `rehearse.sh session` in light mode beside the production
+stack, a counting proxy standing in for Alchemy; 0.52 h, then 0.61 h of a demo session up to a budget stop set low on
+purpose): the proxy saw only `eth_chainId` (the start check), `eth_estimateGas`, `eth_getTransactionCount`,
+`eth_sendRawTransaction` and `eth_getTransactionReceipt` over HTTP and `eth_subscribe` (the finalized `logs`) and its
+events over the websocket; 34,594 and 40,804 CU by the processes' meter files (the proxy's own counts priced the same
+way: 34,594 and 40,802, the meter rounding up per file). A send costs about 100 CU (estimate 20, broadcast 40, two
+receipt polls 40; the writers about 110 to 126 with their nonce checks); a websocket event averages about 1,545 bytes
+(62 CU) and each index event reaches both subscribers. The demo's sends ran about 20,400 CU an hour over the second run
+(the listings and a user's journey included), its websocket about 46,700 an hour over the whole run and about 53,000
+once it ran steady (about 71,600 an hour in all then). Expected, at the higher rates:
+
+| | Sends | Websocket (attester and keeper) | Total |
+|---|---|---|---|
+| production index, a UTC day (24 slices) | about 12,400 (the maker's requotes 7,200 of it) | about 38,000 | about 50,500 (13% of the budget) |
+| demo session, an hour | about 20,400 | about 53,000 | about 73,400 |
+| demo session of 5 hours | about 102,000 | about 265,000 | about 367,000 (92%) |
+
+So with the default, a 5-hour demo session beside the production index comes to about 104% of a day's budget (96% to
+102% at the second run's own totals, over the whole run and over its steady part): the stop may come near the session's
+end. It is graceful (seen live on the second run: every process logged the stop within a minute, the session went on
+through the public RPCs and polling, nothing reached the stand-in afterwards). `demo-session.sh start` prints this sum
+for its `--hours` and warns from 90%. With `AGATE_KIT_ALCHEMY_WS=prod` the same day takes about 38%. Caveats: the fork
+mines a block a second (Monad 0.4 s: the receipt polls may differ), the maker's steady rate rests on few sends, and the
+websocket bytes are anvil's log objects (Alchemy's may differ).
+
 ## A demo session
 
 ```
@@ -267,6 +340,19 @@ and opens `demo-replay` (the replay server on port 8787), `demo-log`, `demo-prim
 the repair agent take the new factory and index. A start cut off halfway resumes when run again (an active session's
 index is reused). `stop` closes the demo windows and marks the session stopped; the next start deploys a fresh
 index.
+
+**The bots' MON during a session.** The maker's and the payer's daily MON budget is paced for the production horizon
+(B = (balance - keep) / days to Dec 2: about 3 MON a day for the maker, 1.4 for the payer), and on Oct 4 it refused the
+session's six listings (about 0.5 MON each, `list_skipped ... BUDGET` in `shared-payer.log`). So `start` gives each bot
+its share of the session's plan once, on top and unpaced: `AGATE_MM_SESSION_MON` and `AGATE_PAYER_SESSION_MON` (39.0
+and 9.8 for 5 h at 102 gwei) until `AGATE_*_SESSION_UNTIL` (unix seconds, an hour after the session's planned end),
+passed to the shared windows it restarts. A send takes the day's paced share first and the rest from the session; what
+the session used is kept in `~/.agate-wall/market/<role>/session-<until>.json`, so a restart or a new UTC day never
+grants it twice. A plan above 1000 MON for one bot (the most a bot accepts) stops `start` before anything is deployed.
+The floor (keepMon) always holds. `stop` restarts the shared windows without them while the production stack runs;
+that day's spend then counts in full, so the bots send nothing more for production until 00:00 UTC. To give a running
+session's bots the MON by hand: `AGATE_MM_SESSION_MON=39.0 AGATE_PAYER_SESSION_MON=9.8
+AGATE_MM_SESSION_UNTIL=<unix> AGATE_PAYER_SESSION_UNTIL=<unix> AGATE_KIT_ALCHEMY_WS=prod ops/testnet/up.sh demo --restart-shared`.
 
 The maker keeps the stopped session's books and winds them down at each demo month's end (5 and 10 hours after the
 session began); a new session started before then replaces the demo factory in the deployments file, and the old
@@ -301,6 +387,50 @@ to 5.91 in its first hour (3.5 of it the six listings and markets), keeper 0.55 
 19 to 20 an hour on the fork, plus about 2 to start a session (index 0.75, factory 1.26). On Monad the bots' share runs
 higher (their limits follow Monad's estimates: "The market bots' gas limits on Monad"), so `demo-session.sh start`
 prints its estimate with the bots' figures x 1.5.
+
+If `start` stops with `respawn pane failed: fork failed: Device not configured` and `stopped: <window>: the launcher did
+not start in window @N (left idle; close it with down.sh)`, tmux could not open a pane while the shared windows were
+being closed and opened again (seen on this machine in two fork rehearsals in a row at `shared-indexer`, then not in a
+third; a private tmux server reproduced it once and not in three more tries). Nothing was sent by that step: wait half
+a minute, `ops/testnet/down.sh demo`, then run `demo-session.sh start` again (the active session's index and factory
+are reused).
+
+### The live check during a session
+
+A plain user's whole journey against the session's demo factory, from the client (`client/README.md`, "The live check
+on Monad testnet"), with a fresh test key that holds no role (the run refuses one that does) and a few MON:
+
+```
+cd client
+AGATE_E2E_KEY_CMD='security find-generic-password -s <test key item> -a private-key -w' \
+  bun run e2e/run.ts testnet --i-mean-testnet --report ~/agate-live-check.json
+bun run e2e/session-report.ts            # read only, every 30 minutes (in another window)
+```
+
+- Start it any time after `demo-session.sh start`: it prints the user's address, MON and tUSD, checks every gate, then
+  waits for H100's demo November to list and be quoted (about 16 minutes into the session), prints the spend plan
+  (about $460 against `--max-dollars` 500), and only then sends: drip, buy $200, sell 10, a short of 10 opened and
+  closed, pay me daily $100, a limit bid placed, cancelled and withdrawn (a few minutes). Then it waits for the next
+  demo day to turn final (about 6 minutes after a day ends; a line every 3 minutes) and claims, then for the month's
+  end (5 hours after the session began, plus about 6 minutes; a line every 5 minutes) and makes the final claims and
+  the settle.
+- The payer claims daily positions after each final day too; the run checks the paid total whoever claimed and says
+  which. The run's own gas, measured on a fork rehearsal (Oct 4): 19 transactions, gas limits 3,460,116, 0.35 MON at
+  102 gwei; Monad's estimates run up to 1.7 x the fork's, so about 0.6 MON. Fund the test key with 2 MON (the run stops before
+  a step when the key is under `--min-mon`, 1 by default, and warns at the start when its estimate would take it there). The fork's gas price is not Monad's: read the step table's MON on testnet.
+- Ctrl-C finishes the step in progress (every transaction of it and its checks) or stops a wait at once, then stops; a
+  second Ctrl-C quits at once. After that, a dropped connection or a MON top-up needed under `--min-mon`, the same
+  command continues from what is on chain. The session must still be `active` in `10143-indexes.json`.
+- Which month: `--month`, else the newest month of the GPU this key holds something in or has a journey in on this
+  factory (the `--report` file, or the key's router flows on chain), else the factory's current month. So the same
+  command run again after a finished journey (exit 0) sends nothing; a new month for that key needs `--month`. The run
+  prints the month it took and why.
+- One live run per key: a second run of the same key while the first lives exits 2 and leaves the `--report` file to
+  the first (a pid lock in `~/.agate-e2e/locks`, taken over when its process is gone); a run also refuses while the key
+  has a transaction still pending.
+- The report's sections: per demo day closed, final, countersigned and carried GPUs and each writer's slices; the
+  listings; the maker's books level by level; the claims per day and the payer's share (with the indexer); the open
+  alerts since the session began; per key the MON out since the deploy block and its transaction count.
 
 ## Stopping
 

@@ -5,11 +5,27 @@
 // chain over HTTP exactly as without it. Polling every tick continues; a dropped socket reconnects with a doubling
 // backoff from 1 s to 60 s, trying the endpoints in order; no live subscription for 3 ticks raises RPC_WS_DOWN (info).
 // URLs are secrets: only redacted forms ever reach a log line or an alert.
+// Oct 4: AGATE_WS_KIND=logs asks the finalized "logs" (and "newHeads") first and the speculative monad streams only when
+// a node refuses them (default "monad": the order above). Alchemy bills a websocket by the bytes it pushes, and the
+// speculative stream pushes a block's events again as its commit state moves, so the kit sets logs for Alchemy. With
+// a meter (report/meter.ts) each eth_subscribe and the bytes of each event are counted, and while the day's Alchemy
+// budget is spent the socket stays closed (polling only, no RPC_WS_DOWN: ALCHEMY_BUDGET says why) until 00:00 UTC.
 import { redactUrl } from "@agate/report/env";
+import type { RpcMeter } from "@agate/report/meter";
 import { AlertCode } from "@agate/report/types";
 import type { AlertSink } from "../alerts.ts";
 
 export type WsKind = "logs" | "heads";
+/** Which stream is asked first: Monad's speculative one (monadLogs, the default) or the finalized one (logs). */
+export type WsPrefer = "monad" | "finalized";
+
+/** AGATE_WS_KIND: unset or "monad" (monadLogs first), "logs" (the finalized logs first); anything else is refused. */
+export function wsPreferFromEnv(env: Record<string, string | undefined>): WsPrefer {
+  const v = env.AGATE_WS_KIND?.trim();
+  if (v === undefined || v === "" || v === "monad") return "monad";
+  if (v === "logs") return "finalized";
+  throw new Error("AGATE_WS_KIND must be logs or monad");
+}
 
 /** The minimal WebSocket surface used here (the global WebSocket in Bun; a fake in tests). */
 export interface WsLike {
@@ -38,6 +54,12 @@ export interface WsWakeOptions {
   /** consecutive ticks without a live subscription before RPC_WS_DOWN */
   downTicks?: number;
   log?: (event: string, data: Record<string, unknown>) => void;
+  /** AGATE_WS_KIND (wsPreferFromEnv): the stream asked first (default monad) */
+  prefer?: WsPrefer;
+  /** a socket not open after this many ms is closed and retried (Bun's WebSocket has no handshake timeout) */
+  handshakeMs?: number;
+  /** counts the subscribe calls and the events' bytes; closes the socket while the day's budget is spent */
+  meter?: RpcMeter;
 }
 
 export class WsWake {
@@ -45,6 +67,7 @@ export class WsWake {
   private urlIx = 0;
   private backoff: number;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private handshake: ReturnType<typeof setTimeout> | null = null;
   private stopped = true;
   private subs = new Map<number, { kind: WsKind; monad: boolean }>(); // request id -> what it asked for
   private liveSubs = new Set<string>();
@@ -52,6 +75,8 @@ export class WsWake {
   private lastWake = -Infinity;
   private ticksDown = 0;
   private alerted = false;
+  /** closed for the day's Alchemy budget (ALCHEMY_BUDGET) */
+  private paused = false;
   /** notifications received (tests and the heartbeat) */
   notifications = 0;
   connects = 0;
@@ -62,6 +87,38 @@ export class WsWake {
 
   get live(): boolean {
     return this.liveSubs.size > 0;
+  }
+
+  /** Closed while the day's Alchemy budget is spent (the meter says so). */
+  get budgetPaused(): boolean {
+    return this.paused;
+  }
+
+  private budgetSpent(): boolean {
+    return this.o.meter !== undefined && !this.o.meter.allowed();
+  }
+
+  /** The socket closed for the rest of the UTC day (the meter's stop); polling carries on. */
+  private pause(): void {
+    if (this.paused) return;
+    this.paused = true;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.clearHandshake();
+    const ws = this.ws;
+    this.ws = null;
+    this.liveSubs.clear();
+    try {
+      ws?.close();
+    } catch {
+      // closing a dead socket
+    }
+    if (this.alerted) {
+      this.alerted = false;
+      this.o.alerts?.clearWhere((a) => a.code === AlertCode.RPC_WS_DOWN && a.message.startsWith(`${this.o.role}:`));
+    }
+    this.ticksDown = 0;
+    this.say("ws_paused", { why: "ALCHEMY_BUDGET", until: "00:00 UTC" });
   }
 
   private now(): number {
@@ -82,6 +139,7 @@ export class WsWake {
     this.stopped = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    this.clearHandshake();
     const ws = this.ws;
     this.ws = null;
     this.liveSubs.clear();
@@ -94,6 +152,10 @@ export class WsWake {
 
   private open(): void {
     if (this.stopped) return;
+    if (this.budgetSpent()) {
+      this.pause();
+      return;
+    }
     const url = this.o.urls[this.urlIx % this.o.urls.length]!;
     let ws: WsLike;
     try {
@@ -105,10 +167,23 @@ export class WsWake {
     this.ws = ws;
     this.subs.clear();
     this.liveSubs.clear();
+    this.clearHandshake();
+    this.handshake = setTimeout(() => {
+      this.handshake = null;
+      if (this.ws !== ws) return;
+      this.ws = null;
+      try {
+        ws.close();
+      } catch {
+        // a socket still connecting
+      }
+      this.failed(url);
+    }, this.o.handshakeMs ?? 15_000);
     ws.onopen = () => {
       if (this.ws !== ws) return;
+      this.clearHandshake();
       this.connects++;
-      for (const k of this.o.kinds ?? ["logs"]) this.subscribe(ws, k, true);
+      for (const k of this.o.kinds ?? ["logs"]) this.subscribe(ws, k, this.o.prefer !== "finalized");
     };
     ws.onmessage = (ev) => {
       if (this.ws !== ws) return;
@@ -119,24 +194,34 @@ export class WsWake {
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
+      this.clearHandshake();
       this.ws = null;
       this.liveSubs.clear();
       this.failed(url);
     };
   }
 
-  /** monadLogs / monadNewHeads first (earliest, speculative); a node that refuses them gets logs / newHeads (finalized). */
+  private clearHandshake(): void {
+    if (this.handshake) clearTimeout(this.handshake);
+    this.handshake = null;
+  }
+
+  /** monadLogs / monadNewHeads first (earliest, speculative); a node that refuses them gets logs / newHeads (finalized).
+   *  With prefer "finalized" the other way round. Each stream is asked at most once per connection. */
   private subscribe(ws: WsLike, kind: WsKind, monad: boolean): void {
     const id = this.nextId++;
     this.subs.set(id, { kind, monad });
     const name = kind === "logs" ? (monad ? "monadLogs" : "logs") : monad ? "monadNewHeads" : "newHeads";
+    this.o.meter?.count("eth_subscribe");
     ws.send(JSON.stringify({ jsonrpc: "2.0", id, method: "eth_subscribe", params: kind === "logs" ? [name, { address: this.o.address }] : [name] }));
   }
 
   private message(data: unknown): void {
     let m: { id?: number; result?: unknown; error?: unknown; method?: string; params?: { subscription?: string } };
+    let text: string;
     try {
-      m = JSON.parse(typeof data === "string" ? data : new TextDecoder().decode(data as ArrayBuffer)) as typeof m;
+      text = typeof data === "string" ? data : new TextDecoder().decode(data as ArrayBuffer);
+      m = JSON.parse(text) as typeof m;
     } catch {
       return;
     }
@@ -149,12 +234,19 @@ export class WsWake {
         this.say("ws_subscribed", { kind: q.kind, monad: q.monad, url: redactUrl(this.o.urls[this.urlIx % this.o.urls.length]!) });
       } else {
         this.say("ws_subscribe_refused", { kind: q.kind, monad: q.monad });
-        if (q.monad && this.ws) this.subscribe(this.ws, q.kind, false);
+        // the other stream once: monad then finalized by default, finalized then monad with prefer "finalized"
+        if (this.ws && q.monad === (this.o.prefer !== "finalized")) this.subscribe(this.ws, q.kind, !q.monad);
       }
       return;
     }
     if (m.method === "eth_subscription") {
       this.notifications++;
+      // Alchemy bills an event by its bytes (the JSON text as sent)
+      this.o.meter?.wsEvent(new TextEncoder().encode(text).length);
+      if (this.budgetSpent()) {
+        this.pause();
+        return;
+      }
       // a hint only: never read the payload; the tick reads the chain over HTTP
       const t = this.now();
       if (t - this.lastWake >= 1_000) {
@@ -176,9 +268,20 @@ export class WsWake {
     }, wait);
   }
 
-  /** Once per process tick: RPC_WS_DOWN (info) after downTicks ticks without a live subscription; cleared when live. */
+  /** Once per process tick: RPC_WS_DOWN (info) after downTicks ticks without a live subscription; cleared when live.
+   *  While the day's Alchemy budget is spent the socket stays closed and nothing is raised; the next UTC day it opens. */
   tick(): void {
     if (this.o.urls.length === 0) return;
+    if (this.budgetSpent()) {
+      this.pause();
+      return;
+    }
+    if (this.paused) {
+      this.paused = false;
+      this.say("ws_resumed", {});
+      if (!this.stopped) this.open();
+      return;
+    }
     if (this.live) {
       this.ticksDown = 0;
       if (this.alerted) {

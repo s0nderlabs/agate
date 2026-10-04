@@ -128,7 +128,12 @@ export class IsolatedIndexer {
     podman(["network", "rm", this.names.net], true);
   }
 
-  async start(o: { rpc: string; deployments: string; factory: string; indexStart: number }): Promise<void> {
+  /** `factory` and `indexStart` name one factory's index deploy block; `indexStarts` names one per factory (a
+   *  deployments file with several, such as a demo session's beside production). Each is started one block early. */
+  async start(o: { rpc: string; deployments: string; factory?: string; indexStart?: number; indexStarts?: Record<string, number> }): Promise<void> {
+    const starts: Record<string, number> = { ...(o.indexStarts ?? {}) };
+    if (o.factory !== undefined && o.indexStart !== undefined) starts[o.factory] = o.indexStart;
+    if (Object.keys(starts).length === 0) throw new Error("the indexer needs an index start block for each factory");
     const NAMES = this.names;
     const PORTS = this.ports;
     for (const n of [NAMES.pg, NAMES.hasura]) {
@@ -141,7 +146,8 @@ export class IsolatedIndexer {
       cpSync(join(ROOT, "indexer", p), join(this.work, p), { recursive: true });
     }
     if (!existsSync(join(this.work, "node_modules"))) symlinkSync(join(ROOT, "indexer", "node_modules"), join(this.work, "node_modules"), "dir");
-    const gen = Bun.spawnSync(["bun", "run", "scripts/gen-config.ts", o.deployments, "--rpc", "--index-start", `${o.factory}=${o.indexStart - 1}`, "--out", "config.yaml"], { cwd: this.work, stdout: "pipe", stderr: "pipe" });
+    const startArgs = Object.entries(starts).flatMap(([f, b]) => ["--index-start", `${f}=${b - 1}`]);
+    const gen = Bun.spawnSync(["bun", "run", "scripts/gen-config.ts", o.deployments, "--rpc", ...startArgs, "--out", "config.yaml"], { cwd: this.work, stdout: "pipe", stderr: "pipe" });
     if (!gen.success) throw new Error(`gen-config failed: ${gen.stderr.toString()}`);
 
     podman(["network", "create", NAMES.net]);

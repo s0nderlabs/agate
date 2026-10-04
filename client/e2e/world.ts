@@ -25,7 +25,13 @@ export function writeDays(o: { rpc: string; index: string; toDay: number; logDir
   const log = o.logDir ? join(o.logDir, `days-${o.toDay}.log`) : null;
   if (log) writeFileSync(log, `${out}\n${err}`);
   const where = log ? ` (log: ${log})` : "";
-  if (!r.success) throw new Error(`days.ts --to ${o.toDay} failed: ${err.trim().split("\n").slice(-5).join(" ")}${where}`);
+  if (!r.success) {
+    // the error's own line (its class and message, not only the stack frames) and the last day days.ts finished
+    const lines = err.trim().split("\n");
+    const first = lines.find((l) => /Error|error:/.test(l)) ?? lines[0] ?? "";
+    const lastDay = out.trim().split("\n").filter((l) => l.startsWith('{"day"')).pop() ?? "(no day finished)";
+    throw new Error(`days.ts --to ${o.toDay} failed: ${first.trim().slice(0, 400)} | last day done: ${lastDay} | ${lines.slice(-3).join(" ")}${where}`);
+  }
   const last = out.trim().split("\n").pop() ?? "";
   let j: { done?: boolean; transactions?: number; chainTime?: string; lastDayFinal?: boolean };
   try {
@@ -63,7 +69,16 @@ export class World {
       if (w.indexer) {
         const start = TESTNET_INDEXES.production?.deployBlock;
         if (!start) throw new Error("no production index record");
-        await w.indexer.start({ rpc: fork.rpc, deployments: DEPLOYMENTS_FILE, factory: "real", indexStart: start });
+        // every factory of the deployments file needs its index's deploy block (gen-config refuses an index without
+        // one): the real factory always, the demo factory once a demo session recorded one
+        const starts: Record<string, number> = { real: start };
+        const factories = (JSON.parse(readFileSync(DEPLOYMENTS_FILE, "utf8")) as { factories: Record<string, unknown> }).factories;
+        if (factories.demo) {
+          const demo = TESTNET_INDEXES.demo?.deployBlock;
+          if (!demo) throw new Error("the deployments file has a demo factory but static.ts has no demo index record (bun run gen)");
+          starts.demo = demo;
+        }
+        await w.indexer.start({ rpc: fork.rpc, deployments: DEPLOYMENTS_FILE, indexStarts: starts });
         o.log(`fork indexer: envio start on its own Postgres and Hasura, GraphQL ${w.indexer.url}`);
       }
       for (const a of Object.values(REHEARSAL)) await fork.setBalance(a, 1_000n);

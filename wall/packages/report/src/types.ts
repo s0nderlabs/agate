@@ -280,6 +280,7 @@ export const AlertCode = {
   RPC_DOWN: "RPC_DOWN", // action: every RPC URL failed on two ticks running
   RPC_SINGLE: "RPC_SINGLE", // action: only one RPC URL configured
   RPC_WS_DOWN: "RPC_WS_DOWN", // info: no websocket subscription live for 3 ticks (polling only; 13.6)
+  ALCHEMY_BUDGET: "ALCHEMY_BUDGET", // info at 80% of the day's Alchemy compute units (AGATE_ALCHEMY_DAILY_CU), action at 100%: no Alchemy until 00:00 UTC (Oct 4)
   GAS_CAP: "GAS_CAP", // action: a call's needed gas limit exceeds its cap; not sent
   NONCE_STUCK: "NONCE_STUCK", // action: a transaction still unmined after three replacements
   CLOCK_JUMP: "CLOCK_JUMP", // info: a process woke after a clock jump (sleep, suspend)

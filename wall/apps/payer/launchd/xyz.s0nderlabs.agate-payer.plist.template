@@ -9,8 +9,12 @@
   No key and no URL in this file: the payer process runs AGATE_KEY_CMD itself once at start and keeps the key in
   memory only (never an exported variable, so `ps -wwE` cannot show it; audit M-K1).
   __KEY_CMD__ (XML-escaped): security find-generic-password -s agate.market.payer -a private-key -w
-  __RPC_URLS_CMD__: the wall's command that prints the URL list (Alchemy first, the public RPC second, Alchemy's wss
-  for wake-ups); it reads the Alchemy key from Keychain at start, XML-escape it here (& as &amp;).
+  __RPC_URLS_CMD__: the wall's command that prints the URL list; it reads the Alchemy key from Keychain at start.
+  Since Oct 4 Alchemy serves the light roles only (ops/testnet/RUNBOOK.md, "Alchemy"): the payer's and the lister's
+  own transactions go to Alchemy first as a send: entry, every read to the key-free public RPCs, and no websocket;
+  the process meters its Alchemy calls against AGATE_ALCHEMY_DAILY_CU (default 400,000 a UTC day). The command is the
+  kit's (ops/testnet/lib.sh rpc_list_cmd shared-payer prints it): a send: entry of Alchemy's https URL with the key,
+  then the public RPCs of PUBLIC_RPCS. XML-escape it here (& as &amp;).
   To use: replace __HOME__, __APP__, __BUN__, __RPC_URLS_CMD__, __CHAIN_ID__ (10143), __DEPLOYMENTS__,
   __PAYER_CONFIG__ (a JSON file of BOTS-SPEC 4.7, or an empty object file for every default), __KEY_CMD__; copy to
   ~/Library/LaunchAgents/; `launchctl bootstrap gui/$(id -u) <plist>`.

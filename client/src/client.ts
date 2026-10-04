@@ -965,7 +965,14 @@ export class AgateClient {
       const t = c.l.terms;
       const side = Number(x.side) === 0 ? "long" : "short";
       const flow = flows.find((f) => f.series_id === t.series.toLowerCase() && f.positionIds.map(String).includes(c.id.toString()));
-      const entry = flow ? vwap(trades.filter((tr) => tr.txHash === flow.txHash && (tr.series_id ?? "") === t.series.toLowerCase())) : 0;
+      // a pay-me-daily long's entry is its own flow's buy (exact, per user: a smart account's bundle can carry other
+      // users' trades); a short's is the router's sale in that transaction (its flow's dollarsOut also holds what the
+      // new positions were paid at once, so the sale is read from the trades the router took there)
+      const entry = !flow
+        ? 0
+        : flow.flow === "OPEN_LONG_DAILY"
+          ? flowPrice([flow])
+          : vwap(trades.filter((tr) => !!tr.txHash && tr.txHash.toLowerCase() === flow.txHash?.toLowerCase() && (tr.series_id ?? "") === t.series.toLowerCase() && tr.taker === this.router.toLowerCase() && !tr.takerIsBuy));
       positions.push({
         id: `${t.series.toLowerCase()}-${c.id}`,
         gpu: c.l.gpu,
@@ -997,13 +1004,19 @@ export class AgateClient {
       // entry = the average price of how what is still held was acquired. Held tokens come from the user's buyLong
       // (the router's buys in its OPEN_LONG transactions) and from the user's own resting bids that were filled; a
       // pay-me-daily buy (its tokens became positions) or a close-short buy-back (its tokens were burned) never counts.
-      const openLongTx = new Set(flows.filter((f) => f.series_id === sid && f.flow === "OPEN_LONG" && f.txHash).map((f) => f.txHash!.toLowerCase()));
-      const buys = mine.filter((tr) => (tr.takerIsBuy && tr.txOrigin === me && !!tr.txHash && openLongTx.has(tr.txHash.toLowerCase())) || (tr.maker === me && !tr.takerIsBuy && tr.txOrigin !== me));
+      // The router's buys are read from the user's OPEN_LONG flows (what Routed reports: dollarsIn - refund for the
+      // tokens), never matched by txOrigin: a smart account's transactions come from a bundler, so txOrigin is not the
+      // user. A resting bid counts when someone else's order filled it, not a fill inside the user's own transactions.
+      const ownTx = new Set(flows.filter((f) => f.txHash).map((f) => f.txHash!.toLowerCase()));
+      const fromOwnTx = (tr: TradeRow) => tr.txOrigin === me || (!!tr.txHash && ownTx.has(tr.txHash.toLowerCase()));
+      const longFlows = flows.filter((f) => f.series_id === sid && f.flow === "OPEN_LONG" && BigInt(f.tokens) > 0n);
+      const bidFills = mine.filter((tr) => tr.maker === me && !tr.takerIsBuy && !fromOwnTx(tr));
       // a short balance comes only from minted pairs whose tokens were sold through the user's own resting asks (a limit
       // short): those fills, never a router sale (a sale of bought tokens, or a short position's sale); 0 when none filled
-      const sells = mine.filter((tr) => tr.maker === me && tr.takerIsBuy && tr.txOrigin !== me);
+      const sells = mine.filter((tr) => tr.maker === me && tr.takerIsBuy && !fromOwnTx(tr));
       if (tokens > 0n) {
-        positions.push({ id: `${sid}-long`, gpu: l.gpu, month: monthLabel(t.month), side: "long", q: toNumber6(tokens), entry: vwap(buys), daily: false, paid: 0, openedAt: buys[0] ? iso(BigInt(buys[0].timestamp)) : "", kind: "tokens", series: sid, positionId: null, claimable: 0, payee: null, inMargin: toNumber6(inMargin) });
+        const firstAt = [...longFlows.map((f) => BigInt(f.timestamp)), ...bidFills.map((tr) => BigInt(tr.timestamp))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))[0];
+        positions.push({ id: `${sid}-long`, gpu: l.gpu, month: monthLabel(t.month), side: "long", q: toNumber6(tokens), entry: blendedPrice(longFlows, bidFills), daily: false, paid: 0, openedAt: firstAt !== undefined ? iso(firstAt) : "", kind: "tokens", series: sid, positionId: null, claimable: 0, payee: null, inMargin: toNumber6(inMargin) });
       }
       if (shorts > 0n) {
         positions.push({ id: `${sid}-short`, gpu: l.gpu, month: monthLabel(t.month), side: "short", q: toNumber6(shorts), entry: vwap(sells), daily: false, paid: 0, openedAt: "", kind: "shortBalance", series: sid, positionId: null, claimable: 0, payee: null, inMargin: 0 });
@@ -1044,6 +1057,18 @@ export class AgateClient {
     };
     const [Position, RouterFlow, Trade] = await Promise.all([rest(first.Position ?? [], Q.morePositions, "Position"), rest(first.RouterFlow ?? [], Q.moreFlows, "RouterFlow"), rest(first.Trade ?? [], Q.moreTrades, "Trade")]);
     if (!Position || !RouterFlow || !Trade) return null;
+    // a short's entry is the router's sale in its OPEN_SHORT transaction, read by those transactions (100 a query)
+    const shortTx = [...new Set(RouterFlow.filter((f) => f.flow === "OPEN_SHORT" && f.txHash).map((f) => f.txHash!.toLowerCase()))];
+    const have = new Set(Trade.map((t) => t.id));
+    for (let i = 0; i < shortTx.length; i += 100) {
+      const r = await this.gql_<{ Trade: TradeRow[] }>(Q.tradesByTx, { h: shortTx.slice(i, i + 100), router: this.router.toLowerCase(), limit: WALLET_PAGE });
+      if (!r) return null;
+      for (const t of r.Trade ?? []) {
+        if (have.has(t.id)) continue;
+        have.add(t.id);
+        Trade.push(t);
+      }
+    }
     return { Position, RouterFlow, Trade };
   }
 
@@ -1205,8 +1230,23 @@ export function fillOf(r: TradeRow): Fill {
 
 /** Volume-weighted price of trade rows, dollars per GPU-hour; 0 for none. */
 export function vwap(rows: TradeRow[]): number {
+  return blendedPrice([], rows);
+}
+
+/** The price per token the user paid in these router buys (OPEN_LONG or OPEN_LONG_DAILY flows): dollarsIn - refund
+ *  for `tokens`, in dollars. */
+export function flowPrice(flows: FlowRow[]): number {
+  return blendedPrice(flows, []);
+}
+
+/** The volume-weighted price of router buys (from their flows) and trades together, in dollars per GPU-hour. */
+export function blendedPrice(flows: FlowRow[], rows: TradeRow[]): number {
   let n = 0n;
   let q = 0n;
+  for (const f of flows) {
+    n += (BigInt(f.dollarsIn) - BigInt(f.refund)) * U;
+    q += BigInt(f.tokens);
+  }
   for (const r of rows) {
     n += BigInt(r.priceU) * BigInt(r.tokens);
     q += BigInt(r.tokens);

@@ -8,9 +8,12 @@
   No key in this file: the maker process runs AGATE_KEY_CMD itself at start and keeps the key in memory only (never an
   exported variable, so `ps -wwE` cannot show it; audit M-K1):
     security find-generic-password -s agate.market.bot -a private-key -w
-  RPC (wall spec 13.6): __RPC_URLS_CMD__ prints the URL list (Alchemy first, the Monad public RPC second, Alchemy's
-  wss URL for wake-ups); XML-escape it here (& as &amp;):
-    k="$(security find-generic-password -s agate.alchemy-api-key -a api-key -w)" &amp;&amp; printf 'https://monad-testnet.g.alchemy.com/v2/%s,https://testnet-rpc.monad.xyz,wss://monad-testnet.g.alchemy.com/v2/%s' "$k" "$k"
+  RPC (wall spec 13.6): __RPC_URLS_CMD__ prints the URL list. Since Oct 4 Alchemy serves the light roles only
+  (ops/testnet/RUNBOOK.md, "Alchemy"; an all-Alchemy list spent 11.3M compute units in 7 hours that day): the maker's
+  own transactions go to Alchemy first as a send: entry, every read to the key-free public RPCs, and no websocket.
+  The process meters its Alchemy calls against AGATE_ALCHEMY_DAILY_CU (default 400,000 a UTC day). XML-escape it here
+  (& as &amp;):
+    k="$(security find-generic-password -s agate.alchemy-api-key -a api-key -w)" &amp;&amp; printf 'send:https://monad-testnet.g.alchemy.com/v2/%s,https://testnet-rpc.monad.xyz,https://10143.rpc.thirdweb.com,https://rpc.ankr.com/monad_testnet' "$k"
   To use: replace __HOME__, __APP__, __BUN__, __RPC_URLS_CMD__, __CHAIN_ID__ (10143), __DEPLOYMENTS__, __MM_CONFIG__
   (a JSON file of 3.11, or an empty value for the defaults), __KEY_CMD__; copy to ~/Library/LaunchAgents/;
   `launchctl bootstrap gui/$(id -u) <plist>`.

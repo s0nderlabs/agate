@@ -150,3 +150,100 @@ describe("getWallet entry prices (adversarial)", () => {
     expect(s.entry).toBe(4.5);
   });
 });
+
+// The same wallet as a smart account (ERC-4337): every transaction of the user comes from a bundler, so txOrigin is
+// the bundler's address, and one bundle (tx A) also carries a stranger's router buy at $6.00 on the same series.
+// Entries come from the user's own flows, so they are unchanged.
+const BUNDLER = "0x4337000000000000000000000000000000000001";
+function fakeIndexerSmartAccount(): typeof fetch {
+  const data = {
+    Position: [{ id: `${SERIES}-1`, positionId: "1", openedAt: String(NOW - 3000n), series_id: SERIES, side: "LONG", q: "50000000", status: "OPEN" }],
+    RouterFlow: [
+      { flow: "OPEN_LONG", series_id: SERIES, tokens: "100000000", dollarsIn: "410000000", dollarsOut: "10000000", refund: "10000000", positionIds: [], txHash: "0xa", timestamp: "1" },
+      { flow: "OPEN_LONG_DAILY", series_id: SERIES, tokens: "50000000", dollarsIn: "250000000", dollarsOut: "0", refund: "0", positionIds: ["1"], txHash: "0xb", timestamp: "2" },
+      { flow: "CLOSE_LONG", series_id: SERIES, tokens: "20000000", dollarsIn: "0", dollarsOut: "60000000", refund: "0", positionIds: [], txHash: "0xc", timestamp: "3" },
+    ],
+    Trade: [
+      trade("10-0", "0xa", 4_000_000, 100_000_000, true, BOT, BUNDLER),
+      trade("10-1", "0xa", 6_000_000, 30_000_000, true, BOT, BUNDLER),
+      trade("11-0", "0xb", 5_000_000, 50_000_000, true, BOT, BUNDLER),
+      trade("12-0", "0xc", 3_000_000, 20_000_000, false, BOT, BUNDLER),
+      trade("13-0", "0xd", 4_500_000, 10_000_000, true, USER, STRANGER),
+    ],
+  };
+  return (async (_url: string, init: { body: string }) => {
+    const q = (JSON.parse(init.body) as { query: string }).query;
+    const out = q.includes("query Wallet") ? data : q.includes("s0: Position") ? { s0: [{ positionId: "1" }] } : null;
+    if (!out) throw new Error(`unexpected query ${q.slice(0, 60)}`);
+    return new Response(JSON.stringify({ data: out }), { status: 200 });
+  }) as unknown as typeof fetch;
+}
+
+describe("getWallet entry prices for a smart account (txOrigin is a bundler)", () => {
+  const c = new AgateClient({ publicClient: fakeChain(), fetch: fakeIndexerSmartAccount(), graphqlUrl: "http://fake/v1/graphql" });
+
+  test("held tokens: the OPEN_LONG flow's own price ($4.00), not 0 and not the stranger's $6.00 in the same bundle", async () => {
+    const w = await c.getWallet(USER);
+    const t = w.positions.find((x) => x.kind === "tokens")!;
+    expect(t.entry).toBe(4);
+    expect(t.openedAt).not.toBe("");
+  });
+
+  test("the pay-me-daily position: its flow's price ($5.00)", async () => {
+    const w = await c.getWallet(USER);
+    expect(w.positions.find((x) => x.kind === "position")!.entry).toBe(5);
+  });
+
+  test("short balance: the resting ask lifted by someone else ($4.50)", async () => {
+    const w = await c.getWallet(USER);
+    expect(w.positions.find((x) => x.kind === "shortBalance")!.entry).toBe(4.5);
+  });
+});
+
+// A smart account's short (review finding, Oct 5): its opening sale's trades have the bundler as txOrigin and the
+// bidder as maker, so the wallet queries never return them; the client reads them by the OPEN_SHORT transaction.
+describe("getWallet: a smart account's short position entry", () => {
+  const chain = (): PublicClient => {
+    const base = fakeChain() as unknown as { readContract: (r: { address: string; functionName: string; args?: readonly unknown[] }) => Promise<unknown> };
+    return {
+      ...base,
+      readContract: async (r: { address: string; functionName: string; args?: readonly unknown[] }) => {
+        if (r.functionName === "state") return [0, 0n, 0, false, false, 0n, 3n, 10_000_000n]; // next id 3
+        if (r.functionName === "position" && BigInt(r.args?.[0] as bigint) === 2n) return { owner: USER, side: 1, daily: false, openedK: 0, payee: USER, q: 10_000_000n, operator: f.router, paid: 0n };
+        return base.readContract(r);
+      },
+    } as unknown as PublicClient;
+  };
+  const asked: string[] = [];
+  const indexer = (): typeof fetch =>
+    (async (_url: string, init: { body: string }) => {
+      const { query, variables } = JSON.parse(init.body) as { query: string; variables: Record<string, unknown> };
+      asked.push(query.slice(0, 20));
+      if (query.includes("query Wallet")) {
+        return new Response(JSON.stringify({ data: {
+          Position: [{ id: `${SERIES}-2`, positionId: "2", openedAt: String(NOW - 1000n), series_id: SERIES, side: "SHORT", q: "10000000", status: "OPEN" }],
+          RouterFlow: [{ flow: "OPEN_SHORT", series_id: SERIES, tokens: "10000000", dollarsIn: "54000000", dollarsOut: "38000000", refund: "0", positionIds: ["2"], txHash: "0xE5", timestamp: "5" }],
+          Trade: [], // txOrigin is the bundler and the maker the bot: none of the wallet's trades
+        } }), { status: 200 });
+      }
+      if (query.includes("query TradesByTx")) {
+        expect(variables.h).toEqual(["0xe5"]);
+        expect(variables.router).toBe(f.router.toLowerCase());
+        return new Response(JSON.stringify({ data: { Trade: [
+          trade("20-0", "0xe5", 3_800_000, 6_000_000, false, BOT, BUNDLER),
+          trade("20-1", "0xe5", 3_700_000, 4_000_000, false, BOT, BUNDLER),
+        ] } }), { status: 200 });
+      }
+      if (query.includes("s0: Position")) return new Response(JSON.stringify({ data: { s0: [{ positionId: "2" }] } }), { status: 200 });
+      throw new Error(`unexpected query ${query.slice(0, 60)}`);
+    }) as unknown as typeof fetch;
+
+  test("the short's entry is its router sale's price ($3.76), read by its transaction", async () => {
+    const c = new AgateClient({ publicClient: chain(), fetch: indexer(), graphqlUrl: "http://fake/v1/graphql" });
+    const w = await c.getWallet(USER);
+    const p = w.positions.find((x) => x.kind === "position" && x.side === "short")!;
+    expect(p.q).toBe(10);
+    expect(p.entry).toBe(3.76);
+    expect(asked.some((q) => q.includes("TradesByTx"))).toBe(true);
+  });
+});

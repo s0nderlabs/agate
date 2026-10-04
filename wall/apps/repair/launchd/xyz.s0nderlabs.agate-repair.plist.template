@@ -10,8 +10,9 @@
   (the last so `claude -p` uses Claude Code's own sign-in). __CLAUDE_BIN__ is the Claude Code CLI's absolute
   path (e.g. __HOME__/.local/bin/claude). PATH must hold node (tsc runs on it) and the Claude CLI's folder.
   RPC (13.6, read only: readerHistory, queuedEta): __RPC_URLS_CMD__ prints the URL list at start, in memory only; it
-  holds no secret itself. XML-escape it here (& as &amp;):
-    k="$(security find-generic-password -s agate.alchemy-api-key -a api-key -w)" &amp;&amp; printf 'https://monad-testnet.g.alchemy.com/v2/%s,https://testnet-rpc.monad.xyz' "$k"
+  holds no secret itself. The repair agent never gets Alchemy since Oct 4 (ops/testnet/RUNBOOK.md, "Alchemy": it only
+  reads): the key-free public RPCs.
+    printf 'https://testnet-rpc.monad.xyz,https://10143.rpc.thirdweb.com,https://rpc.ankr.com/monad_testnet'
   __INDEXES__: the served index addresses, comma separated; __PANELS__: the panel file (AGATE_PANELS_<index8>
   overrides per index); __RAW_DIR__: the logger archive (__HOME__/.agate-index-logger/data/raw), read only.
   To use: replace every __NAME__; copy to ~/Library/LaunchAgents/; `launchctl bootstrap gui/$(id -u) <plist>`.

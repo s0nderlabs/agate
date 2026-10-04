@@ -25,6 +25,179 @@ WALL="$ROOT/wall"
 INDEXER="$ROOT/indexer"
 CHAIN_ID=10143
 PUBLIC_RPC="https://testnet-rpc.monad.xyz"
+# Key-free public RPCs of Monad testnet (each answered chain 10143 and a gas-less eth_call on Oct 4 2026; dRPC is left out:
+# it refuses every eth_call without an explicit gas, which the wall's reads are). The official one allows 15 requests a
+# second per IP, which every process on this machine shares, so the processes' lists start at different entries.
+PUBLIC_RPCS="https://testnet-rpc.monad.xyz https://10143.rpc.thirdweb.com https://rpc.ankr.com/monad_testnet"
+# Alchemy since Oct 4 (AGATE_KIT_ALCHEMY): its spending limit cut every process off on the morning of Oct 4, after the
+# all-Alchemy setup spent 11.3M compute units in about 7 hours (eth_getLogs 67%). Three modes:
+#   light (default)  Alchemy for the light roles only: the processes that sign (both writers, the attester, the keeper,
+#                    the maker, the payer and its lister) send their own transactions there first ("send:" entries:
+#                    the transaction, its nonce, its gas estimate, its receipts; every read stays public), and the
+#                    attester and the keeper get its websocket (AGATE_WS_KIND=logs). Health, the logger, the indexer,
+#                    the repair agent, the Akash reader and status.sh never get Alchemy.
+#   all              the earlier setup: Alchemy first for every read and send of every process but the indexer, and its
+#                    websocket for all; it prints a warning.
+#   off              public RPCs only.
+# Each process counts its Alchemy compute units and stops using Alchemy for the rest of the UTC day at
+# AGATE_ALCHEMY_DAILY_CU (default 400,000; wall/packages/report/src/meter.ts); status.sh prints the day's count.
+# The Alchemy URL is built only inside the command text, from the Keychain (agate.alchemy-api-key / api-key), when the
+# process starts: never in the kit's own environment, output or files. AGATE_KIT_ALCHEMY_TEST_URL (loopback http only,
+# for tests and the fork rehearsal) stands in for Alchemy: its URL for the sends and its ws:// twin for the websocket.
+# It is refused on a real (not --fork) run: left exported after a rehearsal, it would put a loopback URL first for the
+# real processes' transactions, and while a fork and its counting proxy still ran there they would be mined on the
+# fork and never fail over. On a fork, Alchemy itself is never used (a fork's transactions must not reach a real
+# node): light and all need the test URL there, and without it a fork run is off.
+# AGATE_KIT_ALCHEMY_WS: on (default: the websocket as above), prod (the production windows only: on the demo clock the
+# attester's and keeper's subscriptions measured about 1.1M compute units a day, the budget's 2.8 times; their polling
+# is 7 and 12 s there), off (no Alchemy websocket at all: polling only).
+KIT_ALCHEMY_MODES="off light all"
+alchemy_mode() { # prints the mode; fails on any other value
+  case "${AGATE_KIT_ALCHEMY:-light}" in
+    off | light | all) printf '%s' "${AGATE_KIT_ALCHEMY:-light}" ;;
+    *) return 1 ;;
+  esac
+}
+# The stand-in for Alchemy (AGATE_KIT_ALCHEMY_TEST_URL); empty when unset. Fails 1 unless it is http on loopback, and
+# 2 on a real run (KIT_FORK not 1): alchemy_test_url_error says which.
+alchemy_test_url() {
+  local u="${AGATE_KIT_ALCHEMY_TEST_URL:-}"
+  [ -n "$u" ] || return 0
+  [[ "$u" =~ ^http://(127\.0\.0\.1|localhost):[0-9]{1,5}(/[A-Za-z0-9_./-]*)?$ ]] || return 1
+  [ "${KIT_FORK:-0}" = 1 ] || return 2
+  printf '%s' "$u"
+}
+#   alchemy_test_url_error STATUS   the refusal of alchemy_test_url's failure STATUS
+alchemy_test_url_error() {
+  if [ "$1" = 2 ]; then
+    echo "AGATE_KIT_ALCHEMY_TEST_URL is for --fork runs only: on a real run it would put the loopback stand-in first for the real processes' transactions; unset it (left from a rehearsal?)"
+  else
+    echo "AGATE_KIT_ALCHEMY_TEST_URL must be http://127.0.0.1:<port> or http://localhost:<port>"
+  fi
+}
+# The mode in effect for this run's processes: a fork without the test URL is off.
+alchemy_effective() {
+  local m
+  m="$(alchemy_mode)" || return 1
+  if [ "${KIT_FORK:-0}" = 1 ] && [ -z "${AGATE_KIT_ALCHEMY_TEST_URL:-}" ]; then m=off; fi
+  printf '%s' "$m"
+}
+# Does this run read the Alchemy key from the Keychain? (light or all, no stand-in, not a fork)
+alchemy_real() {
+  local m
+  m="$(alchemy_effective)" || return 1
+  [ "$m" != off ] && [ -z "${AGATE_KIT_ALCHEMY_TEST_URL:-}" ] && [ "${KIT_FORK:-0}" = 0 ]
+}
+# The roles Alchemy serves in light mode, by window name: who signs, and who also gets the websocket.
+alchemy_sender() { case "$1" in *-primary | *-standby | *-attest | *-keep | shared-maker | shared-payer) return 0 ;; *) return 1 ;; esac; }
+alchemy_ws() {
+  case "${AGATE_KIT_ALCHEMY_WS:-on}" in
+    off) return 1 ;;
+    prod) case "$1" in prod-attest | prod-keep) return 0 ;; *) return 1 ;; esac ;;
+    *) case "$1" in *-attest | *-keep) return 0 ;; *) return 1 ;; esac ;;
+  esac
+}
+# light's websocket for this window; all gives it to every window but the indexer unless AGATE_KIT_ALCHEMY_WS=off
+alchemy_ws_all() { [ "${AGATE_KIT_ALCHEMY_WS:-on}" != off ]; }
+# The AGATE_RPC_URLS_CMD of one window (or tool): the public RPCs rotated to start at an entry picked by the name, so the
+# windows spread their load (on a fork, READ_LIST: the fork's own URLs), plus Alchemy where the mode gives it.
+#   rpc_list_cmd NAME [READ_LIST]
+rpc_list_cmd() {
+  local n="$1" read_list="${2:-}" list rot="" i h c mode test="" pre="" post="" args=""
+  mode="$(alchemy_effective)" || {
+    echo "AGATE_KIT_ALCHEMY must be one of: $KIT_ALCHEMY_MODES (it was a 0/1 switch before Oct 4; 1 is now all)" >&2
+    return 1
+  }
+  test="$(alchemy_test_url)" || {
+    alchemy_test_url_error "$?" >&2
+    return 1
+  }
+  case "${AGATE_KIT_ALCHEMY_WS:-on}" in on | prod | off) ;; *) echo "AGATE_KIT_ALCHEMY_WS must be on, prod or off" >&2; return 1 ;; esac
+  if [ -n "$read_list" ]; then
+    rot="$read_list"
+  else
+    read -r -a list <<<"$PUBLIC_RPCS"
+    c="${#list[@]}"
+    h=$(($(printf '%s' "$n" | cksum | awk '{ print $1 }') % c))
+    for ((i = 0; i < c; i++)); do rot="$rot${rot:+,}${list[$(((h + i) % c))]}"; done
+  fi
+  # the indexer never gets Alchemy (its eth_getLogs were two thirds of the spend)
+  case "$n" in *-indexer) mode=off ;; esac
+  case "$mode" in
+    light)
+      alchemy_sender "$n" || mode=off
+      pre="send:"
+      ;;
+  esac
+  if [ "$mode" = off ]; then
+    printf "printf '%s'" "$rot"
+    return 0
+  fi
+  # light: send:<https> first and, for the attester and the keeper, the websocket last; all: <https> first and the
+  # websocket last for every window
+  local ws=0
+  if { [ "$mode" = all ] && alchemy_ws_all; } || { [ "$mode" = light ] && alchemy_ws "$n"; }; then ws=1; fi
+  if [ -n "$test" ]; then
+    post=""
+    [ "$ws" = 1 ] && post=",ws://${test#http://}"
+    printf "printf '%%s' '%s%s,%s%s'" "$pre" "$test" "$rot" "$post"
+    return 0
+  fi
+  [ "$ws" = 1 ] && post=',wss://monad-testnet.g.alchemy.com/v2/%s' && args=' "$k"'
+  printf '%s' 'k="$(security find-generic-password -s agate.alchemy-api-key -a api-key -w)" && printf '"'"''"$pre"'https://monad-testnet.g.alchemy.com/v2/%s,'"$rot$post"''"'"' "$k"'"$args"
+}
+# The AGATE_WS_KIND of a window whose list carries Alchemy's websocket: the finalized logs (Alchemy bills a websocket
+# by the bytes it pushes; the speculative monadLogs stream pushes a block's events again as its state moves).
+alchemy_ws_kind() {
+  local mode
+  mode="$(alchemy_effective)" || return 0
+  case "$1" in *-indexer) return 0 ;; esac
+  if { [ "$mode" = all ] && alchemy_ws_all; } || { [ "$mode" = light ] && alchemy_ws "$1"; }; then printf 'logs'; fi
+  return 0
+}
+# One line saying what Alchemy serves in this run (up.sh, status.sh, demo-session.sh); warns for all.
+kit_alchemy_line() {
+  local m
+  m="$(alchemy_effective)" || die "AGATE_KIT_ALCHEMY must be one of: $KIT_ALCHEMY_MODES (it was a 0/1 switch before Oct 4; 1 is now all)"
+  local rc=0
+  alchemy_test_url >/dev/null || rc=$?
+  [ "$rc" = 0 ] || die "$(alchemy_test_url_error "$rc")"
+  case "${AGATE_KIT_ALCHEMY_WS:-on}" in on | prod | off) ;; *) die "AGATE_KIT_ALCHEMY_WS must be on, prod or off" ;; esac
+  # the processes refuse any other budget at start (wall/packages/report/src/meter.ts dailyCuFromEnv): refused here first
+  [[ "${AGATE_ALCHEMY_DAILY_CU:-400000}" =~ ^[0-9]+$ ]] && [ "${AGATE_ALCHEMY_DAILY_CU:-400000}" -gt 0 ] || die "AGATE_ALCHEMY_DAILY_CU must be a whole number of compute units above 0"
+  local wsw="the attester's and keeper's websocket"
+  case "${AGATE_KIT_ALCHEMY_WS:-on}" in prod) wsw="the production attester's and keeper's websocket (AGATE_KIT_ALCHEMY_WS=prod)" ;; off) wsw="no websocket (AGATE_KIT_ALCHEMY_WS=off)" ;; esac
+  local who="Alchemy"
+  [ -n "${AGATE_KIT_ALCHEMY_TEST_URL:-}" ] && who="the Alchemy stand-in $AGATE_KIT_ALCHEMY_TEST_URL"
+  case "$m" in
+    light) echo "Alchemy light: $who takes the signing processes' own transactions (send: first, public after) and $wsw; every read is public (budget ${AGATE_ALCHEMY_DAILY_CU:-400000} CU a UTC day)" ;;
+    all)
+      warn "AGATE_KIT_ALCHEMY=all: $who first for every read and send of every process (the indexer excepted): this spent 11.3M compute units in 7 hours on Oct 4"
+      echo "Alchemy all: $who first everywhere but the indexer (budget ${AGATE_ALCHEMY_DAILY_CU:-400000} CU a UTC day, but the meter counts only the websocket here: the reads and the sends ride the read list, which it does not count)"
+      ;;
+    off)
+      if [ "${KIT_FORK:-0}" = 1 ] && [ "$(alchemy_mode)" != off ]; then echo "Alchemy off on a fork (set AGATE_KIT_ALCHEMY_TEST_URL to a loopback stand-in to rehearse $(alchemy_mode))"; else echo "Alchemy off: public RPCs only"; fi
+      ;;
+  esac
+}
+# Today's (UTC) Alchemy compute units by process and their total against the budget, from the processes' meter files
+# (<wall home>/rpc-meter/<date>/<role>-<index8 or market>.json). Reads files only.
+alchemy_today() {
+  local home="$1" date="${2:-$(date -u +%Y-%m-%d)}" dir budget total f
+  dir="$home/rpc-meter/$date"
+  budget="${AGATE_ALCHEMY_DAILY_CU:-400000}"
+  set -- "$dir"/*.json
+  if [ ! -e "$1" ]; then
+    note "no Alchemy compute units counted on $date (UTC): no file in $dir"
+    return 0
+  fi
+  for f in "$@"; do
+    jq -r --arg n "$(basename "$f" .json)" '"\($n) \(.cu // 0) CU (\((.methods // {}) | to_entries | map("\(.key) \(.value)") | join(", "))\(if (.wsBytes // 0) > 0 then ", ws \(.wsBytes) bytes" else "" end))"' "$f" 2>/dev/null |
+      while IFS= read -r line; do note "$line"; done
+  done
+  total="$(jq -s 'map(.cu // 0) | add' "$@" 2>/dev/null || echo 0)"
+  note "total $total of $budget CU on $date (UTC): $(awk -v t="$total" -v b="$budget" 'BEGIN { printf "%.1f", 100 * t / b }')%$([ -e "$dir/.alert-100" ] && echo '; the budget is spent: no Alchemy until 00:00 UTC')"
+}
 CRE_SIM_FORWARDER="0xB9F79d863261869B234c481D1f9A7af84AeAd192"
 PANELS="$WALL/packages/sources/panels/launch.json"
 GAS_GWEI="${AGATE_KIT_GAS_GWEI:-102}"

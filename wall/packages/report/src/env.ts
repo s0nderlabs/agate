@@ -1,12 +1,29 @@
 // RPC endpoints from a command, and redaction (BUILD-SPEC 13.6, Oct 3). Alchemy's URL carries the API key in its
 // path, so every configured URL is a secret: it reaches a process only through AGATE_RPC_URLS_CMD at start, and
 // nothing the process prints may contain it. Call resolveRpcEndpoints once at start, then installScrubber.
+//
+// The list (comma- or newline-separated):
+//   http(s)://...        a read endpoint: every read and, after the send endpoints, every send (failover order)
+//   ws(s)://...          a websocket endpoint for the wake-up subscriptions (subscription order)
+//   send:http(s)://...   a send endpoint (Oct 4): the process's own transactions only (eth_sendRawTransaction, the
+//                        pending nonce, the gas estimate and the receipts), tried before the read endpoints; never used
+//                        for a read, not even when every read endpoint is down. Alchemy on testnet, since Oct 4.
+// A list without send: entries reads as before. At least one read endpoint is required.
 import { format } from "node:util";
 
 export interface RpcEndpoints {
   http: string[]; // failover order
   ws: string[]; // subscription order
+  /** the send: entries (Oct 4), in order; absent when the list has none */
+  send?: string[];
 }
+
+/** The send endpoints of a resolved list (none: []). */
+export function sendUrls(e: RpcEndpoints): string[] {
+  return e.send ?? [];
+}
+
+const SEND = "send:";
 
 const CMD = "AGATE_RPC_URLS_CMD";
 const LIST = "AGATE_RPC_URLS";
@@ -65,7 +82,10 @@ export function resolveRpcEndpoints(env: Record<string, string | undefined>, run
   const entries = raw.split(/[,\r\n]+/).map((s) => s.trim()).filter((s) => s !== "");
   if (entries.length === 0) throw new Error(bad);
   const out: RpcEndpoints = { http: [], ws: [] };
-  for (const s of entries) {
+  const send: string[] = [];
+  for (const entry of entries) {
+    const isSend = entry.startsWith(SEND);
+    const s = isSend ? entry.slice(SEND.length).trim() : entry;
     let u: URL;
     try {
       u = new URL(s);
@@ -73,11 +93,18 @@ export function resolveRpcEndpoints(env: Record<string, string | undefined>, run
       throw new Error(bad);
     }
     if (u.hostname === "") throw new Error(bad);
-    if (u.protocol === "http:" || u.protocol === "https:") out.http.push(s);
+    const web = u.protocol === "http:" || u.protocol === "https:";
+    if (isSend) {
+      // a send endpoint is http(s) only: a transaction never goes over a websocket here
+      if (!web) throw new Error(bad);
+      send.push(s);
+    } else if (web) out.http.push(s);
     else if (u.protocol === "ws:" || u.protocol === "wss:") out.ws.push(s);
     else throw new Error(bad);
   }
+  // reads never use a send endpoint, so a list of send endpoints alone has nothing to read from
   if (out.http.length === 0) throw new Error(bad);
+  if (send.length > 0) out.send = send;
   delete env[CMD];
   delete env[LIST];
   return out;
@@ -106,7 +133,7 @@ function secretsOf(e: RpcEndpoints): { find: string; put: string }[] {
   const addPart = (p: string) => {
     for (const v of [p, safeDecode(p)]) if (v.length >= MIN_SECRET) parts.add(v);
   };
-  for (const url of [...e.http, ...e.ws]) {
+  for (const url of [...e.http, ...e.ws, ...sendUrls(e)]) {
     const put = redactUrl(url);
     urls.push({ find: url, put });
     try {
@@ -133,7 +160,8 @@ function safeDecode(s: string): string {
   }
 }
 
-/** Replaces every configured URL (by its redactUrl form) and every long path segment or query value in them. */
+/** Replaces every configured URL (read, websocket and send: by its redactUrl form) and every long path segment or
+ *  query value in them. */
 export function scrubSecrets(text: string, e: RpcEndpoints): string {
   let out = text;
   for (const { find, put } of secretsOf(e)) if (out.includes(find)) out = out.split(find).join(put);
@@ -160,7 +188,7 @@ function scrubChunk(chunk: unknown): unknown {
  * Bun's default does, unless the process has its own handler). Installing again adds the new endpoints.
  */
 export function installScrubber(e: RpcEndpoints): void {
-  installed.e = { http: [...installed.e.http, ...e.http], ws: [...installed.e.ws, ...e.ws] };
+  installed.e = { http: [...installed.e.http, ...e.http], ws: [...installed.e.ws, ...e.ws], send: [...sendUrls(installed.e), ...sendUrls(e)] };
   if (wrapped) return;
   wrapped = true;
   for (const m of ["log", "info", "warn", "error", "debug", "trace"] as const) {

@@ -154,6 +154,11 @@ export const Q = {
   moreTrades: `query MoreTrades($a: String!, $limit: Int!, $offset: Int!) {
   Trade(where: {_or: [{txOrigin: {_eq: $a}}, {maker: {_eq: $a}}]}, order_by: [{block: asc}, {id: asc}], limit: $limit, offset: $offset) { id block timestamp priceU tokens takerIsBuy maker taker txOrigin txHash series_id }
 }`,
+  // the router's sales in a wallet's OPEN_SHORT transactions (a short's entry): a smart account's router sale has a
+  // bundler as txOrigin and the bidder as maker, so the wallet queries above never return it
+  tradesByTx: `query TradesByTx($h: [String!]!, $router: String!, $limit: Int!) {
+  Trade(where: {txHash: {_in: $h}, taker: {_eq: $router}, takerIsBuy: {_eq: false}}, order_by: [{block: asc}, {id: asc}], limit: $limit) { id block timestamp priceU tokens takerIsBuy maker taker txOrigin txHash series_id }
+}`,
   // a wallet's resting orders, a page after the id $after (keyset: an order that stops resting between two pages never
   // shifts the next page, as it would an offset); the client reads every page
   openOrders: `query OpenOrders($a: String!, $after: String!, $limit: Int!) {

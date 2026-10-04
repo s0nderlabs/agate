@@ -28,6 +28,8 @@ export interface AppOptions {
   scanPaceMs?: number;
   sleep?: (ms: number) => Promise<void>;
   pollMs?: number;
+  /** AGATE_PAYER_SESSION_MON / _UNTIL (sessionFromEnv): a demo session's MON on top of the day's budget */
+  session?: { wei: bigint; until: number };
 }
 
 export interface TickReport {
@@ -86,9 +88,10 @@ export function selectFactories(rt: Runtime, config: PayerConfig): FactoryEntry[
 export async function buildApp(rt: Runtime, config: PayerConfig, o: AppOptions): Promise<PayerApp> {
   const log: Log = o.log ?? ((event, data) => console.log(jsonLine({ t: o.now(), role: rt.role, event, ...data })));
   const factories = selectFactories(rt, config);
-  const budget = new Budget({ dir: rt.dir, role: rt.role, keepWei: monToWei(config.keepMon), lowBalanceWei: monToWei(config.lowBalanceMon), runUntil: config.runUntil, alerts: rt.alerts, lowCode: "PAYER_KEY_LOW", spentCode: "PAYER_BUDGET_SPENT", address: rt.from });
+  const budget = new Budget({ dir: rt.dir, role: rt.role, keepWei: monToWei(config.keepMon), lowBalanceWei: monToWei(config.lowBalanceMon), runUntil: config.runUntil, alerts: rt.alerts, lowCode: "PAYER_KEY_LOW", spentCode: "PAYER_BUDGET_SPENT", address: rt.from, ...(o.session ? { session: o.session } : {}) });
   const sender = new MarketSender({
     pool: rt.pool,
+    ...(rt.send ? { send: rt.send } : {}),
     role: rt.role,
     ...(rt.keyVar ? { keyEnv: rt.keyVar } : {}),
     from: rt.from,

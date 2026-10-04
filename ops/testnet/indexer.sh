@@ -9,9 +9,13 @@
 # config.yaml and src/lib/deployments.generated.ts never change), renders config.yaml there from the deployments file
 # with --rpc and each index's deploy block (--index-start real=<block> demo=<block>), and starts `envio dev`, which
 # runs Postgres and Hasura in containers (Docker or Podman must answer `docker info`; start Podman with
-# `podman machine start`). The RPC URL comes from AGATE_RPC_URLS_CMD at start (its first http(s) entry: Alchemy on
-# testnet) into ENVIO_RPC_URL of the envio process only: never written to config.yaml or any file, never printed.
-# A config different from the last run's restarts indexing from scratch (envio dev -r).
+# `podman machine start`). The RPC URLs come from AGATE_RPC_URLS_CMD at start (since Oct 4 the public RPCs rotated
+# for this window; an Alchemy URL is left out: never the indexer's, its eth_getLogs were two thirds of the Oct 4
+# spend): the first http(s) one is the sync RPC (ENVIO_RPC_URL), each later one a fallback (ENVIO_RPC_URL_FALLBACK_<n>,
+# Envio's `for: fallback`, which takes over when the sync RPC stalls), in the envio process's environment only: never
+# written to config.yaml or any file, never printed. config.yaml names them as ${...} entries of the chain's rpc list
+# (Envio 3.12's schema: url, for: sync | fallback | realtime). A config different from the last run's restarts
+# indexing from scratch (envio dev -r).
 #
 # GraphQL: http://localhost:8080/v1/graphql (Hasura; unauthenticated reads use the public role, admin secret
 # "testing" in envio dev). No app code reads a GraphQL endpoint yet (RUNBOOK.md, "The indexer and the app").
@@ -83,7 +87,8 @@ done
 
 show "copy indexer/ into $WORK (node_modules linked)"
 show "(cd $WORK && bun run scripts/gen-config.ts $DEP --rpc $(cmdline "${STARTS[@]}") --out config.yaml)"
-show "ENVIO_RPC_URL=<first http(s) URL printed by AGATE_RPC_URLS_CMD> envio dev [-r when config.yaml changed]"
+show "add to config.yaml's rpc list one fallback entry per later URL: url \${ENVIO_RPC_URL_FALLBACK_<n>}, for: fallback"
+show "ENVIO_RPC_URL=<first http(s) URL printed by AGATE_RPC_URLS_CMD> ENVIO_RPC_URL_FALLBACK_<n>=<each later one, Alchemy left out> envio dev [-r when config.yaml changed]"
 [ "$KIT_DRY" = 1 ] && exit 0
 
 docker_host
@@ -98,6 +103,26 @@ if [ "$KIT_FORK" = 1 ] && ! owns_envio; then
     exit 64
   fi
 fi
+# the URLs first (their count shapes config.yaml): every http(s) entry in order, Alchemy left out, no send: entry
+[ -n "${AGATE_RPC_URLS_CMD:-}" ] || die "set AGATE_RPC_URLS_CMD"
+URLS=()
+DROPPED=0
+for u in $(/bin/sh -c "$AGATE_RPC_URLS_CMD" | tr ',' '\n' | tr -d ' \r' | grep -E '^https?://' || true); do
+  # the host as a resolver reads it: no user info, path, query or port, any case, no trailing dot, %2e as a dot
+  h="${u#*://}"
+  h="${h%%[/?#]*}"
+  h="${h##*@}"
+  h="${h%%:*}"
+  h="$(printf '%s' "$h" | sed 's/%2[eE]/./g' | tr '[:upper:]' '[:lower:]')"
+  while [ "${h%.}" != "$h" ]; do h="${h%.}"; done
+  case "$h" in alchemy.com | *.alchemy.com | alchemyapi.io | *.alchemyapi.io) DROPPED=$((DROPPED + 1)); continue ;; esac
+  dup=0
+  for x in ${URLS[@]+"${URLS[@]}"}; do [ "$x" = "$u" ] && dup=1; done
+  [ "$dup" = 1 ] || URLS+=("$u")
+done
+unset AGATE_RPC_URLS_CMD u h x
+[ "${#URLS[@]}" -gt 0 ] || die "AGATE_RPC_URLS_CMD printed no http(s) URL$([ "$DROPPED" -gt 0 ] && echo ' but Alchemy, which the indexer never uses')"
+[ "$DROPPED" = 0 ] || note "left out $DROPPED Alchemy URL(s): the indexer never uses Alchemy"
 mkdir -p "$WORK"
 for p in abis src scripts schema.graphql package.json tsconfig.json envio-env.d.ts; do
   rm -rf "${WORK:?}/$p"
@@ -105,13 +130,20 @@ for p in abis src scripts schema.graphql package.json tsconfig.json envio-env.d.
 done
 [ -e "$WORK/node_modules" ] || ln -s "$INDEXER/node_modules" "$WORK/node_modules"
 (cd "$WORK" && bun run scripts/gen-config.ts "$DEP" --rpc "${STARTS[@]}" --out config.yaml)
+# one fallback entry per later URL, right after the sync entry (the generator writes one rpc entry and no fallback)
+NFB=$((${#URLS[@]} - 1))
+awk -v n="$NFB" '
+  BEGIN { inrpc = 0; done = 0 }
+  function fallbacks(  i) { for (i = 1; i <= n; i++) { print "      - url: \"${ENVIO_RPC_URL_FALLBACK_" i "}\""; print "        for: fallback"; print "        interval_ceiling: 100" } done = 1 }
+  inrpc && !done && $0 !~ /^        / { fallbacks() }
+  $0 == "      - url: \"${ENVIO_RPC_URL}\"" { inrpc = 1 }
+  { print }
+  END { if (inrpc && !done) fallbacks() }
+' "$WORK/config.yaml" >"$WORK/config.yaml.tmp" && mv "$WORK/config.yaml.tmp" "$WORK/config.yaml"
+[ "$(grep -c '^      - url: "\${ENVIO_RPC_URL' "$WORK/config.yaml")" = "${#URLS[@]}" ] || die "config.yaml did not take the $NFB fallback RPC entries"
 SUM="$(shasum -a 256 "$WORK/config.yaml" "$WORK/src/lib/deployments.generated.ts" | shasum -a 256 | cut -c1-16)"
 RESTART=""
 if [ "$(cat "$WORK/.config-sum" 2>/dev/null || true)" != "$SUM" ]; then RESTART="-r"; fi
-[ -n "${AGATE_RPC_URLS_CMD:-}" ] || die "set AGATE_RPC_URLS_CMD"
-URL="$(/bin/sh -c "$AGATE_RPC_URLS_CMD" | tr ',' '\n' | grep -E '^https?://' | head -1)" || true
-unset AGATE_RPC_URLS_CMD
-[ -n "$URL" ] || die "AGATE_RPC_URLS_CMD printed no http(s) URL"
 echo "$SUM" >"$WORK/.config-sum"
 cd "$WORK"
 if [ "$KIT_FORK" = 1 ]; then
@@ -133,5 +165,8 @@ if [ "$KIT_FORK" = 1 ]; then
     done
   ) >/dev/null 2>&1 &
 fi
-echo "envio dev ${RESTART:-(resuming)} in $WORK; GraphQL at http://localhost:8080/v1/graphql"
-ENVIO_RPC_URL="$URL" exec node_modules/.bin/envio dev $RESTART
+echo "envio dev ${RESTART:-(resuming)} in $WORK with 1 sync RPC and $NFB fallback(s); GraphQL at http://localhost:8080/v1/graphql"
+export ENVIO_RPC_URL="${URLS[0]}"
+for ((i = 1; i <= NFB; i++)); do export "ENVIO_RPC_URL_FALLBACK_$i=${URLS[$i]}"; done
+unset URLS
+exec node_modules/.bin/envio dev $RESTART

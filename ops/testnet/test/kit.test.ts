@@ -1,9 +1,12 @@
 // The testnet kit's scripts, each run with --dry-run (offline: no RPC, no Keychain, no tmux, no forge): what they
 // print and what they never do. `bun test ops/testnet/test` from the repo root.
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+
+// each test spawns bash scripts; on a loaded machine (other processes at load 15 to 30) bun's 5 s default timed some out
+setDefaultTimeout(60_000);
 
 const KIT = resolve(import.meta.dir, "..");
 const ROOT = resolve(KIT, "../..");
@@ -74,6 +77,8 @@ function run(script: string, args: string[], extra: Record<string, string> = {})
   return { code: r.exitCode ?? -1, out: `${r.stdout.toString()}${r.stderr.toString()}` };
 }
 const callLog = () => (existsSync(calls) ? readFileSync(calls, "utf8") : "");
+// each launcher of an up.sh dry run: "write <dir>/run/<name>.sh:" then its "    | " lines
+const launchersOf = (out: string) => out.split(/\$ write \S+\/run\//).slice(1).map((b) => ({ name: b.slice(0, b.indexOf(".sh:")), body: b.split("\n").filter((l) => l.startsWith("    | ")).join("\n") }));
 
 const RUNS: [string, string[], Record<string, string>?][] = [
   ["deploy-index.sh", ["testnet-production", "--dry-run"]],
@@ -158,8 +163,22 @@ describe("every script's dry run", () => {
     ]) expect(up).toContain(`${v}='security find-generic-password -s ${svc} -a private-key -w'`);
     expect(up).toContain("AGATE_KEY_CMD='security find-generic-password -s agate.wall.attester -a private-key -w'");
     expect(up).toContain("AGATE_KEY_CMD='security find-generic-password -s agate.wall.keeper -a private-key -w'");
-    expect(up).toContain("security find-generic-password -s agate.alchemy-api-key -a api-key -w");
-    expect(up).toContain("https://testnet-rpc.monad.xyz");
+    // Alchemy light by default (Oct 4): only the signing windows read its key (inside their command), as a send: entry;
+    // only the attester and the keeper get its websocket (with AGATE_WS_KIND=logs); every list has the three public RPCs
+    for (const u of ["https://testnet-rpc.monad.xyz", "https://10143.rpc.thirdweb.com", "https://rpc.ankr.com/monad_testnet"]) expect(up).toContain(u);
+    expect(up).not.toContain("drpc.org");
+    for (const stack of ["production", "demo"]) {
+      for (const { name, body } of launchersOf(outputs[`up.sh ${stack} --dry-run (deployed)`]!)) {
+        const cmd = body.match(/AGATE_RPC_URLS_CMD='(.*)' \\$/m)?.[1] ?? "";
+        const signer = /-(primary|standby|attest|keep)$|^shared-(maker|payer)$/.test(name);
+        const ws = /-(attest|keep)$/.test(name);
+        expect({ name, alchemy: cmd.includes("agate.alchemy-api-key") }).toEqual({ name, alchemy: signer });
+        expect({ name, send: cmd.includes("send:https://monad-testnet.g.alchemy.com/v2/%s,") }).toEqual({ name, send: signer });
+        expect({ name, wss: cmd.includes("wss://monad-testnet.g.alchemy.com/v2/%s") }).toEqual({ name, wss: ws });
+        expect({ name, kind: body.includes("AGATE_WS_KIND='logs'") }).toEqual({ name, kind: ws });
+        if (!signer) expect({ name, any: body.includes("alchemy") }).toEqual({ name, any: false });
+      }
+    }
     expect(up).not.toMatch(/AGATE_RPC_URLS=/);
     expect(up).toContain("env -i");
     // the production stack reads the running logger's log; the demo stack reads the replay
@@ -187,8 +206,7 @@ describe("every script's dry run", () => {
     const file = JSON.stringify(JSON.parse(readFileSync(join(KIT, "market-gas-limits.json"), "utf8")));
     for (const stack of ["production", "demo"]) {
       const out = outputs[`up.sh ${stack} --dry-run (deployed)`]!;
-      // each launcher: "write <dir>/run/<name>.sh:" then its "    | " lines
-      const launchers = out.split(/\$ write \S+\/run\//).slice(1).map((b) => ({ name: b.slice(0, b.indexOf(".sh:")), body: b.split("\n").filter((l) => l.startsWith("    | ")).join("\n") }));
+      const launchers = launchersOf(out);
       expect(launchers.length).toBeGreaterThan(8);
       expect(launchers.filter((l) => l.name === "shared-maker" || l.name === "shared-payer").length).toBe(2);
       for (const { name, body } of launchers) {
@@ -275,6 +293,185 @@ describe("modes that must refuse", () => {
       expect(r.out).toMatch(/is not JSON|refused by the bots' parser/);
       expect(r.out).not.toContain("$ tmux");
     }
+  });
+});
+
+describe("Alchemy modes (AGATE_KIT_ALCHEMY, Oct 4)", () => {
+  const deployed = () => ({ AGATE_KIT_RECORDS: join(tmp, "records.json"), AGATE_KIT_DEPLOYMENTS: join(tmp, "deployments.json") });
+  const rpcCmd = (body: string) => body.match(/AGATE_RPC_URLS_CMD='(.*)' \\$/m)?.[1] ?? "";
+
+  test("off: no window gets Alchemy or AGATE_WS_KIND; all: every RPC window but the indexer does, with a warning", () => {
+    const off = run("up.sh", ["demo", "--dry-run"], { ...deployed(), AGATE_KIT_ALCHEMY: "off" });
+    expect(off.code).toBe(0);
+    expect(off.out).toContain("Alchemy off: public RPCs only");
+    expect(off.out).not.toMatch(/alchemy\.com|AGATE_WS_KIND|send:/);
+    const all = run("up.sh", ["demo", "--dry-run"], { ...deployed(), AGATE_KIT_ALCHEMY: "all" });
+    expect(all.code).toBe(0);
+    expect(all.out).toContain("WARNING: AGATE_KIT_ALCHEMY=all");
+    const ls = launchersOf(all.out).filter((l) => l.body.includes("AGATE_RPC_URLS_CMD="));
+    expect(ls.length).toBeGreaterThan(6);
+    for (const { name, body } of ls) {
+      const cmd = rpcCmd(body);
+      const want = name !== "shared-indexer";
+      expect({ name, alchemyFirst: cmd.includes("printf '\\''https://monad-testnet.g.alchemy.com/v2/%s,") }).toEqual({ name, alchemyFirst: want });
+      expect({ name, send: cmd.includes("send:") }).toEqual({ name, send: false });
+      expect({ name, kind: body.includes("AGATE_WS_KIND='logs'") }).toEqual({ name, kind: want });
+    }
+    expect(callLog()).toBe("");
+  });
+
+  test("a bad mode, a stand-in off loopback, or a stand-in on a real run opens nothing (up.sh, status.sh, demo-session.sh)", () => {
+    for (const e of [{ AGATE_KIT_ALCHEMY: "1" }, { AGATE_KIT_ALCHEMY: "everything" }, { AGATE_KIT_ALCHEMY_TEST_URL: "https://monad-testnet.g.alchemy.com/v2/x" }, { AGATE_KIT_ALCHEMY_TEST_URL: "http://192.168.1.2:80" }, { AGATE_KIT_ALCHEMY_TEST_URL: "http://127.0.0.1:9555" }, { AGATE_KIT_ALCHEMY_WS: "demo" }]) {
+      for (const [s, a] of [["up.sh", ["demo", "--dry-run"]], ["status.sh", ["demo", "--dry-run"]], ["demo-session.sh", ["start", "--dry-run"]]] as const) {
+        const r = run(s, [...a], { ...deployed(), ...e });
+        expect({ s, e, code: r.code === 0 }).toEqual({ s, e, code: false });
+        expect(r.out).toMatch(/AGATE_KIT_ALCHEMY must be one of: off light all|AGATE_KIT_ALCHEMY_TEST_URL must be http:\/\/127\.0\.0\.1|AGATE_KIT_ALCHEMY_TEST_URL is for --fork runs only|AGATE_KIT_ALCHEMY_WS must be on, prod or off/);
+        expect(r.out).not.toContain("$ tmux");
+        expect(r.out).not.toContain("$ write");
+      }
+    }
+    expect(callLog()).toBe("");
+  });
+
+  test("a fork never gets the real Alchemy: off without the stand-in, the stand-in with it", () => {
+    const fork = { ...deployed(), AGATE_KIT_FORK_RPC: "http://127.0.0.1:8549", AGATE_KIT_TMUX_SOCKET: "agate-rehearsal", AGATE_KIT_TMUX_SESSION: "rehearsal", AGATE_KIT_ROLES: "rehearsal" };
+    const plain = run("up.sh", ["demo", "--fork", "--dry-run"], fork);
+    expect(plain.code).toBe(0);
+    expect(plain.out).toContain("Alchemy off on a fork (set AGATE_KIT_ALCHEMY_TEST_URL to a loopback stand-in to rehearse light)");
+    expect(plain.out).not.toMatch(/alchemy\.com|send:|ws:\/\//);
+    const stand = run("up.sh", ["demo", "--fork", "--dry-run"], { ...fork, AGATE_KIT_ALCHEMY_TEST_URL: "http://127.0.0.1:9555" });
+    expect(stand.code).toBe(0);
+    expect(stand.out).toContain("Alchemy light: the Alchemy stand-in http://127.0.0.1:9555 takes");
+    expect(stand.out).not.toContain("alchemy.com");
+    const by = Object.fromEntries(launchersOf(stand.out).map((l) => [l.name, rpcCmd(l.body)]));
+    for (const n of ["demo-primary", "demo-standby", "shared-maker", "shared-payer"]) expect(by[n]).toBe("printf '\\''%s'\\'' '\\''send:http://127.0.0.1:9555,http://127.0.0.1:8549,http://localhost:8549'\\''");
+    for (const n of ["demo-attest", "demo-keep"]) expect(by[n]).toBe("printf '\\''%s'\\'' '\\''send:http://127.0.0.1:9555,http://127.0.0.1:8549,http://localhost:8549,ws://127.0.0.1:9555'\\''");
+    for (const n of ["demo-health", "demo-log", "shared-indexer", "shared-repair"]) expect(by[n]).toBe("printf '\\''http://127.0.0.1:8549,http://localhost:8549'\\''");
+    expect(callLog()).toBe("");
+  });
+
+  test("AGATE_KIT_ALCHEMY_WS=prod: the production attester and keeper keep the websocket, the demo ones poll; the line says so", () => {
+    for (const stack of ["production", "demo"]) {
+      const r = run("up.sh", [stack, "--dry-run"], { ...deployed(), AGATE_KIT_ALCHEMY_WS: "prod" });
+      expect(r.code).toBe(0);
+      expect(r.out).toContain("the production attester's and keeper's websocket (AGATE_KIT_ALCHEMY_WS=prod)");
+      for (const { name, body } of launchersOf(r.out)) {
+        const ws = name === "prod-attest" || name === "prod-keep";
+        expect({ name, wss: rpcCmd(body).includes("wss://") }).toEqual({ name, wss: ws });
+        expect({ name, kind: body.includes("AGATE_WS_KIND='logs'") }).toEqual({ name, kind: ws });
+      }
+    }
+  });
+
+  test("AGATE_ALCHEMY_DAILY_CU set in the shell reaches every window; AGATE_KIT_INDEXER=0 leaves the indexer out", () => {
+    const r = run("up.sh", ["production", "--dry-run"], { ...deployed(), AGATE_ALCHEMY_DAILY_CU: "250000", AGATE_KIT_INDEXER: "0" });
+    expect(r.code).toBe(0);
+    const ls = launchersOf(r.out);
+    expect(ls.map((l) => l.name)).not.toContain("shared-indexer");
+    expect(ls.map((l) => l.name)).toContain("shared-maker");
+    for (const { name, body } of ls) expect({ name, cu: body.includes("AGATE_ALCHEMY_DAILY_CU='250000'") }).toEqual({ name, cu: true });
+    expect(r.out).toContain("AGATE_KIT_INDEXER=0: no indexer window");
+    expect(r.out).toContain("(budget 250000 CU a UTC day)");
+  });
+
+  test("demo-session.sh start plans the session's Alchemy spend at the measured rates and warns near the budget", () => {
+    const at = (hours: string, e: Record<string, string> = {}) => run("demo-session.sh", ["start", "--hours", hours, "--dry-run"], { ...deployed(), ...e });
+    // 5 h: 5 x (20,400 sends + 53,000 websocket) + 50,500 for the production stack = 417,500, 104% of 400,000
+    const five = at("5");
+    expect(five.code).toBe(0);
+    expect(five.out).toContain("about 102000 CU for the sends and 265000 for the demo websocket; with the production stack's 50500 a UTC day, about 417500: 104% of the budget (400000 CU a UTC day)");
+    expect(five.out).toContain("WARNING: this session and the production stack may spend the day's Alchemy budget before the session ends (about 104%)");
+    expect(five.out).toContain("AGATE_KIT_ALCHEMY_WS=prod leaves the demo windows without the websocket (about 38%)");
+    // the demo websocket out: 5 x 20,400 + 50,500 = 152,500, 38%, no warning
+    const prod = at("5", { AGATE_KIT_ALCHEMY_WS: "prod" });
+    expect(prod.out).toContain("about 152500: 38% of the budget");
+    expect(prod.out).not.toContain("WARNING: this session");
+    // a short session stays under 90%
+    expect(at("3").out).not.toContain("WARNING: this session");
+    // a budget the processes would refuse stops the start before anything is deployed
+    const bad = at("5", { AGATE_ALCHEMY_DAILY_CU: "lots" });
+    expect(bad.code).not.toBe(0);
+    expect(bad.out).toContain("AGATE_ALCHEMY_DAILY_CU must be a whole number of compute units above 0");
+    expect(bad.out).not.toContain("deploy-index");
+  }, 60_000);
+
+  // Oct 4 2026 live: the payer's budget, paced for the production horizon, refused the session's listings (BUDGET)
+  test("demo-session.sh start gives the maker and the payer the session's MON on top of their budget; stop restarts them without it", () => {
+    const start = run("demo-session.sh", ["start", "--hours", "5", "--dry-run"], deployed());
+    expect(start.code).toBe(0);
+    expect(start.out).toContain("the maker and the payer get 39.0 and 9.8 MON on top of their daily budget, once, until");
+    expect(start.out).toContain("AGATE_MM_SESSION_MON='39.0'");
+    expect(start.out).toContain("AGATE_PAYER_SESSION_MON='9.8'");
+    // until = the session's planned end plus an hour (6 h from now for 5 h), within a minute
+    const until = Number(/AGATE_MM_SESSION_UNTIL='(\d+)'/.exec(start.out)?.[1]);
+    expect(Math.abs(until - (Math.floor(Date.now() / 1000) + 6 * 3_600))).toBeLessThan(60);
+    expect(start.out).toContain(`AGATE_PAYER_SESSION_UNTIL='${until}'`);
+    const stop = run("demo-session.sh", ["stop", "--dry-run"], { ...deployed(), AGATE_MM_SESSION_MON: "39.0", AGATE_PAYER_SESSION_MON: "9.8", AGATE_MM_SESSION_UNTIL: String(until), AGATE_PAYER_SESSION_UNTIL: String(until) });
+    expect(stop.code).toBe(0);
+    expect(stop.out).toContain("restarting the shared windows");
+    expect(stop.out).not.toMatch(/AGATE_(MM|PAYER)_SESSION_(MON|UNTIL)=/);
+    // a plan above the 1000 MON the bots accept stops before anything is deployed (review finding Oct 5)
+    const big = run("demo-session.sh", ["start", "--hours", "200", "--dry-run"], deployed());
+    expect(big.code).not.toBe(0);
+    expect(big.out).toContain("above the 1000 the bots accept");
+    expect(big.out).not.toContain("deploy-index");
+  }, 60_000);
+
+  test("up.sh checks the Alchemy key's Keychain item (attributes only) in light and all, never in off or with the stand-in", () => {
+    const bin = join(tmp, "kc-bin");
+    mkdirSync(bin, { recursive: true });
+    const log = join(tmp, "kc-calls");
+    // security: attribute queries succeed and are recorded; a -w read would be recorded too (and must never happen)
+    writeFileSync(join(bin, "security"), `#!/bin/sh\necho "security $*" >> '${log}'\nexit 0\n`);
+    for (const t of ["tmux", "forge", "cast"]) writeFileSync(join(bin, t), `#!/bin/sh\necho "${t} $*" >> '${log}'\nexit 97\n`);
+    for (const t of ["security", "tmux", "forge", "cast"]) chmodSync(join(bin, t), 0o755);
+    const go = (e: Record<string, string>) => {
+      rmSync(log, { force: true });
+      const r = run("up.sh", ["demo"], { ...deployed(), ...e, PATH: `${bin}:${process.env.PATH}`, AGATE_KIT_OFFLINE: "0", AGATE_KIT_STATE: join(tmp, "kc-state") });
+      expect(r.code).not.toBe(0); // the stub tmux has no session: it stops before opening anything
+      expect(r.out).toContain("no tmux session");
+      return existsSync(log) ? readFileSync(log, "utf8") : "";
+    };
+    for (const m of ["light", "all"]) {
+      const c = go({ AGATE_KIT_ALCHEMY: m });
+      expect(c).toContain("security find-generic-password -s agate.alchemy-api-key -a api-key\n");
+      expect(c).not.toMatch(/ -w/);
+    }
+    const c = go({ AGATE_KIT_ALCHEMY: "off" });
+    expect(c).not.toContain("agate.alchemy-api-key");
+    expect(c).toContain("security find-generic-password -s agate.wall.primary -a private-key\n");
+    // the stand-in is for a fork only: a real run with it set stops before any Keychain check
+    rmSync(log, { force: true });
+    const r = run("up.sh", ["demo"], { ...deployed(), AGATE_KIT_ALCHEMY_TEST_URL: "http://127.0.0.1:9555", PATH: `${bin}:${process.env.PATH}`, AGATE_KIT_OFFLINE: "0", AGATE_KIT_STATE: join(tmp, "kc-state") });
+    expect(r.code).not.toBe(0);
+    expect(r.out).toContain("AGATE_KIT_ALCHEMY_TEST_URL is for --fork runs only");
+    expect(existsSync(log) ? readFileSync(log, "utf8") : "").toBe("");
+  });
+
+  test("status.sh's Alchemy lines: each process's compute units today, the total against the budget, the stop", () => {
+    const home = join(tmp, "meter-home");
+    const day = new Date().toISOString().slice(0, 10);
+    const dir = join(home, "rpc-meter", day);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "attest-41939400.json"), JSON.stringify({ date: day, role: "attest", scope: "41939400", methods: { eth_sendRawTransaction: 2, eth_subscribe: 1 }, wsBytes: 5000, cu: 290 }));
+    writeFileSync(join(dir, "payer-market.json"), JSON.stringify({ date: day, role: "payer", scope: "market", methods: { eth_estimateGas: 10 }, wsBytes: 0, cu: 200 }));
+    const h = join(tmp, "meter-harness.sh");
+    writeFileSync(h, `#!/bin/bash\nsource '${join(KIT, "lib.sh")}'\nalchemy_today '${home}'\n`);
+    const sh = (e: Record<string, string> = {}) => {
+      const r = Bun.spawnSync(["/bin/bash", h], { cwd: ROOT, env: { PATH: `${JQ_DIR}:/usr/bin:/bin`, HOME: tmp, ...e }, stdout: "pipe", stderr: "pipe" });
+      return `${r.stdout.toString()}${r.stderr.toString()}`;
+    };
+    const out = sh({ AGATE_ALCHEMY_DAILY_CU: "1000" });
+    expect(out).toContain("attest-41939400 290 CU (eth_sendRawTransaction 2, eth_subscribe 1, ws 5000 bytes)");
+    expect(out).toContain("payer-market 200 CU (eth_estimateGas 10)");
+    expect(out).toContain(`total 490 of 1000 CU on ${day} (UTC): 49.0%`);
+    expect(out).not.toContain("the budget is spent");
+    writeFileSync(join(dir, ".alert-100"), "x");
+    expect(sh()).toContain(`total 490 of 400000 CU on ${day} (UTC): 0.1%; the budget is spent: no Alchemy until 00:00 UTC`);
+    rmSync(dir, { recursive: true });
+    expect(sh()).toContain(`no Alchemy compute units counted on ${day} (UTC)`);
+    const src = readFileSync(join(KIT, "status.sh"), "utf8");
+    expect(src).toContain('alchemy_today "$KIT_WALL_HOME"');
   });
 });
 

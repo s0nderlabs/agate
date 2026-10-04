@@ -13,8 +13,9 @@
 // AGATE_MAX_FEE_GWEI, AGATE_MARKET_GAS_LIMITS, AGATE_DRY_RUN=1 with AGATE_MM_ADDRESS.
 import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { AlertSink, Heartbeat, LockHeld, type RpcPool, scrubText, Waker, wallHome, writeAtomic, WsWake } from "@agate/watcher";
-import { bootstrap, Budget, MarketSender } from "@agate/market";
+import type { RpcMeter } from "@agate/report/meter";
+import { AlertSink, Heartbeat, LockHeld, type RpcPool, scrubText, Waker, wallHome, writeAtomic, WsWake, wsPreferFromEnv } from "@agate/watcher";
+import { bootstrap, Budget, MarketSender, sessionFromEnv } from "@agate/market";
 import { loadConfig, tickSeconds } from "./config.ts";
 import { MarketMaker, ROLE, type Request } from "./mm.ts";
 
@@ -35,6 +36,7 @@ interface Booted {
   pool: RpcPool;
   ws: string[];
   lockFd: number | null;
+  meter?: RpcMeter;
 }
 
 async function boot(): Promise<Booted> {
@@ -46,10 +48,12 @@ async function boot(): Promise<Booted> {
   // no alerts on the budget itself: the maker raises MM_KEY_LOW and MM_BUDGET_SPENT (once a day) from its tick. A dry
   // run has none: it needs no MON, and a budget file it froze from an unfunded key would hold the real run the same
   // UTC day at 0 (review finding, Oct 3)
-  const budget = rt.dryRun ? undefined : new Budget({ dir: rt.dir, role: ROLE, keepWei: config.keepWei, lowBalanceWei: config.lowBalanceWei, runUntil: config.runUntil, lowCode: "MM_KEY_LOW", spentCode: "MM_BUDGET_SPENT", address: rt.from });
+  const session = sessionFromEnv(process.env, "AGATE_MM");
+  const budget = rt.dryRun ? undefined : new Budget({ dir: rt.dir, role: ROLE, keepWei: config.keepWei, lowBalanceWei: config.lowBalanceWei, runUntil: config.runUntil, lowCode: "MM_KEY_LOW", spentCode: "MM_BUDGET_SPENT", address: rt.from, ...(session ? { session } : {}) });
   let mm: MarketMaker | null = null;
   const sender = new MarketSender({
     pool: rt.pool,
+    ...(rt.send ? { send: rt.send } : {}),
     role: ROLE,
     ...(rt.keyVar ? { keyEnv: rt.keyVar } : {}),
     from: rt.from,
@@ -63,8 +67,8 @@ async function boot(): Promise<Booted> {
     log: say,
   });
   mm = new MarketMaker({ reads: rt.reads, sender, deployments: rt.deployments, config, dir: rt.dir, alerts: rt.alerts, ...(budget ? { budget } : {}), dryRun: rt.dryRun, nowMs: () => Date.now(), log: say, heartbeat: new Heartbeat(join(rt.dir, "heartbeat.json"), ROLE, "-") });
-  say("started", { maker: sender.from, dryRun: rt.dryRun, chainId: rt.pool.chainId, rpc: rt.pool.redactedUrls(), factories: config.factories.filter((f) => rt.deployments.factories[f]), gasLimits: process.env.AGATE_MARKET_GAS_LIMITS ? "AGATE_MARKET_GAS_LIMITS" : "the Foundry table (Ethereum prices; the testnet deploy sets AGATE_MARKET_GAS_LIMITS from Monad)" });
-  return { mm, pool: rt.pool, ws: rt.endpoints.ws, lockFd: rt.lockFd };
+  say("started", { maker: sender.from, dryRun: rt.dryRun, sessionMon: budget?.o.session ? Number(budget.o.session.wei) / 1e18 : 0, sessionUntil: budget?.o.session?.until ?? null, chainId: rt.pool.chainId, rpc: rt.pool.redactedUrls(), send: rt.send?.redactedUrls() ?? [], factories: config.factories.filter((f) => rt.deployments.factories[f]), gasLimits: process.env.AGATE_MARKET_GAS_LIMITS ? "AGATE_MARKET_GAS_LIMITS" : "the Foundry table (Ethereum prices; the testnet deploy sets AGATE_MARKET_GAS_LIMITS from Monad)" });
+  return { mm, pool: rt.pool, ws: rt.endpoints.ws, lockFd: rt.lockFd, ...(rt.meter ? { meter: rt.meter } : {}) };
 }
 
 async function run(): Promise<void> {
@@ -96,6 +100,7 @@ async function run(): Promise<void> {
     if (e) days.push((await mm.d.reads.indexClocks(e.index)).day);
   }
   const tickS = tickSeconds(mm.d.config, days);
+  const prefer = wsPreferFromEnv(process.env);
   say("loop", { tickS });
   while (!stopping) {
     await pool.tick(now());
@@ -110,7 +115,7 @@ async function run(): Promise<void> {
       const want = new Set([...Object.keys(mm.state.quoted), ...Object.keys(mm.state.orders)]);
       for (const m of want) {
         if (wakes.has(m)) continue;
-        const w = new WsWake({ urls: b.ws, address: m, kinds: ["logs"], onWake: () => waker.wake(), alerts: mm.d.alerts as AlertSink, role: ROLE, log: say });
+        const w = new WsWake({ urls: b.ws, address: m, kinds: ["logs"], onWake: () => waker.wake(), alerts: mm.d.alerts as AlertSink, role: ROLE, log: say, prefer, ...(b.meter ? { meter: b.meter } : {}) });
         w.start();
         wakes.set(m, w);
       }

@@ -5,7 +5,7 @@ import type { Address, Clocks, GpuConfig, Hex, Readings } from "@agate/report/ty
 import { decodeEventLog, decodeFunctionResult, encodeEventTopics, encodeFunctionData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { KeyLock } from "./lock.ts";
-import type { AlertFn, RpcPool } from "./rpc.ts";
+import type { AlertFn, RpcPool, SendRoute } from "./rpc.ts";
 import { type SenderTiming, type SendResult, type Shape, type TxJournal, type TxMeta, TxSender } from "./sender.ts";
 
 export type { SendResult, TxMeta } from "./sender.ts";
@@ -69,6 +69,8 @@ export interface IndexChain {
 
 export interface IndexChainOptions {
   pool: RpcPool;
+  /** Oct 4: the send route (send: endpoints) for this key's own transactions; reads stay on the pool */
+  send?: SendRoute;
   index: Address;
   /** Read from the environment by the caller at startup; never logged, never written. */
   privateKey: Hex;
@@ -91,6 +93,7 @@ export function indexChain(o: IndexChainOptions): IndexChain & { sender: TxSende
   const keyLock = o.keyLockPath ? new KeyLock(o.keyLockPath, o.timing.lockWaitMs) : undefined;
   const sender = new TxSender({
     pool: o.pool,
+    ...(o.send ? { send: o.send } : {}),
     account,
     index: o.index,
     journal: o.journal,
