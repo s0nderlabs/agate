@@ -1,0 +1,31 @@
+{
+  "name": "@agate/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "agate's Dynamic layer: delegation receiver, Transaction Review, AI pockets and the hosted MCP server",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agate/client": "workspace:*",
+    "@agate/wallet": "workspace:*",
+    "@dynamic-labs-wallet/node": "1.1.28",
+    "@dynamic-labs-wallet/node-evm": "1.1.28",
+    "@hono/mcp": "0.3.2",
+    "@modelcontextprotocol/sdk": "1.32.0",
+    "@zerodev/ecdsa-validator": "5.4.9",
+    "@zerodev/permissions": "5.5.8",
+    "@zerodev/sdk": "5.4.37",
+    "hono": "4.13.13",
+    "jose": "6.2.12",
+    "viem": "2.57.2",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "typescript": "5.9.3"
+  }
+}

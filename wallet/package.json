@@ -1,0 +1,33 @@
+{
+  "name": "@agate/wallet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "agate's wallets on Dynamic + ZeroDev: the main smart account, the AI pocket and its session key, and the one list of calls a pocket may make. Shared by the app (browser) and the server.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./allowed": "./src/allowed.ts",
+    "./dynamic": "./src/dynamic.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lab": "vite --config lab/vite.config.ts"
+  },
+  "dependencies": {
+    "@agate/client": "workspace:*",
+    "@dynamic-labs-sdk/client": "1.38.0",
+    "@dynamic-labs-sdk/evm": "1.38.0",
+    "@dynamic-labs-sdk/zerodev": "1.38.0",
+    "@zerodev/ecdsa-validator": "5.4.9",
+    "@zerodev/permissions": "5.5.8",
+    "@zerodev/sdk": "5.4.37",
+    "viem": "2.57.2"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "typescript": "5.9.3",
+    "vite": "8.3.1"
+  }
+}

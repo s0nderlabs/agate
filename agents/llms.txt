@@ -1,0 +1,14 @@
+# agate
+
+> agate turns compute into a financial asset: an open onchain price for GPU-hours that anyone, whether a person, an app or an agent, can trade, hedge or build on. Monad testnet, test dollars.
+
+- Index: a daily GPU-hour rental price per GPU (median of several clouds), written onchain by Chainlink CRE.
+- Market: monthly tokens per GPU that pay the month's average index price; Long gains when GPU rent rises, Short when it falls; optional daily payouts ("pay me daily").
+- Agents: a hosted MCP server (OAuth 2.1 or a private connector URL). Each AI connection trades from its own pocket within limits the person sets; the limits are enforced by agate's server, Dynamic, and an onchain session key.
+
+## Docs
+
+- [For AI agents](agents/AGENTS.md): connect, tools, limits, rules.
+- [Claude Code plugin](agents/claude-plugin): MCP over OAuth plus the agate skill.
+- [Server API](server/API.md): the app-facing API (Connect your AI, approvals, activity).
+- [Wallets](wallet/README.md): main account, Assistant, pocket; measured timings on Monad testnet.

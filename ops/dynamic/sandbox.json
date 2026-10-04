@@ -1,0 +1,1646 @@
+{
+  "note": "agate's Dynamic sandbox environment as code: bun run server/scripts/env.ts export | diff | apply. ${PUBLIC_BASE} is the server's public HTTPS base (AGATE_PUBLIC_BASE). No secrets here.",
+  "environmentId": "db2880bd-e52a-4f00-aa83-2c3ec77281cb",
+  "settings": {
+    "chains": [
+      {
+        "enabled": false,
+        "name": "aleo",
+        "networks": [
+          {
+            "chainName": "Mainnet",
+            "enabled": true,
+            "networkId": 0
+          },
+          {
+            "chainName": "Testnet",
+            "enabled": false,
+            "networkId": 1
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "algorand",
+        "networks": []
+      },
+      {
+        "enabled": false,
+        "name": "aptos",
+        "networks": [
+          {
+            "chainName": "Mainnet",
+            "enabled": true,
+            "networkId": 1
+          },
+          {
+            "chainName": "Testnet",
+            "enabled": false,
+            "networkId": 2
+          },
+          {
+            "chainName": "Devnet",
+            "enabled": false,
+            "networkId": 3
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "bitcoin",
+        "networks": [
+          {
+            "chainName": "Mainnet",
+            "enabled": true,
+            "networkId": 1
+          },
+          {
+            "chainName": "Testnet",
+            "enabled": false,
+            "networkId": 2
+          },
+          {
+            "chainName": "Signet",
+            "enabled": false,
+            "networkId": 3
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "cosmos",
+        "networks": [
+          {
+            "chainName": "Cosmos Hub",
+            "enabled": false,
+            "networkId": 401
+          },
+          {
+            "chainName": "Axelar",
+            "enabled": false,
+            "networkId": 402
+          },
+          {
+            "chainName": "Osmosis",
+            "enabled": false,
+            "networkId": 403
+          },
+          {
+            "chainName": "Sei",
+            "enabled": false,
+            "networkId": 404
+          },
+          {
+            "chainName": "Noble",
+            "enabled": false,
+            "networkId": 405
+          },
+          {
+            "chainName": "Provenance",
+            "enabled": false,
+            "networkId": 406
+          },
+          {
+            "chainName": "Lava Network",
+            "enabled": false,
+            "networkId": 407
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "eclipse",
+        "networks": [
+          {
+            "chainName": "mainnet",
+            "enabled": true,
+            "networkId": 1
+          }
+        ]
+      },
+      {
+        "enabled": true,
+        "name": "ethereum",
+        "networks": []
+      },
+      {
+        "enabled": true,
+        "name": "evm",
+        "networks": [
+          {
+            "chainName": "Ethereum Mainnet",
+            "enabled": true,
+            "networkId": 1
+          },
+          {
+            "chainName": "Goerli",
+            "enabled": false,
+            "networkId": 5
+          },
+          {
+            "chainName": "Sepolia",
+            "enabled": false,
+            "networkId": 11155111
+          },
+          {
+            "chainName": "Polygon Mainnet",
+            "enabled": false,
+            "networkId": 137
+          },
+          {
+            "chainName": "Polygon Mumbai",
+            "enabled": false,
+            "networkId": 80001
+          },
+          {
+            "chainName": "Polygon Amoy",
+            "enabled": false,
+            "networkId": 80002
+          },
+          {
+            "chainName": "Arbitrum",
+            "enabled": false,
+            "networkId": 42161
+          },
+          {
+            "chainName": "Arbitrum Goerli",
+            "enabled": false,
+            "networkId": 421613
+          },
+          {
+            "chainName": "Arbitrum Sepolia",
+            "enabled": false,
+            "networkId": 421614
+          },
+          {
+            "chainName": "Optimism",
+            "enabled": false,
+            "networkId": 10
+          },
+          {
+            "chainName": "Optimism Goerli",
+            "enabled": false,
+            "networkId": 420
+          },
+          {
+            "chainName": "Optimism Sepolia",
+            "enabled": false,
+            "networkId": 11155420
+          },
+          {
+            "chainName": "Palm",
+            "enabled": false,
+            "networkId": 11297108109
+          },
+          {
+            "chainName": "Aurora",
+            "enabled": false,
+            "networkId": 1313161554
+          },
+          {
+            "chainName": "BNB Smart Chain",
+            "enabled": false,
+            "networkId": 56
+          },
+          {
+            "chainName": "Binance Smart Chain Testnet",
+            "enabled": false,
+            "networkId": 97
+          },
+          {
+            "chainName": "Gnosis",
+            "enabled": false,
+            "networkId": 100
+          },
+          {
+            "chainName": "Base",
+            "enabled": false,
+            "networkId": 8453
+          },
+          {
+            "chainName": "Base Goerli",
+            "enabled": false,
+            "networkId": 84531
+          },
+          {
+            "chainName": "Base Sepolia",
+            "enabled": false,
+            "networkId": 84532
+          },
+          {
+            "chainName": "Plasma Mainnet",
+            "enabled": false,
+            "networkId": 9745
+          },
+          {
+            "chainName": "Avalanche Fuji Testnet",
+            "enabled": false,
+            "networkId": 43113
+          },
+          {
+            "chainName": "Avalanche C-Chain",
+            "enabled": false,
+            "networkId": 43114
+          },
+          {
+            "chainName": "Celo Mainnet",
+            "enabled": false,
+            "networkId": 42220
+          },
+          {
+            "chainName": "Celo Alfajores Testnet",
+            "enabled": false,
+            "networkId": 44787
+          },
+          {
+            "chainName": "Chiliz Chain",
+            "enabled": false,
+            "networkId": 88888
+          },
+          {
+            "chainName": "Fantom Opera",
+            "enabled": false,
+            "networkId": 250
+          },
+          {
+            "chainName": "EVM on Flow",
+            "enabled": false,
+            "networkId": 747
+          },
+          {
+            "chainName": "EVM on Flow Testnet",
+            "enabled": false,
+            "networkId": 545
+          },
+          {
+            "chainName": "EON",
+            "enabled": false,
+            "networkId": 7332
+          },
+          {
+            "chainName": "EON Gobi",
+            "enabled": false,
+            "networkId": 1663
+          },
+          {
+            "chainName": "Abstract",
+            "enabled": false,
+            "networkId": 2741
+          },
+          {
+            "chainName": "Abstract Testnet",
+            "enabled": false,
+            "networkId": 11124
+          },
+          {
+            "chainName": "Berachain Artio",
+            "enabled": false,
+            "networkId": 80085
+          },
+          {
+            "chainName": "opBNB",
+            "enabled": false,
+            "networkId": 204
+          },
+          {
+            "chainName": "opBNB Testnet",
+            "enabled": false,
+            "networkId": 5611
+          },
+          {
+            "chainName": "zkSync Era Mainnet",
+            "enabled": false,
+            "networkId": 324
+          },
+          {
+            "chainName": "zkSync Era Testnet",
+            "enabled": false,
+            "networkId": 280
+          },
+          {
+            "chainName": "zkSync Era Sepolia",
+            "enabled": false,
+            "networkId": 300
+          },
+          {
+            "chainName": "Cronos Mainnet",
+            "enabled": false,
+            "networkId": 25
+          },
+          {
+            "chainName": "Cronos Testnet",
+            "enabled": false,
+            "networkId": 338
+          },
+          {
+            "chainName": "Scroll Mainnet",
+            "enabled": false,
+            "networkId": 534352
+          },
+          {
+            "chainName": "Scroll Sepolia",
+            "enabled": false,
+            "networkId": 534351
+          },
+          {
+            "chainName": "Sophon",
+            "enabled": false,
+            "networkId": 50104
+          },
+          {
+            "chainName": "Sophon Testnet",
+            "enabled": false,
+            "networkId": 531050104
+          },
+          {
+            "chainName": "Matchain Mainnet",
+            "enabled": false,
+            "networkId": 698
+          },
+          {
+            "chainName": "Matchain Testnet",
+            "enabled": false,
+            "networkId": 699
+          },
+          {
+            "chainName": "Mode",
+            "enabled": false,
+            "networkId": 34443
+          },
+          {
+            "chainName": "Mode Sepolia",
+            "enabled": false,
+            "networkId": 919
+          },
+          {
+            "chainName": "Stable Mainnet",
+            "enabled": false,
+            "networkId": 988
+          },
+          {
+            "chainName": "Moonbeam",
+            "enabled": false,
+            "networkId": 1284
+          },
+          {
+            "chainName": "Moonbase Alpha",
+            "enabled": false,
+            "networkId": 1287
+          },
+          {
+            "chainName": "Zora",
+            "enabled": false,
+            "networkId": 7777777
+          },
+          {
+            "chainName": "Zora Sepolia",
+            "enabled": false,
+            "networkId": 999999999
+          },
+          {
+            "chainName": "Degen Chain",
+            "enabled": false,
+            "networkId": 666666666
+          },
+          {
+            "chainName": "Blast Mainnet",
+            "enabled": false,
+            "networkId": 81457
+          },
+          {
+            "chainName": "Root Mainnet",
+            "enabled": false,
+            "networkId": 7668
+          },
+          {
+            "chainName": "Shardeum Sphinx 1.X",
+            "enabled": false,
+            "networkId": 8082
+          },
+          {
+            "chainName": "Oasis Sapphire",
+            "enabled": false,
+            "networkId": 23294
+          },
+          {
+            "chainName": "Berachain bArtio",
+            "enabled": false,
+            "networkId": 80084
+          },
+          {
+            "chainName": "Morph Holesky Testnet",
+            "enabled": false,
+            "networkId": 2810
+          },
+          {
+            "chainName": "Holesky Testnet",
+            "enabled": false,
+            "networkId": 17000
+          },
+          {
+            "chainName": "Hoodi Testnet",
+            "enabled": false,
+            "networkId": 560048
+          },
+          {
+            "chainName": "XDC Network",
+            "enabled": false,
+            "networkId": 50
+          },
+          {
+            "chainName": "XDC Apothem Testnet",
+            "enabled": false,
+            "networkId": 51
+          },
+          {
+            "chainName": "BOB Mainnet",
+            "enabled": false,
+            "networkId": 60808
+          },
+          {
+            "chainName": "BOB Sepolia",
+            "enabled": false,
+            "networkId": 808813
+          },
+          {
+            "chainName": "Zircuit Testnet",
+            "enabled": false,
+            "networkId": 48899
+          },
+          {
+            "chainName": "Lightlink Phoenix",
+            "enabled": false,
+            "networkId": 1890
+          },
+          {
+            "chainName": "Linea",
+            "enabled": false,
+            "networkId": 59144
+          },
+          {
+            "chainName": "Linea Sepolia",
+            "enabled": false,
+            "networkId": 59141
+          },
+          {
+            "chainName": "Mantle",
+            "enabled": false,
+            "networkId": 5000
+          },
+          {
+            "chainName": "Mantle Sepolia",
+            "enabled": false,
+            "networkId": 5003
+          },
+          {
+            "chainName": "ApeCoin Curtis",
+            "enabled": false,
+            "networkId": 33111
+          },
+          {
+            "chainName": "DATA Network Partner Testnet",
+            "enabled": false,
+            "networkId": 1513
+          },
+          {
+            "chainName": "DATA Network",
+            "enabled": false,
+            "networkId": 1514
+          },
+          {
+            "chainName": "DATA Network Aeneid",
+            "enabled": false,
+            "networkId": 1315
+          },
+          {
+            "chainName": "XLayer Testnet",
+            "enabled": false,
+            "networkId": 195
+          },
+          {
+            "chainName": "XLayer",
+            "enabled": false,
+            "networkId": 196
+          },
+          {
+            "chainName": "Sei Devnet",
+            "enabled": false,
+            "networkId": 713715
+          },
+          {
+            "chainName": "Sei Testnet",
+            "enabled": false,
+            "networkId": 1328
+          },
+          {
+            "chainName": "Sei",
+            "enabled": false,
+            "networkId": 1329
+          },
+          {
+            "chainName": "Game7 Testnet",
+            "enabled": false,
+            "networkId": 13746
+          },
+          {
+            "chainName": "Ethernity",
+            "enabled": false,
+            "networkId": 183
+          },
+          {
+            "chainName": "Ethernity Testnet",
+            "enabled": false,
+            "networkId": 233
+          },
+          {
+            "chainName": "Odyssey Testnet",
+            "enabled": false,
+            "networkId": 911867
+          },
+          {
+            "chainName": "ApeChain",
+            "enabled": false,
+            "networkId": 33139
+          },
+          {
+            "chainName": "Filecoin Calibration Testnet",
+            "enabled": false,
+            "networkId": 314159
+          },
+          {
+            "chainName": "Filecoin Mainnet",
+            "enabled": false,
+            "networkId": 314
+          },
+          {
+            "chainName": "Monad Mainnet",
+            "enabled": true,
+            "networkId": 143
+          },
+          {
+            "chainName": "Monad Testnet",
+            "enabled": true,
+            "networkId": 10143
+          },
+          {
+            "chainName": "Ink",
+            "enabled": false,
+            "networkId": 57073
+          },
+          {
+            "chainName": "Ink Sepolia",
+            "enabled": false,
+            "networkId": 763373
+          },
+          {
+            "chainName": "Hemi",
+            "enabled": false,
+            "networkId": 43111
+          },
+          {
+            "chainName": "Berachain Mainnet",
+            "enabled": false,
+            "networkId": 80094
+          },
+          {
+            "chainName": "Berachain Bepolia",
+            "enabled": false,
+            "networkId": 80069
+          },
+          {
+            "chainName": "Unichain",
+            "enabled": false,
+            "networkId": 130
+          },
+          {
+            "chainName": "Nexus",
+            "enabled": false,
+            "networkId": 393
+          },
+          {
+            "chainName": "Hyperliquid Mainnet",
+            "enabled": false,
+            "networkId": 999
+          },
+          {
+            "chainName": "Hyperliquid Testnet",
+            "enabled": false,
+            "networkId": 998
+          },
+          {
+            "chainName": "Sonic",
+            "enabled": false,
+            "networkId": 146
+          },
+          {
+            "chainName": "Redbelly Network Mainnet",
+            "enabled": false,
+            "networkId": 151
+          },
+          {
+            "chainName": "Redbelly Network Testnet",
+            "enabled": false,
+            "networkId": 153
+          },
+          {
+            "chainName": "Kaia Mainnet",
+            "enabled": false,
+            "networkId": 8217
+          },
+          {
+            "chainName": "Sonic Blaze Testnet",
+            "enabled": false,
+            "networkId": 57054
+          },
+          {
+            "chainName": "Soneium",
+            "enabled": false,
+            "networkId": 1868
+          },
+          {
+            "chainName": "Soneium Testnet Minato",
+            "enabled": false,
+            "networkId": 1946
+          },
+          {
+            "chainName": "Rayls Dev Network",
+            "enabled": false,
+            "networkId": 1632025
+          },
+          {
+            "chainName": "MegaETH Testnet",
+            "enabled": false,
+            "networkId": 6342
+          },
+          {
+            "chainName": "Citrea Mainnet",
+            "enabled": false,
+            "networkId": 4114
+          },
+          {
+            "chainName": "Citrea Testnet",
+            "enabled": false,
+            "networkId": 5115
+          },
+          {
+            "chainName": "Arc",
+            "enabled": false,
+            "networkId": 5042
+          },
+          {
+            "chainName": "Arc Testnet",
+            "enabled": false,
+            "networkId": 5042002
+          },
+          {
+            "chainName": "Goat Network",
+            "enabled": false,
+            "networkId": 2345
+          },
+          {
+            "chainName": "Reya Cronos",
+            "enabled": false,
+            "networkId": 89346162
+          },
+          {
+            "chainName": "Reya Network",
+            "enabled": false,
+            "networkId": 1729
+          },
+          {
+            "chainName": "Swellchain",
+            "enabled": false,
+            "networkId": 1923
+          },
+          {
+            "chainName": "World",
+            "enabled": false,
+            "networkId": 480
+          },
+          {
+            "chainName": "World Sepolia",
+            "enabled": false,
+            "networkId": 4801
+          },
+          {
+            "chainName": "ZetaChain",
+            "enabled": false,
+            "networkId": 7000
+          },
+          {
+            "chainName": "ZetaChain Testnet",
+            "enabled": false,
+            "networkId": 7001
+          },
+          {
+            "chainName": "Sanko Testnet",
+            "enabled": false,
+            "networkId": 1992
+          },
+          {
+            "chainName": "Sanko",
+            "enabled": false,
+            "networkId": 1996
+          },
+          {
+            "chainName": "Kaia Kairos",
+            "enabled": false,
+            "networkId": 1001
+          },
+          {
+            "chainName": "Stable Testnet",
+            "enabled": false,
+            "networkId": 2201
+          },
+          {
+            "chainName": "Rootstock Mainnet",
+            "enabled": false,
+            "networkId": 30
+          },
+          {
+            "chainName": "Rootstock Testnet",
+            "enabled": false,
+            "networkId": 31
+          },
+          {
+            "chainName": "1Money Mainnet",
+            "enabled": false,
+            "networkId": 21210
+          },
+          {
+            "chainName": "1Money Testnet",
+            "enabled": false,
+            "networkId": 1212101
+          },
+          {
+            "chainName": "Robinhood Chain",
+            "enabled": false,
+            "networkId": 4663
+          },
+          {
+            "chainName": "Robinhood Chain Testnet",
+            "enabled": false,
+            "networkId": 46630
+          },
+          {
+            "chainName": "Swisstronik",
+            "enabled": false,
+            "networkId": 1848
+          },
+          {
+            "chainName": "Swisstronik Testnet",
+            "enabled": false,
+            "networkId": 1291
+          },
+          {
+            "chainName": "ADI Network",
+            "enabled": false,
+            "networkId": 36900
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "flow",
+        "networks": []
+      },
+      {
+        "enabled": false,
+        "name": "solana",
+        "networks": [
+          {
+            "chainName": "Mainnet",
+            "enabled": true,
+            "networkId": 101
+          },
+          {
+            "chainName": "Solana Testnet",
+            "enabled": false,
+            "networkId": 102
+          },
+          {
+            "chainName": "Solana Devnet",
+            "enabled": false,
+            "networkId": 103
+          },
+          {
+            "chainName": "Eclipse Mainnet",
+            "enabled": false,
+            "networkId": 201
+          },
+          {
+            "chainName": "Eclipse Testnet",
+            "enabled": false,
+            "networkId": 202
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "spark",
+        "networks": [
+          {
+            "chainName": "Mainnet",
+            "enabled": true,
+            "networkId": 301
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "starknet",
+        "networks": [
+          {
+            "chainName": "Mainnet",
+            "enabled": true,
+            "networkId": 410
+          },
+          {
+            "chainName": "Goerli",
+            "enabled": false,
+            "networkId": 411
+          },
+          {
+            "chainName": "Sepolia",
+            "enabled": false,
+            "networkId": 412
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "stellar",
+        "networks": [
+          {
+            "chainName": "Mainnet",
+            "enabled": true,
+            "networkId": 800
+          },
+          {
+            "chainName": "Testnet",
+            "enabled": false,
+            "networkId": 801
+          },
+          {
+            "chainName": "Futurenet",
+            "enabled": false,
+            "networkId": 802
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "sui",
+        "networks": [
+          {
+            "chainName": "Mainnet",
+            "enabled": true,
+            "networkId": 501
+          },
+          {
+            "chainName": "Testnet",
+            "enabled": false,
+            "networkId": 502
+          },
+          {
+            "chainName": "Devnet",
+            "enabled": false,
+            "networkId": 503
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "ton",
+        "networks": [
+          {
+            "chainName": "Mainnet",
+            "enabled": true,
+            "networkId": -239
+          },
+          {
+            "chainName": "Testnet",
+            "enabled": false,
+            "networkId": -3
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "tron",
+        "networks": [
+          {
+            "chainName": "Mainnet",
+            "enabled": true,
+            "networkId": 728126428
+          },
+          {
+            "chainName": "Shasta Testnet",
+            "enabled": false,
+            "networkId": 2494104990
+          },
+          {
+            "chainName": "Nile Testnet",
+            "enabled": false,
+            "networkId": 3448148188
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "tempo",
+        "networks": [
+          {
+            "chainName": "Tempo Mainnet",
+            "enabled": true,
+            "networkId": 4217
+          },
+          {
+            "chainName": "Tempo Testnet",
+            "enabled": false,
+            "networkId": 42429
+          },
+          {
+            "chainName": "Tempo Testnet (Moderato)",
+            "enabled": false,
+            "networkId": 42431
+          }
+        ]
+      },
+      {
+        "enabled": false,
+        "name": "midnight",
+        "networks": [
+          {
+            "chainName": "Mainnet",
+            "enabled": true,
+            "networkId": 1
+          },
+          {
+            "chainName": "Preview",
+            "enabled": false,
+            "networkId": 2
+          },
+          {
+            "chainName": "Preprod",
+            "enabled": false,
+            "networkId": 3
+          }
+        ]
+      }
+    ],
+    "checkouts": [],
+    "customFields": [],
+    "design": {
+      "button": {
+        "background": "#4779FF",
+        "fontColor": "#FFFFFF",
+        "paddingHeight": 16,
+        "paddingWidth": 50,
+        "radius": 16
+      },
+      "modal": {
+        "border": "square",
+        "brand": "bold",
+        "displayOrder": [
+          "email",
+          "wallet"
+        ],
+        "emailOnly": false,
+        "emailSubmitButtonInsideInput": false,
+        "primaryColor": "#4779FF",
+        "radius": 24,
+        "showWalletsButton": false,
+        "socialAboveEmail": false,
+        "splitEmailAndSocial": false,
+        "template": "default",
+        "theme": "light",
+        "view": "extended"
+      },
+      "widget": {
+        "backgroundColor": "",
+        "border": "square",
+        "radius": 24,
+        "textColor": "",
+        "theme": "light"
+      }
+    },
+    "exchanges": [],
+    "general": {
+      "displayName": "s0nderlabs",
+      "emailCompanyName": "s0nderlabs",
+      "skipOptionalKYCFieldDuringOnboarding": true,
+      "supportUrls": {}
+    },
+    "kyc": [
+      {
+        "enabled": false,
+        "label": "Alias",
+        "name": "alias",
+        "required": false,
+        "type": "standard",
+        "unique": false,
+        "verify": false
+      },
+      {
+        "enabled": false,
+        "label": "First Name",
+        "name": "firstName",
+        "required": false,
+        "type": "standard",
+        "unique": false,
+        "verify": false
+      },
+      {
+        "enabled": false,
+        "label": "Last Name",
+        "name": "lastName",
+        "required": false,
+        "type": "standard",
+        "unique": false,
+        "verify": false
+      },
+      {
+        "enabled": true,
+        "label": "E-mail",
+        "name": "email",
+        "required": true,
+        "type": "standard",
+        "unique": true,
+        "verify": true
+      },
+      {
+        "enabled": false,
+        "label": "Phone Number",
+        "name": "phoneNumber",
+        "required": false,
+        "type": "standard",
+        "unique": false,
+        "verify": false
+      },
+      {
+        "enabled": false,
+        "label": "Job Title",
+        "name": "jobTitle",
+        "required": false,
+        "type": "standard",
+        "unique": false,
+        "verify": false
+      },
+      {
+        "enabled": false,
+        "label": "T-Shirt Size",
+        "name": "tShirtSize",
+        "required": false,
+        "type": "standard",
+        "unique": false,
+        "verify": false
+      },
+      {
+        "enabled": false,
+        "label": "Policies Consent",
+        "name": "policiesConsent",
+        "required": false,
+        "type": "standard",
+        "unique": false,
+        "verify": false
+      },
+      {
+        "enabled": false,
+        "label": "Social Accounts",
+        "name": "social",
+        "required": false,
+        "type": "standard",
+        "unique": false,
+        "verify": false
+      }
+    ],
+    "networks": [
+      {
+        "chainName": "evm",
+        "networks": [
+          {
+            "blockExplorerUrls": [
+              "https://etherscan.io/"
+            ],
+            "chain": "ETH",
+            "chainId": "1",
+            "chainName": "Ethereum Mainnet",
+            "iconUrls": [
+              "https://app.dynamic.xyz/assets/networks/eth.svg"
+            ],
+            "isTestnet": false,
+            "key": "ethereum",
+            "name": "Ethereum Mainnet",
+            "nameService": {
+              "registry": "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"
+            },
+            "nativeCurrency": {
+              "decimals": 18,
+              "iconUrl": "https://app.dynamic.xyz/assets/networks/eth.svg",
+              "name": "Ether",
+              "pricingProviderTokenId": "ethereum",
+              "symbol": "ETH"
+            },
+            "networkId": "1",
+            "rpcUrls": [
+              "https://ethereum.publicnode.com"
+            ],
+            "shortName": "eth",
+            "vanityName": "Ethereum"
+          },
+          {
+            "blockExplorerUrls": [
+              "https://monadscan.com"
+            ],
+            "chain": "Monad Mainnet",
+            "chainId": "143",
+            "chainName": "Monad Mainnet",
+            "iconUrls": [
+              "https://app.dynamic.xyz/assets/networks/monad.svg"
+            ],
+            "isTestnet": false,
+            "key": "monad-mainnet",
+            "name": "Monad Mainnet",
+            "nativeCurrency": {
+              "decimals": 18,
+              "iconUrl": "https://app.dynamic.xyz/assets/networks/eth.svg",
+              "name": "MONAD",
+              "pricingProviderTokenId": "MONAD",
+              "symbol": "MON"
+            },
+            "networkId": "143",
+            "rpcUrls": [
+              "https://rpc-mainnet.monadinfra.com"
+            ],
+            "shortName": "monad mainnet",
+            "vanityName": "Monad Mainnet"
+          },
+          {
+            "blockExplorerUrls": [
+              "https://testnet.monadexplorer.com"
+            ],
+            "chain": "Monad Testnet",
+            "chainId": "10143",
+            "chainName": "Monad Testnet",
+            "iconUrls": [
+              "https://app.dynamic.xyz/assets/networks/monad.svg"
+            ],
+            "isTestnet": true,
+            "key": "monad",
+            "name": "Monad Testnet",
+            "nativeCurrency": {
+              "decimals": 18,
+              "iconUrl": "https://app.dynamic.xyz/assets/networks/eth.svg",
+              "name": "MONAD",
+              "pricingProviderTokenId": "MONAD",
+              "symbol": "MON"
+            },
+            "networkId": "10143",
+            "rpcUrls": [
+              "https://testnet-rpc.monad.xyz"
+            ],
+            "shortName": "monad testnet",
+            "vanityName": "Monad Testnet"
+          }
+        ]
+      }
+    ],
+    "privacy": {
+      "collectIp": true
+    },
+    "sdk": {
+      "accountAbstraction": {
+        "allUsers": false,
+        "allWallets": false,
+        "enablePasskeys": false,
+        "separateSmartWalletAndSigner": false
+      },
+      "automaticEmbeddedWalletCreation": true,
+      "blockEmailSubaddresses": false,
+      "confirmEmailProviderForVerify": true,
+      "confirmWalletTransfers": true,
+      "disabledWalletConnectors": [],
+      "displayDynamicMessaging": true,
+      "emailSignIn": {
+        "signInProvider": "dynamic"
+      },
+      "embeddedWalletSecurityMethods": [],
+      "embeddedWallets": {
+        "allowSkippingAuthenticatorAtSignup": false,
+        "automaticEmbeddedWalletCreation": true,
+        "automaticEmbeddedWalletCreationForExternal": false,
+        "chainConfigurations": [
+          {
+            "enabled": false,
+            "name": "ALEO",
+            "primary": false
+          },
+          {
+            "enabled": false,
+            "name": "APTOS",
+            "primary": false
+          },
+          {
+            "enabled": false,
+            "name": "BTC",
+            "primary": false
+          },
+          {
+            "enabled": true,
+            "name": "EVM",
+            "primary": true
+          },
+          {
+            "enabled": false,
+            "name": "MIDNIGHT",
+            "primary": false
+          },
+          {
+            "enabled": false,
+            "name": "SOL",
+            "primary": false
+          },
+          {
+            "enabled": false,
+            "name": "SPARK",
+            "primary": false
+          },
+          {
+            "enabled": false,
+            "name": "STELLAR",
+            "primary": false
+          },
+          {
+            "enabled": false,
+            "name": "SUI",
+            "primary": false
+          },
+          {
+            "enabled": false,
+            "name": "TEMPO",
+            "primary": false
+          },
+          {
+            "enabled": false,
+            "name": "TON",
+            "primary": false
+          },
+          {
+            "enabled": false,
+            "name": "TRON",
+            "primary": false
+          }
+        ],
+        "defaultWalletVersion": "V3",
+        "domainEnabledByProvider": false,
+        "emailRecoveryEnabled": true,
+        "evmGasSponsorshipEnabled": true,
+        "evmGasSponsorshipNetworks": [
+          "mainnet",
+          "testnet"
+        ],
+        "evmGasSponsorshipRelayMode": "clientAndServer",
+        "forceAuthenticatorAtSignup": false,
+        "promptForKeyExport": false,
+        "sessionKeyDuration": {
+          "amount": 30,
+          "unit": "minutes"
+        },
+        "showEmbeddedWalletActionsUI": false,
+        "supportedSecurityMethods": {
+          "email": {
+            "isDefault": false,
+            "isEnabled": false,
+            "isPermanentAuthenticator": false,
+            "listPosition": 1
+          },
+          "passkey": {
+            "isDefault": true,
+            "isEnabled": true,
+            "isPermanentAuthenticator": true,
+            "listPosition": 0
+          },
+          "password": {
+            "isDefault": false,
+            "isEnabled": false,
+            "isPermanentAuthenticator": true,
+            "listPosition": 2
+          }
+        },
+        "svmGasSponsorshipEnabled": false,
+        "transactionSimulation": false
+      },
+      "enableMultiAsset": true,
+      "exchangeOptions": [
+        {
+          "exchange": "coinbase",
+          "onRampProvider": "coinbaseOnramp",
+          "socialProvider": "coinbasesocial"
+        },
+        {
+          "exchange": "kraken",
+          "socialProvider": "kraken"
+        }
+      ],
+      "featureFlags": {
+        "connectOnlyMultiAsset": false,
+        "enableExchanges": true,
+        "enableExternalWalletOnTransactionSanctions": true
+      },
+      "funding": {
+        "externalWallets": {
+          "defaultSettings": {
+            "chainSettings": [
+              {
+                "chain": "EVM",
+                "token": {
+                  "rule": "recommended",
+                  "value": ""
+                }
+              },
+              {
+                "chain": "BTC",
+                "token": {
+                  "rule": "recommended",
+                  "value": ""
+                }
+              },
+              {
+                "chain": "SOL",
+                "token": {
+                  "rule": "recommended",
+                  "value": ""
+                }
+              }
+            ]
+          },
+          "enabled": false,
+          "minAmount": {}
+        },
+        "onramps": []
+      },
+      "hideNetworkInDynamicWidget": false,
+      "minApiVersion": "2026_04_01",
+      "mobile": {
+        "deeplinkUrlsEnabled": false
+      },
+      "multiWallet": true,
+      "multiWalletUnlinkDisabled": false,
+      "nameService": {
+        "evm": {}
+      },
+      "onrampFunding": false,
+      "passkeyEmbeddedWalletEnabled": false,
+      "passkeyEmbeddedWalletRecoveryEnabled": true,
+      "preventOrphanedAccounts": true,
+      "showFiat": true,
+      "socialSignIn": {
+        "providers": [
+          {
+            "enabled": false,
+            "provider": "apple"
+          },
+          {
+            "enabled": false,
+            "provider": "bitbucket"
+          },
+          {
+            "enabled": false,
+            "provider": "discord"
+          },
+          {
+            "enabled": false,
+            "provider": "epicgames"
+          },
+          {
+            "enabled": false,
+            "provider": "facebook"
+          },
+          {
+            "enabled": false,
+            "provider": "farcaster"
+          },
+          {
+            "enabled": false,
+            "provider": "github"
+          },
+          {
+            "enabled": false,
+            "provider": "gitlab"
+          },
+          {
+            "enabled": false,
+            "provider": "google"
+          },
+          {
+            "enabled": false,
+            "provider": "linkedin"
+          },
+          {
+            "enabled": false,
+            "provider": "microsoft"
+          },
+          {
+            "enabled": false,
+            "provider": "tiktok"
+          },
+          {
+            "enabled": false,
+            "provider": "twitch"
+          },
+          {
+            "enabled": false,
+            "provider": "twitter"
+          },
+          {
+            "enabled": false,
+            "provider": "instagram"
+          },
+          {
+            "enabled": false,
+            "provider": "coinbasesocial"
+          },
+          {
+            "enabled": false,
+            "provider": "telegram"
+          },
+          {
+            "enabled": false,
+            "provider": "spotify"
+          },
+          {
+            "enabled": false,
+            "provider": "shopify"
+          },
+          {
+            "enabled": false,
+            "provider": "line"
+          },
+          {
+            "enabled": false,
+            "provider": "kraken"
+          }
+        ],
+        "signInProvider": "dynamic"
+      },
+      "views": [],
+      "waas": {
+        "allowMultipleWaasWalletsPerChain": true,
+        "backupOptions": [],
+        "delegatedAccess": {
+          "enabled": true,
+          "promptUsersOnSignIn": false,
+          "requiresDelegation": false
+        },
+        "enableForwardMPCClient": true,
+        "exportDisabled": false,
+        "fireblocksMigration": {},
+        "iCloud": {},
+        "offlineRecovery": {
+          "enabled": false
+        },
+        "onSignUp": {
+          "promptBackupOptions": false,
+          "promptClientShareExport": false
+        },
+        "passcodeRequired": false,
+        "relayUrl": "relay.dynamicauth.com"
+      },
+      "walletConnect": {
+        "projectId": "6c6d983cddfab95a7cb0b15c0011ae5b",
+        "v2Enabled": true,
+        "walletProjectId": "6c6d983cddfab95a7cb0b15c0011ae5b"
+      }
+    },
+    "security": {
+      "auth": {
+        "allowMultipleCredentialsForSignIn": false,
+        "storage": [
+          "localstorage"
+        ]
+      },
+      "deviceRegistrationRequired": false,
+      "environmentLocked": false,
+      "externalAuth": {
+        "assumeEmailVerified": false,
+        "enabled": false,
+        "stepUpEnabled": true
+      },
+      "hCaptcha": {
+        "enabled": false
+      },
+      "jwtDuration": {
+        "amount": 2,
+        "unit": "hours"
+      },
+      "mfa": {
+        "actions": [
+          {
+            "action": "wallet.waas.reshare",
+            "required": false
+          },
+          {
+            "action": "wallet.waas.sign",
+            "required": false
+          },
+          {
+            "action": "wallet.waas.export",
+            "required": false
+          },
+          {
+            "action": "wallet.waas.offline_recovery_trigger",
+            "required": false
+          },
+          {
+            "action": "wallet.waas.refresh",
+            "required": false
+          },
+          {
+            "action": "user.update",
+            "required": false
+          },
+          {
+            "action": "business_account.link_wallet",
+            "required": true
+          }
+        ],
+        "enabled": false,
+        "enrollment": "none",
+        "methods": [
+          {
+            "allowBackupCodes": true,
+            "enabled": false,
+            "type": "totp"
+          },
+          {
+            "allowBackupCodes": false,
+            "enabled": false,
+            "type": "passkey"
+          }
+        ],
+        "required": false
+      },
+      "notifications": {
+        "verifiedCredentialLinked": false,
+        "verifiedCredentialUnlinked": false,
+        "waasPrivateKeyExport": true,
+        "waasSignedTransaction": false
+      }
+    }
+  },
+  "providers": [
+    "emailOnly",
+    "google",
+    "passkey",
+    "turnkey"
+  ],
+  "webhooks": [
+    {
+      "url": "${PUBLIC_BASE}/dynamic/webhook",
+      "events": [
+        "wallet.delegation.created",
+        "wallet.delegation.revoked",
+        "wallet.delegation.signature",
+        "wallet.offlineRecovery.created"
+      ],
+      "isEnabled": true
+    }
+  ],
+  "transactionReview": {
+    "enabled": false,
+    "webhookUrl": "${PUBLIC_BASE}/dynamic/review",
+    "webhookFailurePolicy": "ALLOW",
+    "webhookTimeoutMs": 5000
+  },
+  "origins": [
+    {
+      "createdAt": "2026-10-04T15:48:18.069Z",
+      "id": "8f0a8d2d-7ebd-42ca-8bfd-fb8536d010b5",
+      "origin": "http://localhost:3317",
+      "projectEnvironmentId": "db2880bd-e52a-4f00-aa83-2c3ec77281cb",
+      "updatedAt": "2026-10-04T15:48:18.069Z"
+    },
+    {
+      "createdAt": "2026-10-04T15:48:18.495Z",
+      "id": "1c244ffe-4fe8-4ed1-9f69-9d7fcdb21b68",
+      "origin": "http://127.0.0.1:3317",
+      "projectEnvironmentId": "db2880bd-e52a-4f00-aa83-2c3ec77281cb",
+      "updatedAt": "2026-10-04T15:48:18.495Z"
+    },
+    {
+      "createdAt": "2026-10-04T15:48:18.895Z",
+      "id": "59943c65-a68a-4f6a-9f1d-b40102867711",
+      "origin": "http://localhost:5174",
+      "projectEnvironmentId": "db2880bd-e52a-4f00-aa83-2c3ec77281cb",
+      "updatedAt": "2026-10-04T15:48:18.895Z"
+    },
+    {
+      "createdAt": "2026-10-04T15:48:20.094Z",
+      "id": "96886d9b-38d0-48c7-a308-8701c502f133",
+      "origin": "http://127.0.0.1:5174",
+      "projectEnvironmentId": "db2880bd-e52a-4f00-aa83-2c3ec77281cb",
+      "updatedAt": "2026-10-04T15:48:20.094Z"
+    }
+  ]
+}

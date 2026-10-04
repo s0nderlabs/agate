@@ -1,0 +1,4 @@
+# One copy of each package for the whole workspace (the default "isolated" linker gave the app three viem copies,
+# so the client's and the wallet's PublicClient types differed).
+[install]
+linker = "hoisted"

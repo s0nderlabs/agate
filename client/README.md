@@ -16,7 +16,8 @@ const res = await buyLong(agate, walletClient, { gpu: "H100", month: "2026-11", 
 
 ## Wiring it into the app
 
-- `app/package.json`: `"@agate/client": "file:../client"` (once `app/` is on main), then `bun install`.
+- `app/package.json`: `"@agate/client": "workspace:*"` (the repo root is a bun workspace), then `bun install` at the
+  repo root.
 - The package ships TypeScript source (`exports` point at `src/`): add it to `transpilePackages` in `next.config`
   (`transpilePackages: ["@agate/client"]`).
 - `app/tsconfig.json` type-checks that source too (`next build` runs the check), so it needs two options the app does

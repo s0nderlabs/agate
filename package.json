@@ -1,0 +1,18 @@
+{
+  "name": "agate",
+  "private": true,
+  "description": "agate's TypeScript packages as one bun workspace: the app, the live data layer, the wallet layer and the server. wall/, indexer/ and contracts/ keep their own installs.",
+  "workspaces": [
+    "app",
+    "client",
+    "wallet",
+    "server"
+  ],
+  "overrides": {
+    "@dyn-crypto/proof": "file:./wallet/stubs/dyn-crypto-proof"
+  },
+  "trustedDependencies": [
+    "sharp",
+    "unrs-resolver"
+  ]
+}

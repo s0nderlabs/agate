@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agate": {
+      "type": "http",
+      "url": "${AGATE_MCP_URL:-http://localhost:5191/mcp}"
+    }
+  }
+}

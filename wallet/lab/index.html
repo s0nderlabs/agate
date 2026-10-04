@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>agate wallet lab</title>
+    <style>
+      :root { color-scheme: light dark; font: 14px/1.4 ui-monospace, Menlo, monospace; }
+      body { margin: 16px; max-width: 980px; }
+      fieldset { margin: 0 0 12px; border: 1px solid #8884; border-radius: 6px; }
+      legend { font-weight: 600; }
+      input { width: 16em; } input.small { width: 6em; }
+      button { margin: 2px 4px 2px 0; }
+      #state { white-space: pre-wrap; background: #8881; padding: 8px; border-radius: 6px; }
+      #log { white-space: pre-wrap; background: #8881; padding: 8px; border-radius: 6px; max-height: 50vh; overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <h3>agate wallet lab (Dynamic + ZeroDev, Monad testnet)</h3>
+    <fieldset><legend>1. Sign in</legend>
+      <input id="email" placeholder="you+dynamic_test@example.com" /> <button id="send">Send code</button>
+      <input id="code" class="small" placeholder="code" /> <label><input id="stepup" type="checkbox" style="width:auto" checked /> ask wallet:delegate</label>
+      <button id="verify">Verify</button> <button id="google">Continue with Google</button> <button id="unlink-google">Unlink Google</button> <button id="logout">Log out</button>
+    </fieldset>
+    <fieldset><legend>2. Main wallet and account</legend>
+      <button id="main">Ensure main wallet</button> <button id="drip">Drip to main account (sponsored)</button> <button id="zd">ZeroDev via Dynamic check</button>
+    </fieldset>
+    <fieldset><legend>3. Assistant</legend>
+      <button id="assistant">Create Assistant</button> <button id="delegate">Delegate Assistant</button> <button id="revoke">Revoke Assistant</button>
+    </fieldset>
+    <fieldset><legend>4. Connect an AI (pocket)</legend>
+      budget $<input id="budget" class="small" value="100" /> per trade $<input id="cap" class="small" value="20" />
+      trades/day <input id="tpd" class="small" value="3" /> days <input id="days" class="small" value="7" />
+      <button id="connect">Connect</button>
+    </fieldset>
+    <fieldset><legend>5. AI trades (server signs with the Assistant)</legend>
+      <button id="t-approve0">approve router 0 (first op, installs key)</button> <button id="t-drip">drip into pocket</button>
+      <button id="t-over">open over the cap (server refuses)</button> <button id="t-transfer">transfer out (server refuses)</button>
+    </fieldset>
+    <fieldset><legend>6. The person (main wallet)</legend>
+      take back $<input id="takeback" class="small" value="1" /> <button id="t-takeback">from the pocket</button>
+      <button id="session">session facts</button> <button id="refresh-session">refresh session</button>
+    </fieldset>
+    <div id="state"></div>
+    <h4>log</h4>
+    <div id="log"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

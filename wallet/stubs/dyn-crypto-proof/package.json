@@ -1,0 +1,6 @@
+{
+  "name": "@dyn-crypto/proof",
+  "version": "0.7.0",
+  "description": "Empty local stub: @dynamic-labs/sdk-api-core 0.64.0 lists this unpublished package as a peer but never imports it.",
+  "main": "index.js"
+}

@@ -124,7 +124,7 @@ async function checkChain(c: AgateClient, w: WalletClient): Promise<void> {
   if (id !== c.chain.id) throw new WriteError(`the wallet is on chain ${id}, the market is on chain ${c.chain.id}: switch networks first`, "check");
 }
 
-const ceilDiv = (a: bigint, b: bigint) => (a + b - 1n) / b;
+export const ceilDiv = (a: bigint, b: bigint) => (a + b - 1n) / b;
 
 /** Simulate, estimate, send with gas = 1.2 x estimate, wait, decode. `landed` are the transactions the same write sent
  *  before this one (only for the error message: "nothing was sent" is said only when there are none). */
@@ -232,7 +232,8 @@ function ev(txs: TxSummary[], name: string): DecodedEvent[] {
   return txs.flatMap((t) => t.events.filter((e) => e.name === name));
 }
 
-async function live(c: AgateClient, gpu: Gpu, month: string): Promise<SeriesLive & { market: Address }> {
+/** @internal Shared with plan.ts; not part of the app API (it may change). */
+export async function live(c: AgateClient, gpu: Gpu, month: string): Promise<SeriesLive & { market: Address }> {
   const s = await c.seriesAt(gpu, month);
   if (!s.market) throw new WriteError(`${gpu} ${month} has no Kuru market yet`, "check");
   return s as SeriesLive & { market: Address };
@@ -357,8 +358,9 @@ async function readBook(c: AgateClient, market: Address): Promise<RawBook> {
  *  the buy must fit the asks at or under the band's top (planBuy), Kuru's own simulation must agree with that fill
  *  (when the book moved since it was read, it is read again once), and the minimum out is the larger of that fill and
  *  the simulation less slippage, never under dollars / the band's top (a sure loss) nor under the app's shown quote
- *  less slippage. A minimum out met only by a complete fill at those prices is what bounds the whole spend. */
-async function buyBound(c: AgateClient, s: SeriesLive & { market: Address }, dollars: bigint, g: BuyGuard): Promise<bigint> {
+ *  less slippage. A minimum out met only by a complete fill at those prices is what bounds the whole spend.
+ *  @internal Shared with plan.ts; not part of the app API (it may change). */
+export async function buyBound(c: AgateClient, s: SeriesLive & { market: Address }, dollars: bigint, g: BuyGuard): Promise<bigint> {
   const slip = g.slippageBps ?? DEFAULT_SLIPPAGE_BPS;
   checkBps(slip);
   const shown = g.minGpuHours !== undefined ? positive(parseHours(g.minGpuHours, "minGpuHours"), "minGpuHours") : g.maxPrice !== undefined ? ceilDiv(dollars * U, positive(parseDollars(g.maxPrice, "maxPrice"), "maxPrice")) : null;
@@ -397,8 +399,9 @@ async function buyBound(c: AgateClient, s: SeriesLive & { market: Address }, dol
 
 /** The least a fill-or-kill sale of `tokens` may pay (the router's minDollarsOut), checked before anything is sent:
  *  the exact proceeds of the bids now less slippage, never under tokens x the band's bottom (a sure loss) nor under
- *  the app's shown proceeds less slippage. */
-function sellBound(s: SeriesLive, tokens: bigint, g: SellGuard): bigint {
+ *  the app's shown proceeds less slippage.
+ *  @internal Shared with plan.ts; not part of the app API (it may change). */
+export function sellBound(s: SeriesLive, tokens: bigint, g: SellGuard): bigint {
   const slip = g.slippageBps ?? DEFAULT_SLIPPAGE_BPS;
   checkBps(slip);
   const fresh = proceeds(s, tokens);
@@ -420,8 +423,9 @@ function sellBound(s: SeriesLive, tokens: bigint, g: SellGuard): bigint {
 
 /** The most a buy-back of exactly `q` tokens may spend (the router's dollarsIn): the smallest quote that buys q now
  *  plus slippage, never over q x the band's top (a sure loss against holding the short) nor over the app's shown
- *  cost plus slippage. */
-async function buyBackBound(c: AgateClient, s: SeriesLive & { market: Address }, q: bigint, g: BuyBackGuard): Promise<bigint> {
+ *  cost plus slippage.
+ *  @internal Shared with plan.ts; not part of the app API (it may change). */
+export async function buyBackBound(c: AgateClient, s: SeriesLive & { market: Address }, q: bigint, g: BuyBackGuard): Promise<bigint> {
   const slip = g.slippageBps ?? DEFAULT_SLIPPAGE_BPS;
   checkBps(slip);
   const fresh = await quoteExactOut(c, s, q);
@@ -442,15 +446,16 @@ async function buyBackBound(c: AgateClient, s: SeriesLive & { market: Address },
 }
 
 /** Refuses a write the wallet's tUSD cannot pay, before its approval (otherwise the approval lands, the main
- *  transaction's simulation reverts, and the approval is put back: two fees for nothing). */
-async function needDollars(c: AgateClient, me: Address, amount: bigint, what: string): Promise<void> {
+ *  transaction's simulation reverts, and the approval is put back: two fees for nothing).
+ *  @internal Shared with plan.ts; not part of the app API (it may change). */
+export async function needDollars(c: AgateClient, me: Address, amount: bigint, what: string): Promise<void> {
   if (amount === 0n) return;
   const have = (await c.pub.readContract({ address: c.dollar, abi: agateTokenAbi as Abi, functionName: "balanceOf", args: [me] })) as bigint;
   if (have < amount) throw new WriteError(`${what} needs $${toNumber6(amount)} and the wallet holds $${toNumber6(have)} tUSD; nothing was sent`, "check", "InsufficientBalance");
 }
 
-/** Payees the app refuses (MS 6.2, audit L3): a contract of the system would hold every claim for ever. */
-function checkPayee(c: AgateClient, s: SeriesLive, payee: Address): void {
+/** Payees the app refuses (MS 6.2, audit L3): a contract of the system would hold every claim for ever. @internal Shared with plan.ts; not part of the app API (it may change). */
+export function checkPayee(c: AgateClient, s: SeriesLive, payee: Address): void {
   const bad = [ZERO_ADDRESS, s.terms.series, s.terms.token, s.market ?? ZERO_ADDRESS, c.factory, c.router, c.deployments.kuru.marginAccount, c.deployments.kuru.router].map((a) => a.toLowerCase());
   if (bad.includes(payee.toLowerCase())) throw new WriteError(`payee ${payee} is a contract of the market and could never spend its claims`, "check");
 }
@@ -599,8 +604,9 @@ export async function closeLongDaily(c: AgateClient, w: WalletClient, p: { gpu: 
 }
 
 /** The positions' total q after checking each is the user's, on `side` (0 long, 1 short), opened through the router
- *  (its operator), as the router requires. */
-async function ownPositions(c: AgateClient, s: SeriesLive, ids: bigint[], me: Address, side: 0 | 1): Promise<bigint> {
+ *  (its operator), as the router requires.
+ *  @internal Shared with plan.ts; not part of the app API (it may change). */
+export async function ownPositions(c: AgateClient, s: SeriesLive, ids: bigint[], me: Address, side: 0 | 1): Promise<bigint> {
   if (ids.length === 0) throw new WriteError("no positions given", "check");
   const r = await c.mc(ids.map((id) => ({ address: s.terms.series, abi: agateSeriesAbi as Abi, functionName: "position", args: [id] })));
   let q = 0n;
