@@ -391,7 +391,13 @@ ops/testnet/rehearse.sh session 40        # about 50 minutes; Podman running for
 
 Both start their own anvil fork through `wall/scripts/anvil-safe.sh` (refused under 30 GB free), never read a key,
 run their processes in a private tmux server (`tmux -L agate-rehearsal`), and stop everything when they exit (the
-indexer's containers too, through `indexer.sh stop --fork`). `deploy`
+indexer's containers too, through `indexer.sh stop --fork`). `envio dev` and `envio stop` use fixed Docker names
+(`envio-postgres`, `envio-hasura`) whatever the folder, so while another indexer runs on this machine (the live one,
+`shared-indexer`) a fork's indexer window refuses to start, and `indexer.sh stop --fork` removes only containers a fork
+run created (`.fork-owns-envio` in its folder, naming each container's id as it appears, so a run that stopped halfway still owns what it made): the
+rest of the session runs without the fork's indexer. The guard is one-way: never start the live indexer (`indexer.sh
+run` without `--fork`) while a rehearsal's fork indexer runs, since it would attach to the fork's containers. The app's data
+layer has its own fork run with a separate indexer (`client/e2e`). `deploy`
 runs the real configs with the real addresses impersonated: both indexes, both factories, the top-ups, index days
 written as the real writers while the fork's clock runs forward, and the payer's lister listing November and December
 with Kuru V1 markets. `session` runs a demo session's processes; because a process signs its own transactions and no

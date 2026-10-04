@@ -33,6 +33,21 @@ docker_host() {
   return 0
 }
 
+# `envio dev` and `envio stop` manage Docker resources under fixed global names (envio-postgres, envio-hasura,
+# envio-network, envio-postgres-data), whatever the project folder. So on a fork, a run beside another indexer (the
+# live one, for one) would attach to that indexer's containers and, with -r, reset its database, and the fork's stop
+# would remove them. A fork run therefore starts envio only when no such container exists or every one that exists is
+# its own, and records in $WORK/.fork-owns-envio the id of each container its envio dev creates, as it appears (so a
+# start that failed half-way, with only envio-postgres made, still owns that one and the next start resumes). It stops
+# only containers whose ids it recorded: a marker naming containers since removed or replaced (by the live indexer,
+# say) is stale and never makes another indexer's containers this run's. Its refusal exits 64, the code up.sh's
+# launcher does not restart.
+OWNS="$WORK/.fork-owns-envio"
+envio_containers() { docker container inspect envio-postgres >/dev/null 2>&1 || docker container inspect envio-hasura >/dev/null 2>&1; }
+# the id of each of the two that exists, one per line (nothing when neither does)
+envio_ids() { docker container inspect -f '{{.Id}}' envio-postgres envio-hasura 2>/dev/null || true; }
+owns_envio() { [ -f "$OWNS" ] && [ "$(cat "$OWNS")" = "$(envio_ids)" ]; }
+
 # stop: the shared-indexer window's Ctrl-C ends `envio dev` but leaves its containers running (a restart resumes from
 # them); this removes them, and the database with them (the next run indexes again from the deploy blocks)
 if [ "${KIT_POS[0]}" = stop ]; then
@@ -41,8 +56,17 @@ if [ "${KIT_POS[0]}" = stop ]; then
   [ -x "$WORK/node_modules/.bin/envio" ] || { note "no indexer in $WORK: nothing to stop"; exit 0; }
   docker_host
   docker info >/dev/null 2>&1 || { note "no Docker or Podman answers: nothing to stop"; exit 0; }
+  if [ "$KIT_FORK" = 1 ] && ! owns_envio; then
+    if ! envio_containers; then
+      rm -f "$OWNS"
+      note "no Envio container: nothing to stop"
+      exit 0
+    fi
+    die "the Envio containers are not this fork run's (no $OWNS naming them): nothing stopped (they may be another indexer's)"
+  fi
   # envio reads config.yaml, whose RPC URL is ENVIO_RPC_URL: a placeholder, since stop contacts no chain
   (cd "$WORK" && ENVIO_RPC_URL="http://127.0.0.1:1" node_modules/.bin/envio stop)
+  rm -f "$OWNS"
   note "indexer stopped: containers and database removed"
   exit 0
 fi
@@ -67,6 +91,13 @@ docker info >/dev/null 2>&1 || {
   echo "the indexer needs Docker or Podman for Postgres and Hasura: start it (podman machine start) and reopen this window" >&2
   exit 64
 }
+if [ "$KIT_FORK" = 1 ] && ! owns_envio; then
+  rm -f "$OWNS" # stale: its containers are gone or are not the ones it named
+  if envio_containers; then
+    echo "stopped: envio-postgres or envio-hasura exists (another indexer, for one the live one on localhost:8080): a fork's envio dev would attach to it and reset its database; stop that indexer first, or rehearse without the indexer" >&2
+    exit 64
+  fi
+fi
 mkdir -p "$WORK"
 for p in abis src scripts schema.graphql package.json tsconfig.json envio-env.d.ts; do
   rm -rf "${WORK:?}/$p"
@@ -83,5 +114,24 @@ unset AGATE_RPC_URLS_CMD
 [ -n "$URL" ] || die "AGATE_RPC_URLS_CMD printed no http(s) URL"
 echo "$SUM" >"$WORK/.config-sum"
 cd "$WORK"
+if [ "$KIT_FORK" = 1 ]; then
+  # records each container as this run's envio dev creates it (it runs in this process after the exec): every one
+  # that exists now is this run's (checked above), so every one that appears is too. It records once more after envio
+  # dev has ended, so a container made just before a failure is never left without an owner.
+  MAIN=$$
+  (
+    for _ in $(seq 1 600); do
+      up=1
+      kill -0 "$MAIN" 2>/dev/null || up=0
+      IDS="$(envio_ids)"
+      if [ -n "$IDS" ] && [ "$IDS" != "$(cat "$OWNS" 2>/dev/null || true)" ]; then
+        printf '%s\n' "$IDS" >"$OWNS.tmp" && mv "$OWNS.tmp" "$OWNS"
+      fi
+      [ "$up" = 1 ] || exit 0
+      [ "$(printf '%s\n' "$IDS" | grep -c .)" -ge 2 ] && exit 0
+      sleep 1
+    done
+  ) >/dev/null 2>&1 &
+fi
 echo "envio dev ${RESTART:-(resuming)} in $WORK; GraphQL at http://localhost:8080/v1/graphql"
 ENVIO_RPC_URL="$URL" exec node_modules/.bin/envio dev $RESTART

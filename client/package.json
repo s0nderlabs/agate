@@ -1,0 +1,30 @@
+{
+  "name": "@agate/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "agate's live data layer: typed reads (chain and indexer) and plain write functions over viem, in the app's shapes",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./abi": "./src/abi.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "gen": "bun run scripts/gen-static.ts",
+    "e2e:fork": "bun run e2e/run.ts fork",
+    "e2e:live": "bun run e2e/run.ts live"
+  },
+  "dependencies": {
+    "viem": "2.57.2"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
+  }
+}
