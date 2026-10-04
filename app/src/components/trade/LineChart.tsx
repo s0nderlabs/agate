@@ -2,7 +2,7 @@
 // The index as it really moves: flat for days, then a step when a cloud reprices. Drawn as a step line
 // with a real crosshair (follows the pointer, vertical guide, date and value readout). Example days
 // before Sep 30 are drawn lighter so nobody mistakes them for our record.
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Day } from "@/lib/mock/market";
 import { Num } from "@/components/num/Num";
 import { shortDate, usd } from "@/lib/format";
@@ -24,6 +24,8 @@ export function LineChart({ days: all, range, band, height = 360 }: { days: Day[
   const fadeId = `fade${useId().replace(/:/g, "")}`;
 
   const { lo, hi, ticks } = useMemo(() => {
+    // no days yet (before the index's first final price): an empty plot, no scale
+    if (!days.length) return { lo: 0, hi: 1, ticks: [] as number[] };
     let mn = Math.min(...days.map((d) => d.price));
     let mx = Math.max(...days.map((d) => d.price));
     if (band) {
@@ -38,6 +40,19 @@ export function LineChart({ days: all, range, band, height = 360 }: { days: Day[
     for (let v = lo; v <= hi + 1e-9; v += st) ticks.push(Math.round(v * 100) / 100);
     return { lo, hi, ticks };
   }, [days, band]);
+  // a touch readout stays pinned until a tap lands outside the plot
+  const pinned = hover !== null;
+  useEffect(() => {
+    if (!pinned) return;
+    const onDown = (e: PointerEvent) => {
+      if (!plotRef.current?.contains(e.target as Node)) setHover(null);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [pinned]);
+  // every hook sits above this line: with no days the plot keeps its size and draws nothing (the state's own panel
+  // comes with live pass 2)
+  if (!n) return <div className={s.wrap}><div className={s.chart} style={{ height }} /></div>;
 
   const X = (i: number) => (n === 1 ? 0 : (i / (n - 1)) * 1000);
   const Y = (p: number) => ((hi - p) / (hi - lo)) * 400;
@@ -69,7 +84,14 @@ export function LineChart({ days: all, range, band, height = 360 }: { days: Day[
   return (
     <div className={s.wrap}>
       <div className={s.chart} style={{ height }}>
-        <div ref={plotRef} className={s.plot} onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
+        <div
+          ref={plotRef}
+          className={s.plot}
+          onPointerMove={onMove}
+          // a finger: a tap pins the readout (a mouse keeps hover); it clears on a tap outside the plot
+          onPointerDown={(e) => e.pointerType !== "mouse" && onMove(e)}
+          onPointerLeave={(e) => e.pointerType === "mouse" && setHover(null)}
+        >
           <svg viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">
             {ticks.map((v) => (
               <line key={v} className={s.grid} x1={0} x2={1000} y1={Y(v)} y2={Y(v)} />

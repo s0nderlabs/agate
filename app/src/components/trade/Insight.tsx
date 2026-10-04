@@ -4,9 +4,10 @@
 import { Stone } from "@/components/brand/Logo";
 import { AkashMark, OrnnMark } from "@/components/brand/Peers";
 import { Num } from "@/components/num/Num";
-import { median, peersFor } from "@/lib/mock/data";
+import { median, peersFor } from "@/lib/peers";
 import type { Market } from "@/lib/mock/types";
 import { usd } from "@/lib/format";
+import { dateText, panelCount, timeText } from "@/lib/data/derive";
 import s from "./insight.module.css";
 
 const WORDS: Record<number, string> = { 3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven" };
@@ -58,18 +59,25 @@ export function Sources({ market }: { market: Market }) {
 /** Our posted price beside two traded ones, with how far each sits from ours. */
 export function Beside({ market }: { market: Market }) {
   const peers = peersFor(market.gpu);
+  const before = market.priceDate === null;
+  const panel = panelCount(market);
+  const word = (n: number) => (WORDS[n] ?? String(n)).toLowerCase();
+  // how many clouds today's price came from: all of them, or "four of five" when one was not counted
+  const from = !before && market.liveCount < panel ? `${word(market.liveCount)} of ${word(panel)} clouds today` : `${word(panel)} clouds`;
   return (
     <div className={s.beside}>
-      <p className={s.lead}>Ours is the price clouds list. Ornn and Akash track rentals that actually traded.</p>
+      {/* a price-only GPU has no traded price beside it (Ornn and Akash list none for it) */}
+      <p className={s.lead}>{peers.length ? "Ours is the price clouds list. Ornn and Akash track rentals that actually traded." : "No traded price to compare with yet."}</p>
       <div className={s.cols}>
         <div className={s.col} data-ours="true">
           <span className={s.name}>
             <Stone size={16} />
             Agate index
           </span>
-          <span className={`${s.price} font-display`}>{usd(market.price)}</span>
-          <span className={s.gap}>The one that pays</span>
-          <span className={s.note}>Posted prices from five clouds, onchain on Monad.</span>
+          <span className={`${s.price} font-display`}>{before ? dateText(market.nextUpdateAt) : usd(market.price)}</span>
+          {/* before the first price, the date above is when it lands; nothing pays on a GPU without a monthly market */}
+          <span className={s.gap}>{before ? `First price about ${timeText(market.nextUpdateAt)}` : market.tradable ? "The one that pays" : "Price only for now"}</span>
+          <span className={s.note}>Posted prices from {from}, onchain on Monad.</span>
         </div>
         {peers.map((c) => {
           const gap = c.price === null ? null : c.price - market.price;
@@ -82,7 +90,7 @@ export function Beside({ market }: { market: Market }) {
                 </a>
               </span>
               <span className={`${s.price} font-display`}>{c.price === null ? "None" : usd(c.price)}</span>
-              <span className={s.gap}>{gap === null ? "No trades yet" : `${usd(Math.abs(gap))} ${gap < 0 ? "below" : "above"} ours`}</span>
+              <span className={s.gap}>{gap === null ? "No trades yet" : market.priceDate === null ? "Ours has no price yet" : `${usd(Math.abs(gap))} ${gap < 0 ? "below" : "above"} ours`}</span>
               <span className={s.note}>
                 {c.note} As of {c.asOf}.
               </span>

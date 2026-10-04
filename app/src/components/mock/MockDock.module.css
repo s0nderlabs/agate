@@ -3,7 +3,8 @@
   position: fixed;
   z-index: 90;
   right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  /* sits above the phone and tablet dock; --dock-h is unset (0) everywhere else */
+  bottom: calc(16px + var(--dock-h, 0px) + env(safe-area-inset-bottom, 0px));
   display: grid;
   justify-items: end;
   gap: 10px;
@@ -74,6 +75,11 @@
 .opts button[aria-pressed="true"] {
   background: #1c1c1e;
   color: #fff;
+}
+/* a row that does nothing in this state (the example's Data states under live data) */
+.opts button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 .stat {
   font-size: 14px;

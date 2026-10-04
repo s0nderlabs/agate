@@ -1,6 +1,7 @@
 "use client";
 // Ticket state and its numbers (the router's openLong / openShort, with pay me daily = streamOut).
 import { useMemo, useState } from "react";
+import { placeholderSeries } from "@/lib/data/derive";
 import type { Market, Series, Side } from "@/lib/mock/types";
 
 export interface TradeNumbers {
@@ -21,13 +22,19 @@ export interface TradeNumbers {
 }
 
 export function useTrade(market: Market) {
+  // a price-only GPU (B300, A100, L40S) has no month: the ticket lays out on a stand-in that has no band and no quote
+  const stand = useMemo(() => placeholderSeries(market), [market]);
   const tradable = market.series.filter((s) => s.phase === "trading" || s.phase === "paying");
-  const [month, setMonth] = useState(tradable[0]?.month ?? market.series[0].month);
+  // the month the reader picked, null until they pick one. Never seeded from the first render: live data arrives
+  // after it, and the loading stand-in's month (the month after the next index price) would stick
+  const [picked, setMonth] = useState<string | null>(null);
   const [side, setSide] = useState<Side>("long");
   const [gpus, setGpus] = useState(2);
   const [daily, setDaily] = useState(true);
 
-  const series = market.series.find((s) => s.month === month) ?? market.series[0];
+  // the picked month, else (none picked, or it settled away) the first open one
+  const series = (picked ? market.series.find((s) => s.month === picked) : undefined) ?? tradable[0] ?? market.series[0] ?? stand;
+  const month = series.month;
 
   const n = useMemo<TradeNumbers>(() => {
     const hours = 24 * gpus * series.n;

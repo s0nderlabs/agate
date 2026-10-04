@@ -9,7 +9,9 @@ import { useFlow } from "@/components/markets/Flow";
 import { monthName } from "@/components/markets/PriceChart";
 import type { Trade, TradeNumbers } from "@/components/markets/useTrade";
 import { Num } from "@/components/num/Num";
-import { book as bookLevels } from "@/lib/mock/market";
+import { useBook } from "@/lib/data/hooks";
+import { topOf } from "@/lib/data/derive";
+import { emptySideText } from "./States";
 import { useMock } from "@/lib/mock/store";
 import { cleanTyping, dollarsToHours, floorCents, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, LIMIT_MAX, LIMIT_MIN, maxFor, parseAmount, walkDollars, walkHours } from "@/lib/size";
 import { SideToggle } from "./SideToggle";
@@ -30,13 +32,29 @@ export interface OpenOrder {
   placedAt: string;
 }
 
-/** held: test dollars already promised to resting orders; they are not free to trade again. */
-export function OrderTicket({ market, trade, picked, held, onPlace }: { market: Market; trade: Trade; picked: { price: number; n: number } | null; held: number; onPlace: (o: OpenOrder) => void }) {
+/** held: test dollars already promised to resting orders; they are not free to trade again. loading: the first read
+ * is on its way (prices under skeletons, the button waits). stale: no fresh prices for two minutes (the button waits). */
+export function OrderTicket({ market, trade, picked, held, onPlace, loading: marketLoading = false, stale = "none" }: { market: Market; trade: Trade; picked: { price: number; n: number } | null; held: number; onPlace: (o: OpenOrder) => void; loading?: boolean; stale?: "none" | "stale" | "nodata" }) {
   const { submit, openSignIn } = useFlow();
-  const { wallet } = useMock();
+  const { wallet, config } = useMock();
+  // live prices on a practice wallet: a resting order is saved in this browser only, and says so
+  const practice = config.source === "live";
   const series = trade.n.series;
-  const q = series.quote!;
+  // the month's book (empty while it is not listed); its top is the quote, so the walk and the labels agree
+  const bq = useBook(series);
+  const bk = bq.book;
+  const q = topOf(bk, series.quote);
   const L = trade.side === "long";
+  // prices are not known until the markets read and the month's book have both answered (a book that could not be
+  // read is not an empty one)
+  const loading = marketLoading || bq.loading;
+  // one side of a loaded book is empty: no price on it, and a market order there cannot fill
+  const known = !loading;
+  const noAsk = known && !bk.asks.length;
+  const noBid = known && !bk.bids.length;
+  // skeletons masked on their own (ag-skel-on): the book can still be on its way after the screen has loaded
+  const skel = loading ? "ag-skel ag-skel-on" : undefined;
+  const sk = (v: React.ReactNode) => (loading ? <span className={skel}>{v}</span> : v);
   const [type, setType] = useState<"market" | "limit">("market");
   const [limitStr, setLimitStr] = useState("");
   const [sizeStr, setSizeStr] = useState(fmtHours(trade.n.hours));
@@ -57,11 +75,13 @@ export function OrderTicket({ market, trade, picked, held, onPlace }: { market: 
   }, [picked]);
 
   const top = L ? q.ask : q.bid;
+  const none = type === "market" && (L ? noAsk : noBid);
   const limit = Number(limitStr);
   const limitOk = type === "limit" && limitStr !== "" && limit > series.floor && limit < series.cap;
   const price = type === "market" ? top : limitOk ? limit : top;
   // a limit at or through the book fills now; otherwise it rests as an open order
-  const crosses = type === "market" || (limitOk && (L ? limit >= q.ask : limit <= q.bid));
+  // (only against a side that has orders: with nobody selling, a Long limit can only rest, and that is the point of it)
+  const crosses = type === "market" || (limitOk && (L ? bk.asks.length > 0 && limit >= q.ask : bk.bids.length > 0 && limit <= q.bid));
   // pay me daily runs through agate's router: a market order or a limit that fills now can use it; an order that
   // waits in the book fills on Kuru directly and settles at the end of the month instead (@agate/client, Oct 4)
   const canDaily = crosses;
@@ -69,17 +89,16 @@ export function OrderTicket({ market, trade, picked, held, onPlace }: { market: 
   // what fills: an order that fills now walks the book best price first (its average is the fill price), a limit
   // only as far as its own price; a resting limit fills at its own price. Steps: 0.0001 GPU-hour, dollars in cents.
   const levels = useMemo(() => {
-    const b = bookLevels(market);
-    const side = L ? b.asks : b.bids;
+    const side = L ? bk.asks : bk.bids;
     return limitOk ? side.filter((l) => (L ? l.price <= limit : l.price >= limit)) : side;
-  }, [market, L, limitOk, limit]);
+  }, [bk, L, limitOk, limit]);
   const typed = parseAmount(sizeStr) ?? 0;
   const restPer = L ? price : series.cap - price;
   const walk = crosses ? (unit === "usd" ? walkDollars(levels, trade.side, typed, series.cap) : walkHours(levels, trade.side, floorHours(typed), series.cap)) : null;
   const size = walk ? walk.filled : unit === "usd" ? (restPer > 0 ? floorHours(typed / restPer) : 0) : floorHours(typed);
   const fillPrice = walk ? walk.avg : price;
   // more than the book holds right now: say so, never fill less without asking (agate's ThinBook rule)
-  const thin = !!walk && (unit === "usd" ? typed - walk.outlay > 0.01 : walk.short);
+  const thin = !loading && !none && !!walk && (unit === "usd" ? typed - walk.outlay > 0.01 : walk.short);
   const depth = levels.reduce((a, l) => a + l.size, 0);
   const balance = wallet.signedIn ? Math.max(0, wallet.balance - held) : 0;
   const max = crosses ? maxFor(levels, trade.side, balance, series.cap) : { hours: restPer > 0 ? Math.min(LIMIT_MAX, floorHours(balance / restPer)) : 0, dollars: balance, bookBound: false };
@@ -119,6 +138,8 @@ export function OrderTicket({ market, trade, picked, held, onPlace }: { market: 
   const best = L ? series.cap : series.floor;
 
   const gated = !wallet.signedIn;
+  // the button waits while prices load, and once they are two minutes old (it says which)
+  const wait = marketLoading || (bq.loading && !bq.error) ? "Loading prices" : stale === "stale" ? "Waiting for fresh prices" : stale === "nodata" || bq.loading ? "Waiting for prices" : null;
   const inputs = `${trade.side}|${type}|${limitStr}|${sizeStr}`;
   const placed = note?.at === inputs ? note.msg : null;
   const setPlaced = (msg: string) => setNote({ msg, at: inputs });
@@ -130,12 +151,12 @@ export function OrderTicket({ market, trade, picked, held, onPlace }: { market: 
     if (!wallet.signedIn) return openSignIn();
     if (n.outlay > balance + 0.005) return setPlaced(`Not enough test dollars: this order needs ${usd0(n.outlay)} and ${usd0(balance)} is free${held > 0 ? ` (${usd0(held)} is held by your open orders)` : ""}.`);
     onPlace({ id: Math.random().toString(36).slice(2, 10), gpu: market.gpu, month: series.month, side: trade.side, price, q: size, hold: n.outlay, daily: false, placedAt: new Date().toISOString() });
-    setPlaced(`${L ? "Long" : "Short"} ${fmtHours(size)} GPU-hours at ${usd(price)} is waiting in the book.`);
+    setPlaced(practice ? "Practice order: it waits here until you cancel it or reload the page." :`${L ? "Long" : "Short"} ${fmtHours(size)} GPU-hours at ${usd(price)} is waiting in the book.`);
   };
 
   return (
     <div className={s.ticket}>
-      <SideToggle side={trade.side} onSide={trade.setSide} ask={q.ask} bid={q.bid} />
+      <SideToggle side={trade.side} onSide={trade.setSide} ask={noAsk ? null : q.ask} bid={noBid ? null : q.bid} skel={loading} />
 
       <div className={s.typeTabs} role="tablist" aria-label="Order type">
         {(["market", "limit"] as const).map((t) => (
@@ -163,19 +184,22 @@ export function OrderTicket({ market, trade, picked, held, onPlace }: { market: 
         <div className={s.group}>
           <label className={s.input} key={`limit-${flash}`} data-flash={flash > 0 || undefined}>
             <span>Limit price</span>
-            <input inputMode="decimal" placeholder={top.toFixed(2)} value={limitStr} onChange={(e) => setLimitStr(e.target.value.replace(/[^0-9.]/g, ""))} aria-invalid={limitStr !== "" && !limitOk} />
+            <input inputMode="decimal" enterKeyHint="done" onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} placeholder={top > 0 ? top.toFixed(2) : ""} value={limitStr} onChange={(e) => setLimitStr(e.target.value.replace(/[^0-9.]/g, ""))} aria-invalid={limitStr !== "" && !limitOk} />
             <em>USD per GPU-hour</em>
           </label>
           <div className={s.chips}>
             {(
               [
-                ["Bid", q.bid],
-                ["Mid", Math.round(((q.bid + q.ask) / 2) * 100) / 100],
-                ["Ask", q.ask],
+                ["Bid", noBid ? 0 : q.bid],
+                ["Mid", noAsk || noBid ? 0 : Math.round(((q.bid + q.ask) / 2) * 100) / 100],
+                ["Ask", noAsk ? 0 : q.ask],
               ] as [string, number][]
-            ).map(([k, v]) => (
+            )
+              // a side with nobody on it has no price to pick (and no middle)
+              .filter(([, v]) => loading || v > 0)
+              .map(([k, v]) => (
               <button key={k} onClick={() => setLimitStr(v.toFixed(2))}>
-                {k} <Num>{usd(v)}</Num>
+                {k} {sk(<Num>{usd(v)}</Num>)}
               </button>
             ))}
           </div>
@@ -188,6 +212,8 @@ export function OrderTicket({ market, trade, picked, held, onPlace }: { market: 
           <span>Size</span>
           <input
             inputMode="decimal"
+            enterKeyHint="done"
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
             value={sizeStr}
             onChange={(e) => setSizeStr(cleanTyping(e.target.value, unit === "usd" ? 2 : 4))}
             onBlur={() => setSizeStr(unit === "usd" ? fmtDollars(floorCents(typed)) : fmtHours(floorHours(typed)))}
@@ -222,7 +248,11 @@ export function OrderTicket({ market, trade, picked, held, onPlace }: { market: 
               <span>%</span>
             </label>
           </div>
-        {thin ? (
+        {none ? (
+          <p className={`${s.warn} ${s.sizeMsg}`} key="none">
+            {emptySideText(series, L)}
+          </p>
+        ) : thin ? (
           <p className={`${s.warn} ${s.sizeMsg}`} key="thin">
             The book holds {fmtHours(depth)} GPU-hours{type === "limit" ? " at your limit or better" : ""} right now.{" "}
             <button type="button" className={s.linkBtn} onClick={() => { setUnit("hours"); setSizeStr(fmtHours(depth)); }}>
@@ -273,7 +303,7 @@ export function OrderTicket({ market, trade, picked, held, onPlace }: { market: 
       <dl className={s.sum}>
         <div>
           <dt>{L ? "Order value" : "Collateral"}</dt>
-          <dd>
+          <dd className={skel}>
             <Num>{usd0(n.outlay)}</Num>
           </dd>
         </div>
@@ -287,17 +317,17 @@ export function OrderTicket({ market, trade, picked, held, onPlace }: { market: 
         )}
         <div>
           <dt>
-            Max loss <span>{`at ${usd(worst)} or ${L ? "less" : "more"}`}</span>
+            Max loss <span>{sk(`at ${usd(worst)} or ${L ? "less" : "more"}`)}</span>
           </dt>
-          <dd>
+          <dd className={skel}>
             <Num>{usd0(n.maxLoss)}</Num>
           </dd>
         </div>
         <div>
           <dt>
-            Max gain <span>{`at ${usd(best)} or ${L ? "more" : "less"}`}</span>
+            Max gain <span>{sk(`at ${usd(best)} or ${L ? "more" : "less"}`)}</span>
           </dt>
-          <dd>
+          <dd className={skel}>
             <Num>{usd0(n.maxGain)}</Num>
           </dd>
         </div>
@@ -311,17 +341,22 @@ export function OrderTicket({ market, trade, picked, held, onPlace }: { market: 
         </div>
       </dl>
 
-      <button className={s.cta} data-side={trade.side} data-gate={gated} disabled={size <= 0 || (type === "limit" && !limitOk) || thin || belowLimitMin || aboveLimitMax} onClick={go}>
-        {gated ? (
-          "Sign in to trade"
-        ) : (
-          <>
-            {L ? "Long" : "Short"} <Num>{fmtHours(size)}</Num> GPU-hours {crosses ? (walk && Math.abs(walk.avg - top) >= 0.0005 ? "at avg" : "at") : "limit"} <Num>{usd(crosses ? fillPrice : price)}</Num>
-          </>
-        )}
-      </button>
-      {gated && <p className={s.note}>Free to try: 10,000 test dollars a day.</p>}
-      {!gated && (placed ? <p className={s.note}>{placed}</p> : type === "limit" && limitOk && !crosses && <p className={s.note}>Rests in the book until it fills or you cancel it.</p>)}
+      {/* the button and its line stay pinned at the bottom of the ticket on phones and tablets (no box on desktop) */}
+      <div className={s.ctaBar}>
+        <button className={s.cta} data-side={trade.side} data-gate={gated} disabled={wait !== null || none || size <= 0 || (type === "limit" && !limitOk) || thin || belowLimitMin || aboveLimitMax} onClick={go}>
+          {wait ?? (gated ? (
+            "Sign in to trade"
+          ) : none ? (
+            L ? "No sellers right now" : "No buyers right now"
+          ) : (
+            <>
+              {L ? "Long" : "Short"} <Num>{fmtHours(size)}</Num> GPU-hours {crosses ? (walk && Math.abs(walk.avg - top) >= 0.0005 ? "at avg" : "at") : "limit"} <Num>{usd(crosses ? fillPrice : price)}</Num>
+            </>
+          ))}
+        </button>
+        {gated && <p className={s.note}>Free to try: 10,000 test dollars a day.</p>}
+        {!gated && (placed ? <p className={s.note}>{placed}</p> : type === "limit" && limitOk && !crosses && <p className={s.note}>Rests in the book until it fills or you cancel it.</p>)}
+      </div>
     </div>
   );
 }

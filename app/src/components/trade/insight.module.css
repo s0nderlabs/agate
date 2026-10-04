@@ -206,3 +206,14 @@
   text-decoration-color: var(--line-2);
   text-underline-offset: 3px;
 }
+/* touch: the Ornn and Akash links get an invisible 44 px hit area (12 px above and below a 21.8 px line) */
+@media (pointer: coarse) {
+  .name a {
+    position: relative;
+  }
+  .name a::after {
+    content: "";
+    position: absolute;
+    inset: -12px -6px;
+  }
+}

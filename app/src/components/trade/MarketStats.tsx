@@ -5,44 +5,69 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { Num } from "@/components/num/Num";
 import { monthName } from "@/components/markets/PriceChart";
-import { AS_OF } from "@/lib/mock/data";
-import { novCandles } from "@/lib/mock/market";
-import type { Market } from "@/lib/mock/types";
+import { useCandles, useIndexer, useNow } from "@/lib/data/hooks";
+import { countdown, dateText, lastTradingDay, monthLong, nextMonthOf, placeholderSeries, timeText, tradedToday, whenText } from "@/lib/data/derive";
+import type { Market, Series } from "@/lib/mock/types";
 import { int } from "@/lib/format";
 import s from "./trade.module.css";
+import { Note } from "./Note";
 
 /** row: the four figures as bare cells for Pro's one-line header (shorter values: the countdown alone, the close
- * date alone, the rest in the notes); otherwise two columns of two beside the prices. */
-export function HeadStats({ market, row = false }: { market: Market; row?: boolean }) {
+ * date alone, the rest in the notes); otherwise two columns of two beside the prices. series: the ticket's month
+ * (the first open one by default). loading: the figures are on their way (skeletons). A month not open yet has
+ * nothing traded or held ("None yet"); a price-only GPU shows the next index price alone. */
+export function HeadStats({ market, series: picked, row = false, loading = false }: { market: Market; series?: Series; row?: boolean; loading?: boolean }) {
   const uid = useId();
-  const series = market.series[0];
-  const { today, open } = useMemo(() => {
-    const c = novCandles(market.gpu, market);
-    const all = c.reduce((a, x) => a + x.v, 0);
-    return {
-      today: c.slice(-24).reduce((a, x) => a + x.v, 0),
-      open: Math.round((all * 0.62) / 240) * 240,
-    };
-  }, [market]);
-  const [y, m] = series.month.split("-").map(Number);
-  const closes = Date.UTC(y, m, 0);
-  const days = Math.max(0, Math.ceil((closes - Date.parse(AS_OF)) / 86400000));
+  // the ticket's month, else the first open one (a stand-in for a price-only GPU), its candles from the shared read
+  const series = useMemo(() => picked ?? market.series[0] ?? placeholderSeries(market), [picked, market]);
+  const cq = useCandles(series);
+  const candles = cq.candles;
+  const { indexerUp } = useIndexer();
+  const now = useNow();
+  const waiting = series.phase === "upcoming" || !series.quote;
+  // what traded today counts from the candles: a skeleton until they are read, "Not available" when they could not be
+  // (never 0 GPU-hours made up from no candles)
+  const noTrades = waiting || (indexerUp && series.quote?.lastAt === null && !candles.length);
+  const todayWait = !noTrades && indexerUp && cq.loading && !cq.error;
+  const todayFailed = cq.loading && cq.error;
+  const { today, open } = useMemo(
+    () => ({
+      // GPU-hours traded in the last 24 hours, and held open (tokens out plus pay-me-daily longs)
+      today: tradedToday(candles, now),
+      open: series.openInterest,
+    }),
+    [candles, now, series],
+  );
+  const closes = lastTradingDay(series);
+  const days = Math.max(0, Math.ceil((closes - now) / 86400000));
   const month = monthName(series.month);
+  // the month after: it opens for trading as this one starts
+  const after = `${monthLong(nextMonthOf(series.month))} opens ${dateText(`${series.month}-01`)}`;
 
-  const cells: { label: string; note: string; value: React.ReactNode }[] = [
+  // skel: this figure's own read is still on its way (a skeleton even after the screen has loaded)
+  const cells: { label: string; note: string; value: React.ReactNode; skel?: boolean }[] = [
     {
       label: "Traded today",
       note: `GPU-hours of ${month} that changed hands on Kuru in the last 24 hours.`,
-      value: (
+      // nothing can have traded before the month opens or its first trade; without the indexer (or the candles) there
+      // is no history
+      value: noTrades ? (
+        "None yet"
+      ) : !indexerUp || todayFailed ? (
+        "Not available"
+      ) : (
         <>
           <Num>{int(today)}</Num> <small>GPU-hours</small>
         </>
       ),
+      skel: todayWait,
     },
     {
       label: "Held open",
       note: `GPU-hours of ${month} sitting in open positions right now.`,
-      value: (
+      value: waiting ? (
+        "None yet"
+      ) : (
         <>
           <Num>{int(open)}</Num> <small>GPU-hours</small>
         </>
@@ -51,11 +76,12 @@ export function HeadStats({ market, row = false }: { market: Market; row?: boole
     {
       label: "Next index price",
       note: "A new index price each day from the clouds' list prices: the day closes at midnight UTC, its price is published about 01:00 UTC and becomes final about 07:00 UTC, after a six-hour window for checks. Daily payouts and new months use the final price; until then the index above stays as it is.",
-      value: <NextFix short={row} />,
+      // before the first price, the day it lands as well as the time
+      value: <NextFix short={row} at={market.nextUpdateAt} withDate={market.priceDate === null} />,
     },
     {
       label: "Trading closes",
-      note: `The last day to trade ${month}, in ${days} days. It settles on the month's average index; December opens Nov 1.`,
+      note: `The last day to trade ${month}, in ${days} days. It settles on the month's average index; ${after}.`,
       value: row ? (
         `${month.slice(0, 3)} ${new Date(closes).getUTCDate()}`
       ) : (
@@ -69,29 +95,26 @@ export function HeadStats({ market, row = false }: { market: Market; row?: boole
     },
   ];
 
+  // a price-only GPU has no month: only the next index price applies
+  const shown = market.tradable || loading ? cells : cells.filter((c) => c.label === "Next index price");
   const cell = (c: (typeof cells)[number], i: number) => (
     <>
       <dt className={row ? s.pLabel : undefined}>
-        <button type="button" className={s.tipBtn} aria-describedby={`${uid}-${i}`}>
-          {c.label}
-          <InfoIcon />
-        </button>
-        <span role="tooltip" id={`${uid}-${i}`} className={s.tip}>
-          {c.note}
-        </span>
+        <Note label={c.label} note={c.note} />
       </dt>
-      <dd className={row ? s.hsVal : undefined}>{c.value}</dd>
+      <dd className={row ? s.hsVal : undefined}>{loading || c.skel ? <span className={c.skel ? "ag-skel ag-skel-on" : "ag-skel"}>{c.value}</span> : c.value}</dd>
     </>
   );
   if (row)
-    return cells.map((c, i) => (
-      <div key={c.label} className={s.hsCell}>
+    return shown.map((c, i) => (
+      // data-stat: the phone header leaves these to the stats panel under the chart
+      <div key={c.label} className={s.hsCell} data-stat>
         {cell(c, i)}
       </div>
     ));
   return (
-    <dl className={s.hsGrid} aria-label={`${month} market`}>
-      {cells.map((c, i) => (
+    <dl className={s.hsGrid} aria-label={market.tradable ? `${month} market` : `${market.gpu} index`}>
+      {shown.map((c, i) => (
         <div key={c.label}>{cell(c, i)}</div>
       ))}
     </dl>
@@ -111,30 +134,26 @@ export function InfoIcon() {
 
 /** The next final index price: about 07:00 UTC (the day closes at midnight, its price is published about 01:00
  * UTC and turns final after a six-hour pending window; pay and listings use the final one), and once the page is
- * running, a live countdown to it. Live data carries it as Market.nextUpdateAt (published: nextCloseAt). */
-function NextFix({ short = false }: { short?: boolean }) {
+ * running, a live countdown to it. `at` is Market.nextUpdateAt, an expectation: once it is due and the price has not
+ * landed yet, the countdown says so instead of going negative. */
+function NextFix({ short = false, at, withDate = false }: { short?: boolean; at: string; withDate?: boolean }) {
   const [left, setLeft] = useState<string | null>(null);
   useEffect(() => {
-    const tick = () => {
-      const now = Date.now();
-      const d = new Date(now);
-      let next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 7);
-      if (next <= now) next += 86400000;
-      const mins = Math.ceil((next - now) / 60000);
-      setLeft(`${Math.floor(mins / 60)}h ${mins % 60}m`);
-    };
+    const tick = () => setLeft(countdown(at, Date.now()) ?? "due");
     tick();
     const id = setInterval(tick, 30000);
     return () => clearInterval(id);
-  }, []);
-  if (short) return <>{left ? `in ${left}` : "07:00 UTC"}</>;
+  }, [at]);
+  const time = (withDate ? whenText(at) : timeText(at)) || "07:00 UTC";
+  const soon = left === "due" ? "Any minute now" : left && `in ${left}`;
+  if (short) return <>{soon || time}</>;
   return (
     <>
-      07:00 UTC
-      {left && (
+      {time}
+      {soon && (
         <>
           {" "}
-          <small>in {left}</small>
+          <small>{soon}</small>
         </>
       )}
     </>

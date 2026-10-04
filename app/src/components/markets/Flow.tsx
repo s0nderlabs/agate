@@ -1,7 +1,9 @@
 "use client";
 // Sign in, test dollars, review, place, done: the sheets every Markets variant shares.
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { DRIP, useMock } from "@/lib/mock/store";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { DRIP, useLinkQuery, useMock } from "@/lib/mock/store";
+import { finePointer, tapMode, useModalFocus } from "@/lib/ui/hooks";
 import { fmtHours } from "@/lib/size";
 import { int, usd, usd0 } from "@/lib/format";
 import { monthName } from "./PriceChart";
@@ -13,12 +15,20 @@ type Sheet =
   | { kind: "review"; n: TradeNumbers }
   | { kind: "placing"; n: TradeNumbers }
   | { kind: "done"; n: TradeNumbers }
-  | { kind: "account" };
+  | { kind: "account" }
+  | { kind: "info"; title: string; body: ReactNode; wide?: boolean }
+  | { kind: "more" };
 
 interface FlowCtx {
   submit: (n: TradeNumbers) => void;
   openAccount: () => void;
   openSignIn: () => void;
+  /** the sheet on screen right now, or null */
+  sheetKind: Sheet["kind"] | null;
+  /** a note or the sources as a sheet (phones and tablets) */
+  openInfo: (title: string, body: ReactNode, opts?: { wide?: boolean }) => void;
+  /** the phone tab bar's More: balance, Simple or Pro, light or dark */
+  openMore: () => void;
 }
 const Ctx = createContext<FlowCtx | null>(null);
 export const useFlow = () => {
@@ -31,6 +41,24 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
   const { wallet, signIn, signOut, drip, open, config } = useMock();
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const close = () => setSheet(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const kind = sheet?.kind ?? null;
+  // the open sheet takes focus and keeps Tab inside (a sheet over the phone ticket included); closing it gives
+  // focus back to whatever opened it
+  useModalFocus(sheetRef, kind !== null);
+  // each new step: focus moves to the sheet when what held it left with the last step. Sign in puts it in the email
+  // field, except on a touch screen, so the keyboard never rises over the sheet unasked
+  useEffect(() => {
+    const box = sheetRef.current;
+    if (!kind || !box) return;
+    const field = kind === "signin" && finePointer() ? box.querySelector<HTMLInputElement>("#email") : null;
+    if (field) {
+      field.focus();
+      return;
+    }
+    const at = document.activeElement;
+    if (!at || !box.contains(at)) box.focus({ preventScroll: true });
+  }, [kind]);
 
   const submit = useCallback(
     (n: TradeNumbers) => {
@@ -59,11 +87,22 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
   }, [sheet, open]);
 
   return (
-    <Ctx.Provider value={{ submit, openAccount: () => setSheet({ kind: "account" }), openSignIn: () => setSheet({ kind: "signin" }) }}>
+    <Ctx.Provider
+      value={{
+        submit,
+        openAccount: () => setSheet({ kind: "account" }),
+        openSignIn: () => setSheet({ kind: "signin" }),
+        sheetKind: sheet?.kind ?? null,
+        openInfo: (title, body, opts) => setSheet({ kind: "info", title, body, wide: opts?.wide }),
+        openMore: () => setSheet({ kind: "more" }),
+      }}
+    >
       {children}
       {sheet && (
-        <div className={`ag-backdrop ${config.theme === "dark" ? "tone-dark" : "tone-light"}`} onClick={(e) => e.target === e.currentTarget && sheet.kind !== "placing" && close()}>
-          <div className="ag-sheet" role="dialog" aria-modal="true">
+        <div className={`ag-backdrop ${config.theme === "dark" ? "tone-dark" : "tone-light"}`} data-phone={config.phone} data-kind={sheet.kind} onClick={(e) => e.target === e.currentTarget && sheet.kind !== "placing" && close()}>
+          <div ref={sheetRef} className="ag-sheet" role="dialog" aria-modal="true" tabIndex={-1} data-wide={(sheet.kind === "info" && sheet.wide) || undefined}>
+            {sheet.kind === "info" && <Info title={sheet.title} body={sheet.body} onClose={close} />}
+            {sheet.kind === "more" && <More onSignIn={() => setSheet({ kind: "signin" })} onClose={close} />}
             {sheet.kind === "signin" && <SignIn onDone={(email) => { signIn(email); setSheet(sheet.then ? { kind: "funds", then: sheet.then } : { kind: "account" }); }} onClose={close} />}
             {sheet.kind === "funds" && (
               <Funds
@@ -102,6 +141,7 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
 
 function SignIn({ onDone, onClose }: { onDone: (email: string) => void; onClose: () => void }) {
   const [email, setEmail] = useState("");
+  // the field takes focus from TradeFlow (not on a touch screen), after the sheet has recorded who opened it
   return (
     <form
       className="grid gap-[18px]"
@@ -112,7 +152,18 @@ function SignIn({ onDone, onClose }: { onDone: (email: string) => void; onClose:
     >
       <h2>Sign in to trade</h2>
       <p>Use your email. We set up your wallet and pay the network fees, so there is nothing to install.</p>
-      <input id="email" className="ag-input" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
+      <input
+        id="email"
+        className="ag-input"
+        type="email"
+        placeholder="you@example.com"
+        aria-label="Email"
+        autoComplete="email"
+        inputMode="email"
+        enterKeyHint="go"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
       <button className="ag-btn ag-btn--primary ag-btn--lg" type="submit">
         Continue with email
       </button>
@@ -157,6 +208,8 @@ export function sideLabel(n: TradeNumbers) {
 
 function Review({ n, onConfirm, onBack }: { n: TradeNumbers; onConfirm: () => void; onBack: () => void }) {
   const L = n.side === "long";
+  // live prices, practice wallet: until sign-in brings a real wallet, nothing goes to Monad, and the sheets say so
+  const practice = useMock().config.source === "live";
   return (
     <>
       <h2>{sideLabel(n)}</h2>
@@ -191,6 +244,7 @@ function Review({ n, onConfirm, onBack }: { n: TradeNumbers; onConfirm: () => vo
           ? `You get ${monthName(n.series.month)}'s average ${n.series.gpu} price for every GPU-hour, between ${usd(n.series.floor)} and ${usd(n.series.cap)}.`
           : `You get ${usd(n.series.cap)} minus ${monthName(n.series.month)}'s average for every GPU-hour, so you gain when the average comes in below ${usd(n.price)}.`}{" "}
         {n.daily ? "Paid a share every morning. This locks the market rate, not your bill." : `Paid once, after ${monthName(n.series.month)} ends.`}
+        {practice && " Practice for now: nothing is sent to Monad yet."}
       </p>
       <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={onConfirm}>
         Confirm {L ? "Long" : "Short"}
@@ -203,12 +257,19 @@ function Review({ n, onConfirm, onBack }: { n: TradeNumbers; onConfirm: () => vo
 }
 
 function Placing({ n }: { n: TradeNumbers }) {
+  const practice = useMock().config.source === "live";
   return (
     <div className="grid justify-items-center gap-4 py-6 text-center">
       <span className="ag-spinner" />
       <h2>Placing your order</h2>
       <p>
-        {n.side === "long" ? "Buying" : "Selling"} {fmtHours(n.hours)} {n.series.symbol} on Monad. This takes about a second.
+        {practice ? (
+          "Saving your practice order at the live price."
+        ) : (
+          <>
+            {n.side === "long" ? "Buying" : "Selling"} {fmtHours(n.hours)} {n.series.symbol} on Monad. This takes about a second.
+          </>
+        )}
       </p>
     </div>
   );
@@ -216,6 +277,9 @@ function Placing({ n }: { n: TradeNumbers }) {
 
 function Done({ n, onClose }: { n: TradeNumbers; onClose: () => void }) {
   const L = n.side === "long";
+  const router = useRouter();
+  const linkQuery = useLinkQuery();
+  const practice = useMock().config.source === "live";
   return (
     <>
       <svg className="ag-done" viewBox="0 0 48 48" width="44" height="44" aria-hidden="true">
@@ -225,12 +289,21 @@ function Done({ n, onClose }: { n: TradeNumbers; onClose: () => void }) {
       <h2>You're {L ? "long" : "short"} {monthName(n.series.month)}</h2>
       <p>
         {fmtHours(n.hours)} GPU-hours of {n.series.gpu} at {usd(n.price)}.{" "}
-        {n.daily ? (L ? `${usd0(n.backNow)} is back in your balance. Your first daily share arrives the morning after Nov 1.` : "Your first daily share arrives the morning after Nov 1.") : "You get paid once, after the month ends."}
+        {n.daily
+          ? `${L ? `${usd0(n.backNow)} is back in your balance. ` : ""}Your first daily share arrives the morning after ${monthName(n.series.month).slice(0, 3)} 1.`
+          : "You get paid once, after the month ends."}
+        {practice && " Practice order saved in this browser at the live price. Real test trades open with sign-in."}
       </p>
       <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={onClose}>
         Done
       </button>
-      <button className="ag-btn ag-btn--ghost" onClick={onClose}>
+      <button
+        className="ag-btn ag-btn--ghost"
+        onClick={() => {
+          onClose();
+          router.push(`/positions${linkQuery}`);
+        }}
+      >
         See your positions
       </button>
     </>
@@ -263,4 +336,94 @@ function Account({ email, balance, positions, onDrip, onSignOut, onClose }: { em
       </button>
     </>
   );
+}
+
+/** A note or the sources, as a sheet: the same words the hover note holds on desktop, readable on a phone. */
+function Info({ title, body, onClose }: { title: string; body: ReactNode; onClose: () => void }) {
+  return (
+    <>
+      <h2>{title}</h2>
+      {typeof body === "string" ? <p>{body}</p> : body}
+      <button className="ag-btn ag-btn--ghost ag-btn--lg" onClick={onClose}>
+        Close
+      </button>
+    </>
+  );
+}
+
+/** The phone tab bar's More: the balance (or what Agate is), then Simple or Pro and light or dark, which leave the
+ * top bar on phones. No Docs row until docs exist. */
+function More({ onSignIn, onClose }: { onSignIn: () => void; onClose: () => void }) {
+  const { wallet, config, setConfig, drip, signOut } = useMock();
+  return (
+    <>
+      {wallet.signedIn ? (
+        <>
+          <h2>{usd0(wallet.balance)}</h2>
+          <p>Test dollars, signed in as {wallet.email}.</p>
+          <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={drip}>
+            Get {int(DRIP)} test dollars
+          </button>
+        </>
+      ) : (
+        <>
+          <h2>Agate</h2>
+          <p>Agate runs on Monad's test network. Trades use test dollars, {int(DRIP)} free a day.</p>
+          <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={onSignIn}>
+            Sign in
+          </button>
+        </>
+      )}
+      <div className="ag-rows">
+        <div>
+          <span>Trading view</span>
+          <div className="ag-seg" role="group" aria-label="Trading view">
+            <button aria-pressed={config.mode === "simple"} onClick={() => setConfig({ mode: "simple" })}>
+              Simple
+            </button>
+            <button aria-pressed={config.mode === "pro"} onClick={() => setConfig({ mode: "pro" })}>
+              Pro
+            </button>
+          </div>
+        </div>
+        <div>
+          <span>Appearance</span>
+          <div className="ag-seg" role="group" aria-label="Appearance">
+            <button aria-pressed={config.theme === "light"} onClick={() => setConfig({ theme: "light" })}>
+              Light
+            </button>
+            <button aria-pressed={config.theme === "dark"} onClick={() => setConfig({ theme: "dark" })}>
+              Dark
+            </button>
+          </div>
+        </div>
+      </div>
+      {wallet.signedIn && (
+        <button
+          className="ag-btn ag-btn--ghost"
+          onClick={() => {
+            signOut();
+            onClose();
+          }}
+        >
+          Sign out
+        </button>
+      )}
+      <button className="ag-btn" style={{ background: "transparent", color: "var(--mute)" }} onClick={onClose}>
+        Close
+      </button>
+    </>
+  );
+}
+
+/** Tap a note or the sources on a phone or tablet in the new layout: it opens as a sheet and returns true. Anywhere
+ * else (a mouse on desktop, the stacked layout) it does nothing and returns false, so hover and popovers stay. */
+export function useInfoSheet() {
+  const { openInfo } = useFlow();
+  const { config } = useMock();
+  return (title: string, body: ReactNode, opts?: { wide?: boolean }) => {
+    if (config.phone !== "new" || !tapMode()) return false;
+    openInfo(title, body, opts);
+    return true;
+  };
 }

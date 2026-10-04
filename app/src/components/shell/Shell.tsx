@@ -6,20 +6,39 @@ import { useMemo, useState } from "react";
 import { Lockup, Stone } from "@/components/brand/Logo";
 import { Num } from "@/components/num/Num";
 import { useFlow } from "@/components/markets/Flow";
-import { getMarket, GPUS } from "@/lib/mock/data";
+import { GPUS } from "@/lib/mock/data";
+import { useMarkets } from "@/lib/data/hooks";
+import { dateText, monthLong } from "@/lib/data/derive";
 import { DRIP, useLinkQuery, useMock } from "@/lib/mock/store";
 import type { Gpu } from "@/lib/mock/types";
 import { int, usd } from "@/lib/format";
 import s from "./shell.module.css";
 
-export function Notice() {
-  const { wallet, drip } = useMock();
+/** status: a line from the live data (a stale price, a pause) shown instead of the testnet copy, on every width
+ * and signed in too, with no dismiss. */
+export function Notice({ status }: { status?: string | null } = {}) {
+  const { wallet, drip, config } = useMock();
   const { openSignIn } = useFlow();
   const [open, setOpen] = useState(true);
+  if (status)
+    return (
+      <div className={s.notice} role="status" data-status>
+        <span>{status}</span>
+      </div>
+    );
   if (!open) return null;
   return (
-    <div className={s.notice}>
-      <span>Agate runs on Monad's test network. Trades use test dollars, {int(DRIP)} free a day.</span>
+    <div className={s.notice} data-signed={wallet.signedIn || undefined}>
+      {/* phones, new layout: one short line that opens sign-in (signed in, the balance is in the top bar instead) */}
+      {config.phone === "new" && !wallet.signedIn && (
+        <button className={s.noticeShort} onClick={openSignIn} aria-label={`Sign in to get ${int(DRIP)} free test dollars a day`}>
+          <span>Get {int(DRIP)} free test dollars a day</span>
+          <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+            <path d="M4.5 2.5l3.5 3.5-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
+          </svg>
+        </button>
+      )}
+      <span className={s.noticeLong}>Agate runs on Monad's test network. Trades use test dollars, {int(DRIP)} free a day.</span>
       <button className={s.noticeBtn} onClick={wallet.signedIn ? drip : openSignIn}>
         {wallet.signedIn ? "Get test dollars" : "Sign in to start"}
       </button>
@@ -35,25 +54,60 @@ export function Notice() {
 /** The three markets, still (no marquee). Each one is the way to switch GPU. */
 export function MarketStrip() {
   const { config, setConfig } = useMock();
+  const { markets, loading } = useMarkets();
   const items = useMemo(
     () =>
+      // the three GPUs with a market, from the one shared read; before the index's first price its date, a month not
+      // open yet when it opens (never a made-up $0.00)
       GPUS.map((g) => {
-        const m = getMarket(g, config.data);
-        return { g, index: m.price, month: m.series[0].quote!.last };
+        const m = markets?.find((x) => x.gpu === g);
+        const mo = m?.series.find((x) => x.quote) ?? m?.series[0];
+        const short = mo ? monthLong(mo.month).slice(0, 3) : "Nov";
+        const waiting = !!mo && (mo.phase === "upcoming" || !mo.quote);
+        return {
+          g,
+          read: !!m,
+          // a price, or (before the first one) the day it lands
+          index: m && m.priceDate !== null ? m.price : null,
+          first: m && m.priceDate === null ? dateText(m.nextUpdateAt) : "",
+          short,
+          month: mo && !waiting && mo.quote?.last ? mo.quote.last : null,
+          // the month in words when it has no price: not open yet, or nothing quoted yet
+          note: !mo ? "" : waiting ? `${short} opens ${dateText(mo.opensOn) || "soon"}` : mo.quote?.last ? "" : `${short}, no price yet`,
+        };
       }),
-    [config.data],
+    [markets],
   );
   return (
     <div className={s.strip} role="tablist" aria-label="Markets">
       {items.map((it) => (
         <button key={it.g} role="tab" aria-selected={config.gpu === it.g} className={s.market} onClick={() => setConfig({ gpu: it.g as Gpu })}>
           <b>{it.g}</b>
-          <span className={s.mPrice}>
-            <Num>{usd(it.index)}</Num>
-          </span>
-          <span className={s.mSub}>
-            Nov <Num>{usd(it.month)}</Num>
-          </span>
+          {/* nothing read yet: skeletons while the read is on its way (they shimmer under the screen's is-loading),
+              blank lines when it failed (the Notice bar says why) */}
+          {!it.read ? (
+            <>
+              <span className={`${s.mPrice} ag-skel`} aria-hidden="true">
+                {loading ? "$0.00" : " "}
+              </span>
+              <span className={`${s.mSub} ag-skel`} aria-hidden="true">
+                {loading ? "Nov $0.00" : " "}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className={s.mPrice}>{it.index !== null ? <Num>{usd(it.index)}</Num> : it.first}</span>
+              <span className={s.mSub}>
+                {it.month !== null ? (
+                  <>
+                    {it.short} <Num>{usd(it.month)}</Num>
+                  </>
+                ) : (
+                  it.note
+                )}
+              </span>
+            </>
+          )}
         </button>
       ))}
       <span className={s.stripNote}>Per GPU-hour. A new index price each day, final about 07:00 UTC.</span>
@@ -83,7 +137,7 @@ function ThemeToggle() {
 export function NavBar({ active = "markets" }: { active?: "markets" | "positions" | "index" | "docs" }) {
   const { wallet, config, setConfig } = useMock();
   const linkQuery = useLinkQuery();
-  const { openAccount, openSignIn } = useFlow();
+  const { openAccount, openSignIn, openMore } = useFlow();
   const links: [typeof active, string][] = [
     ["markets", "Markets"],
     ["positions", "Positions"],
@@ -103,11 +157,17 @@ export function NavBar({ active = "markets" }: { active?: "markets" | "positions
           </svg>
         </button>
         {links.map(([k, label]) => (
-          <Link key={k} href={`${k === "index" ? "/index" : "/"}${linkQuery}`} className={s.link} aria-current={k === active ? "page" : undefined}>
+          <Link key={k} href={`${k === "index" ? "/index" : k === "positions" ? "/positions" : "/"}${linkQuery}`} className={s.link} data-place={k} aria-current={k === active ? "page" : undefined}>
             {k === active && <Stone size={11} className={s.mark} />}
             {label}
           </Link>
         ))}
+        {/* tablets below 1024 px, new layout: Simple | Pro and the theme leave the compact bar for More */}
+        {config.phone === "new" && (
+          <button type="button" className={s.more} aria-haspopup="dialog" onClick={openMore}>
+            More
+          </button>
+        )}
       </nav>
       <div className={s.right}>
         <div className={s.mode} role="group" aria-label="Mode">

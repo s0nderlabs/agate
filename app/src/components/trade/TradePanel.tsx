@@ -3,7 +3,9 @@
 // what it costs and risks (tied to the floor and ceiling), one button. Sized so the button sits above the fold.
 import { useFlow } from "@/components/markets/Flow";
 import { useMemo, useState } from "react";
-import { book as bookLevels } from "@/lib/mock/market";
+import { useBook } from "@/lib/data/hooks";
+import { dateText, topOf } from "@/lib/data/derive";
+import { emptySideText, MonthSeg } from "./States";
 import { DRIP, useMock } from "@/lib/mock/store";
 import { cleanTyping, dollarsToHours, floorCents, floorGpus, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, maxFor, parseAmount, walkDollars, walkHours } from "@/lib/size";
 import { SideToggle } from "./SideToggle";
@@ -14,8 +16,10 @@ import type { Market } from "@/lib/mock/types";
 import { int, usd, usd0 } from "@/lib/format";
 import s from "./trade.module.css";
 
-/** held: test dollars already promised to resting limit orders (placed in Pro), so they cannot be spent twice. */
-export function TradePanel({ market, trade, held = 0 }: { market: Market; trade: Trade; held?: number }) {
+/** held: test dollars already promised to resting limit orders (placed in Pro), so they cannot be spent twice.
+ * loading: the first read is on its way (prices under skeletons, the button waits). stale: the prices are old (no
+ * fresh read for two minutes), so the button waits for fresh ones. */
+export function TradePanel({ market, trade, held = 0, loading: marketLoading = false, stale = "none" }: { market: Market; trade: Trade; held?: number; loading?: boolean; stale?: "none" | "stale" | "nodata" }) {
   const { submit, openSignIn } = useFlow();
   const { wallet } = useMock();
   const gated = !wallet.signedIn;
@@ -25,10 +29,23 @@ export function TradePanel({ market, trade, held = 0 }: { market: Market; trade:
   const [amt, setAmt] = useState("1,000");
   const side = trade.side;
   const s0 = trade.n.series;
-  const levels = useMemo(() => {
-    const b = bookLevels(market);
-    return side === "long" ? b.asks : b.bids;
-  }, [market, side]);
+  // the month's book (empty while it is not listed): the walk and the prices on Long / Short read the same levels
+  const bq = useBook(s0);
+  const b = bq.book;
+  const levels = useMemo(() => (side === "long" ? b.asks : b.bids), [b, side]);
+  const top = topOf(b, s0.quote);
+  // prices are not known until the markets read and the month's book have both answered (a book that could not be
+  // read is not an empty one)
+  const loading = marketLoading || bq.loading;
+  // one side of a loaded book is empty (nobody selling, or nobody buying): that side has no price and cannot fill
+  const known = !loading;
+  const noAsk = known && !b.asks.length;
+  const noBid = known && !b.bids.length;
+  const none = side === "long" ? noAsk : noBid;
+  // skeletons masked on their own (ag-skel-on): the book can still be on its way after the screen has loaded
+  const skel = loading ? "ag-skel ag-skel-on" : undefined;
+  // a figure under a skeleton while loading (wrapped only then, so the normal markup is unchanged)
+  const sk = (v: React.ReactNode) => (loading ? <span className={skel}>{v}</span> : v);
   const days = s0.n;
   const typed = parseAmount(amt) ?? 0;
   const fill = unit === "usd" ? walkDollars(levels, side, typed, s0.cap) : walkHours(levels, side, floorHours(typed * 24 * days), s0.cap);
@@ -54,42 +71,46 @@ export function TradePanel({ market, trade, held = 0 }: { market: Market; trade:
   const L = n.side === "long";
   const m = monthName(n.series.month);
   const open = trade.months.filter((sr) => sr.phase !== "upcoming");
-  const next = trade.months.find((sr) => sr.phase === "upcoming");
+  // the month after this one, when it is not open yet (never the ticket's own month)
+  const next = loading ? undefined : trade.months.find((sr) => sr.phase === "upcoming" && sr.month !== n.series.month);
+  // the button waits while prices load, and once they are two minutes old (it says which)
+  const wait = marketLoading || (bq.loading && !bq.error) ? "Loading prices" : stale === "stale" ? "Waiting for fresh prices" : stale === "nodata" || bq.loading ? "Waiting for prices" : null;
   const worst = L ? n.series.floor : n.series.cap;
   const best = L ? n.series.cap : n.series.floor;
+  // what a dollar comes to on this side at the book's top (a Long pays the ask, a Short puts up ceiling minus bid);
+  // no number until a price is known
+  const perUnit = loading || none ? 0 : L ? top.ask : s0.cap - top.bid;
+  const perDollar = perUnit > 0 ? `Any amount works. $1 is about ${(Math.round((1 / perUnit) * 100) / 100).toLocaleString("en-US")} GPU-hours at this price.` : "Any amount works.";
   return (
     <div className={s.ticket}>
       {/* one month open: say so in a line; a control with one live choice and one disabled one is noise */}
       <div className={s.tTop}>
         {open.length > 1 ? (
-          <div className={s.seg} role="group" aria-label="Month">
-            {open.map((sr) => (
-              <button key={sr.month} aria-pressed={trade.month === sr.month} onClick={() => trade.setMonth(sr.month)}>
-                {monthName(sr.month)}
-              </button>
-            ))}
-          </div>
+          <MonthSeg trade={trade} />
         ) : (
           <b>
             {m} {market.gpu}
           </b>
         )}
-        {next && <span>{monthName(next.month)} opens Nov 1</span>}
+        {next && <span>{monthName(next.month)} opens {dateText(next.opensOn ?? `${next.month}-01`)}</span>}
       </div>
 
-      <SideToggle side={trade.side} onSide={trade.setSide} ask={n.series.quote!.ask} bid={n.series.quote!.bid} />
+      <SideToggle side={trade.side} onSide={trade.setSide} ask={noAsk ? null : top.ask} bid={noBid ? null : top.bid} skel={loading} />
 
-      <p className={s.tCopy}>
-        {L ? (
-          <>
-            Gains if {m}'s average {market.gpu} price comes in above <b>{usd(n.price)}</b>. Protects a GPU bill from rising prices.
-          </>
-        ) : (
-          <>
-            Gains if {m}'s average {market.gpu} price comes in below <b>{usd(n.price)}</b>. Protects GPU income from falling prices.
-          </>
-        )}
-      </p>
+      {/* with nobody on this side there is no price to gain against: the line under the amount says so instead */}
+      {!none && (
+        <p className={s.tCopy}>
+          {L ? (
+            <>
+              Gains if {m}'s average {market.gpu} price comes in above <b className={skel}>{usd(n.price)}</b>. Protects a GPU bill from rising prices.
+            </>
+          ) : (
+            <>
+              Gains if {m}'s average {market.gpu} price comes in below <b className={skel}>{usd(n.price)}</b>. Protects GPU income from falling prices.
+            </>
+          )}
+        </p>
+      )}
 
       <div className={s.amount}>
           <div className={s.amountHead}>
@@ -107,6 +128,8 @@ export function TradePanel({ market, trade, held = 0 }: { market: Market; trade:
             {unit === "usd" && <span className={s.amountPre}>$</span>}
             <input
               inputMode="decimal"
+              enterKeyHint="done"
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
               value={amt}
               placeholder="0"
               aria-label={unit === "usd" ? "Amount in dollars" : "GPUs for the whole month"}
@@ -125,7 +148,11 @@ export function TradePanel({ market, trade, held = 0 }: { market: Market; trade:
             </div>
             <span>{signedIn ? <><Num>{int(balance)}</Num> test dollars to use</> : <><Num>{int(DRIP)}</Num> free test dollars at sign-in</>}</span>
           </div>
-          {thin ? (
+          {none ? (
+            <p className={s.amountWarn} key="none">
+              {emptySideText(n.series, L)}
+            </p>
+          ) : !loading && thin ? (
             <p className={s.amountWarn} key="thin">
               Only {unit === "usd" ? usd(floorCents(fill.outlay)) : `${fmtGpus(floorGpus(fill.filled / (24 * days)))} GPUs`} fills right now.{" "}
               <button
@@ -161,7 +188,7 @@ export function TradePanel({ market, trade, held = 0 }: { market: Market; trade:
                   </>
                 )
               ) : unit === "usd" ? (
-                "Any amount works. $1 buys a quarter of a GPU-hour."
+                sk(perDollar)
               ) : (
                 <>One GPU for all of {m} is {int(24 * days)} GPU-hours. Halves work too.</>
               )}
@@ -178,79 +205,85 @@ export function TradePanel({ market, trade, held = 0 }: { market: Market; trade:
         </span>
       </label>
 
-      <dl className={s.sum}>
-        {walks && (
+      {/* with nobody on this side nothing fills, so there is nothing to sum up */}
+      {!none && (
+        <dl className={s.sum}>
+          {walks && (
+            <div>
+              <dt>
+                Average price <span className={s.hint}>across the book's prices</span>
+              </dt>
+              <dd>
+                <Num>{`$${n.price.toFixed(3)}`}</Num>
+              </dd>
+            </div>
+          )}
+          <div>
+            <dt>{L ? "You pay" : "You put up"}</dt>
+            <dd className={skel}>
+              <Num>{usd0(n.outlay)}</Num>
+            </dd>
+          </div>
+          {n.daily && L && (
+            <div>
+              <dt>Back right away</dt>
+              <dd className={skel}>
+                <Num>{usd0(n.backNow)}</Num>
+              </dd>
+            </div>
+          )}
           <div>
             <dt>
-              Average price <span className={s.hint}>across the book's prices</span>
+              Most you can lose{" "}
+              <span className={s.hint}>{sk(`if it averages ${usd(worst)} or ${L ? "less" : "more"}`)}</span>
             </dt>
-            <dd>
-              <Num>{`$${n.price.toFixed(3)}`}</Num>
+            <dd className={skel}>
+              <Num>{usd0(n.maxLoss)}</Num>
             </dd>
           </div>
-        )}
-        <div>
-          <dt>{L ? "You pay" : "You put up"}</dt>
-          <dd>
-            <Num>{usd0(n.outlay)}</Num>
-          </dd>
-        </div>
-        {n.daily && L && (
           <div>
-            <dt>Back right away</dt>
-            <dd>
-              <Num>{usd0(n.backNow)}</Num>
+            <dt>
+              Most you can make{" "}
+              <span className={s.hint}>{sk(`if it averages ${usd(best)} or ${L ? "more" : "less"}`)}</span>
+            </dt>
+            <dd className={skel}>
+              <Num>{usd0(n.maxGain)}</Num>
             </dd>
           </div>
-        )}
-        <div>
-          <dt>
-            Most you can lose{" "}
-            <span className={s.hint}>
-              {`if it averages ${usd(worst)} or ${L ? "less" : "more"}`}
-            </span>
-          </dt>
-          <dd>
-            <Num>{usd0(n.maxLoss)}</Num>
-          </dd>
-        </div>
-        <div>
-          <dt>
-            Most you can make{" "}
-            <span className={s.hint}>{`if it averages ${usd(best)} or ${L ? "more" : "less"}`}</span>
-          </dt>
-          <dd>
-            <Num>{usd0(n.maxGain)}</Num>
-          </dd>
-        </div>
-      </dl>
+        </dl>
+      )}
 
       {/* signed out: everything above works, the button asks for sign-in and keeps this order for review after */}
       {/* signed out, an empty or too-big amount still opens sign-in, but the order is not carried through it */}
-      <button
-        className={s.cta}
-        data-side={n.side}
-        data-gate={gated}
-        disabled={!gated && (fill.filled <= 0 || thin || (over && held > 0))}
-        onClick={() => (gated && (fill.filled <= 0 || thin) ? openSignIn() : submit(n))}
-      >
-        {gated ? (
-          "Sign in to trade"
-        ) : fill.filled <= 0 ? (
-          "Enter an amount"
-        ) : unit === "usd" ? (
-          <>
-            {L ? "Long" : "Short"} <Num>{floorCents(typed) % 1 ? usd(floorCents(typed)) : usd0(typed)}</Num>
-          </>
-        ) : (
-          <>
-            {L ? "Long" : "Short"} <Num>{fmtGpus(typed)}</Num> {gpuWord(typed)} for {m}
-          </>
-        )}
-      </button>
-      <p className={s.fine}>
-        {gated ? "Free to try: 10,000 test dollars a day. Your order stays as you set it." : <>{n.daily ? "Paid a share every morning from Nov 2." : `Paid once, after ${m} ends.`} Fully backed, no margin calls.</>}
-      </p>
+      {/* the button and its line stay pinned at the bottom of the ticket on phones and tablets (no box on desktop) */}
+      <div className={s.ctaBar}>
+        <button
+          className={s.cta}
+          data-side={n.side}
+          data-gate={gated}
+          disabled={wait !== null || (!gated && (none || fill.filled <= 0 || thin || (over && held > 0)))}
+          onClick={() => (gated && (none || fill.filled <= 0 || thin) ? openSignIn() : submit(n))}
+        >
+          {wait ?? (gated ? (
+            "Sign in to trade"
+          ) : none ? (
+            L ? "No sellers right now" : "No buyers right now"
+          ) : fill.filled <= 0 ? (
+            "Enter an amount"
+          ) : unit === "usd" ? (
+            <>
+              {L ? "Long" : "Short"} <Num>{floorCents(typed) % 1 ? usd(floorCents(typed)) : usd0(typed)}</Num>
+            </>
+          ) : (
+            <>
+              {L ? "Long" : "Short"} <Num>{fmtGpus(typed)}</Num> {gpuWord(typed)} for {m}
+            </>
+          ))}
+        </button>
+        <p className={s.fine}>
+          {gated ? "Free to try: 10,000 test dollars a day. Your order stays as you set it." : <>{n.daily ? `Paid a share every morning from ${m.slice(0, 3)} 2.` : `Paid once, after ${m} ends.`} Fully backed, no margin calls.</>}
+        </p>
+      </div>
     </div>
   );
 }

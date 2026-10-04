@@ -4,6 +4,7 @@
 // Design options join DESIGN_ROWS while they are being judged, beside the current state, and leave once decided.
 import { useEffect } from "react";
 import { useMock, type MockConfig } from "@/lib/mock/store";
+import { useDataStatus, useIndexer } from "@/lib/data/hooks";
 import s from "./MockDock.module.css";
 
 type Row = { key: keyof MockConfig; label: string; options: [string, string][] };
@@ -16,6 +17,22 @@ const DESIGN_ROWS: Row[] = [
     options: [
       ["deep", "Deeper fill"],
       ["bright", "Bright (before)"],
+    ],
+  },
+  {
+    key: "phone",
+    label: "Phone and tablet layout",
+    options: [
+      ["new", "New"],
+      ["stacked", "Stacked (before)"],
+    ],
+  },
+  {
+    key: "pbar",
+    label: "Phone trade buttons",
+    options: [
+      ["fill", "Filled"],
+      ["tint", "Tinted"],
     ],
   },
 ];
@@ -49,11 +66,19 @@ const STATE_ROWS: Row[] = [
   {
     key: "data",
     label: "Data",
+    // example data only; live data shows whatever the testnet holds
     options: [
-      ["live", "Normal day"],
+      ["normal", "Normal day"],
       ["loading", "Loading"],
       ["degraded", "One cloud missing"],
       ["carried", "Carried day"],
+      ["beforeFirst", "Before the first price"],
+      ["upcoming", "Month not open yet"],
+      ["noTrades", "Listed, no trades"],
+      ["emptyBook", "Empty book"],
+      ["indexerDown", "Indexer down"],
+      ["rpcDown", "Monad unreachable"],
+      ["rpcStale", "Monad unreachable, old data"],
     ],
   },
   {
@@ -63,9 +88,40 @@ const STATE_ROWS: Row[] = [
       ["H100", "H100"],
       ["H200", "H200"],
       ["B200", "B200"],
+      ["B300", "B300"],
+      ["A100", "A100"],
+      ["L40S", "L40S"],
+    ],
+  },
+  {
+    key: "source",
+    label: "Data source",
+    options: [
+      ["example", "Example data"],
+      ["live", "Live testnet"],
     ],
   },
 ];
+
+/** While the source is live: whether the indexer answers and when the markets were last read (UTC). */
+function LiveRow() {
+  const st = useDataStatus();
+  // "answers" only once a check has said so (the screens treat the indexer as up until then)
+  const ix = useIndexer();
+  const at = st.updatedAt ? new Date(st.updatedAt).toISOString().slice(11, 19) : "";
+  const read = at ? `last read ${at} UTC` : st.error ? "Monad unreachable, nothing read yet" : "first read on its way";
+  return (
+    <div className={s.row}>
+      <span>Live status</span>
+      <div className={s.opts}>
+        <span className={s.stat}>
+          Live testnet: indexer {!ix.checked ? "checking" : ix.indexerUp ? "answers" : "not answering"}, {read}
+          {st.error && at ? ", the last read failed" : ""}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export function MockDock() {
   const { config, setConfig, reset, wallet } = useMock();
@@ -89,23 +145,29 @@ export function MockDock() {
             <b>Mock controls</b>
             <span>Press M to hide</span>
           </div>
-          {[...DESIGN_ROWS, ...STATE_ROWS].map((r) => (
-            <div className={s.row} key={r.key}>
-              <span>{r.label}</span>
-              <div className={s.opts}>
-                {r.options.map(([v, label]) => (
-                  <button key={v} aria-pressed={config[r.key] === v} onClick={() => setConfig({ [r.key]: v } as Partial<MockConfig>)}>
-                    {label}
-                  </button>
-                ))}
+          {[...DESIGN_ROWS, ...STATE_ROWS].map((r) => {
+            // the example's states do nothing to live data: the row stands down while the source is live
+            const idle = r.key === "data" && config.source === "live";
+            return (
+              <div className={s.row} key={r.key}>
+                <span>{r.label}</span>
+                <div className={s.opts}>
+                  {idle && <span className={s.stat}>Example data only. Live shows what the testnet holds.</span>}
+                  {r.options.map(([v, label]) => (
+                    <button key={v} aria-pressed={!idle && config[r.key] === v} disabled={idle} onClick={() => setConfig({ [r.key]: v } as Partial<MockConfig>)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
+          {config.source === "live" && <LiveRow />}
           <div className={s.row}>
             <span>Wallet</span>
             <div className={s.opts}>
               <span className={s.stat}>
-                {wallet.signedIn ? `${Math.round(wallet.balance).toLocaleString("en-US")} test dollars, ${wallet.positions.length} positions` : "No wallet yet"}
+                {wallet.signedIn ? `${Math.round(wallet.balance).toLocaleString("en-US")} test dollars, ${wallet.positions.length} ${wallet.positions.length === 1 ? "position" : "positions"}` : "No wallet yet"}
               </span>
               <button onClick={reset}>Reset</button>
             </div>

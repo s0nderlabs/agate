@@ -4,29 +4,41 @@
 // rows to fit eight names in the header and pushed the trade button below the fold; two ordered lines say the
 // same in a third of the height.
 import { AkashMark, OrnnMark } from "@/components/brand/Peers";
-import { median, peersFor } from "@/lib/mock/data";
+import { median, peersFor } from "@/lib/peers";
 import type { Market } from "@/lib/mock/types";
 import { usd } from "@/lib/format";
+import { readTodayText } from "./States";
 import s from "./pricemap.module.css";
 
 export function PriceMap({ market }: { market: Market }) {
-  const clouds = [...market.sources].sort((a, b) => Number(b.live) - Number(a.live) || a.price - b.price);
-  const live = clouds.filter((x) => x.live);
-  const mid = median(live.map((x) => x.price));
+  // today's readings, plus every panel slot without one (live data never lists the reserve, and before the first
+  // final day nothing has a price yet), so the panel always shows whole
+  const read = market.sources.map((x) => ({ family: x.family, price: x.price as number | null, live: x.live }));
+  const rest = market.panel.filter((p) => !read.some((x) => x.family === p.family)).map((p) => ({ family: p.family, price: null, live: p.live && !p.reserve }));
+  const clouds = [...read, ...rest].sort((a, b) => Number(b.live) - Number(a.live) || (a.price ?? 1e9) - (b.price ?? 1e9));
+  const live = clouds.filter((x) => x.live && x.price !== null);
+  const mid = median(live.map((x) => x.price!));
   const traded = peersFor(market.gpu).sort((a, b) => (a.price ?? 1e9) - (b.price ?? 1e9));
+  // the traded prices are fixed readings, not today's: their date shows in the text (a hover title never reaches a
+  // touch screen). One date for all of them goes once, after "display only"; otherwise beside each price
+  const dates = [...new Set(traded.filter((c) => c.price !== null).map((c) => c.asOf))];
+  const asOf = dates.length === 1 ? dates[0] : null;
+  // before the first final day: who is read today, in a sentence (the list below then shows "no price yet")
+  const before = market.priceDate === null ? readTodayText(market) : null;
   return (
     <div className={s.map}>
-      <span className={s.title}>Where {usd(market.price)} comes from</span>
+      <span className={s.title}>Where {market.priceDate === null ? "the index" : usd(market.price)} comes from</span>
+      {before && <p className={s.lead}>{before}</p>}
       <div className={s.rows}>
         <span className={s.rowLabel}>List prices</span>
         <ul className={s.items}>
           {clouds.map((x) => {
-            const isMid = x.live && Math.abs(x.price - mid) < 0.005;
+            const isMid = x.live && x.price !== null && Math.abs(x.price - mid) < 0.005;
             return (
               <li key={x.family} data-kind={!x.live ? "reserve" : isMid ? "index" : "cloud"}>
                 <i aria-hidden="true" />
                 <span>{x.family}</span>
-                <b>{x.live ? usd(x.price) : "not counted"}</b>
+                <b>{!x.live ? "not counted" : x.price === null ? "no price yet" : usd(x.price)}</b>
                 {isMid && <em>the index</em>}
               </li>
             );
@@ -43,9 +55,10 @@ export function PriceMap({ market }: { market: Market }) {
                     {c.name}
                   </a>
                   <b>{c.price === null ? "no trades yet" : usd(c.price)}</b>
+                  {c.price !== null && !asOf && <em>as of {c.asOf}</em>}
                 </li>
               ))}
-              <li data-kind="note">display only</li>
+              <li data-kind="note">display only{asOf ? `, as of ${asOf}` : ""}</li>
             </ul>
           </>
         )}

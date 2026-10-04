@@ -538,6 +538,10 @@ h3 {
   box-shadow: 0 40px 80px -30px rgb(0 0 0 / 0.45), inset 0 0 0 1px var(--line);
   animation: ag-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+/* the sheet itself takes focus when it opens (so Tab starts inside it); no ring around the whole sheet for that */
+.ag-sheet:focus-visible {
+  outline: none;
+}
 .ag-sheet h2 {
   font-family: var(--font-display);
   font-weight: 400;
@@ -609,13 +613,17 @@ h3 {
     background-position: -200% 0;
   }
 }
-.is-loading .ag-skel {
+/* .ag-skel shimmers while the whole screen loads (is-loading); .ag-skel-on marks a figure whose own read is still on
+   its way (the month's book or candles), so it is masked even after the screen has loaded */
+.is-loading .ag-skel,
+.ag-skel.ag-skel-on {
   color: transparent !important;
   background: linear-gradient(90deg, var(--well) 0%, var(--line) 50%, var(--well) 100%) 0 0 / 200% 100%;
   animation: ag-shimmer 1.4s linear infinite;
   border-radius: 10px;
 }
-.is-loading .ag-skel * {
+.is-loading .ag-skel *,
+.ag-skel.ag-skel-on * {
   visibility: hidden;
 }
 
@@ -635,7 +643,8 @@ h3 {
 }
 .ag-input,
 .ag-rows,
-.is-loading .ag-skel {
+.is-loading .ag-skel,
+.ag-skel.ag-skel-on {
   border-radius: var(--r-1);
 }
 
@@ -660,5 +669,102 @@ h3 {
 @media (prefers-reduced-motion: no-preference) {
   .ag-done path {
     animation: ag-draw 420ms cubic-bezier(0.23, 1, 0.32, 1) 140ms both;
+  }
+}
+
+/* ---------- phone and tablet layout (mock option "Phone and tablet layout": New) ----------
+   Every rule here is gated by data-phone="new" on the screen root (or Flow's backdrop) and sits below 1100 px,
+   except the touch rules at the end, which only match a coarse pointer and change nothing for a mouse. */
+:root {
+  /* the sticky top bar's height; phones use a shorter one */
+  --nav-h: 68px;
+}
+@keyframes ag-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@media (max-width: 639.98px) {
+  [data-phone="new"] {
+    --nav-h: 56px;
+  }
+  /* the bottom dock's height (the tab bar, plus the trade bar on the trade screen), so the page and fixed chrome
+     clear it; phones only, since tablets carry the places in the top bar */
+  html:has([data-phone="new"] [data-dock]) {
+    --dock-h: 52px;
+  }
+  html:has([data-phone="new"] [data-trade-bar]) {
+    --dock-h: 116px;
+  }
+  /* a focused field or link never ends up under the dock (WCAG 2.4.11) */
+  html:has([data-phone="new"] [data-dock]) {
+    scroll-padding-bottom: calc(var(--dock-h, 0px) + env(safe-area-inset-bottom));
+  }
+  /* the ticket sheet is open: the page behind it stays put */
+  html:has([data-phone="new"][data-ticket="open"]) {
+    overflow: hidden;
+  }
+
+  /* Flow sheets (sign in, review, notes, More) rise from the bottom edge, full width */
+  .ag-backdrop[data-phone="new"] {
+    padding: 0;
+    place-items: end stretch;
+  }
+  .ag-backdrop[data-phone="new"] .ag-sheet {
+    width: 100%;
+    border-radius: var(--r-2) var(--r-2) 0 0;
+    max-height: 92dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 26px max(20px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    animation: ag-sheet-in 280ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .ag-backdrop[data-phone="new"] .ag-btn--lg {
+    min-height: 52px;
+  }
+  .ag-backdrop[data-phone="new"][data-kind="info"] .ag-sheet h2 {
+    font-size: 24px;
+  }
+}
+@media (min-width: 640px) and (max-width: 1099.98px) {
+  .ag-backdrop[data-phone="new"] .ag-sheet {
+    max-height: 88dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .ag-backdrop[data-phone="new"] .ag-sheet[data-wide] {
+    width: min(560px, 100%);
+  }
+}
+@media (max-width: 1099.98px) {
+  html:has(.ag-backdrop[data-phone="new"]) {
+    overflow: hidden;
+  }
+  /* More: 52 px rows, 44 px segments */
+  .ag-backdrop[data-phone="new"][data-kind="more"] .ag-rows > div {
+    min-height: 52px;
+    align-items: center;
+    padding: 4px 0;
+  }
+  .ag-backdrop[data-phone="new"][data-kind="more"] .ag-seg > button {
+    min-height: 44px;
+  }
+}
+
+/* touch: no double-tap zoom delay or grey flash on controls; every field 16 px or more (no iOS zoom on focus) */
+@media (pointer: coarse) {
+  button,
+  a,
+  label,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
   }
 }

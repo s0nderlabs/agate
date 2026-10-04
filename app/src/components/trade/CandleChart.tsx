@@ -1,7 +1,7 @@
 "use client";
 // Hourly candles for the traded month. The index itself is one fix a day, so it has no candles;
 // the November token trades all day on Kuru, so it does. Volume sits under the candles.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Candle } from "@/lib/mock/market";
 import { Num } from "@/components/num/Num";
 import { int, usd } from "@/lib/format";
@@ -18,23 +18,59 @@ const hourLabel = (iso: string) => {
   return `${day}, ${String(d.getUTCHours()).padStart(2, "0")}:00`;
 };
 
-export function CandleChart({ candles: all, hours, kind = "candles", height = 360 }: { candles: Candle[]; hours: number; kind?: "candles" | "line"; height?: number | string }) {
-  const candles = useMemo(() => all.slice(-hours), [all, hours]);
+const HOUR = 3_600_000;
+
+/** startAt: when the month listed. The axis then runs one slot per hour from the listing (or `hours` back from the
+ * last candle, whichever is later) to the last candle, so the hours before its first trade, and any quiet hour, stay
+ * empty. Without it, the last `hours` candles side by side. */
+export function CandleChart({ candles: all, hours, kind = "candles", height = 360, startAt }: { candles: Candle[]; hours: number; kind?: "candles" | "line"; height?: number | string; startAt?: string }) {
+  const { candles, slots } = useMemo(() => {
+    const start = startAt ? Date.parse(startAt) : NaN;
+    const span = Math.max(1, Math.round(hours));
+    if (!Number.isFinite(start) || !all.length) {
+      const c = all.slice(-span);
+      return { candles: c as (Candle | null)[], slots: c.map((x) => Date.parse(x.t)) };
+    }
+    const hourOf = (iso: string) => Math.floor(Date.parse(iso) / HOUR) * HOUR;
+    const end = hourOf(all[all.length - 1].t);
+    const from = Math.min(end, Math.max(Math.floor(start / HOUR) * HOUR, end - (span - 1) * HOUR));
+    const byHour = new Map(all.map((c) => [hourOf(c.t), c]));
+    const slots: number[] = [];
+    for (let t = from; t <= end; t += HOUR) slots.push(t);
+    return { candles: slots.map((t) => byHour.get(t) ?? null), slots };
+  }, [all, hours, startAt]);
+  // the candles actually drawn (an empty hour has none)
+  const drawn = useMemo(() => candles.filter((c): c is Candle => c !== null), [candles]);
   const n = candles.length;
   const [hover, setHover] = useState<number | null>(null);
   const plotRef = useRef<HTMLDivElement>(null);
 
   const { lo, hi, ticks, vmax } = useMemo(() => {
-    const mn = Math.min(...candles.map((c) => c.l));
-    const mx = Math.max(...candles.map((c) => c.h));
+    // no trades yet: an empty plot, no scale
+    if (!drawn.length) return { lo: 0, hi: 1, ticks: [] as number[], vmax: 1 };
+    const mn = Math.min(...drawn.map((c) => c.l));
+    const mx = Math.max(...drawn.map((c) => c.h));
     const pad = (mx - mn) * 0.12 || 0.02;
     const st = niceStep(mx - mn + pad * 2);
     const lo = Math.floor((mn - pad) / st) * st;
     const hi = Math.ceil((mx + pad) / st) * st;
     const ticks: number[] = [];
     for (let v = lo; v <= hi + 1e-9; v += st) ticks.push(Math.round(v * 1000) / 1000);
-    return { lo, hi, ticks, vmax: Math.max(...candles.map((c) => c.v)) };
-  }, [candles]);
+    return { lo, hi, ticks, vmax: Math.max(...drawn.map((c) => c.v)) || 1 };
+  }, [drawn]);
+  // a touch readout stays pinned until a tap lands outside the plot
+  const pinned = hover !== null;
+  useEffect(() => {
+    if (!pinned) return;
+    const onDown = (e: PointerEvent) => {
+      if (!plotRef.current?.contains(e.target as Node)) setHover(null);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [pinned]);
+  // every hook sits above this line: with no candles the plot keeps its size and draws nothing (the state's own panel
+  // comes with live pass 2)
+  if (!n || !drawn.length) return <div className={s.wrap}><div className={s.chart} style={{ height }} /></div>;
 
   // price area takes the top 80%, volume the bottom 16%
   const slot = 1000 / n;
@@ -42,7 +78,9 @@ export function CandleChart({ candles: all, hours, kind = "candles", height = 36
   const Y = (p: number) => ((hi - p) / (hi - lo)) * 320;
   const VY = (v: number) => 400 - (v / vmax) * 64;
   const pct = (v: number, max: number) => `${(v / max) * 100}%`;
-  const last = candles[n - 1];
+  const last = drawn[drawn.length - 1];
+  // the line joins the hours that traded (index i is the slot)
+  const pts = candles.flatMap((c, i) => (c ? [{ c, i }] : []));
   const xTicks = [0, Math.round((n - 1) / 3), Math.round(((n - 1) * 2) / 3), n - 1];
 
   const onMove = (e: React.PointerEvent) => {
@@ -56,18 +94,26 @@ export function CandleChart({ candles: all, hours, kind = "candles", height = 36
   return (
     <div className={s.wrap}>
       <div className={s.chart} style={{ height }}>
-        <div ref={plotRef} className={s.plot} onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
+        <div
+          ref={plotRef}
+          className={s.plot}
+          onPointerMove={onMove}
+          // a finger: a tap pins the readout (a mouse keeps hover); it clears on a tap outside the plot
+          onPointerDown={(e) => e.pointerType !== "mouse" && onMove(e)}
+          onPointerLeave={(e) => e.pointerType === "mouse" && setHover(null)}
+        >
           <svg viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">
             {ticks.map((v) => (
               <line key={v} className={s.grid} x1={0} x2={1000} y1={Y(v)} y2={Y(v)} />
             ))}
             {kind === "line" && (
               <>
-                <path className={s.area} d={`${candles.map((c, i) => `${i ? "L" : "M"}${X(i).toFixed(2)},${Y(c.c).toFixed(2)}`).join(" ")} L${X(n - 1).toFixed(2)},320 L${X(0).toFixed(2)},320 Z`} />
-                <path className={s.line} d={candles.map((c, i) => `${i ? "L" : "M"}${X(i).toFixed(2)},${Y(c.c).toFixed(2)}`).join(" ")} />
+                <path className={s.area} d={`${pts.map(({ c, i }, k) => `${k ? "L" : "M"}${X(i).toFixed(2)},${Y(c.c).toFixed(2)}`).join(" ")} L${X(pts[pts.length - 1].i).toFixed(2)},320 L${X(pts[0].i).toFixed(2)},320 Z`} />
+                <path className={s.line} d={pts.map(({ c, i }, k) => `${k ? "L" : "M"}${X(i).toFixed(2)},${Y(c.c).toFixed(2)}`).join(" ")} />
               </>
             )}
             {candles.map((c, i) => {
+              if (!c) return null;
               const up = c.c >= c.o;
               if (kind === "line")
                 return <rect key={c.t} className={s.vol} x={X(i) - slot * 0.32} y={VY(c.v)} width={slot * 0.64} height={400 - VY(c.v)} />;
@@ -117,7 +163,7 @@ export function CandleChart({ candles: all, hours, kind = "candles", height = 36
       <div className={s.xaxis} aria-hidden="true">
         {xTicks.map((i, k) => (
           <span key={k} style={{ left: pct(X(i), 1000) }} data-edge={k === 0 ? "start" : k === xTicks.length - 1 ? "end" : undefined}>
-            {hourLabel(candles[i].t)}
+            {hourLabel(new Date(slots[i]).toISOString())}
           </span>
         ))}
       </div>

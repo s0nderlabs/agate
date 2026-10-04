@@ -1,14 +1,10 @@
 // Trade-screen mock data: index history with the texture of real list prices (flat for days, then a step
-// when one cloud reprices), the November book on Kuru, recent fills and the ticker strip.
+// when one cloud reprices), the November book on Kuru, recent fills and hourly candles. The example source
+// (lib/data/example.ts) serves these in the client's shapes; screens never call them directly.
 import type { DataState } from "./data";
-import type { Gpu, Market } from "./types";
+import type { BookLevel, Candle, Day, Fill, MarketGpu, Quote, Series } from "./types";
 
-export interface Day {
-  date: string;
-  price: number;
-  status: "final" | "carried";
-  example: boolean;
-}
+export type { BookLevel, Candle, Day, Fill } from "./types";
 
 function rng(seed: number) {
   let t = seed;
@@ -18,10 +14,10 @@ function rng(seed: number) {
   };
 }
 
-const SEED: Record<Gpu, number> = { H100: 41, H200: 59, B200: 73 };
+const SEED: Record<MarketGpu, number> = { H100: 41, H200: 59, B200: 73 };
 
 /** 120 days ending Oct 2 (the last final day). Walks backwards from today's real price. */
-export function indexHistory(gpu: Gpu, today: number, state: DataState = "live"): Day[] {
+export function indexHistory(gpu: MarketGpu, today: number, state: DataState = "normal"): Day[] {
   const r = rng(SEED[gpu]);
   const end = Date.UTC(2026, 9, 2);
   const n = 120;
@@ -45,31 +41,18 @@ export function indexHistory(gpu: Gpu, today: number, state: DataState = "live")
   return days;
 }
 
-export interface BookLevel {
-  price: number;
-  size: number; // GPU-hours
-}
-
 /** agate's market-maker bot on testnet: 3 levels each side, a tick apart, 1,000 / 2,000 / 4,000 GPU-hours, never
- * outside the floor and ceiling. */
-export function book(market: Market) {
-  const q = market.series[0].quote!;
-  const s0 = market.series[0];
+ * outside the floor and ceiling, around a listed month's quote. */
+export function book(series: Series) {
+  const q = series.quote!;
   const sizes = [1000, 2000, 4000];
-  const asks: BookLevel[] = sizes.map((size, i) => ({ price: Math.round((q.ask + i * 0.01) * 100) / 100, size })).filter((l) => l.price < s0.cap);
-  const bids: BookLevel[] = sizes.map((size, i) => ({ price: Math.round((q.bid - i * 0.01) * 100) / 100, size })).filter((l) => l.price > s0.floor);
+  const asks: BookLevel[] = sizes.map((size, i) => ({ price: Math.round((q.ask + i * 0.01) * 100) / 100, size })).filter((l) => l.price < series.cap);
+  const bids: BookLevel[] = sizes.map((size, i) => ({ price: Math.round((q.bid - i * 0.01) * 100) / 100, size })).filter((l) => l.price > series.floor);
   return { asks, bids, spread: Math.round((q.ask - q.bid) * 100) / 100 };
 }
 
-export interface Fill {
-  time: string;
-  side: "buy" | "sell";
-  price: number;
-  size: number;
-}
-
-export function recentFills(gpu: Gpu, market: Market): Fill[] {
-  const q = market.series[0].quote!;
+/** 14 fills, newest first, on Oct 3 before 06:00 UTC (the example's now). */
+export function recentFills(gpu: MarketGpu, q: Quote): Fill[] {
   const r = rng(SEED[gpu] + 13);
   let h = 5,
     m = 58;
@@ -80,54 +63,53 @@ export function recentFills(gpu: Gpu, market: Market): Fill[] {
       h -= 1;
     }
     const buy = r() < 0.55;
+    const time = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
     return {
-      time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+      time,
       side: buy ? "buy" : "sell",
       price: buy ? q.ask - (r() < 0.3 ? 0.01 : 0) : q.bid + (r() < 0.3 ? 0.01 : 0),
       size: Math.round(1 + r() * 5) * 240,
+      at: `2026-10-03T${time}:00Z`,
+      txHash: "",
     };
   });
 }
 
 /** Example day change of each November token, percent (shown in the market row and the header). */
-export function monthChangePct(gpu: Gpu) {
+export function monthChangePct(gpu: MarketGpu) {
   return { H100: 0.5, H200: -0.21, B200: 0.71 }[gpu];
-}
-
-export interface Candle {
-  /** ISO hour, UTC */
-  t: string;
-  o: number;
-  h: number;
-  l: number;
-  c: number;
-  /** GPU-hours traded */
-  v: number;
 }
 
 const rnd = (x: number) => Math.round(x * 1000) / 1000;
 
-/** Hourly candles for the November token since it listed (Oct 1, 00:00 UTC) up to now (Oct 3, 06:00 UTC). */
-export function novCandles(gpu: Gpu, market: Market): Candle[] {
-  const q = market.series[0].quote!;
+/** Hourly candles for the November token since it listed (Oct 1, 00:00 UTC) up to now (Oct 3, 06:00 UTC), ending on
+ * `last`. The close 24 hours before now is pinned to the example day change (monthChangePct), so the header's
+ * "today" line and the candles tell the same story, the way the live header derives it from the candles. */
+export function novCandles(gpu: MarketGpu, last: number): Candle[] {
   const r = rng(SEED[gpu] + 29);
   const start = Date.UTC(2026, 9, 1, 0);
   const n = 54;
   const out: Candle[] = [];
   // walk forward from a level a little under today's, ending on the current last trade
-  let p = q.last * 0.985;
+  let p = last * 0.985;
   for (let i = 0; i < n; i++) {
     const o = p;
-    const drift = (q.last - p) / Math.max(1, n - i);
-    const c = Math.max(o * 0.97, Math.min(o * 1.03, o + drift + (r() - 0.5) * q.last * 0.006));
-    const h = Math.max(o, c) + r() * q.last * 0.0035;
-    const l = Math.min(o, c) - r() * q.last * 0.0035;
+    const drift = (last - p) / Math.max(1, n - i);
+    const c = Math.max(o * 0.97, Math.min(o * 1.03, o + drift + (r() - 0.5) * last * 0.006));
+    const h = Math.max(o, c) + r() * last * 0.0035;
+    const l = Math.min(o, c) - r() * last * 0.0035;
     out.push({ t: new Date(start + i * 3600000).toISOString(), o: rnd(o), h: rnd(h), l: rnd(l), c: rnd(c), v: Math.round(1 + r() * 9) * 240 });
     p = c;
   }
-  const last = out[n - 1];
-  last.c = q.last;
-  last.h = Math.max(last.h, q.last);
-  last.l = Math.min(last.l, q.last);
+  const end = out[n - 1];
+  end.c = last;
+  end.h = Math.max(end.h, last);
+  end.l = Math.min(end.l, last);
+  // the hour that ended 24 hours before now (Oct 2, 05:00 to 06:00) closes where the day change says, and the next
+  // hour opens there
+  const k = n - 25;
+  const base = rnd(last / (1 + monthChangePct(gpu) / 100));
+  out[k] = { ...out[k], c: base, h: Math.max(out[k].h, base), l: Math.min(out[k].l, base) };
+  out[k + 1] = { ...out[k + 1], o: base, h: Math.max(out[k + 1].h, base), l: Math.min(out[k + 1].l, base) };
   return out;
 }

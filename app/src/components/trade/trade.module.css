@@ -756,6 +756,63 @@ button.bookRow:focus-visible {
   max-width: 56ch;
 }
 
+/* live states (States.tsx): one plain line in the area it belongs to, at body size. In the chart it fills the plot
+   and sits in the middle; in the header it starts at the left like the prices it stands in for. */
+.stateBox {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 24px 16px;
+  text-align: center;
+}
+.stateBox > p {
+  max-width: 46ch;
+}
+.stateBox[data-align="start"] {
+  height: auto;
+  place-content: start;
+  justify-items: start;
+  padding: 4px 0;
+  text-align: left;
+}
+.stateBtns {
+  display: grid;
+  gap: 8px;
+}
+.stateBtn {
+  font: inherit;
+  font-size: 16px;
+}
+.stateBtns > .stateBtn {
+  width: 100%;
+}
+@media (pointer: coarse) {
+  .stateBtn {
+    min-height: 48px;
+  }
+}
+/* the line under a waiting ticket's button (the sign-in invite): centered under it, like the ticket's own note */
+.ctaLine {
+  margin-top: -6px;
+  text-align: center;
+}
+/* a header value that is words, not a price ("Opens Oct 5", "None"): one size down, so it keeps to one line, and
+   its notes stack under it, so the month's figures keep their place beside the two cells */
+.bigPrice[data-words] {
+  font-size: clamp(36px, 3.6vw, 48px);
+  line-height: 1.15;
+}
+.priceBlock:has(> .bigPrice[data-words]) > .pSub {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.hsVal > b[data-words] {
+  font-size: 24px;
+}
+
 /* side colors: the trade button follows the side once you can trade ("Sign in to trade" stays ink), in the fill
    shade of the side's color (deeper than the text color in dark) */
 .cta[data-side="long"][data-gate="false"] {
@@ -1119,5 +1176,677 @@ button.bookRow:focus-visible {
   .seg > button:active,
   .ranges > button:active {
     transform: scale(0.96);
+  }
+}
+
+/* ======================================================================================================
+   Phone and tablet layout (mock option "Phone and tablet layout": New). Every rule is gated by
+   .screen[data-phone="new"] and sits below 1100 px, so the desktop layout and the Stacked option are untouched.
+   ====================================================================================================== */
+
+/* layout-neutral wrappers: no box of their own unless a phone or tablet rule gives them one */
+.ticketInner,
+.ctaBar {
+  display: contents;
+}
+/* new pieces: never shown on desktop; the rules below show each where it belongs */
+.statsPanel,
+.ptabs,
+.ticketHead,
+.ticketMode,
+.ticketScrim,
+.phoneAccount,
+.cardsWrap {
+  display: none;
+}
+/* Simple | Pro at the head of the ticket (phone sheet head, tablet ticket column): 15 px, 36 px visible, and a
+   44 px hit area on a touch screen. Its holders are hidden on desktop, so none of this reaches a mouse at 1100 px. */
+.modeSeg {
+  padding: 3px;
+}
+.modeSeg > button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 15px;
+}
+.modeSeg > button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+@media (pointer: coarse) {
+  .modeSeg > button::after {
+    content: "";
+    position: absolute;
+    inset: -7px 0;
+  }
+}
+/* the book's hint: "Click" for a mouse, "Tap" for a touch screen */
+.fineTouch {
+  display: none;
+}
+@media (hover: none) {
+  .fineMouse {
+    display: none;
+  }
+  .fineTouch {
+    display: inline;
+  }
+}
+
+/* the phone trade bar (shown by the dock's bar row on phones only): Long and Short with the price inside */
+.tradeBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 64px;
+  padding: 8px 16px;
+}
+.tradeBar > button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-1);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 400;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.tradeBar > button b {
+  font-weight: 500;
+}
+/* the ring sits outside the button, so it never lands on the fill */
+.tradeBar > button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+/* Filled (default, root data-pbar="fill"): the trade button's own fill, with the fill's ink. It follows the dark
+   "Deeper fill" option through data-dfill. */
+.screen[data-pbar="fill"] .tradeBar > button[data-side="long"] {
+  background: var(--up-fill);
+  color: var(--fill-ink);
+}
+.screen[data-pbar="fill"] .tradeBar > button[data-side="short"] {
+  background: var(--down-fill);
+  color: var(--fill-ink);
+}
+/* Tinted (?pbar=tint): the picked Long / Short of the ticket, a hairline ring in the side's color. The text is the
+   side's color pulled 15% toward the ink, so it reads at 4.5:1 or more on its tint in light and in dark. */
+.screen[data-pbar="tint"] .tradeBar > button[data-side="long"] {
+  background: color-mix(in oklch, var(--up) 11%, var(--bg));
+  color: color-mix(in oklch, var(--up) 85%, var(--ink));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--up) 28%, transparent);
+}
+.screen[data-pbar="tint"] .tradeBar > button[data-side="short"] {
+  background: color-mix(in oklch, var(--down) 10%, var(--bg));
+  color: color-mix(in oklch, var(--down) 85%, var(--ink));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--down) 28%, transparent);
+}
+/* one plain button for the live states (opens soon, empty book, price only) */
+.tradeBar > .tbOne {
+  flex: 1 1 100%;
+  background: var(--well);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.tbNote {
+  flex: 1 1 auto;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.tbNote + .tbOne {
+  flex: 0 0 auto;
+  padding: 0 18px;
+}
+.screen[data-pbar] .tradeBar > button[data-side]:disabled,
+.tradeBar > button:disabled {
+  background: var(--well);
+  color: var(--mute);
+  box-shadow: none;
+  cursor: default;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tradeBar > button {
+    transition: transform 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .tradeBar > button:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+/* positions and orders as cards (phones in Pro, and the Positions page) */
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.card {
+  display: grid;
+  gap: 2px;
+  min-height: 56px;
+  padding: 14px 0;
+}
+.card + .card {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 16px;
+}
+.cardTop > b {
+  font-weight: 500;
+}
+.cardPnl {
+  font-size: 17px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.cardLine {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.cardQuiet {
+  font-size: 15px;
+  color: var(--mute);
+}
+.cardCancel {
+  flex: none;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 4px;
+  margin: -10px -4px -10px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* touch: small text buttons keep their look and get an invisible 44 px hit area (nothing here matches a mouse). A
+   21.8 px line plus 12 px above and below, so it clears 44 with no sub-pixel shortfall */
+@media (pointer: coarse) {
+  .tipBtn,
+  .textBtn,
+  .cancel {
+    position: relative;
+  }
+  .tipBtn::after,
+  .textBtn::after,
+  .cancel::after {
+    content: "";
+    position: absolute;
+    inset: -12px -6px;
+  }
+}
+
+/* ---------- below the desktop layout (phones and tablets) ---------- */
+@media (max-width: 1099.98px) {
+  /* notes open as sheets here, so the floating note never shows */
+  .screen[data-phone="new"] .tip {
+    display: none;
+  }
+  /* room for a notch in landscape */
+  .screen[data-phone="new"] .panel {
+    padding-left: max(var(--panel-pad), env(safe-area-inset-left));
+    padding-right: max(var(--panel-pad), env(safe-area-inset-right));
+  }
+  /* touch-size controls */
+  .screen[data-phone="new"] .seriesTabs button,
+  .screen[data-phone="new"] .ranges button,
+  .screen[data-phone="new"] .bandToggle,
+  .screen[data-phone="new"] .amountChips > button,
+  .screen[data-phone="new"] .tabs button {
+    min-height: 44px;
+  }
+  /* short labels ("Index", "All", "1W") still get a 44 px wide target */
+  .screen[data-phone="new"] .seriesTabs button,
+  .screen[data-phone="new"] .ranges button {
+    min-width: 44px;
+  }
+  .screen[data-phone="new"] button.bookRow,
+  .screen[data-phone="new"] .bookCols {
+    min-height: 44px;
+    align-items: center;
+  }
+  .screen[data-phone="new"] .unitSeg > button {
+    min-height: 32px;
+    position: relative;
+  }
+  .screen[data-phone="new"] .unitSeg > button::after {
+    content: "";
+    position: absolute;
+    inset: -6px 0;
+  }
+  .screen[data-phone="new"] .toggle {
+    min-height: 56px;
+  }
+  .screen[data-phone="new"] .cta {
+    min-height: 52px;
+  }
+  /* the trade button and its line stay pinned to the bottom of the ticket while it scrolls */
+  .screen[data-phone="new"] .ctaBar {
+    display: grid;
+    gap: 14px;
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    background: var(--panel);
+    box-shadow: 0 -1px 0 var(--line);
+    padding: 12px 0;
+  }
+}
+
+/* ---------- phones (below 640 px) ---------- */
+@media (max-width: 639.98px) {
+  .screen[data-phone="new"] {
+    --panel-pad: 16px;
+  }
+  /* one calm column; the ticket leaves the flow and becomes a sheet */
+  .screen[data-phone="new"] .grid {
+    grid-template-areas: "head" "chart" "stats";
+  }
+  .screen[data-phone="new"][data-ptab="book"] .grid[data-pro="true"],
+  .screen[data-phone="new"][data-ptab="trades"] .grid[data-pro="true"] {
+    grid-template-areas: "head" "chart" "stats" "ptabs" "book";
+  }
+  .screen[data-phone="new"][data-ptab="positions"] .grid[data-pro="true"],
+  .screen[data-phone="new"][data-ptab="orders"] .grid[data-pro="true"] {
+    grid-template-areas: "head" "chart" "stats" "ptabs" "bottom";
+  }
+  .screen[data-phone="new"][data-ptab="book"] .bottomPanel,
+  .screen[data-phone="new"][data-ptab="trades"] .bottomPanel,
+  .screen[data-phone="new"][data-ptab="positions"] .bookPanel,
+  .screen[data-phone="new"][data-ptab="orders"] .bookPanel,
+  .screen[data-phone="new"][data-ptab="book"] .bookPanel .trades,
+  .screen[data-phone="new"][data-ptab="trades"] .bookPanel .book {
+    display: none;
+  }
+
+  /* header, Simple: the two prices side by side, each with its change line and its tap target under it */
+  .screen[data-phone="new"] .headPanel {
+    padding-top: 12px;
+    padding-bottom: 8px;
+  }
+  .screen[data-phone="new"] .hsRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 16px;
+    overflow: visible;
+  }
+  .screen[data-phone="new"] .hsRow > .hsGrid {
+    display: none;
+  }
+  .screen[data-phone="new"] .bigPrice {
+    font-size: clamp(34px, 10.5vw, 44px);
+  }
+  .screen[data-phone="new"] .bigPrice[data-words] {
+    font-size: clamp(22px, 6.4vw, 30px);
+  }
+  .screen[data-phone="new"] .pSub {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .screen[data-phone="new"] .pSub > em {
+    font-size: 15px;
+  }
+  .screen[data-phone="new"] .pSub .tipBtn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  /* header, Pro: four figures in two columns; the month's figures move to the stats panel */
+  .screen[data-phone="new"] .headPanel:has(> .hStrip) {
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+  .screen[data-phone="new"] .hStrip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px 16px;
+    overflow: visible;
+  }
+  .screen[data-phone="new"] .hStrip > .hsCell {
+    min-width: 0;
+  }
+  .screen[data-phone="new"] .hStrip > .hsCell:nth-child(n + 5) {
+    display: none;
+  }
+  .screen[data-phone="new"] .hsCell::before {
+    display: none;
+  }
+  .screen[data-phone="new"] .hsVal > b {
+    font-size: 30px;
+  }
+  /* live states: the month's figures stay in the stats panel however many cells the header has (Against the index
+     is left out while the month has no price); a value in words wraps its note under it instead of running off */
+  .screen[data-phone="new"] .hStrip > .hsCell[data-stat] {
+    display: none;
+  }
+  .screen[data-phone="new"] .hStrip > .hsCell {
+    white-space: normal;
+  }
+  .screen[data-phone="new"] .hStrip .hsVal {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .screen[data-phone="new"] .hsVal > b[data-words] {
+    font-size: 24px;
+  }
+
+  /* chart: tabs on top, the plot full width at a height set by the width (the keyboard never resizes it), then
+     the range buttons as one full-width row */
+  .screen[data-phone="new"] .chartBar,
+  .screen[data-phone="new"] .barLeft,
+  .screen[data-phone="new"] .barRight {
+    display: contents;
+  }
+  .screen[data-phone="new"] .chartPanel {
+    display: flex;
+    flex-flow: row wrap;
+    align-content: flex-start;
+    gap: 12px 8px;
+  }
+  .screen[data-phone="new"] .seriesTabs {
+    order: 0;
+    flex: 0 0 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    box-shadow: inset 0 -1px 0 var(--line);
+  }
+  .screen[data-phone="new"] .chartBody {
+    order: 1;
+    flex: 0 0 100%;
+    height: clamp(200px, 60vw, 280px);
+    min-height: 0;
+  }
+  .screen[data-phone="new"] .ranges {
+    order: 2;
+    flex: 1 1 140px;
+    display: flex;
+  }
+  .screen[data-phone="new"] .ranges button {
+    flex: 1 1 0;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .screen[data-phone="new"] .bandToggle {
+    order: 3;
+    flex: 0 0 100%;
+  }
+  .screen[data-phone="new"] .legend {
+    order: 4;
+    flex: 0 0 100%;
+    margin-top: 0;
+  }
+
+  /* the month's four figures, under the chart: two columns, each label opens its note as a sheet */
+  .screen[data-phone="new"] .statsPanel {
+    display: block;
+    grid-area: stats;
+  }
+  .screen[data-phone="new"] .statsPanel .hsGrid {
+    grid-auto-flow: row;
+    grid-template-rows: none;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px 16px;
+  }
+  .screen[data-phone="new"] .statsPanel .hsGrid::before {
+    display: none;
+  }
+  .screen[data-phone="new"] .statsPanel .hsGrid > div {
+    padding: 0;
+    box-shadow: none;
+  }
+  .screen[data-phone="new"] .statsPanel .hsGrid dd {
+    font-size: 19px;
+    white-space: normal;
+  }
+
+  /* Pro: Book | Trades | Positions | Orders, one at a time */
+  .screen[data-phone="new"] .ptabs {
+    display: block;
+    grid-area: ptabs;
+    padding-top: 4px;
+    padding-bottom: 0;
+  }
+  .screen[data-phone="new"] .ptabs .tabs {
+    gap: 16px;
+  }
+  .screen[data-phone="new"] .ptabs .tabs button {
+    padding-bottom: 0;
+    min-width: 44px;
+  }
+  .screen[data-phone="new"] .tradesList {
+    flex: none;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+  .screen[data-phone="new"][data-ptab="trades"] .trades {
+    margin-top: 0;
+  }
+  .screen[data-phone="new"] .bottom > .tabs,
+  .screen[data-phone="new"] .bottom .tableWrap {
+    display: none;
+  }
+  .screen[data-phone="new"] .cardsWrap {
+    display: block;
+  }
+  .screen[data-phone="new"][data-ptab="positions"] .phoneAccount {
+    display: block;
+  }
+  .screen[data-phone="new"] .phoneAccount .account {
+    margin: 0 0 4px;
+    padding: 0 0 18px;
+    box-shadow: inset 0 -1px 0 var(--line);
+  }
+
+  /* the ticket as a bottom sheet: the same aside, so a typed amount survives closing */
+  .screen[data-phone="new"] .ticketPanel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: var(--kb, 0px);
+    grid-area: auto;
+    z-index: 70;
+    max-height: calc(92dvh - var(--kb, 0px));
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+    background: var(--card);
+    --panel: var(--card);
+    border-radius: var(--r-2) var(--r-2) 0 0;
+    box-shadow: 0 -1px 0 var(--line), 0 -24px 48px -24px rgb(0 0 0 / 0.25);
+    transform: translateY(100%);
+    visibility: hidden;
+    transition:
+      transform 220ms cubic-bezier(0.32, 0, 0.67, 0),
+      visibility 0s linear 220ms;
+  }
+  .screen[data-phone="new"][data-ticket="open"] .ticketPanel {
+    transform: none;
+    visibility: visible;
+    transition:
+      transform 300ms cubic-bezier(0.23, 1, 0.32, 1),
+      visibility 0s;
+  }
+  /* the sheet's head: Simple | Pro on the left (in line with the ticket's 16 px edge), the close X on the right.
+     52 px, so the 36 px switch keeps 8 px from the sheet's edge and from the ticket's first line */
+  .screen[data-phone="new"] .ticketHead {
+    display: flex;
+    flex: none;
+    height: 52px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 max(4px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  }
+  .screen[data-phone="new"] .sheetClose {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: none;
+    color: var(--ink-2);
+    border-radius: var(--r-1);
+    cursor: pointer;
+  }
+  .screen[data-phone="new"] .sheetClose:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: -2px;
+  }
+  .screen[data-phone="new"] .ticketInner {
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  }
+  .screen[data-phone="new"] .ctaBar {
+    padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+  }
+  .screen[data-phone="new"] .ticketScrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 69;
+    background: rgb(15 15 16 / 0.36);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+  .screen[data-phone="new"][data-ticket="open"] .ticketScrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .screen[data-phone="new"] .ticketPanel .account {
+    display: none;
+  }
+  /* inside the sheet: a bigger amount, three equal chips on their own row */
+  .screen[data-phone="new"] .amountBox > input,
+  .screen[data-phone="new"] .amountPre {
+    font-size: clamp(40px, 12vw, 52px);
+  }
+  .screen[data-phone="new"] .amountRow {
+    flex-wrap: wrap;
+    font-size: 15px;
+  }
+  .screen[data-phone="new"] .amountChips {
+    flex: 0 0 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .screen[data-phone="new"] .amountChips > button {
+    font-size: 15px;
+  }
+  /* the page ends above the dock (trade bar and tabs) */
+  .screen[data-phone="new"] {
+    padding-bottom: calc(var(--dock-h, 0px) + env(safe-area-inset-bottom));
+  }
+}
+
+/* tablets below 1024 px: Simple | Pro heads the ticket column, since the compact top bar has no switch */
+@media (min-width: 640px) and (max-width: 1023.98px) {
+  .screen[data-phone="new"] .ticketMode {
+    display: flex;
+    margin-bottom: 16px;
+  }
+}
+
+/* ---------- tablets (640 to 1099 px): chart left, ticket right, the trade button always in view ---------- */
+@media (min-width: 640px) and (max-width: 1099.98px) {
+  .screen[data-phone="new"] .grid {
+    grid-template-columns: minmax(0, 1fr) clamp(340px, 38vw, 380px);
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "head ticket" "chart ticket";
+  }
+  .screen[data-phone="new"] .grid[data-pro="true"] {
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas: "head ticket" "chart ticket" "book ticket" "bottom bottom";
+  }
+  .screen[data-phone="new"] .ticketInner {
+    display: block;
+    position: sticky;
+    top: var(--nav-h);
+    max-height: calc(100dvh - 164px - var(--dock-h, 0px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-2) transparent;
+  }
+  .screen[data-phone="new"] .chartBody {
+    min-height: clamp(240px, 34vh, 400px);
+  }
+  /* the month's figures on their own row as two columns, so nothing clips in the narrower chart column */
+  .screen[data-phone="new"] .hsRow > .hsGrid {
+    flex-basis: 100%;
+    grid-auto-flow: row;
+    grid-template-rows: none;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px 24px;
+  }
+  .screen[data-phone="new"] .hsRow > .hsGrid::before {
+    display: none;
+  }
+  .screen[data-phone="new"] .hsRow > .hsGrid > div {
+    padding: 0;
+    box-shadow: none;
+  }
+  .screen[data-phone="new"] .hsRow > .hsGrid dd {
+    white-space: normal;
+  }
+  /* Pro: recent trades without a nested scroll, eight rows */
+  .screen[data-phone="new"] .tradesList {
+    flex: none;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+  .screen[data-phone="new"] .tradesList > .tradeRow:nth-child(n + 9) {
+    display: none;
+  }
+}
+@media (min-width: 900px) and (max-width: 1099.98px) {
+  .screen[data-phone="new"] .bookPanel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0 24px;
+    align-items: start;
+  }
+  .screen[data-phone="new"] .bookPanel .trades {
+    margin-top: 0;
+  }
+}
+/* short landscape (a phone on its side): the ticket column sticks to the very top; its height leaves room for the
+   panel's top padding, so the trade button clears the dock as soon as the column reaches the top */
+@media (min-width: 640px) and (max-width: 1099.98px) and (max-height: 500px) {
+  .screen[data-phone="new"] .ticketInner {
+    top: 0;
+    max-height: calc(100dvh - var(--dock-h, 0px) - var(--panel-pad));
   }
 }

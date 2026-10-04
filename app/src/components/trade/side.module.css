@@ -54,3 +54,17 @@
 .toggle > button[aria-pressed="true"] span {
   color: inherit;
 }
+
+/* phones and tablets, new layout: label and price on one line in a 52 px button, like the phone trade bar */
+@media (max-width: 1099.98px) {
+  :global([data-phone="new"]) .toggle > button {
+    grid-auto-flow: column;
+    justify-content: center;
+    align-items: baseline;
+    gap: 8px;
+    padding: 13px 0 14px;
+  }
+  :global([data-phone="new"]) .toggle b {
+    font-size: 17px;
+  }
+}

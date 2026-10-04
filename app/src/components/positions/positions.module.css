@@ -1,0 +1,85 @@
+/* Positions, first cut: one centered column, flat sections split by hairlines, the trade screen's tokens. */
+.screen {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+}
+.main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+  display: grid;
+  gap: 0;
+}
+.head {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 24px;
+}
+.label {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.balance {
+  font-size: clamp(44px, 13vw, 56px);
+  font-weight: 300;
+  line-height: 1;
+}
+.title {
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.lead {
+  font-size: 16px;
+  color: var(--ink-2);
+  max-width: 56ch;
+  text-wrap: pretty;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+.actions > :global(.ag-btn) {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.section {
+  display: grid;
+  gap: 4px;
+  padding-top: 22px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.section h2 {
+  font-size: 17px;
+  font-weight: 500;
+}
+.empty {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 14px 0 8px;
+  color: var(--ink-2);
+}
+.empty a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* the page ends above the phone's bottom tabs */
+@media (max-width: 639.98px) {
+  .screen[data-phone="new"] {
+    padding-bottom: calc(var(--dock-h, 0px) + env(safe-area-inset-bottom));
+  }
+}

@@ -8,6 +8,13 @@
   font-size: 15px;
   color: var(--ink-2);
 }
+/* before the index's first final day: who is read today, one sentence over the list */
+.lead {
+  font-size: 15px;
+  color: var(--ink-2);
+  max-width: 60ch;
+  text-wrap: pretty;
+}
 .rows {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -173,4 +180,56 @@
   text-decoration: underline;
   text-decoration-color: var(--line-2);
   text-underline-offset: 3px;
+}
+
+/* the same contents as a sheet (phones and tablets): the sheet's heading carries the title, rows stack */
+.sheetMap {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.sheetMap .title {
+  display: none;
+}
+.sheetMap .rows {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+.sheetMap .rowLabel {
+  margin-top: 6px;
+}
+.sheetMap .items {
+  gap: 6px 18px;
+}
+
+/* phone, new layout: the header trigger is a full 44 px row */
+@media (max-width: 639.98px) {
+  :global([data-phone="new"]) .trigger {
+    min-height: 44px;
+  }
+}
+
+/* touch: small text links keep their look and get an invisible 44 px hit area */
+@media (pointer: coarse) {
+  .trigger,
+  .popFoot a,
+  .items li[data-kind="traded"] a {
+    position: relative;
+  }
+  .trigger::after,
+  .popFoot a::after,
+  .items li[data-kind="traded"] a::after {
+    content: "";
+    position: absolute;
+    inset: -11px -6px;
+  }
+  /* "5 of 5 clouds" and the traded names sit on a 21.8 px line, the footer link on an 18 px one: enough above and
+     below to clear 44 */
+  .trigger::after,
+  .items li[data-kind="traded"] a::after {
+    inset: -12px -6px;
+  }
+  .popFoot a::after {
+    inset: -14px -6px;
+  }
 }

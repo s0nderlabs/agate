@@ -7,21 +7,30 @@ import type { Side } from "@/lib/mock/types";
 import { usd } from "@/lib/format";
 import t from "./side.module.css";
 
-export function SideToggle({ side, onSide, ask, bid }: { side: Side; onSide: (s: Side) => void; ask: number; bid: number }) {
+/** ask / bid null: that side has no price to show (the month is not open yet, or nobody is selling or buying), so
+ * the half carries its label only. skel: the prices are on their way (the markets read or the month's book), so a
+ * skeleton masked on its own: the screen may have loaded while the book has not. */
+export function SideToggle({ side, onSide, ask, bid, skel = false }: { side: Side; onSide: (s: Side) => void; ask: number | null; bid: number | null; skel?: boolean }) {
   const L = side === "long";
+  const price = (p: number | null) =>
+    skel ? (
+      <span className="ag-skel ag-skel-on" aria-hidden="true">
+        $0.00
+      </span>
+    ) : p === null ? null : (
+      <span>
+        <Num>{usd(p)}</Num>
+      </span>
+    );
   return (
     <div className={t.toggle} role="group" aria-label="Side">
       <button aria-pressed={L} data-side="long" onClick={() => onSide("long")}>
         <b>Long</b>
-        <span>
-          <Num>{usd(ask)}</Num>
-        </span>
+        {price(ask)}
       </button>
       <button aria-pressed={!L} data-side="short" onClick={() => onSide("short")}>
         <b>Short</b>
-        <span>
-          <Num>{usd(bid)}</Num>
-        </span>
+        {price(bid)}
       </button>
     </div>
   );

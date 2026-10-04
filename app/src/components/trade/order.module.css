@@ -351,3 +351,73 @@
     transform: scale(0.96);
   }
 }
+
+/* the trade button and the line under it: no box of their own on desktop (display: contents keeps today's grid);
+   on phones and tablets in the new layout they stay pinned to the bottom of the ticket while it scrolls */
+.ctaBar {
+  display: contents;
+}
+@media (max-width: 1099.98px) {
+  :global([data-phone="new"]) .ctaBar {
+    display: grid;
+    gap: 12px;
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    background: var(--panel);
+    box-shadow: 0 -1px 0 var(--line);
+    padding: 12px 0;
+  }
+  /* touch-size controls below the desktop layout */
+  :global([data-phone="new"]) .typeTabs > button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  :global([data-phone="new"]) .input {
+    min-height: 48px;
+  }
+  :global([data-phone="new"]) .chips > button {
+    min-height: 44px;
+  }
+  :global([data-phone="new"]) .check {
+    min-height: 44px;
+  }
+  :global([data-phone="new"]) .cta {
+    min-height: 52px;
+  }
+}
+@media (max-width: 639.98px) {
+  :global([data-phone="new"]) .ctaBar {
+    padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+/* touch: 16 px fields (no iOS zoom), a 44 px slider with a bigger thumb, invisible 44 px hit areas on small text
+   buttons; nothing here matches a mouse */
+@media (pointer: coarse) {
+  .pct {
+    min-height: 44px;
+  }
+  .pct > input {
+    font-size: 16px;
+  }
+  .slider input[type="range"] {
+    height: 44px;
+  }
+  .slider input[type="range"]::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+    margin-top: -10.5px;
+  }
+  .unit,
+  .linkBtn {
+    position: relative;
+  }
+  /* a 21.8 px line plus 12 px above and below: 44 with no sub-pixel shortfall */
+  .unit::after,
+  .linkBtn::after {
+    content: "";
+    position: absolute;
+    inset: -12px -6px;
+  }
+}

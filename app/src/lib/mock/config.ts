@@ -1,7 +1,7 @@
 // Mock-controls state, shared by the server page (reads the URL) and the client provider. Only the app's own
 // states live here (Simple/Pro, theme, GPU, sign-in, data states). A design option joins while it is being judged,
 // then the verdict is baked in and the option removed (clean slate Oct 4; earlier rounds are in git, 724577e).
-import type { DataState } from "./data";
+import { DATA_STATES, type DataState } from "./data";
 import type { Gpu } from "./types";
 
 export interface MockConfig {
@@ -13,7 +13,13 @@ export interface MockConfig {
   auth: "out" | "in";
   data: DataState;
   gpu: Gpu;
+  /** where the numbers come from: the example data (with its states) or the live testnet through @agate/client */
+  source: "example" | "live";
   dock: "open" | "closed";
+  /** phone and tablet layout being judged: the new one (bottom tabs, trade bar, ticket as a sheet) or the stacked one from before */
+  phone: "new" | "stacked";
+  /** the phone trade bar's Long and Short: tinted like the picked side in the ticket, or filled like the trade button */
+  pbar: "tint" | "fill";
 }
 
 /** Mock controls (the side panel and the states it sets): on in `next dev`, off in a production build.
@@ -21,7 +27,10 @@ export interface MockConfig {
 const flag = process.env.NEXT_PUBLIC_MOCK_CONTROLS;
 export const MOCK_CONTROLS = flag === "on" || (flag !== "off" && process.env.NODE_ENV !== "production");
 
-export const DEFAULT_CONFIG: MockConfig = { dfill: "deep", mode: "simple", theme: "light", auth: "out", data: "live", gpu: "H100", dock: "closed" };
+// source: example data by default while the live empty states are reviewed (flip to "live" once November lists);
+// a build without Mock controls is always live, so its links never carry ?source. pbar: filled, the research
+// pick (Oct 4: every persistent trade bar measured is filled; tint keeps meaning "picked side" inside the ticket)
+export const DEFAULT_CONFIG: MockConfig = { dfill: "deep", mode: "simple", theme: "light", auth: "out", data: "normal", gpu: "H100", source: MOCK_CONTROLS ? "example" : "live", dock: "closed", phone: "new", pbar: "fill" };
 
 export function parseConfig(sp: Record<string, string | string[] | undefined>): MockConfig {
   const pick = <T extends string>(k: string, allowed: readonly T[], d: T): T => {
@@ -34,14 +43,19 @@ export function parseConfig(sp: Record<string, string | string[] | undefined>): 
     mode: pick("mode", ["simple", "pro"] as const, DEFAULT_CONFIG.mode),
     theme: pick("theme", ["light", "dark"] as const, DEFAULT_CONFIG.theme),
     auth: pick("auth", ["out", "in"] as const, DEFAULT_CONFIG.auth),
-    data: pick("data", ["live", "loading", "degraded", "carried"] as const, DEFAULT_CONFIG.data),
-    gpu: pick("gpu", ["H100", "H200", "B200"] as const, DEFAULT_CONFIG.gpu),
+    data: pick("data", DATA_STATES, DEFAULT_CONFIG.data),
+    gpu: pick("gpu", ["H100", "H200", "B200", "B300", "A100", "L40S"] as const, DEFAULT_CONFIG.gpu),
+    source: pick("source", ["example", "live"] as const, DEFAULT_CONFIG.source),
     dock: pick("dock", ["open", "closed"] as const, DEFAULT_CONFIG.dock),
+    phone: pick("phone", ["new", "stacked"] as const, DEFAULT_CONFIG.phone),
+    pbar: pick("pbar", ["fill", "tint"] as const, DEFAULT_CONFIG.pbar),
   };
+  // a build without the controls (a hosted one) shows live data only: example numbers can never reach it from a link
+  if (!MOCK_CONTROLS) all.source = "live";
   // without the controls, options being judged stay at their default and the made-up data states and the panel
   // cannot be opened from a link
   const D = DEFAULT_CONFIG;
-  return MOCK_CONTROLS ? all : { ...all, dfill: D.dfill, data: D.data, dock: D.dock };
+  return MOCK_CONTROLS ? all : { ...all, dfill: D.dfill, data: D.data, dock: D.dock, phone: D.phone, pbar: D.pbar };
 }
 
 /** The mock state as a query string (defaults left out), so links between screens keep what is being judged. */

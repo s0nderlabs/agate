@@ -177,3 +177,20 @@
   font-size: 13.5px;
   color: var(--ink-2);
 }
+
+/* phone, new layout: the plot takes the width (a narrower price axis) and its height comes from the panel */
+@media (max-width: 639.98px) {
+  :global([data-phone="new"]) .chart {
+    grid-template-columns: minmax(0, 1fr) 52px;
+    min-height: 0;
+  }
+  :global([data-phone="new"]) .xaxis {
+    margin-right: 52px;
+  }
+}
+/* narrow phones: hourly labels are long, so the month chart keeps only the first and last */
+@media (max-width: 479.98px) {
+  :global([data-phone="new"]) :global([data-series="month"]) .xaxis > span:not([data-edge]) {
+    display: none;
+  }
+}
