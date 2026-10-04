@@ -14,139 +14,21 @@
 }
 
 /* header: the two prices only agate has, side by side, and the month's band */
-.head {
-  padding: clamp(18px, 2.4vw, 28px) clamp(16px, 2.4vw, 32px) clamp(18px, 2.2vw, 26px);
-  display: grid;
-  gap: 22px 48px;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: end;
-}
-@media (min-width: 760px) {
-  .head {
-    grid-template-columns: auto auto;
-    justify-content: start;
-  }
-}
-@media (min-width: 1180px) {
-  .head {
-    grid-template-columns: auto auto minmax(280px, 1fr);
-  }
-}
+
 /* the month's market stats: their own row until there is room beside the outlook, then at the right edge */
-.statsCell {
-  grid-column: 1 / -1;
-  min-width: 0;
-}
+
 @media (min-width: 1400px) {
-  .head[data-stats="true"]:not([data-map="true"]) {
-    grid-template-columns: auto auto minmax(280px, 440px) minmax(0, 1fr);
-  }
+  
   /* beside the prices: full height of the header row, dividers top to bottom, figures centred in it */
-  .head[data-stats="true"]:not([data-map="true"]) .statsCell {
-    grid-column: auto;
-    justify-self: end;
-    align-self: stretch;
-    display: flex;
-  }
-  .head[data-stats="true"]:not([data-map="true"]) .stats {
-    align-items: stretch;
-    padding-bottom: 0;
-  }
-  .head[data-stats="true"]:not([data-map="true"]) .stats > div {
-    align-content: center;
-    gap: 6px;
-  }
-  .head[data-stats="true"]:not([data-map="true"]) .stats dd {
-    font-size: 19px;
-  }
+  
+  
+  
+  
 }
 /* "Numbers together": the two prices, then the month's stats, then the sentence at the right edge */
-@media (min-width: 1400px) {
-  .head[data-order="numbers"][data-stats="true"]:not([data-map="true"]) {
-    grid-template-columns: auto auto auto minmax(0, 1fr);
-  }
-  .head[data-order="numbers"][data-stats="true"]:not([data-map="true"]) .statsCell {
-    order: 3;
-    justify-self: start;
-  }
-  .head[data-order="numbers"][data-stats="true"]:not([data-map="true"]) .outlook {
-    order: 4;
-    justify-self: end;
-    max-width: 420px;
-  }
-}
-.stats {
-  display: flex;
-  flex-wrap: wrap;
-  margin: 0;
-  padding-bottom: 2px;
-}
-.stats > div {
-  display: grid;
-  gap: 4px;
-  padding: 0 22px;
-  box-shadow: inset 1px 0 0 var(--line);
-}
-.stats > div:first-child {
-  padding-left: 0;
-  box-shadow: none;
-}
-@media (min-width: 1400px) {
-  .head[data-stats="true"]:not([data-map="true"]) .stats > div:first-child {
-    padding-left: 22px;
-    box-shadow: inset 1px 0 0 var(--line);
-  }
-  .head[data-stats="true"]:not([data-map="true"]) .stats > div:last-child {
-    padding-right: 0;
-  }
-}
-.stats dt {
-  font-size: 15px;
-  color: var(--ink-2);
-}
-.stats dd {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-.srcLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--mute);
-  text-decoration: underline;
-  text-decoration-color: var(--line-2);
-  text-underline-offset: 4px;
-}
-.srcLink > i {
-  width: 7px;
-  height: 7px;
-  border-radius: var(--r-mark);
-  background: var(--mute);
-}
-.srcLink > i[data-ok="true"] {
-  background: var(--ink);
-}
-@media (hover: hover) and (pointer: fine) {
-  .srcLink:hover {
-    color: var(--ink-2);
-  }
-}
 
 /* with the price line in the header: its own row until there is room beside the outlook */
-.mapCell {
-  grid-column: 1 / -1;
-  min-width: 0;
-}
-@media (min-width: 1500px) {
-  .head[data-map="true"] {
-    grid-template-columns: auto auto minmax(280px, 360px) minmax(0, 1fr);
-  }
-  .head[data-map="true"] .mapCell {
-    grid-column: auto;
-  }
-}
+
 .priceBlock {
   display: grid;
   gap: 6px;
@@ -161,9 +43,6 @@
   font-weight: 300;
   line-height: 1;
   letter-spacing: -0.01em;
-}
-.screen[data-style="simple"] .bigPrice {
-  font-size: clamp(52px, 6vw, 76px);
 }
 .pSub {
   display: flex;
@@ -183,202 +62,15 @@
 .pSub em.down {
   color: var(--down);
 }
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.status i {
-  width: 7px;
-  height: 7px;
-  border-radius: var(--r-mark);
-  background: var(--mute);
-}
-.status i[data-ok="true"] {
-  background: var(--ink);
-}
-.outlook {
-  display: grid;
-  gap: 6px;
-  max-width: 46ch;
-  min-width: 0;
-  padding-bottom: 2px;
-}
-@media (min-width: 760px) and (max-width: 1179px) {
-  .outlook {
-    grid-column: 1 / -1;
-  }
-}
-.olMain {
-  font-size: 18px;
-  line-height: 1.35;
-  color: var(--ink);
-  text-wrap: pretty;
-}
-.olMain b {
-  font-weight: 500;
-}
-.olSub {
-  font-size: 15px;
-  color: var(--ink-2);
-  text-wrap: pretty;
-}
 
 /* "Scoreboard" header: the two prices as heroes, the month's figures as one quiet strip. Every label shares the
    top line; heroes add one note line under the price; the strip's units sit quiet beside each number. */
-.board {
-  padding: clamp(18px, 2.4vw, 28px) clamp(16px, 2.4vw, 32px) clamp(18px, 2.2vw, 26px);
-  display: grid;
-  gap: 22px;
-}
-.bRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 22px 56px;
-}
-.bHero {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-.peers {
-  flex-basis: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px 44px;
-  margin: 0;
-}
-.peers > div {
-  display: grid;
-  gap: 6px;
-}
-.peers dt {
-  font-size: 15px;
-  color: var(--ink-2);
-}
-.peers dd {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 500;
-  letter-spacing: -0.005em;
-  white-space: nowrap;
-}
-.peers dd small {
-  font-size: 15px;
-  font-weight: 400;
-  color: var(--mute);
-  letter-spacing: 0;
-}
+
 /* wide: one row, every item spread evenly across the width, the strip's labels on the heroes' label line;
    a long note (a carried day) wraps inside its price instead of pushing the row onto two lines */
-@media (min-width: 1280px) {
-  .bRow {
-    flex-wrap: nowrap;
-    justify-content: space-between;
-    column-gap: 40px;
-  }
-  .bRow > * {
-    flex-shrink: 0;
-  }
-  .bRow > .bHero:first-child {
-    flex-shrink: 1;
-  }
-  .peers {
-    display: contents;
-  }
-}
 /* phone: the prices stack, the strip becomes two columns */
-@media (max-width: 759px) {
-  .bHero {
-    flex-basis: 100%;
-  }
-  .peers {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px 20px;
-  }
-}
 
 /* round 2's single-price header, kept as a mock option */
-.headOne {
-  padding: clamp(18px, 2.4vw, 28px) clamp(16px, 2.4vw, 32px) clamp(16px, 2vw, 22px);
-  display: grid;
-  gap: 10px;
-}
-.headTop {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 24px;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-.title {
-  font-size: 22px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-}
-.updated {
-  font-size: 15px;
-  color: var(--mute);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-}
-.carriedNote {
-  color: var(--ink-2);
-}
-.headGpu {
-  grid-column: 1 / -1;
-}
-.gpuTabs {
-  display: inline-flex;
-  padding: 3px;
-  gap: 2px;
-  background: var(--well);
-  border-radius: var(--r-pill);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-.gpuTabs button {
-  border: 0;
-  background: none;
-  color: var(--ink-2);
-  padding: 6px 14px;
-  font-size: 15px;
-  border-radius: var(--r-pill);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.gpuTabs button[aria-selected="true"] {
-  background: var(--seg-on);
-  color: var(--ink);
-  box-shadow: var(--lift);
-}
-.priceRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 16px;
-}
-.priceRow .bigPrice {
-  font-size: clamp(52px, 6vw, 72px);
-}
-.screen[data-style="simple"] .priceRow .bigPrice {
-  font-size: clamp(56px, 7vw, 84px);
-}
-.per {
-  font-size: 18px;
-  color: var(--ink-2);
-}
-.delta {
-  font-size: 16px;
-  font-weight: 500;
-}
-.priceRow .status {
-  font-size: 15px;
-  color: var(--ink-2);
-}
 
 /* shared small controls */
 .ranges button,
@@ -404,46 +96,29 @@
   cursor: default;
 }
 
-/* grid of panels */
+/* grid of panels: the prices sit over the chart only and the ticket runs the full height on the right; the chart
+   row takes whatever height the ticket adds. Pro adds the book beside the chart and a row under both. One flat
+   surface: the grid's own color shows through 1px gaps as hairlines. */
 .grid {
   display: grid;
+  gap: 1px;
+  background: var(--line);
+  box-shadow: 0 -1px 0 var(--line);
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "chart" "ticket" "book" "bottom";
+  grid-template-areas: "head" "chart" "ticket";
 }
-.grid[data-bottom="false"] {
-  grid-template-areas: "chart" "ticket" "book";
+.grid[data-pro="true"] {
+  grid-template-areas: "head" "chart" "ticket" "book" "bottom";
 }
 @media (min-width: 1100px) {
   .grid {
     grid-template-columns: minmax(0, 1fr) 400px;
-    grid-template-areas: "chart ticket" "bottom ticket";
-  }
-  .grid[data-bottom="false"] {
-    grid-template-areas: "chart ticket";
-  }
-  .grid[data-pro="true"] {
-    grid-template-columns: minmax(0, 1fr) 260px 380px;
-    grid-template-areas: "chart book ticket" "bottom bottom ticket";
-  }
-}
-/* "Trade panel from the top": the prices sit over the chart only and the ticket runs the full height on the right;
-   the chart row takes whatever height the ticket adds */
-.grid[data-top="true"] {
-  grid-template-areas: "head" "chart" "ticket" "book" "bottom";
-}
-.grid[data-top="true"][data-bottom="false"] {
-  grid-template-areas: "head" "chart" "ticket";
-}
-@media (min-width: 1100px) {
-  .grid[data-top="true"] {
-    grid-template-rows: auto 1fr auto;
-    grid-template-areas: "head ticket" "chart ticket" "bottom ticket";
-  }
-  .grid[data-top="true"][data-bottom="false"] {
     grid-template-rows: auto 1fr;
     grid-template-areas: "head ticket" "chart ticket";
   }
-  .grid[data-top="true"][data-pro="true"] {
+  .grid[data-pro="true"] {
+    grid-template-columns: minmax(0, 1fr) 260px 380px;
+    grid-template-rows: auto 1fr auto;
     grid-template-areas: "head head ticket" "chart book ticket" "bottom bottom ticket";
   }
 }
@@ -468,46 +143,7 @@
 }
 /* the stats: beside the prices whenever they fit (as tall as the prices, figures centred, a hairline before
    each: the chosen look), else their own row across the column. No width guess: the wrap follows content. */
-.hsStats {
-  flex: 1 1 0;
-  display: flex;
-  margin: 0;
-}
-.hsStats > div {
-  flex: 1;
-  display: grid;
-  align-content: center;
-  gap: 6px;
-  padding: 0 22px;
-  box-shadow: inset 1px 0 0 var(--line);
-  position: relative;
-}
-.hsStats > div:first-child {
-  padding-left: 0;
-  box-shadow: none;
-}
-.hsStats > div:first-child::before {
-  content: "";
-  position: absolute;
-  left: -24px;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--line);
-}
-.hsStats > div:last-child {
-  padding-right: 0;
-}
-.hsStats dt {
-  font-size: 15px;
-  color: var(--ink-2);
-}
-.hsStats dd {
-  margin: 0;
-  font-size: 19px;
-  font-weight: 500;
-  white-space: nowrap;
-}
+
 /* two rows filling the prices' height, read in columns (outlook, today, the month); one hairline per column,
    unbroken from top to bottom; the hairline before the block sits in the gap and is clipped when it wraps */
 .hsGrid {
@@ -542,106 +178,24 @@
   font-weight: 400;
   color: var(--mute);
 }
-.expArrow {
-  display: inline-block;
-  width: 13px;
-  height: 13px;
-  margin-right: 5px;
-  vertical-align: -1px;
-}
+
 /* a range: the figures, then a thin line exactly as wide as them with a dot where the price sits */
-.hsGrid dd.rng {
-  display: inline-grid;
-  justify-self: start;
-  gap: 7px;
-}
-.rbar {
-  position: relative;
-  height: 3px;
-  margin-bottom: 2px;
-  background: var(--line-2);
-  border-radius: 2px;
-}
-.rbar > i {
-  position: absolute;
-  top: 50%;
-  width: 7px;
-  height: 7px;
-  background: var(--ink);
-  border-radius: var(--r-mark);
-  box-shadow: 0 0 0 2px var(--bg);
-  transform: translate(-50%, -50%);
-}
+
 /* the small charts: one 140 x 14 line under every number, colored only where green and red mean up and down */
-.hsGrid dd.viz {
-  margin: 2px 0 0;
-  line-height: 0;
-}
-.vz {
-  display: block;
-  width: 140px;
-  max-width: 100%;
-  height: 14px;
-  overflow: visible;
-  color: var(--ink-2);
-}
-.vz.up {
-  color: var(--up);
-}
-.vz.down {
-  color: var(--down);
-}
-.vInk {
-  fill: var(--ink);
-}
-.vTrack {
-  fill: var(--line-2);
-}
-.vUp {
-  fill: var(--up);
-}
-.vDown {
-  fill: var(--down);
-}
-.vLoss {
-  fill: color-mix(in oklch, var(--down) 55%, transparent);
-}
-.vGain {
-  fill: color-mix(in oklch, var(--up) 55%, transparent);
-}
-.vLine {
-  color: var(--ink);
-}
-.vFill {
-  fill: color-mix(in oklch, var(--ink) 9%, transparent);
-}
-/* with charts the cells breathe less, so two rows still match the prices' height */
-.hsGrid[data-charts="true"] > div {
-  padding-top: 4px;
-  padding-bottom: 4px;
-  gap: 3px;
-}
+
 /* labels that explain themselves: dotted underline, a note on hover (after a beat) or on tap / keyboard focus */
 .tipBtn {
   all: unset;
   cursor: help;
-  text-decoration: underline dotted;
-  text-decoration-color: var(--mute);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 4px;
 }
 /* the label (and its icon) darken on hover, so the hint confirms itself before the note opens */
 .tipBtn {
-  transition: color 120ms ease, text-decoration-color 120ms ease;
+  transition: color 120ms ease;
 }
 @media (hover: hover) and (pointer: fine) {
   .tipBtn:hover {
     color: var(--ink);
-    text-decoration-color: var(--ink-2);
   }
-}
-.tipBtn[data-hint="icon"] {
-  text-decoration: none;
 }
 .tipIcon {
   display: inline-block;
@@ -687,15 +241,8 @@
   transition: opacity 140ms cubic-bezier(0.23, 1, 0.32, 1), transform 140ms cubic-bezier(0.23, 1, 0.32, 1), visibility 0s linear 140ms;
   pointer-events: none;
 }
-.hsGrid > div:nth-child(n + 5) .tip {
-  left: auto;
-  right: 0;
-}
-/* the references' set: four figures in two columns (the market's activity, then time) */
-.hsGrid[data-look="refs"] > div:nth-child(n + 3) {
-  padding-right: 0;
-}
-.hsGrid[data-look="refs"] > div:nth-child(n + 3) .tip {
+/* four figures in two columns (the market's activity, then time): the right column's notes open leftward */
+.hsGrid > div:nth-child(n + 3) .tip {
   left: auto;
   right: 0;
 }
@@ -738,7 +285,7 @@
   padding-left: 0;
   box-shadow: none;
 }
-.hsGrid > div:nth-child(n + 5) {
+.hsGrid > div:nth-child(n + 3) {
   padding-right: 0;
 }
 .hsGrid dt {
@@ -768,18 +315,6 @@
     box-shadow: none;
   }
 }
-@media (max-width: 600px) {
-  .hsStats {
-    flex-basis: 100%;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px 20px;
-  }
-  .hsStats > div {
-    padding: 0;
-    box-shadow: none;
-  }
-}
 .chartPanel {
   grid-area: chart;
   display: flex;
@@ -803,38 +338,6 @@
   background: var(--panel);
   padding: var(--panel-pad);
   min-width: 0;
-}
-
-/* tech: one surface, hairlines between panels (the grid's own color shows through 1px gaps) */
-.screen[data-style="tech"] .grid {
-  gap: 1px;
-  background: var(--line);
-  box-shadow: 0 -1px 0 var(--line);
-}
-.screen[data-style="tech"] .panel {
-  background: var(--bg);
-}
-/* simple: floating rounded panels */
-.screen[data-style="simple"] .main {
-  padding-bottom: 28px;
-}
-.screen[data-style="simple"] .grid {
-  gap: 14px;
-  padding: 0 clamp(12px, 2vw, 24px);
-  align-items: start;
-}
-/* the chart panel runs as tall as the trade panel when nothing sits under it, so the chart fills it */
-.screen[data-style="simple"] .grid[data-bottom="false"] .chartPanel {
-  align-self: stretch;
-}
-/* in Pro the chart grows to the book's height, so the two panels end on one line */
-.screen[data-style="simple"] .grid[data-pro="true"] .chartPanel,
-.screen[data-style="simple"] .grid[data-pro="true"] .bookPanel {
-  align-self: stretch;
-}
-.screen[data-style="simple"] .panel {
-  border-radius: var(--r-2);
-  box-shadow: var(--depth), inset 0 0 0 1px var(--line);
 }
 
 /* chart panel */
@@ -970,23 +473,13 @@
   font-size: 15px;
   color: var(--mute);
 }
-.tPriceRow {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-}
-.tPriceRow > .seg {
-  margin-bottom: 4px;
-}
+
 /* the condition under a risk row: its own line, so both rows read the same way */
 .hint {
   display: block;
   color: var(--mute);
 }
-.tHead .seg {
-  width: 100%;
-}
+
 .seg {
   display: inline-flex;
   padding: 3px;
@@ -995,35 +488,7 @@
   border-radius: var(--r-pill);
   box-shadow: inset 0 0 0 1px var(--line);
 }
-.tHead .seg > button {
-  flex: 1;
-}
-.side {
-  width: 100%;
-}
-.side > button {
-  flex: 1;
-  padding: 10px 0;
-  font-size: 17px;
-  font-weight: 500;
-}
-.tPrice {
-  display: grid;
-  gap: 2px;
-}
-.tPrice b {
-  --digit: 0.52em;
-  font-weight: 300;
-  font-size: 44px;
-  line-height: 1.05;
-}
-.screen[data-style="simple"] .tPrice b {
-  font-size: 54px;
-}
-.tPrice > span {
-  font-size: 15px;
-  color: var(--mute);
-}
+
 .tCopy {
   font-size: 15px;
   color: var(--ink-2);
@@ -1033,73 +498,7 @@
   font-weight: 500;
   color: var(--ink);
 }
-.proRow {
-  display: grid;
-  gap: 10px;
-}
-.sizeRow {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.field {
-  display: grid;
-  gap: 2px;
-  background: var(--well);
-  border-radius: var(--r-1);
-  padding: 10px 12px;
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-.field > span {
-  font-size: 14px;
-  color: var(--mute);
-}
-.field input {
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 20px;
-  color: var(--ink);
-  padding: 2px 0;
-  width: 100%;
-  outline: none;
-}
-.stepper {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 32px;
-}
-.stepper b {
-  font-size: 22px;
-  font-weight: 500;
-  min-width: 1.4em;
-  text-align: center;
-}
-.stepper button {
-  width: 30px;
-  height: 30px;
-  border: 0;
-  border-radius: var(--r-pill);
-  background: var(--seg-on);
-  box-shadow: var(--lift);
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  color: var(--ink);
-}
-.stepper button:active {
-  transform: scale(0.96);
-}
-.hours {
-  font-size: 15px;
-  color: var(--mute);
-  margin-top: 8px;
-}
-.hours b {
-  font-weight: 500;
-  color: var(--ink);
-}
+
 .toggle {
   display: flex;
   gap: 12px;
@@ -1345,7 +744,7 @@ button.bookRow:focus-visible {
   padding: 9px 10px 9px 0;
   white-space: nowrap;
 }
-.screen[data-style="tech"] .table tbody tr {
+.table tbody tr {
   box-shadow: inset 0 1px 0 var(--line);
 }
 .r {
@@ -1356,32 +755,369 @@ button.bookRow:focus-visible {
   padding: 18px 0 8px;
   max-width: 56ch;
 }
-.sourcesPro {
-  display: grid;
-  gap: 22px;
+
+/* side colors: the trade button follows the side once you can trade ("Sign in to trade" stays ink), in the fill
+   shade of the side's color (deeper than the text color in dark) */
+.cta[data-side="long"][data-gate="false"] {
+  background: var(--up-fill);
+  color: var(--fill-ink);
 }
-.simpleBottom {
-  display: grid;
-  gap: 28px;
+.cta[data-side="short"][data-gate="false"] {
+  background: var(--down-fill);
+  color: var(--fill-ink);
 }
-@media (min-width: 900px) {
-  .simpleBottom {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-    gap: 32px;
+
+/* Pro's one-line header: label over value, a hairline in the gap before each figure. The
+   line clips sideways only, so a figure that wraps to the start of a new line loses its hairline (no stray rule). */
+.headPanel:has(> .hStrip) {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+.hStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 12px 24px;
+  margin: 0;
+  overflow-x: clip;
+}
+.hsCell {
+  flex: 1 0 auto;
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.hsCell::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.hsCell > dt,
+.hsCell > dd {
+  margin: 0;
+}
+.hsCell:hover .tip,
+.hsCell dt:focus-within .tip {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 120ms, 120ms, 0s;
+}
+.hStrip > .hsCell:nth-last-child(-n + 3) .tip {
+  left: auto;
+  right: 0;
+}
+.hsCell .pLabel {
+  font-size: 15px;
+}
+.hsVal {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 500;
+}
+.hsVal > b {
+  font-weight: 300;
+  font-size: 28px;
+  line-height: 1;
+}
+.hsVal small {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--mute);
+}
+.hsVal > em {
+  font-style: normal;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--mute);
+}
+.hsVal > em.up {
+  color: var(--up);
+}
+.hsVal > em.down {
+  color: var(--down);
+}
+
+/* recent trades under the book: the book's columns, newest first; the list takes the
+   column's leftover height and scrolls, so it never makes the chart row taller */
+.bookPanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.trades {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 18px;
+  font-size: 14px;
+}
+.tradesList {
+  flex: 1 1 0;
+  min-height: 212px;
+  overflow-y: auto;
+}
+.tradeRow {
+  display: grid;
+  grid-template-columns: 0.9fr 1fr 1fr;
+  padding: 3px 6px;
+}
+.tradeRow > span:nth-child(n + 2) {
+  text-align: right;
+}
+.tradeRow > span:last-child,
+.tradeRow[data-head] {
+  color: var(--mute);
+}
+@media (max-width: 1099px) {
+  .tradesList {
+    max-height: 260px;
   }
 }
-.sub {
-  display: grid;
-  gap: 6px;
-  align-content: start;
-  min-width: 0;
-}
-.sub > b {
-  font-weight: 500;
-  font-size: 17px;
-}
-.sub > span {
-  color: var(--ink-2);
+
+/* the account summary under Pro's ticket (mock option "Under Pro ticket"): quiet rows, a hairline above */
+.account {
+  margin-top: 28px;
+  padding-top: 20px;
+  box-shadow: inset 0 1px 0 var(--line);
   font-size: 15px;
-  max-width: 52ch;
+}
+.account dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.account dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.account dt {
+  color: var(--ink-2);
+}
+.account dd {
+  margin: 0;
+}
+.textBtn {
+  all: unset;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .textBtn:hover {
+    color: var(--ink);
+  }
+}
+.textBtn:focus-visible {
+  outline: 1px solid var(--line-2);
+  outline-offset: 3px;
+}
+
+/* Simple's amount (mock option "Simple size"): one big number in dollars or GPUs, the unit switch above it, your
+   balance and 25% / 50% / Max under it, then what it comes to in GPU-hours (Polymarket, Robinhood, Kalshi) */
+.amount {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.amountHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.unitSeg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--well);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.unitSeg > button {
+  border: 0;
+  background: none;
+  padding: 4px 11px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink-2);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+.unitSeg > button[aria-pressed="true"] {
+  background: var(--seg-on);
+  color: var(--ink);
+  box-shadow: var(--lift);
+}
+.amountBox {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 10px 14px 12px;
+  background: var(--well);
+  border-radius: var(--r-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: text;
+}
+.amountBox:focus-within {
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.amountBox > input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  padding: 0;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+.amountPre {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 1.1;
+  color: var(--mute);
+}
+.amountPost {
+  font-size: 15px;
+  color: var(--mute);
+  white-space: nowrap;
+}
+.amountRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--mute);
+}
+.amountChips {
+  display: flex;
+  gap: 6px;
+}
+.amountChips > button {
+  border: 0;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink-2);
+  background: var(--well);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .amountChips > button:hover {
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--line-2);
+  }
+}
+.amountEcho,
+.amountWarn {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.amountWarn {
+  color: var(--down);
+}
+
+/* The trade area is the window, as on every trading screen (Hyperliquid, Coinbase Advanced): the chrome on top, the
+   grid takes the rest, and the side panels scroll inside themselves. So nothing clicked in the ticket (Long or Short,
+   Limit, a warning) can resize the chart. A short window keeps a floor and the page scrolls instead of squeezing. */
+@media (min-width: 1100px) {
+  .screen {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    min-height: 720px;
+  }
+  /* the chrome keeps its height; only the trade area gives way */
+  .screen > :not(.main) {
+    flex-shrink: 0;
+  }
+  .main {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .main > .grid {
+    flex: 1 1 0;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .main > .grid[data-pro="true"] {
+    grid-template-rows: auto minmax(0, 1fr) clamp(170px, 24vh, 280px);
+  }
+  .chartPanel,
+  .chartBody {
+    min-height: 0;
+  }
+  .ticketPanel,
+  .bookPanel,
+  .bottomPanel {
+    position: relative;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-2) transparent;
+  }
+}
+
+/* the line under the amount keeps its height whichever message it holds, so the ticket below never jumps */
+.amountEcho,
+.amountWarn {
+  line-height: 1.45;
+  min-height: 2.9em;
+}
+
+/* motion, only where it carries meaning: a press gives way under the finger, a warning arrives instead of
+   appearing out of nowhere. Frequent actions stay instant (no number animation while typing). */
+@keyframes msgIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .amountWarn {
+    animation: msgIn 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .amountChips > button,
+  .unitSeg > button,
+  .seg > button,
+  .seriesTabs > button,
+  .ranges > button {
+    transition:
+      transform 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      color 120ms ease,
+      background-color 120ms ease;
+  }
+  .amountChips > button:active,
+  .unitSeg > button:active,
+  .seg > button:active,
+  .ranges > button:active {
+    transform: scale(0.96);
+  }
 }

@@ -1,7 +1,9 @@
 "use client";
 // Supporting data on demand: "5 of 5 clouds" under the index price opens where the price comes from and how it
 // sits beside traded prices. Off the overview by default (Oct 3); the full story belongs on the Index page.
+import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
+import { useLinkQuery } from "@/lib/mock/store";
 import type { Market } from "@/lib/mock/types";
 import { PriceMap } from "./PriceMap";
 import s from "./pricemap.module.css";
@@ -10,6 +12,7 @@ export function SourcesPop({ market, label, ok }: { market: Market; label: strin
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLSpanElement>(null);
   const id = useId();
+  const linkQuery = useLinkQuery();
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
@@ -35,7 +38,9 @@ export function SourcesPop({ market, label, ok }: { market: Market; label: strin
       {open && (
         <div id={id} className={s.pop} role="dialog" aria-label="Where the price comes from">
           <PriceMap market={market} />
-          <p className={s.popFoot}>The full method, every day's readings and the history live on the Index page.</p>
+          <p className={s.popFoot}>
+            The full method, every day's readings and the history live on the <Link href={`/index${linkQuery}#today`}>Index page</Link>.
+          </p>
         </div>
       )}
     </span>

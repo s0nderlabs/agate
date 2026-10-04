@@ -1,54 +1,25 @@
 "use client";
-// App chrome: the navbar keeps Ornn's arrangement (logo left, plain links right). Mock controls pick what
-// marks the active link (stone or square) and what sits under it (still tabs, chips, or the old ticker).
+// App chrome: the navbar keeps Ornn's arrangement (logo left, plain links right), a small stone marks the active
+// link, and under it the three markets sit still as tabs, each the way to switch GPU.
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Lockup, Stone } from "@/components/brand/Logo";
 import { Num } from "@/components/num/Num";
 import { useFlow } from "@/components/markets/Flow";
 import { getMarket, GPUS } from "@/lib/mock/data";
-import { ticker } from "@/lib/mock/market";
 import { DRIP, useLinkQuery, useMock } from "@/lib/mock/store";
-import { brand } from "@/lib/mock/config";
 import type { Gpu } from "@/lib/mock/types";
 import { int, usd } from "@/lib/format";
 import s from "./shell.module.css";
 
-/** Round 2's scrolling price strip, kept as a mock option. */
-export function Ticker() {
-  const { config } = useMock();
-  const items = useMemo(() => ticker(config.data), [config.data]);
-  const row = (key: string) => (
-    <div className={s.tickRow} key={key} aria-hidden={key === "b"}>
-      {items.map((t) => (
-        <span className={s.tick} key={key + t.label}>
-          <b>{t.label}</b>
-          <Num>{usd(t.price)}</Num>
-          <em className={Math.abs(t.change) < 0.005 ? s.flat : t.change > 0 ? s.up : s.down}>
-            <Num>{Math.abs(t.change) < 0.005 ? "0.00%" : `${t.change > 0 ? "+" : "−"}${Math.abs(t.change).toFixed(2)}%`}</Num>
-          </em>
-        </span>
-      ))}
-    </div>
-  );
-  return (
-    <div className={s.ticker} aria-label="Prices">
-      <div className={s.tickTrack}>
-        {row("a")}
-        {row("b")}
-      </div>
-    </div>
-  );
-}
-
 export function Notice() {
-  const { wallet, drip, config } = useMock();
+  const { wallet, drip } = useMock();
   const { openSignIn } = useFlow();
   const [open, setOpen] = useState(true);
   if (!open) return null;
   return (
     <div className={s.notice}>
-      <span>{brand(config)} runs on Monad's test network. Trades use test dollars, {int(DRIP)} free a day.</span>
+      <span>Agate runs on Monad's test network. Trades use test dollars, {int(DRIP)} free a day.</span>
       <button className={s.noticeBtn} onClick={wallet.signedIn ? drip : openSignIn}>
         {wallet.signedIn ? "Get test dollars" : "Sign in to start"}
       </button>
@@ -73,7 +44,7 @@ export function MarketStrip() {
     [config.data],
   );
   return (
-    <div className={s.strip} data-row={config.row} role="tablist" aria-label="Markets">
+    <div className={s.strip} role="tablist" aria-label="Markets">
       {items.map((it) => (
         <button key={it.g} role="tab" aria-selected={config.gpu === it.g} className={s.market} onClick={() => setConfig({ gpu: it.g as Gpu })}>
           <b>{it.g}</b>
@@ -121,8 +92,8 @@ export function NavBar({ active = "markets" }: { active?: "markets" | "positions
   ];
   return (
     <header className={s.nav}>
-      <Link href={`/${linkQuery}`} className={s.brand} aria-label={`${brand(config)} home`}>
-        <Lockup height={28} size={config.wm} wcase={config.wcase} />
+      <Link href={`/${linkQuery}`} className={s.brand} aria-label="Agate home">
+        <Lockup height={28} size="l" wcase="title" />
       </Link>
       <nav className={s.links} aria-label="Main">
         <button className={s.icon} aria-label="Search markets">
@@ -133,7 +104,7 @@ export function NavBar({ active = "markets" }: { active?: "markets" | "positions
         </button>
         {links.map(([k, label]) => (
           <Link key={k} href={`${k === "index" ? "/index" : "/"}${linkQuery}`} className={s.link} aria-current={k === active ? "page" : undefined}>
-            {k === active && (config.mark === "stone" ? <Stone size={11} className={s.mark} /> : <span className={s.markSq} aria-hidden="true" />)}
+            {k === active && <Stone size={11} className={s.mark} />}
             {label}
           </Link>
         ))}

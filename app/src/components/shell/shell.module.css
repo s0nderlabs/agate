@@ -1,58 +1,3 @@
-/* ticker strip (round 2, kept as a mock option) */
-.ticker {
-  height: 36px;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  background: var(--chrome);
-  box-shadow: inset 0 -1px 0 var(--line);
-  font-size: 14px;
-  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
-}
-.tickTrack {
-  display: flex;
-  width: max-content;
-  animation: tick 70s linear infinite;
-}
-.ticker:hover .tickTrack {
-  animation-play-state: paused;
-}
-@keyframes tick {
-  to {
-    transform: translateX(-50%);
-  }
-}
-.tickRow {
-  display: flex;
-  gap: 34px;
-  padding-right: 34px;
-}
-.tick {
-  display: inline-flex;
-  gap: 8px;
-  align-items: baseline;
-  white-space: nowrap;
-  color: var(--ink-2);
-}
-.tick > b {
-  font-weight: 500;
-  color: var(--ink);
-}
-.tick em {
-  font-style: normal;
-}
-.up {
-  color: var(--up);
-}
-.down {
-  color: var(--down);
-}
-@media (prefers-reduced-motion: reduce) {
-  .tickTrack {
-    animation: none;
-  }
-}
-
 /* one-line notice */
 .notice {
   display: flex;
@@ -149,13 +94,6 @@
   flex: none;
   display: block;
 }
-.markSq {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  background: var(--ink);
-  border-radius: var(--r-mark);
-}
 @media (hover: hover) and (pointer: fine) {
   .link:hover,
   .icon:hover {
@@ -233,9 +171,6 @@
   border-radius: var(--r-pill);
   cursor: pointer;
 }
-.flat {
-  color: var(--mute);
-}
 
 /* still market row: the GPU switch */
 .strip {
@@ -292,22 +227,6 @@
   .market:hover .mPrice {
     color: var(--ink);
   }
-}
-.strip[data-row="chips"] {
-  gap: 8px;
-  padding-top: 10px;
-  padding-bottom: 10px;
-  box-shadow: none;
-}
-.strip[data-row="chips"] .market,
-.strip[data-row="chips"] .market:first-child {
-  padding: 8px 16px;
-  border-radius: var(--r-pill);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-.strip[data-row="chips"] .market[aria-selected="true"] {
-  background: var(--card);
-  box-shadow: var(--depth), inset 0 0 0 1px var(--line-2);
 }
 .stripNote {
   margin-left: auto;

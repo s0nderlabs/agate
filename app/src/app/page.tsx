@@ -1,6 +1,6 @@
 import { TradeFlow } from "@/components/markets/Flow";
 import { MockDock } from "@/components/mock/MockDock";
-import { TradeSwitch } from "@/components/trade/TradeSwitch";
+import { TradeScreen } from "@/components/trade/TradeScreen";
 import { MOCK_CONTROLS, parseConfig } from "@/lib/mock/config";
 import { MockProvider } from "@/lib/mock/store";
 
@@ -9,9 +9,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   return (
     <MockProvider initial={initial}>
       <TradeFlow>
-        <TradeSwitch />
+        <TradeScreen />
       </TradeFlow>
-      {MOCK_CONTROLS && <MockDock screen="trade" />}
+      {MOCK_CONTROLS && <MockDock />}
     </MockProvider>
   );
 }

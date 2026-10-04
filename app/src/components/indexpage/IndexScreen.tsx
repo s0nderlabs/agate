@@ -4,6 +4,7 @@
 // Monad and history come when this page is designed properly.
 import { useEffect, useMemo } from "react";
 import { useMock } from "@/lib/mock/store";
+import { groundFor } from "@/lib/mock/config";
 import { getMarket } from "@/lib/mock/data";
 import { usd } from "@/lib/format";
 import { MarketStrip, NavBar, Notice } from "@/components/shell/Shell";
@@ -16,10 +17,10 @@ export function IndexScreen() {
   const market = useMemo(() => getMarket(config.gpu, config.data), [config.gpu, config.data]);
   const dark = config.theme === "dark";
   useEffect(() => {
-    document.documentElement.style.background = dark ? (config.dark === "black" ? "#0f0f10" : "#141413") : "#f6f5f1";
-  }, [dark, config.dark]);
+    document.documentElement.style.background = groundFor(config);
+  }, [config.theme]);
   return (
-    <div className={`${s.screen} ${dark ? "tone-dark" : "tone-light"}`} data-style={config.style} data-corners={config.corners} data-dark={config.dark}>
+    <div className={`${s.screen} ${dark ? "tone-dark" : "tone-light"}`}>
       <Notice />
       <NavBar active="index" />
       <MarketStrip />

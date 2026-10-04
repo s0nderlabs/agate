@@ -5,8 +5,6 @@ import { Stone } from "@/components/brand/Logo";
 import { AkashMark, OrnnMark } from "@/components/brand/Peers";
 import { Num } from "@/components/num/Num";
 import { median, peersFor } from "@/lib/mock/data";
-import { brand } from "@/lib/mock/config";
-import { useMock } from "@/lib/mock/store";
 import type { Market } from "@/lib/mock/types";
 import { usd } from "@/lib/format";
 import s from "./insight.module.css";
@@ -59,7 +57,6 @@ export function Sources({ market }: { market: Market }) {
 
 /** Our posted price beside two traded ones, with how far each sits from ours. */
 export function Beside({ market }: { market: Market }) {
-  const { config } = useMock();
   const peers = peersFor(market.gpu);
   return (
     <div className={s.beside}>
@@ -68,7 +65,7 @@ export function Beside({ market }: { market: Market }) {
         <div className={s.col} data-ours="true">
           <span className={s.name}>
             <Stone size={16} />
-            {brand(config)} index
+            Agate index
           </span>
           <span className={`${s.price} font-display`}>{usd(market.price)}</span>
           <span className={s.gap}>The one that pays</span>

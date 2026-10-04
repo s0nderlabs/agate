@@ -11,7 +11,7 @@ export default async function IndexPage({ searchParams }: PageProps<"/index">) {
       <TradeFlow>
         <IndexScreen />
       </TradeFlow>
-      {MOCK_CONTROLS && <MockDock screen="trade" />}
+      {MOCK_CONTROLS && <MockDock />}
     </MockProvider>
   );
 }

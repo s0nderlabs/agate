@@ -1,6 +1,6 @@
 // Trade-screen mock data: index history with the texture of real list prices (flat for days, then a step
 // when one cloud reprices), the November book on Kuru, recent fills and the ticker strip.
-import { getMarket, type DataState } from "./data";
+import type { DataState } from "./data";
 import type { Gpu, Market } from "./types";
 
 export interface Day {
@@ -50,20 +50,14 @@ export interface BookLevel {
   size: number; // GPU-hours
 }
 
-export function book(gpu: Gpu, market: Market, mode: "bot" | "deep" = "deep") {
+/** agate's market-maker bot on testnet: 3 levels each side, a tick apart, 1,000 / 2,000 / 4,000 GPU-hours, never
+ * outside the floor and ceiling. */
+export function book(market: Market) {
   const q = market.series[0].quote!;
-  if (mode === "bot") {
-    // agate's bot: 3 levels each side, a tick apart, 1,000 / 2,000 / 4,000 GPU-hours, never outside the band
-    const s0 = market.series[0];
-    const sizes = [1000, 2000, 4000];
-    const asks: BookLevel[] = sizes.map((size, i) => ({ price: Math.round((q.ask + i * 0.01) * 100) / 100, size })).filter((l) => l.price < s0.cap);
-    const bids: BookLevel[] = sizes.map((size, i) => ({ price: Math.round((q.bid - i * 0.01) * 100) / 100, size })).filter((l) => l.price > s0.floor);
-    return { asks, bids, spread: Math.round((q.ask - q.bid) * 100) / 100 };
-  }
-  const r = rng(SEED[gpu] + 7);
-  const sizes = () => Math.round((1 + r() * 7)) * 240;
-  const asks: BookLevel[] = Array.from({ length: 9 }, (_, i) => ({ price: Math.round((q.ask + i * 0.01) * 100) / 100, size: sizes() }));
-  const bids: BookLevel[] = Array.from({ length: 9 }, (_, i) => ({ price: Math.round((q.bid - i * 0.01) * 100) / 100, size: sizes() }));
+  const s0 = market.series[0];
+  const sizes = [1000, 2000, 4000];
+  const asks: BookLevel[] = sizes.map((size, i) => ({ price: Math.round((q.ask + i * 0.01) * 100) / 100, size })).filter((l) => l.price < s0.cap);
+  const bids: BookLevel[] = sizes.map((size, i) => ({ price: Math.round((q.bid - i * 0.01) * 100) / 100, size })).filter((l) => l.price > s0.floor);
   return { asks, bids, spread: Math.round((q.ask - q.bid) * 100) / 100 };
 }
 
@@ -93,28 +87,6 @@ export function recentFills(gpu: Gpu, market: Market): Fill[] {
       size: Math.round(1 + r() * 5) * 240,
     };
   });
-}
-
-export interface TickerItem {
-  label: string;
-  price: number;
-  change: number; // percent vs yesterday, example
-}
-
-export function ticker(state: DataState): TickerItem[] {
-  const out: TickerItem[] = [];
-  (["H100", "H200", "B200"] as Gpu[]).forEach((g) => {
-    const m = getMarket(g, state);
-    const h = indexHistory(g, m.price, state);
-    const prev = h[h.length - 2].price;
-    out.push({ label: g, price: m.price, change: ((m.price - prev) / prev) * 100 });
-  });
-  (["H100", "H200", "B200"] as Gpu[]).forEach((g, i) => {
-    const m = getMarket(g, state);
-    const q = m.series[0].quote!;
-    out.push({ label: `${g} Nov`, price: q.last, change: [0.5, -0.21, 0.71][i] });
-  });
-  return out;
 }
 
 /** Example day change of each November token, percent (shown in the market row and the header). */

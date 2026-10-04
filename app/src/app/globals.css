@@ -31,6 +31,10 @@
   --btn-ink: #fbfaf7;
   --up: #1d7a4d;
   --down: #b13a2e;
+  /* the trade button's fill: in light it is the side's own color */
+  --up-fill: #1d7a4d;
+  --down-fill: #b13a2e;
+  --fill-ink: #fbfaf7;
   --band: rgb(23 23 26 / 0.055);
   --rail: rgb(23 23 26 / 0.4);
   --grid: rgb(23 23 26 / 0.07);
@@ -56,6 +60,11 @@
   --btn-ink: #141413;
   --up: #4cb886;
   --down: #e2695d;
+  /* in dark the bright text colors glow as a big block, so the button takes a deeper, matte shade of each with light
+     text (same OKLCH lightness 0.53 for both, so neither side looks louder; text contrast 4.6 and 5.2) */
+  --up-fill: #227f53;
+  --down-fill: #b24135;
+  --fill-ink: #f6f5f1;
   --band: rgb(242 240 234 / 0.07);
   --rail: rgb(242 240 234 / 0.45);
   --grid: rgb(242 240 234 / 0.07);
@@ -69,58 +78,34 @@
   color: var(--ink);
 }
 
-/* round 2's near-black dark, kept as a mock option */
-.tone-dark[data-dark="black"] {
-  --bg: #0f0f10;
-  --card: #18181a;
-  --well: #212124;
-  --mute: #8f8e88;
-  --seg-on: #2e2e32;
-  --btn-ink: #0f0f10;
-  --stone-c: #0f0f10;
-  --depth: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 28px 60px -30px rgb(0 0 0 / 0.95);
+/* mock option "Dark trade button": the bright fill from before, for comparison */
+.tone-dark[data-dfill="bright"] {
+  --up-fill: #4cb886;
+  --down-fill: #e2695d;
+  --fill-ink: #141413;
 }
 
-/* the two looks being judged on the trade screen (radius, gaps, panel material) */
+/* panels: one flat surface with hairlines between them; set with the tone so --bg resolves to its ground */
 :root,
-[data-style="tech"] {
+.tone-light,
+.tone-dark {
   --gap: 0px;
   --panel-pad: 20px;
   --panel-shadow: none;
   --chrome: var(--bg);
   --panel: var(--bg);
 }
-[data-style="simple"] {
-  --gap: 14px;
-  --panel-pad: 22px;
-  --panel-shadow: var(--depth);
-  --chrome: var(--bg);
-  --panel: var(--card);
-}
-/* corners, a separate choice from the look */
-:root,
-[data-corners="square"] {
+/* corners: square */
+:root {
   --r-1: 2px;
   --r-2: 2px;
   --r-pill: 2px;
   --r-mark: 0;
   --r-avatar: 2px;
 }
-[data-corners="soft"] {
-  --r-1: 6px;
-  --r-2: 10px;
-  --r-pill: 8px;
-  --r-mark: 2px;
-  --r-avatar: 50%;
-}
-[data-corners="round"] {
-  --r-1: 12px;
-  --r-2: 24px;
-  --r-pill: 999px;
-  --r-mark: 50%;
-  --r-avatar: 50%;
-}
 .ag-num {
+  /* holds its screen-reader copy, so the copy never escapes a scrolling panel and stretches the page */
+  position: relative;
   white-space: nowrap;
 }
 .ag-num__d {
@@ -641,16 +626,39 @@ h3 {
   }
 }
 
-/* round 4: inside the trade app, the sheets (sign in, review) and loading blocks follow the chosen corners,
-   so a square screen never opens a rounded sheet. The archive keeps its own look (no attribute there). */
-html[data-app-corners] .ag-sheet {
+/* the sheets (sign in, review) and loading blocks share the app's square corners */
+.ag-sheet {
   border-radius: var(--r-2);
 }
-html[data-app-corners] .ag-btn {
+.ag-btn {
   border-radius: var(--r-pill);
 }
-html[data-app-corners] .ag-input,
-html[data-app-corners] .ag-rows,
-html[data-app-corners] .is-loading .ag-skel {
+.ag-input,
+.ag-rows,
+.is-loading .ag-skel {
   border-radius: var(--r-1);
+}
+
+/* Done: the check draws itself once, after the sheet settles (a rare moment, so it may take its time) */
+.ag-done circle {
+  fill: color-mix(in oklch, var(--up) 14%, transparent);
+}
+.ag-done path {
+  fill: none;
+  stroke: var(--up);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 30;
+  stroke-dashoffset: 0;
+}
+@keyframes ag-draw {
+  from {
+    stroke-dashoffset: 30;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ag-done path {
+    animation: ag-draw 420ms cubic-bezier(0.23, 1, 0.32, 1) 140ms both;
+  }
 }

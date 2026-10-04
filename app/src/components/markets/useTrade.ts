@@ -66,3 +66,22 @@ export function useTrade(market: Market) {
 }
 
 export type Trade = ReturnType<typeof useTrade>;
+
+/** The ticket's numbers for an explicit size in GPU-hours, filled at `price` (the average when it walks the book). */
+export function numbersFor(series: Series, side: Side, hours: number, daily: boolean, price: number): TradeNumbers {
+  const F = series.floor;
+  const C = series.cap;
+  const L = side === "long";
+  return {
+    series,
+    side,
+    gpus: hours / (24 * series.n),
+    daily,
+    hours,
+    price,
+    outlay: L ? price * hours : (C - price) * hours,
+    backNow: L && daily ? F * hours : 0,
+    maxLoss: L ? (price - F) * hours : (C - price) * hours,
+    maxGain: L ? (C - price) * hours : (price - F) * hours,
+  };
+}

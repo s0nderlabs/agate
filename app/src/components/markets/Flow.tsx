@@ -2,7 +2,7 @@
 // Sign in, test dollars, review, place, done: the sheets every Markets variant shares.
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { DRIP, useMock } from "@/lib/mock/store";
-import { brand } from "@/lib/mock/config";
+import { fmtHours } from "@/lib/size";
 import { int, usd, usd0 } from "@/lib/format";
 import { monthName } from "./PriceChart";
 import type { TradeNumbers } from "./useTrade";
@@ -34,6 +34,7 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
 
   const submit = useCallback(
     (n: TradeNumbers) => {
+      if (!(n.hours > 0)) return;
       if (!wallet.signedIn) return setSheet({ kind: "signin", then: n });
       if (wallet.balance < n.outlay) return setSheet({ kind: "funds", then: n });
       setSheet({ kind: "review", n });
@@ -61,7 +62,7 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
     <Ctx.Provider value={{ submit, openAccount: () => setSheet({ kind: "account" }), openSignIn: () => setSheet({ kind: "signin" }) }}>
       {children}
       {sheet && (
-        <div className={`ag-backdrop ${config.theme === "dark" ? "tone-dark" : "tone-light"}`} data-dark={config.dark} onClick={(e) => e.target === e.currentTarget && sheet.kind !== "placing" && close()}>
+        <div className={`ag-backdrop ${config.theme === "dark" ? "tone-dark" : "tone-light"}`} onClick={(e) => e.target === e.currentTarget && sheet.kind !== "placing" && close()}>
           <div className="ag-sheet" role="dialog" aria-modal="true">
             {sheet.kind === "signin" && <SignIn onDone={(email) => { signIn(email); setSheet(sheet.then ? { kind: "funds", then: sheet.then } : { kind: "account" }); }} onClose={close} />}
             {sheet.kind === "funds" && (
@@ -127,12 +128,11 @@ function SignIn({ onDone, onClose }: { onDone: (email: string) => void; onClose:
 
 function Funds({ need, balance, onDrip, onReview, onClose }: { need: number; balance: number; onDrip: () => void; onReview: () => void; onClose: () => void }) {
   const enough = balance >= need;
-  const { config } = useMock();
   return (
     <>
       <h2>{enough ? "You're set" : "Get test dollars"}</h2>
       <p>
-        {brand(config)} runs on Monad's test network, so trades use test dollars. You get {int(DRIP)} a day for free.
+        Agate runs on Monad's test network, so trades use test dollars. You get {int(DRIP)} a day for free.
         {!enough && ` This trade needs ${usd0(need)} and you have ${usd0(balance)}.`}
       </p>
       {enough ? (
@@ -164,7 +164,7 @@ function Review({ n, onConfirm, onBack }: { n: TradeNumbers; onConfirm: () => vo
         <div>
           <span>Size</span>
           <span>
-            {int(n.hours)} GPU-hours at {usd(n.price)}
+            {fmtHours(n.hours)} GPU-hours at {usd(n.price)}
           </span>
         </div>
         <div>
@@ -208,7 +208,7 @@ function Placing({ n }: { n: TradeNumbers }) {
       <span className="ag-spinner" />
       <h2>Placing your order</h2>
       <p>
-        Buying {int(n.hours)} {n.series.symbol} on Monad. This takes about a second.
+        {n.side === "long" ? "Buying" : "Selling"} {fmtHours(n.hours)} {n.series.symbol} on Monad. This takes about a second.
       </p>
     </div>
   );
@@ -218,9 +218,13 @@ function Done({ n, onClose }: { n: TradeNumbers; onClose: () => void }) {
   const L = n.side === "long";
   return (
     <>
+      <svg className="ag-done" viewBox="0 0 48 48" width="44" height="44" aria-hidden="true">
+        <circle cx="24" cy="24" r="22" />
+        <path d="M14 24.5l7 7 13-14" />
+      </svg>
       <h2>You're {L ? "long" : "short"} {monthName(n.series.month)}</h2>
       <p>
-        {int(n.hours)} GPU-hours of {n.series.gpu} at {usd(n.price)}.{" "}
+        {fmtHours(n.hours)} GPU-hours of {n.series.gpu} at {usd(n.price)}.{" "}
         {n.daily ? (L ? `${usd0(n.backNow)} is back in your balance. Your first daily share arrives the morning after Nov 1.` : "Your first daily share arrives the morning after Nov 1.") : "You get paid once, after the month ends."}
       </p>
       <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={onClose}>

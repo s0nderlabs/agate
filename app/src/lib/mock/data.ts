@@ -74,13 +74,13 @@ function history(gpu: Gpu, today: number): IndexDay[] {
 
 export type DataState = "live" | "loading" | "degraded" | "carried";
 
-/** book "bot": the testnet market-maker's real shape (agate, Oct 3): best bid = fair x 0.99 rounded down to the
- * cent, best ask = fair x 1.01 rounded up; fair = the month's last trade here. "deep": the earlier 9-level mock. */
+/** The testnet market-maker's quote (agate, Oct 3): best bid = fair x 0.99 rounded down to the cent, best ask =
+ * fair x 1.01 rounded up; fair = the month's last trade here. */
 export function botQuote(fair: number) {
   return { bid: Math.floor(fair * 0.99 * 100 + 1e-6) / 100, ask: Math.ceil(fair * 1.01 * 100 - 1e-6) / 100 };
 }
 
-export function getMarket(gpu: Gpu, state: DataState = "live", bookMode: "bot" | "deep" = "deep"): Market {
+export function getMarket(gpu: Gpu, state: DataState = "live"): Market {
   let sources = SOURCES[gpu];
   if (state === "degraded") sources = sources.map((s) => (s.family === "CoreWeave" ? { ...s, live: false } : s));
   const live = sources.filter((s) => s.live).map((s) => s.price);
@@ -100,7 +100,7 @@ export function getMarket(gpu: Gpu, state: DataState = "live", bookMode: "bot" |
       phase: "trading",
       k: 0,
       S: 0,
-      quote: bookMode === "bot" ? { ...nov.quote, ...botQuote(nov.quote.last) } : nov.quote,
+      quote: { ...nov.quote, ...botQuote(nov.quote.last) },
     },
     {
       gpu,
