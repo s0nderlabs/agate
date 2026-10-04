@@ -1,0 +1,334 @@
+/* ticker strip (round 2, kept as a mock option) */
+.ticker {
+  height: 36px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  background: var(--chrome);
+  box-shadow: inset 0 -1px 0 var(--line);
+  font-size: 14px;
+  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+}
+.tickTrack {
+  display: flex;
+  width: max-content;
+  animation: tick 70s linear infinite;
+}
+.ticker:hover .tickTrack {
+  animation-play-state: paused;
+}
+@keyframes tick {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.tickRow {
+  display: flex;
+  gap: 34px;
+  padding-right: 34px;
+}
+.tick {
+  display: inline-flex;
+  gap: 8px;
+  align-items: baseline;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+.tick > b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.tick em {
+  font-style: normal;
+}
+.up {
+  color: var(--up);
+}
+.down {
+  color: var(--down);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tickTrack {
+    animation: none;
+  }
+}
+
+/* one-line notice */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 40px;
+  padding: 6px 48px 6px 16px;
+  position: relative;
+  font-size: 15px;
+  color: var(--ink-2);
+  background: var(--well);
+  text-align: center;
+  flex-wrap: wrap;
+}
+.noticeBtn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+}
+.noticeX {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--mute);
+  cursor: pointer;
+  border-radius: var(--r-1);
+}
+
+/* nav */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 68px;
+  padding: 0 clamp(16px, 2.4vw, 32px);
+  background: var(--chrome);
+  box-shadow: inset 0 -1px 0 var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+.brand {
+  color: var(--ink);
+  display: block;
+}
+.links {
+  margin-left: auto;
+  display: none;
+  align-items: center;
+  gap: 26px;
+}
+@media (min-width: 860px) {
+  .links {
+    display: flex;
+  }
+}
+.icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+  border-radius: var(--r-1);
+}
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+  text-decoration: none;
+  font-size: 16px;
+}
+.link[aria-current="page"] {
+  color: var(--ink);
+}
+.mark {
+  flex: none;
+  display: block;
+}
+.markSq {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: var(--ink);
+  border-radius: var(--r-mark);
+}
+@media (hover: hover) and (pointer: fine) {
+  .link:hover,
+  .icon:hover {
+    color: var(--ink);
+  }
+}
+.right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+@media (min-width: 860px) {
+  .right {
+    margin-left: 8px;
+  }
+}
+.mode {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--well);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.mode button {
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  padding: 5px 12px;
+  font-size: 15px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+.mode button[aria-pressed="true"] {
+  background: var(--seg-on);
+  color: var(--ink);
+  box-shadow: var(--lift);
+}
+.acct {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--ink);
+}
+.acctBal {
+  font-size: 15px;
+  color: var(--ink-2);
+  display: none;
+}
+@media (min-width: 600px) {
+  .acctBal {
+    display: inline;
+  }
+}
+.avatar {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--r-avatar);
+}
+.signin {
+  border: 0;
+  background: var(--btn);
+  color: var(--btn-ink);
+  font-weight: 500;
+  padding: 9px 16px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+.flat {
+  color: var(--mute);
+}
+
+/* still market row: the GPU switch */
+.strip {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 clamp(16px, 2.4vw, 32px);
+  background: var(--chrome);
+  box-shadow: inset 0 -1px 0 var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.strip::-webkit-scrollbar {
+  display: none;
+}
+.market {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  padding: 12px 20px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 15px;
+  box-shadow: inset 0 -2px 0 transparent;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.market:first-child {
+  padding-left: 0;
+}
+.market b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.mPrice {
+  color: var(--ink);
+  font-weight: 500;
+}
+.mSub {
+  color: var(--mute);
+}
+.market[aria-selected="true"] {
+  box-shadow: inset 0 -2px 0 var(--ink);
+}
+.market:not([aria-selected="true"]) b,
+.market:not([aria-selected="true"]) .mPrice {
+  color: var(--ink-2);
+  font-weight: 400;
+}
+@media (hover: hover) and (pointer: fine) {
+  .market:hover b,
+  .market:hover .mPrice {
+    color: var(--ink);
+  }
+}
+.strip[data-row="chips"] {
+  gap: 8px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  box-shadow: none;
+}
+.strip[data-row="chips"] .market,
+.strip[data-row="chips"] .market:first-child {
+  padding: 8px 16px;
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.strip[data-row="chips"] .market[aria-selected="true"] {
+  background: var(--card);
+  box-shadow: var(--depth), inset 0 0 0 1px var(--line-2);
+}
+.stripNote {
+  margin-left: auto;
+  align-self: center;
+  padding-left: 24px;
+  font-size: 14px;
+  color: var(--mute);
+  white-space: nowrap;
+  display: none;
+}
+@media (min-width: 1100px) {
+  .stripNote {
+    display: block;
+  }
+}
+@media (max-width: 560px) {
+  .mSub {
+    display: none;
+  }
+  .market {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}

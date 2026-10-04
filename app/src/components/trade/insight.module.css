@@ -1,0 +1,208 @@
+/* Sources line and the comparison: one flat material with the rest of the screen (hairlines, token radii). */
+.lead {
+  color: var(--ink-2);
+  font-size: 15px;
+  max-width: 60ch;
+  text-wrap: pretty;
+}
+
+/* sources: one price line, every cloud labelled where it sits */
+.sources {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.line {
+  position: relative;
+  height: 128px;
+  margin: 0 6px;
+}
+.rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--line-2);
+}
+.midTick {
+  position: absolute;
+  top: calc(50% - 14px);
+  height: 28px;
+  width: 2px;
+  background: var(--ink);
+  transform: translateX(-50%);
+}
+.src {
+  position: absolute;
+  top: 50%;
+  width: 0;
+  height: 0;
+}
+.src i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--panel);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+.src[data-mid="true"] i {
+  width: 13px;
+  height: 13px;
+  background: var(--ink);
+  box-shadow: 0 0 0 3px var(--panel);
+}
+.src[data-live="false"] i {
+  box-shadow: inset 0 0 0 1.5px var(--mute);
+  background: transparent;
+}
+.label {
+  position: absolute;
+  left: 0;
+  display: grid;
+  gap: 1px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.25;
+}
+.src[data-side="above"] .label {
+  bottom: 14px;
+}
+.src[data-side="below"] .label {
+  top: 14px;
+}
+.src[data-edge="start"] .label {
+  transform: translateX(-8px);
+  text-align: left;
+}
+.src[data-edge="end"] .label {
+  transform: translateX(calc(-100% + 8px));
+  text-align: right;
+}
+.label > span {
+  color: var(--ink-2);
+}
+.label > b {
+  font-weight: 500;
+}
+.src[data-mid="true"] .label > b,
+.src[data-mid="true"] .label > span {
+  color: var(--ink);
+}
+.src[data-live="false"] .label > span,
+.src[data-live="false"] .label > b {
+  color: var(--mute);
+  font-weight: 400;
+}
+.list {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 0;
+  box-shadow: inset 0 -1px 0 var(--line);
+  font-size: 15px;
+}
+.list li > span {
+  color: var(--ink-2);
+}
+.list li > b {
+  font-weight: 500;
+}
+.list li[data-mid="true"] > span,
+.list li[data-mid="true"] > b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.list li[data-live="false"] > span,
+.list li[data-live="false"] > b {
+  color: var(--mute);
+  font-weight: 400;
+}
+@media (max-width: 640px) {
+  .line {
+    height: 36px;
+  }
+  .label {
+    display: none;
+  }
+  .list {
+    display: grid;
+  }
+}
+
+/* beside other prices: three flat columns split by hairlines, ours marked by the stone */
+.beside {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.col {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 2px 18px 2px 0;
+  min-width: 0;
+}
+.col + .col {
+  padding-left: 18px;
+  box-shadow: inset 1px 0 0 var(--line);
+}
+.name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+.price {
+  font-size: 34px;
+  font-weight: 300;
+  line-height: 1.1;
+}
+.col[data-ours="false"] .price {
+  color: var(--ink-2);
+}
+.gap {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.col[data-ours="false"] .gap {
+  color: var(--ink-2);
+  font-weight: 400;
+}
+.note {
+  font-size: 15px;
+  color: var(--mute);
+  text-wrap: pretty;
+}
+@media (max-width: 560px) {
+  .cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .col,
+  .col + .col {
+    padding: 12px 0;
+    box-shadow: inset 0 -1px 0 var(--line);
+  }
+}
+.name a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}

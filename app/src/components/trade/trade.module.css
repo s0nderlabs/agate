@@ -1,0 +1,1387 @@
+/* The trade screen. Two looks share one structure:
+   tech   = one flush surface, panels split by 1px hairlines, near-square corners
+   simple = floating rounded panels on the ground, pill controls, more air */
+.screen {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+}
+.up {
+  color: var(--up);
+}
+.down {
+  color: var(--down);
+}
+
+/* header: the two prices only agate has, side by side, and the month's band */
+.head {
+  padding: clamp(18px, 2.4vw, 28px) clamp(16px, 2.4vw, 32px) clamp(18px, 2.2vw, 26px);
+  display: grid;
+  gap: 22px 48px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: end;
+}
+@media (min-width: 760px) {
+  .head {
+    grid-template-columns: auto auto;
+    justify-content: start;
+  }
+}
+@media (min-width: 1180px) {
+  .head {
+    grid-template-columns: auto auto minmax(280px, 1fr);
+  }
+}
+/* the month's market stats: their own row until there is room beside the outlook, then at the right edge */
+.statsCell {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+@media (min-width: 1400px) {
+  .head[data-stats="true"]:not([data-map="true"]) {
+    grid-template-columns: auto auto minmax(280px, 440px) minmax(0, 1fr);
+  }
+  /* beside the prices: full height of the header row, dividers top to bottom, figures centred in it */
+  .head[data-stats="true"]:not([data-map="true"]) .statsCell {
+    grid-column: auto;
+    justify-self: end;
+    align-self: stretch;
+    display: flex;
+  }
+  .head[data-stats="true"]:not([data-map="true"]) .stats {
+    align-items: stretch;
+    padding-bottom: 0;
+  }
+  .head[data-stats="true"]:not([data-map="true"]) .stats > div {
+    align-content: center;
+    gap: 6px;
+  }
+  .head[data-stats="true"]:not([data-map="true"]) .stats dd {
+    font-size: 19px;
+  }
+}
+/* "Numbers together": the two prices, then the month's stats, then the sentence at the right edge */
+@media (min-width: 1400px) {
+  .head[data-order="numbers"][data-stats="true"]:not([data-map="true"]) {
+    grid-template-columns: auto auto auto minmax(0, 1fr);
+  }
+  .head[data-order="numbers"][data-stats="true"]:not([data-map="true"]) .statsCell {
+    order: 3;
+    justify-self: start;
+  }
+  .head[data-order="numbers"][data-stats="true"]:not([data-map="true"]) .outlook {
+    order: 4;
+    justify-self: end;
+    max-width: 420px;
+  }
+}
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  padding-bottom: 2px;
+}
+.stats > div {
+  display: grid;
+  gap: 4px;
+  padding: 0 22px;
+  box-shadow: inset 1px 0 0 var(--line);
+}
+.stats > div:first-child {
+  padding-left: 0;
+  box-shadow: none;
+}
+@media (min-width: 1400px) {
+  .head[data-stats="true"]:not([data-map="true"]) .stats > div:first-child {
+    padding-left: 22px;
+    box-shadow: inset 1px 0 0 var(--line);
+  }
+  .head[data-stats="true"]:not([data-map="true"]) .stats > div:last-child {
+    padding-right: 0;
+  }
+}
+.stats dt {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.stats dd {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.srcLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--mute);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 4px;
+}
+.srcLink > i {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-mark);
+  background: var(--mute);
+}
+.srcLink > i[data-ok="true"] {
+  background: var(--ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .srcLink:hover {
+    color: var(--ink-2);
+  }
+}
+
+/* with the price line in the header: its own row until there is room beside the outlook */
+.mapCell {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+@media (min-width: 1500px) {
+  .head[data-map="true"] {
+    grid-template-columns: auto auto minmax(280px, 360px) minmax(0, 1fr);
+  }
+  .head[data-map="true"] .mapCell {
+    grid-column: auto;
+  }
+}
+.priceBlock {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.pLabel {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.bigPrice {
+  font-size: clamp(48px, 5.4vw, 68px);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.screen[data-style="simple"] .bigPrice {
+  font-size: clamp(52px, 6vw, 76px);
+}
+.pSub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 15px;
+  color: var(--mute);
+}
+.pSub em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.pSub em.up {
+  color: var(--up);
+}
+.pSub em.down {
+  color: var(--down);
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.status i {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-mark);
+  background: var(--mute);
+}
+.status i[data-ok="true"] {
+  background: var(--ink);
+}
+.outlook {
+  display: grid;
+  gap: 6px;
+  max-width: 46ch;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+@media (min-width: 760px) and (max-width: 1179px) {
+  .outlook {
+    grid-column: 1 / -1;
+  }
+}
+.olMain {
+  font-size: 18px;
+  line-height: 1.35;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.olMain b {
+  font-weight: 500;
+}
+.olSub {
+  font-size: 15px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* "Scoreboard" header: the two prices as heroes, the month's figures as one quiet strip. Every label shares the
+   top line; heroes add one note line under the price; the strip's units sit quiet beside each number. */
+.board {
+  padding: clamp(18px, 2.4vw, 28px) clamp(16px, 2.4vw, 32px) clamp(18px, 2.2vw, 26px);
+  display: grid;
+  gap: 22px;
+}
+.bRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 22px 56px;
+}
+.bHero {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.peers {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 44px;
+  margin: 0;
+}
+.peers > div {
+  display: grid;
+  gap: 6px;
+}
+.peers dt {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.peers dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+.peers dd small {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--mute);
+  letter-spacing: 0;
+}
+/* wide: one row, every item spread evenly across the width, the strip's labels on the heroes' label line;
+   a long note (a carried day) wraps inside its price instead of pushing the row onto two lines */
+@media (min-width: 1280px) {
+  .bRow {
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    column-gap: 40px;
+  }
+  .bRow > * {
+    flex-shrink: 0;
+  }
+  .bRow > .bHero:first-child {
+    flex-shrink: 1;
+  }
+  .peers {
+    display: contents;
+  }
+}
+/* phone: the prices stack, the strip becomes two columns */
+@media (max-width: 759px) {
+  .bHero {
+    flex-basis: 100%;
+  }
+  .peers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 20px;
+  }
+}
+
+/* round 2's single-price header, kept as a mock option */
+.headOne {
+  padding: clamp(18px, 2.4vw, 28px) clamp(16px, 2.4vw, 32px) clamp(16px, 2vw, 22px);
+  display: grid;
+  gap: 10px;
+}
+.headTop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.title {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.updated {
+  font-size: 15px;
+  color: var(--mute);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.carriedNote {
+  color: var(--ink-2);
+}
+.headGpu {
+  grid-column: 1 / -1;
+}
+.gpuTabs {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--well);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.gpuTabs button {
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  padding: 6px 14px;
+  font-size: 15px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.gpuTabs button[aria-selected="true"] {
+  background: var(--seg-on);
+  color: var(--ink);
+  box-shadow: var(--lift);
+}
+.priceRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 16px;
+}
+.priceRow .bigPrice {
+  font-size: clamp(52px, 6vw, 72px);
+}
+.screen[data-style="simple"] .priceRow .bigPrice {
+  font-size: clamp(56px, 7vw, 84px);
+}
+.per {
+  font-size: 18px;
+  color: var(--ink-2);
+}
+.delta {
+  font-size: 16px;
+  font-weight: 500;
+}
+.priceRow .status {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+/* shared small controls */
+.ranges button,
+.seg > button {
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  padding: 6px 14px;
+  font-size: 15px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.ranges button[aria-pressed="true"],
+.seg > button[aria-pressed="true"] {
+  background: var(--seg-on);
+  color: var(--ink);
+  box-shadow: var(--lift);
+}
+.seg > button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* grid of panels */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "chart" "ticket" "book" "bottom";
+}
+.grid[data-bottom="false"] {
+  grid-template-areas: "chart" "ticket" "book";
+}
+@media (min-width: 1100px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-areas: "chart ticket" "bottom ticket";
+  }
+  .grid[data-bottom="false"] {
+    grid-template-areas: "chart ticket";
+  }
+  .grid[data-pro="true"] {
+    grid-template-columns: minmax(0, 1fr) 260px 380px;
+    grid-template-areas: "chart book ticket" "bottom bottom ticket";
+  }
+}
+/* "Trade panel from the top": the prices sit over the chart only and the ticket runs the full height on the right;
+   the chart row takes whatever height the ticket adds */
+.grid[data-top="true"] {
+  grid-template-areas: "head" "chart" "ticket" "book" "bottom";
+}
+.grid[data-top="true"][data-bottom="false"] {
+  grid-template-areas: "head" "chart" "ticket";
+}
+@media (min-width: 1100px) {
+  .grid[data-top="true"] {
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas: "head ticket" "chart ticket" "bottom ticket";
+  }
+  .grid[data-top="true"][data-bottom="false"] {
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "head ticket" "chart ticket";
+  }
+  .grid[data-top="true"][data-pro="true"] {
+    grid-template-areas: "head head ticket" "chart book ticket" "bottom bottom ticket";
+  }
+}
+.headPanel {
+  grid-area: head;
+  display: grid;
+  gap: 18px;
+}
+/* the row clips sideways only: the hairline before the stats sits in the gap, so it vanishes when they wrap */
+.hsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 22px 48px;
+  overflow-x: clip;
+}
+.hsRow > .priceBlock {
+  flex: none;
+}
+.hsRow > .priceBlock:first-child {
+  flex: 0 1 auto;
+}
+/* the stats: beside the prices whenever they fit (as tall as the prices, figures centred, a hairline before
+   each: the chosen look), else their own row across the column. No width guess: the wrap follows content. */
+.hsStats {
+  flex: 1 1 0;
+  display: flex;
+  margin: 0;
+}
+.hsStats > div {
+  flex: 1;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  padding: 0 22px;
+  box-shadow: inset 1px 0 0 var(--line);
+  position: relative;
+}
+.hsStats > div:first-child {
+  padding-left: 0;
+  box-shadow: none;
+}
+.hsStats > div:first-child::before {
+  content: "";
+  position: absolute;
+  left: -24px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.hsStats > div:last-child {
+  padding-right: 0;
+}
+.hsStats dt {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.hsStats dd {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+/* two rows filling the prices' height, read in columns (outlook, today, the month); one hairline per column,
+   unbroken from top to bottom; the hairline before the block sits in the gap and is clipped when it wraps */
+.hsGrid {
+  flex: 1 1 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: auto auto;
+  grid-auto-columns: minmax(max-content, 1fr);
+  align-content: center;
+  margin: 0;
+  position: relative;
+}
+.hsGrid::before {
+  content: "";
+  position: absolute;
+  left: -24px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+.hsGrid > div {
+  display: grid;
+  gap: 4px;
+  padding: 7px 22px;
+  box-shadow: inset 1px 0 0 var(--line);
+  position: relative;
+}
+/* rich cells: units and "in N days" go quiet beside the number */
+.hsGrid small {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--mute);
+}
+.expArrow {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+/* a range: the figures, then a thin line exactly as wide as them with a dot where the price sits */
+.hsGrid dd.rng {
+  display: inline-grid;
+  justify-self: start;
+  gap: 7px;
+}
+.rbar {
+  position: relative;
+  height: 3px;
+  margin-bottom: 2px;
+  background: var(--line-2);
+  border-radius: 2px;
+}
+.rbar > i {
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  background: var(--ink);
+  border-radius: var(--r-mark);
+  box-shadow: 0 0 0 2px var(--bg);
+  transform: translate(-50%, -50%);
+}
+/* the small charts: one 140 x 14 line under every number, colored only where green and red mean up and down */
+.hsGrid dd.viz {
+  margin: 2px 0 0;
+  line-height: 0;
+}
+.vz {
+  display: block;
+  width: 140px;
+  max-width: 100%;
+  height: 14px;
+  overflow: visible;
+  color: var(--ink-2);
+}
+.vz.up {
+  color: var(--up);
+}
+.vz.down {
+  color: var(--down);
+}
+.vInk {
+  fill: var(--ink);
+}
+.vTrack {
+  fill: var(--line-2);
+}
+.vUp {
+  fill: var(--up);
+}
+.vDown {
+  fill: var(--down);
+}
+.vLoss {
+  fill: color-mix(in oklch, var(--down) 55%, transparent);
+}
+.vGain {
+  fill: color-mix(in oklch, var(--up) 55%, transparent);
+}
+.vLine {
+  color: var(--ink);
+}
+.vFill {
+  fill: color-mix(in oklch, var(--ink) 9%, transparent);
+}
+/* with charts the cells breathe less, so two rows still match the prices' height */
+.hsGrid[data-charts="true"] > div {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  gap: 3px;
+}
+/* labels that explain themselves: dotted underline, a note on hover (after a beat) or on tap / keyboard focus */
+.tipBtn {
+  all: unset;
+  cursor: help;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--mute);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+/* the label (and its icon) darken on hover, so the hint confirms itself before the note opens */
+.tipBtn {
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tipBtn:hover {
+    color: var(--ink);
+    text-decoration-color: var(--ink-2);
+  }
+}
+.tipBtn[data-hint="icon"] {
+  text-decoration: none;
+}
+.tipIcon {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-left: 5px;
+  vertical-align: -2px;
+  color: var(--mute);
+  transition: color 120ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tipBtn:hover .tipIcon {
+    color: var(--ink);
+  }
+}
+.tipBtn:focus-visible .tipIcon {
+  color: var(--ink);
+}
+.tipBtn:focus-visible {
+  outline: 1px solid var(--line-2);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+.tip {
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 0;
+  z-index: 30;
+  width: max-content;
+  max-width: 300px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  color: var(--ink);
+  background: var(--card);
+  border-radius: var(--r-2);
+  box-shadow: inset 0 0 0 1px var(--line-2), 0 1px 2px rgb(0 0 0 / 0.08), 0 18px 40px -18px rgb(0 0 0 / 0.35);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 140ms cubic-bezier(0.23, 1, 0.32, 1), transform 140ms cubic-bezier(0.23, 1, 0.32, 1), visibility 0s linear 140ms;
+  pointer-events: none;
+}
+.hsGrid > div:nth-child(n + 5) .tip {
+  left: auto;
+  right: 0;
+}
+/* the references' set: four figures in two columns (the market's activity, then time) */
+.hsGrid[data-look="refs"] > div:nth-child(n + 3) {
+  padding-right: 0;
+}
+.hsGrid[data-look="refs"] > div:nth-child(n + 3) .tip {
+  left: auto;
+  right: 0;
+}
+/* a single note-bearing phrase outside the stats (the forecast under November) */
+.tipWrap {
+  position: relative;
+}
+.tipWrap .tip {
+  top: calc(100% + 8px);
+}
+.tipWrap:hover .tip,
+.tipWrap:focus-within .tip,
+.hsGrid > div:hover .tip,
+.hsGrid dt:focus-within .tip {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 120ms, 120ms, 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tip {
+    transform: none;
+  }
+}
+/* phone: two columns, so the right column's notes open leftward and stay on screen */
+@media (max-width: 600px) {
+  .tip {
+    max-width: min(300px, calc(100vw - 40px));
+  }
+  .hsGrid > div:nth-child(odd) .tip {
+    left: 0;
+    right: auto;
+  }
+  .hsGrid > div:nth-child(even) .tip {
+    left: auto;
+    right: 0;
+  }
+}
+.hsGrid > div:nth-child(-n + 2) {
+  padding-left: 0;
+  box-shadow: none;
+}
+.hsGrid > div:nth-child(n + 5) {
+  padding-right: 0;
+}
+.hsGrid dt {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.hsGrid dd {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .hsGrid {
+    flex-basis: 100%;
+    grid-auto-flow: row;
+    grid-template-rows: none;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 20px;
+  }
+  .hsGrid::before {
+    display: none;
+  }
+  .hsGrid > div,
+  .hsGrid > div:nth-child(-n + 2) {
+    padding: 0;
+    box-shadow: none;
+  }
+}
+@media (max-width: 600px) {
+  .hsStats {
+    flex-basis: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 20px;
+  }
+  .hsStats > div {
+    padding: 0;
+    box-shadow: none;
+  }
+}
+.chartPanel {
+  grid-area: chart;
+  display: flex;
+  flex-direction: column;
+}
+.chartBody {
+  flex: 1;
+  min-height: clamp(260px, 36vh, 440px);
+  border-radius: 0;
+}
+.bookPanel {
+  grid-area: book;
+}
+.ticketPanel {
+  grid-area: ticket;
+}
+.bottomPanel {
+  grid-area: bottom;
+}
+.panel {
+  background: var(--panel);
+  padding: var(--panel-pad);
+  min-width: 0;
+}
+
+/* tech: one surface, hairlines between panels (the grid's own color shows through 1px gaps) */
+.screen[data-style="tech"] .grid {
+  gap: 1px;
+  background: var(--line);
+  box-shadow: 0 -1px 0 var(--line);
+}
+.screen[data-style="tech"] .panel {
+  background: var(--bg);
+}
+/* simple: floating rounded panels */
+.screen[data-style="simple"] .main {
+  padding-bottom: 28px;
+}
+.screen[data-style="simple"] .grid {
+  gap: 14px;
+  padding: 0 clamp(12px, 2vw, 24px);
+  align-items: start;
+}
+/* the chart panel runs as tall as the trade panel when nothing sits under it, so the chart fills it */
+.screen[data-style="simple"] .grid[data-bottom="false"] .chartPanel {
+  align-self: stretch;
+}
+/* in Pro the chart grows to the book's height, so the two panels end on one line */
+.screen[data-style="simple"] .grid[data-pro="true"] .chartPanel,
+.screen[data-style="simple"] .grid[data-pro="true"] .bookPanel {
+  align-self: stretch;
+}
+.screen[data-style="simple"] .panel {
+  border-radius: var(--r-2);
+  box-shadow: var(--depth), inset 0 0 0 1px var(--line);
+}
+
+/* chart panel */
+.chartBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.ranges {
+  display: inline-flex;
+  gap: 2px;
+}
+.barLeft,
+.barRight {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+.seriesTabs {
+  display: flex;
+  gap: 20px;
+}
+.seriesTabs button {
+  border: 0;
+  background: none;
+  padding: 4px 0;
+  font-size: 16px;
+  color: var(--ink-2);
+  cursor: pointer;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+.seriesTabs button[aria-selected="true"] {
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: inset 0 -2px 0 var(--ink);
+}
+.bandToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  color: var(--ink-2);
+  cursor: pointer;
+  position: relative;
+}
+.bandToggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.check {
+  width: 16px;
+  height: 16px;
+  border-radius: calc(var(--r-1) / 2);
+  box-shadow: inset 0 0 0 1.5px var(--line-2);
+  display: inline-grid;
+  place-items: center;
+}
+.bandToggle input:checked + .check {
+  background: var(--ink);
+  box-shadow: none;
+}
+.bandToggle input:checked + .check::after {
+  content: "";
+  width: 8px;
+  height: 4px;
+  border-left: 1.5px solid var(--bg);
+  border-bottom: 1.5px solid var(--bg);
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+.bandToggle input:focus-visible + .check {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.fine {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--mute);
+}
+
+/* chart legend: what each mark means, drawn, instead of a sentence of footnote */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 20px;
+  margin-top: 12px;
+  font-size: 15px;
+  color: var(--mute);
+}
+.legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.lgLine {
+  width: 18px;
+  height: 2px;
+  background: var(--ink);
+}
+.lgExample {
+  opacity: 0.42;
+}
+.lgDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--mute);
+}
+
+/* ticket */
+.ticket {
+  display: grid;
+  gap: 14px;
+}
+.tTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.tTop > b {
+  font-weight: 500;
+  font-size: 17px;
+}
+.tTop > span {
+  font-size: 15px;
+  color: var(--mute);
+}
+.tPriceRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tPriceRow > .seg {
+  margin-bottom: 4px;
+}
+/* the condition under a risk row: its own line, so both rows read the same way */
+.hint {
+  display: block;
+  color: var(--mute);
+}
+.tHead .seg {
+  width: 100%;
+}
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--well);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.tHead .seg > button {
+  flex: 1;
+}
+.side {
+  width: 100%;
+}
+.side > button {
+  flex: 1;
+  padding: 10px 0;
+  font-size: 17px;
+  font-weight: 500;
+}
+.tPrice {
+  display: grid;
+  gap: 2px;
+}
+.tPrice b {
+  --digit: 0.52em;
+  font-weight: 300;
+  font-size: 44px;
+  line-height: 1.05;
+}
+.screen[data-style="simple"] .tPrice b {
+  font-size: 54px;
+}
+.tPrice > span {
+  font-size: 15px;
+  color: var(--mute);
+}
+.tCopy {
+  font-size: 15px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.tCopy b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.proRow {
+  display: grid;
+  gap: 10px;
+}
+.sizeRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.field {
+  display: grid;
+  gap: 2px;
+  background: var(--well);
+  border-radius: var(--r-1);
+  padding: 10px 12px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.field > span {
+  font-size: 14px;
+  color: var(--mute);
+}
+.field input {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 20px;
+  color: var(--ink);
+  padding: 2px 0;
+  width: 100%;
+  outline: none;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+.stepper b {
+  font-size: 22px;
+  font-weight: 500;
+  min-width: 1.4em;
+  text-align: center;
+}
+.stepper button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--seg-on);
+  box-shadow: var(--lift);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink);
+}
+.stepper button:active {
+  transform: scale(0.96);
+}
+.hours {
+  font-size: 15px;
+  color: var(--mute);
+  margin-top: 8px;
+}
+.hours b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.toggle {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--well);
+  border-radius: var(--r-1);
+  padding: 10px 12px;
+  cursor: pointer;
+  position: relative;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.switch {
+  flex: none;
+  width: 40px;
+  height: 24px;
+  border-radius: var(--r-pill);
+  background: var(--line-2);
+  position: relative;
+  margin-top: 1px;
+  transition: background 0.2s;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  background: var(--seg-on);
+  box-shadow: var(--lift);
+  transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.toggle input:checked + .switch {
+  background: var(--ink);
+}
+.toggle input:checked + .switch::after {
+  transform: translateX(16px);
+  background: var(--bg);
+}
+.toggle input:focus-visible + .switch {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.toggleText {
+  display: grid;
+  gap: 2px;
+}
+.toggleText b {
+  font-weight: 500;
+}
+.toggleText > span {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.sum {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.sum > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+.sum dt {
+  color: var(--ink-2);
+  font-size: 15px;
+}
+.sum dd {
+  margin: 0;
+  font-weight: 500;
+  font-size: 16px;
+}
+.cta {
+  border: 0;
+  width: 100%;
+  padding: 15px;
+  font-size: 17px;
+  font-weight: 500;
+  background: var(--btn);
+  color: var(--btn-ink);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.cta:active {
+  transform: scale(0.98);
+}
+.cta:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+.ticket .fine {
+  margin-top: -6px;
+  text-align: center;
+}
+
+/* order book */
+.book {
+  display: grid;
+  gap: 2px;
+  font-size: 14px;
+}
+.panelHead {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.panelHead b {
+  font-weight: 500;
+  font-size: 16px;
+}
+.bookCols,
+.bookRow,
+.spread {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px 6px;
+}
+.bookCols {
+  color: var(--mute);
+}
+.bookCols > span:last-child,
+.bookRow > span:last-child,
+.spread > span:last-child {
+  text-align: right;
+}
+.bookRow {
+  position: relative;
+}
+.bookCols[data-cols="3"],
+.bookRow[data-cols="3"],
+.spread[data-cols="3"] {
+  grid-template-columns: 0.9fr 1fr 1fr;
+}
+.bookCols[data-cols="3"] > span:nth-child(2),
+.bookRow[data-cols="3"] > span:nth-child(3),
+.spread[data-cols="3"] > span:nth-child(2) {
+  text-align: right;
+}
+button.bookRow {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: calc(var(--r-1) / 2);
+}
+@media (hover: hover) and (pointer: fine) {
+  button.bookRow:hover {
+    background: var(--well);
+  }
+}
+button.bookRow:focus-visible {
+  outline: 1px solid var(--ink);
+}
+.cancel {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.bookRow i {
+  position: absolute;
+  right: 0;
+  top: 1px;
+  bottom: 1px;
+  opacity: 0.1;
+  border-radius: calc(var(--r-1) / 2);
+}
+.bookRow[data-kind="ask"] i {
+  background: var(--down);
+}
+.bookRow[data-kind="bid"] i {
+  background: var(--up);
+}
+.bookRow > span {
+  position: relative;
+}
+.spread {
+  margin: 4px 0;
+  color: var(--ink-2);
+  background: var(--well);
+  border-radius: calc(var(--r-1) / 2);
+}
+
+/* bottom */
+.bottom {
+  display: grid;
+  gap: 14px;
+}
+.tabs {
+  display: flex;
+  gap: 22px;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.tabs button {
+  border: 0;
+  background: none;
+  padding: 0 0 10px;
+  font-size: 15px;
+  color: var(--ink-2);
+  cursor: pointer;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+.tabs button[aria-selected="true"] {
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--ink);
+}
+.tableWrap {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+.table th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--mute);
+  font-size: 14px;
+  padding: 6px 10px 8px 0;
+  white-space: nowrap;
+}
+.table td {
+  padding: 9px 10px 9px 0;
+  white-space: nowrap;
+}
+.screen[data-style="tech"] .table tbody tr {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.r {
+  text-align: right !important;
+}
+.empty {
+  color: var(--ink-2);
+  padding: 18px 0 8px;
+  max-width: 56ch;
+}
+.sourcesPro {
+  display: grid;
+  gap: 22px;
+}
+.simpleBottom {
+  display: grid;
+  gap: 28px;
+}
+@media (min-width: 900px) {
+  .simpleBottom {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 32px;
+  }
+}
+.sub {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  min-width: 0;
+}
+.sub > b {
+  font-weight: 500;
+  font-size: 17px;
+}
+.sub > span {
+  color: var(--ink-2);
+  font-size: 15px;
+  max-width: 52ch;
+}

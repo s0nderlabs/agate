@@ -1,0 +1,240 @@
+/* Pro order ticket: dense, flat, token radii; same materials as the rest of the screen. */
+.ticket {
+  display: grid;
+  gap: 12px;
+  font-size: 15px;
+}
+.side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  gap: 2px;
+  background: var(--well);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.side > button {
+  border: 0;
+  background: none;
+  padding: 10px 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink-2);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+.side > button[aria-pressed="true"] {
+  background: var(--seg-on);
+  color: var(--ink);
+  box-shadow: var(--lift);
+}
+.side > button[data-side="long"][aria-pressed="true"] {
+  box-shadow: var(--lift), inset 0 -2px 0 var(--up);
+}
+.side > button[data-side="short"][aria-pressed="true"] {
+  box-shadow: var(--lift), inset 0 -2px 0 var(--down);
+}
+.typeTabs {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.typeTabs > button {
+  border: 0;
+  background: none;
+  padding: 0 0 9px;
+  font-size: 15px;
+  color: var(--ink-2);
+  cursor: pointer;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+.typeTabs > button[aria-selected="true"] {
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--ink);
+}
+.month {
+  margin-left: auto;
+  color: var(--mute);
+}
+.facts,
+.sum {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.facts > div,
+.sum > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.facts dt,
+.sum dt {
+  color: var(--ink-2);
+}
+.facts dd,
+.sum dd {
+  margin: 0;
+  text-align: right;
+}
+.facts dd {
+  color: var(--ink);
+}
+.sum {
+  padding-top: 12px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.sum dd {
+  font-weight: 500;
+}
+.sum dt > span {
+  color: var(--mute);
+  margin-left: 4px;
+}
+.good {
+  color: var(--up);
+}
+.group {
+  display: grid;
+  gap: 8px;
+}
+.input {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--well);
+  border-radius: var(--r-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: text;
+}
+.input:focus-within {
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.input > span {
+  color: var(--mute);
+}
+.input > input {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: right;
+  outline: none;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.input > input[aria-invalid="true"] {
+  color: var(--down);
+}
+.input > em {
+  font-style: normal;
+  color: var(--mute);
+}
+.chips {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 6px;
+}
+.chips > button {
+  border: 0;
+  padding: 6px 4px;
+  font-size: 14px;
+  color: var(--ink-2);
+  background: var(--well);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chips > button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+@media (hover: hover) and (pointer: fine) {
+  .chips > button:not(:disabled):hover {
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--line-2);
+  }
+}
+.help,
+.warn,
+.note {
+  font-size: 14px;
+  color: var(--mute);
+}
+.warn {
+  color: var(--down);
+}
+.note {
+  text-align: center;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  position: relative;
+}
+.check > input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.box {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-mark);
+  box-shadow: inset 0 0 0 1.5px var(--ink-2);
+  position: relative;
+}
+.check > input:checked + .box {
+  background: var(--ink);
+  box-shadow: none;
+}
+.check > input:checked + .box::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--bg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.check > input:focus-visible + .box {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.check em {
+  font-style: normal;
+  color: var(--mute);
+}
+.cta {
+  border: 0;
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 500;
+  background: var(--btn);
+  color: var(--btn-ink);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.cta:active {
+  transform: scale(0.98);
+}
+.cta:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

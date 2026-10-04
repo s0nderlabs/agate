@@ -1,0 +1,94 @@
+/* deliberately neutral chrome: system font, no agate tokens, so it never reads as part of the design */
+.wrap {
+  position: fixed;
+  z-index: 90;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #1c1c1e;
+}
+:global(html[data-mock-hidden]) .wrap {
+  display: none;
+}
+.pill {
+  border: 0;
+  border-radius: 999px;
+  padding: 11px 18px;
+  background: #1c1c1e;
+  color: #fff;
+  font: 500 15px/1 ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.5);
+  cursor: pointer;
+}
+.panel {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 16px 18px;
+  display: grid;
+  gap: 12px;
+  box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(0 0 0 / 0.08);
+}
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.head b {
+  font-size: 16px;
+}
+.head span {
+  font-size: 14px;
+  color: #6e6e73;
+}
+.row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+.row > span {
+  font-size: 14px;
+  color: #6e6e73;
+}
+.opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.opts button {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font: 14px/1.2 ui-sans-serif, system-ui, sans-serif;
+  background: #f2f2f4;
+  color: #1c1c1e;
+  cursor: pointer;
+}
+.opts button[aria-pressed="true"] {
+  background: #1c1c1e;
+  color: #fff;
+}
+.stat {
+  font-size: 14px;
+  color: #3a3a3c;
+  margin-right: 4px;
+}
+@media (max-width: 520px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+.link {
+  font-size: 14px;
+  color: #1c1c1e;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

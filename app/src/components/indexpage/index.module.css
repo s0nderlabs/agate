@@ -1,0 +1,48 @@
+/* Index page, first cut: one column, flat sections split by hairlines, same tokens as the trade screen. */
+.screen {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+}
+.main {
+  max-width: 980px;
+  padding: clamp(20px, 3vw, 36px) clamp(16px, 2.4vw, 32px) 64px;
+  display: grid;
+  gap: 0;
+}
+.head {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 28px;
+}
+.label {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.price {
+  font-size: clamp(52px, 6vw, 72px);
+  font-weight: 300;
+  line-height: 1;
+}
+.sub {
+  font-size: 15px;
+  color: var(--ink-2);
+  max-width: 60ch;
+}
+.section {
+  display: grid;
+  gap: 14px;
+  padding: 26px 0;
+  box-shadow: inset 0 1px 0 var(--line);
+  scroll-margin-top: 80px;
+}
+.section h2 {
+  font-size: 17px;
+  font-weight: 500;
+}
+.next {
+  padding-top: 22px;
+  box-shadow: inset 0 1px 0 var(--line);
+  font-size: 15px;
+  color: var(--mute);
+}

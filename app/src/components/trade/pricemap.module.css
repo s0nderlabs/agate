@@ -1,0 +1,170 @@
+/* Header context: two ordered lines, list prices and traded prices. Flat text, no containers. */
+.map {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.title {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.rows {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 16px;
+  align-items: baseline;
+}
+.rowLabel {
+  font-size: 15px;
+  color: var(--mute);
+  white-space: nowrap;
+}
+.items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 15px;
+}
+.items li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+.items li > b {
+  font-weight: 500;
+  color: var(--ink);
+}
+/* the same marks as the chart: hollow = a cloud, filled = the index, faint = not counted */
+.items li > i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.75px var(--ink-2);
+  flex: none;
+}
+.items li[data-kind="index"] > i {
+  background: var(--ink);
+  box-shadow: none;
+}
+.items li[data-kind="index"] > span,
+.items li[data-kind="index"] > b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.items li > em {
+  font-style: normal;
+  color: var(--ink-2);
+}
+.items li[data-kind="reserve"],
+.items li[data-kind="reserve"] > b {
+  color: var(--mute);
+  font-weight: 400;
+}
+.items li[data-kind="reserve"] > i {
+  box-shadow: inset 0 0 0 1.5px var(--mute);
+}
+.items li[data-kind="traded"] {
+  color: var(--ink-2);
+}
+.items li[data-kind="traded"] a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+.items li[data-kind="none"],
+.items li[data-kind="none"] > b {
+  color: var(--mute);
+  font-weight: 400;
+}
+.items li[data-kind="none"] a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+.items li[data-kind="note"] {
+  color: var(--mute);
+}
+
+/* on-demand panel under "5 of 5 clouds": the one floating layer, so it alone gets elevation */
+.popWrap {
+  position: relative;
+  display: inline-flex;
+}
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--mute);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 4px;
+}
+.trigger > i {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-mark);
+  background: var(--mute);
+}
+.trigger > i[data-ok="true"] {
+  background: var(--ink);
+}
+.trigger[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .trigger:hover {
+    color: var(--ink-2);
+  }
+}
+.pop {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 30;
+  width: min(560px, calc(100vw - 32px));
+  padding: 18px 20px;
+  background: var(--card);
+  border-radius: var(--r-2);
+  box-shadow: inset 0 0 0 1px var(--line-2), 0 1px 2px rgb(0 0 0 / 0.08), 0 18px 40px -18px rgb(0 0 0 / 0.35);
+  display: grid;
+  gap: 14px;
+  color: var(--ink);
+  transform-origin: top left;
+  animation: popIn 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    animation: none;
+  }
+}
+.pop .rows {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+.pop .rowLabel {
+  margin-top: 6px;
+}
+.popFoot {
+  font-size: 15px;
+  color: var(--mute);
+  padding-top: 12px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
