@@ -5,7 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Address } from "@agate/report/types";
-import { alertSink, runNotify } from "../src/pipeline/ops.ts";
+import { alertOpen, alertSink, runNotify } from "../src/pipeline/ops.ts";
 
 const dirs: string[] = [];
 const tmp = () => {
@@ -31,6 +31,27 @@ describe("writer alerts reach AGATE_NOTIFY_CMD (M2)", () => {
     expect(calls.length).toBe(2);
     expect(calls[0]!.cmd).toBe("notify-me");
     expect(JSON.parse(calls[0]!.json)).toMatchObject({ code: "KEY_MISMATCH", severity: "action", index: INDEX.toLowerCase(), writer: W });
+  });
+  test("Oct 5: a clear writes the same id with `cleared`, which the watcher's alert store reads as cleared; it never notifies, and the next raise notifies again", async () => {
+    const { AlertSink } = await import("../../watcher/src/alerts.ts"); // the store every reader of alerts.jsonl uses
+    const home = tmp();
+    const calls: string[] = [];
+    const sink = alertSink({ home, writer: W, print: () => {}, notifyCmd: "notify-me", notify: (_c, json) => calls.push(json) });
+    const down = { code: "RPC_DOWN" as const, severity: "action" as const, message: "every RPC URL failed on two ticks running (standby)" };
+    sink(down);
+    const store = () => new AlertSink(join(home, "alerts", "alerts.jsonl"), { now: () => 1, print: false });
+    expect(store().open().filter((a) => a.code === "RPC_DOWN").length).toBe(1);
+    sink({ ...down, message: "the RPC answers again (standby)", clear: true });
+    expect(store().open().filter((a) => a.code === "RPC_DOWN").length).toBe(0);
+    expect(calls.length).toBe(1);
+    sink(down); // a later outage: open again, and the phone hears about it again
+    expect(store().open().filter((a) => a.code === "RPC_DOWN").length).toBe(1);
+    expect(calls.length).toBe(2);
+    // what a restarted writer reads at start (WriterConfig.rpcDownOpen)
+    expect(alertOpen(home, { ...down, writer: W })).toBe(true);
+    sink({ ...down, clear: true });
+    expect(alertOpen(home, { ...down, writer: W })).toBe(false);
+    expect(alertOpen(tmp(), { ...down, writer: W })).toBe(false);
   });
   test("without AGATE_NOTIFY_CMD nothing runs", () => {
     const calls: string[] = [];

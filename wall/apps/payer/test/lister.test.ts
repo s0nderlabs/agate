@@ -255,6 +255,31 @@ describe("listing windows (4.2)", () => {
     expect(new StateStore(r.dir).data.budgetBound).toEqual([]); // and that was saved
   });
 
+  test("Oct 5: alerts of a factory this lister no longer serves are cleared at its first tick; its own stay", async () => {
+    const r = rig({ gpus: [addr(0x100) as `0x${string}`] });
+    r.f.firstRecord.set(r.f.gpus[0]!, r.w.epochDay);
+    r.w.t = r.w.epochTs + 1_561n; // past expectedAt: its own NotReady months raise LISTER_STUCK
+    const gone = addr(0x5587) as `0x${string}`;
+    const g = r.f.gpus[0]!;
+    r.alerts.raise({ code: "LISTER_STUCK", severity: "action", gpuId: g, key: `${gone.toLowerCase()}-24333`, message: "lister: demo H100 2027-02 on factory still NotReady" });
+    r.alerts.raise({ code: "LISTER_REFUSED", severity: "action", gpuId: g, key: `${gone.toLowerCase()}-24334`, message: "lister: demo refused" });
+    r.alerts.raise({ code: "LISTER_MARKET_REFUSED", severity: "action", key: addr(0x5e1) as string, message: "lister: createMarket refused", data: { factory: gone.toLowerCase(), month: 24333 } });
+    r.alerts.raise({ code: "RPC_DOWN", severity: "action", message: "payer: every RPC URL failed" }); // not the lister's
+    // its own factory's alerts open BEFORE the tick (review: the cleanup must leave them)
+    const mine = r.f.address.toLowerCase();
+    r.alerts.raise({ code: "LISTER_REFUSED", severity: "action", gpuId: g, key: `${mine}-${r.f.month + 1}`, message: "lister: own refused" });
+    r.alerts.raise({ code: "LISTER_MARKET_REFUSED", severity: "action", key: addr(0x5e2) as string, message: "lister: own createMarket refused", data: { factory: mine, month: r.f.month + 1 } });
+    const l = r.make();
+    await l.tick(r.w.t);
+    const open = r.alerts.open();
+    expect(open.filter((a) => a.id.includes(gone.toLowerCase()) || (a.data as { factory?: string } | undefined)?.factory === gone.toLowerCase())).toEqual([]);
+    expect(open.some((a) => a.code === "RPC_DOWN")).toBe(true);
+    expect(open.some((a) => (a.code as string) === "LISTER_REFUSED" && a.id.includes(`${mine}-`))).toBe(true);
+    expect(open.some((a) => (a.code as string) === "LISTER_MARKET_REFUSED" && (a.data as { factory?: string }).factory === mine)).toBe(true);
+    // its own factory's LISTER_STUCK (raised this tick) stays
+    expect(open.filter((a) => (a.code as string) === "LISTER_STUCK" && a.id.includes(r.f.address.toLowerCase())).length).toBe(2);
+  });
+
   test("the pilot factory (no Kuru router) lists and never creates a market", async () => {
     const r = rig({ kuruRouter: ZERO, listing: () => ready });
     await r.make().tick(r.w.t);

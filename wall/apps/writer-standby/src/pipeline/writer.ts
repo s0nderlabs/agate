@@ -71,6 +71,9 @@ export interface WriterConfig {
   rand?: () => number;
   say?: (event: string, data?: Record<string, unknown>) => void;
   alert?: AlertFn;
+  /** Oct 5: this writer's RPC_DOWN from an earlier process is still open in alerts.jsonl (a restart in an outage); the
+   *  first tick that reaches the chain clears it */
+  rpcDownOpen?: boolean;
   /** <home>/<role>: heartbeat.json is written here every tick (13.4). */
   heartbeatDir?: string;
   /** The loop's period in seconds (default min(20, slice / 30)); a gap of more than three is a wake (8.1 step 5). */
@@ -126,6 +129,8 @@ export class Writer {
   private finishFrom: number | undefined;
   private entriesCache = new Map<number, Map<number, Map<Hex, Entry>>>();
   private rpcDownTicks = 0;
+  /** an RPC_DOWN of this writer is open (raised here, or left open by an earlier process) */
+  private rpcDownOpen: boolean;
   /** 8.1 step 3 (fix round, audit M3): the chain was unreachable from this tick on (undefined: reachable) */
   private downSince: number | undefined;
   /** the last time the chain came back after an outage, or the local machine woke from a sleep */
@@ -138,6 +143,7 @@ export class Writer {
   readonly keys: KeyCheck | undefined;
 
   constructor(private readonly c: WriterConfig) {
+    this.rpcDownOpen = c.rpcDownOpen === true;
     this.rand = c.rand ?? Math.random;
     this.say = c.say ?? (() => {});
     this.nowMs = c.nowMs ?? Date.now;
@@ -215,8 +221,16 @@ export class Writer {
 
     if (rpcDown) {
       this.rpcDownTicks += 1;
-      if (this.rpcDownTicks === 2) this.alert({ code: "RPC_DOWN", severity: "action", message: `every RPC URL failed on two ticks running (${this.c.role})`, data: { errors: out.errors } });
-    } else this.rpcDownTicks = 0;
+      if (this.rpcDownTicks === 2) {
+        this.alert({ code: "RPC_DOWN", severity: "action", message: `every RPC URL failed on two ticks running (${this.c.role})`, data: { errors: out.errors } });
+        this.rpcDownOpen = true;
+      }
+    } else {
+      // Oct 5: the alert cleared nowhere, so after an outage it stayed open for hours while every slice landed
+      if (this.rpcDownOpen) this.alert({ code: "RPC_DOWN", severity: "action", message: `the RPC answers again (${this.c.role})`, clear: true });
+      this.rpcDownOpen = false;
+      this.rpcDownTicks = 0;
+    }
     this.tickNo += 1;
     this.lastTickEnd = now + Math.floor((this.nowMs() - t0) / 1000);
     if (this.c.heartbeatDir) {

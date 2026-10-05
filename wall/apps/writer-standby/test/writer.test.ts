@@ -36,7 +36,7 @@ function pagesFetcher(fail?: (id: string) => boolean, count?: { n: number }) {
   };
 }
 
-function setup(o: { role: "primary" | "standby"; idx: FakeIndex; seed?: number; source?: ReadingSource; logDir?: string; fetches?: { n: number }; tickS?: number; api?: boolean; keyCheck?: false | { backlogBlocks?: number } }) {
+function setup(o: { role: "primary" | "standby"; idx: FakeIndex; seed?: number; source?: ReadingSource; logDir?: string; fetches?: { n: number }; tickS?: number; api?: boolean; keyCheck?: false | { backlogBlocks?: number }; rpcDownOpen?: boolean }) {
   const logDir = o.logDir ?? mkdtempSync(join(tmpdir(), "agate-writer-"));
   const log = new ReadingLog(logDir, o.role);
   const me = o.role === "primary" ? PRIMARY : STANDBY;
@@ -56,6 +56,7 @@ function setup(o: { role: "primary" | "standby"; idx: FakeIndex; seed?: number; 
     ...(o.tickS ? { tickS: o.tickS } : {}),
     ...(o.api ? { api: fakeSources } : {}),
     ...(o.keyCheck !== undefined ? { keyCheck: o.keyCheck } : {}),
+    ...(o.rpcDownOpen ? { rpcDownOpen: true } : {}),
   });
   return { w, log, logDir, me, alerts };
 }
@@ -289,14 +290,34 @@ describe("writer pipeline on the TEST profile (DAY 2,400 s, 12 slices)", () => {
     idx.down = true;
     await run(idx, [w], sliceStart(c, D, 1), sliceStart(c, D, 4));
     expect(alerts.filter((a) => a.code === "RPC_DOWN").length).toBe(1);
+    expect(alerts.filter((a) => a.code === "RPC_DOWN" && a.clear).length).toBe(0);
     expect(lines(logDir, "standby").filter((l) => l.kind === "reading").length).toBe(4);
     expect(idx.posts.length).toBe(1);
     idx.down = false;
     await run(idx, [w], sliceStart(c, D, 4), sliceStart(c, D, 5));
     expect(idx.accOf(H100, D, STANDBY).bits).toBe(0b11111n);
+    // Oct 5: the first tick that reaches the chain again clears the alert (it stayed open for hours before)
+    const down = alerts.filter((a) => a.code === "RPC_DOWN");
+    expect(down.length).toBe(2);
+    expect(down[1]!.clear).toBe(true);
     // each slice landed once: no duplicate post of an entry
     const landed = idx.posts.flatMap((p) => p.entries.filter((e) => e.gpuId === H100).map((e) => e.slice));
     expect(landed.sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  test("Oct 5: a writer started while its RPC_DOWN from an earlier process is open clears it at its first tick that reaches the chain, once", async () => {
+    const idx = new FakeIndex(testClocks(), PANELS, D);
+    const c = idx.clock;
+    const { w, alerts } = setup({ role: "standby", idx, rpcDownOpen: true });
+    await run(idx, [w], dayStart(c, D), sliceStart(c, D, 2));
+    const down = alerts.filter((a) => a.code === "RPC_DOWN");
+    expect(down.length).toBe(1);
+    expect(down[0]!.clear).toBe(true);
+    // a fresh start with nothing open sends no clear
+    const freshIdx = new FakeIndex(testClocks(), PANELS, D);
+    const fresh = setup({ role: "standby", idx: freshIdx });
+    await run(freshIdx, [fresh.w], dayStart(c, D), sliceStart(c, D, 2));
+    expect(fresh.alerts.filter((a) => a.code === "RPC_DOWN")).toEqual([]);
   });
 
   test("CLOCK_SKEW: the chain head beyond max(5 s, slice / 20) from the local clock for three ticks, once per episode", async () => {

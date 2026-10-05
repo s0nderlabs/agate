@@ -1,5 +1,5 @@
 // Alerts (BUILD-SPEC 9.4: ~/.agate-wall/alerts/alerts.jsonl, type Alert) and the heartbeat file (13.4).
-import { appendFileSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { childEnv } from "@agate/report/env";
 import type { Address, Alert } from "@agate/report/types";
@@ -8,6 +8,25 @@ import type { AlertFn, AlertInput } from "./rpc.ts";
 export function alertId(a: AlertInput & { index?: string }): string {
   const id = `${a.code}:${a.gpuId ?? "-"}:${a.day ?? "-"}:${a.slot ?? "-"}:${a.writer ?? "-"}`;
   return a.index ? `${id}@${a.index.toLowerCase()}` : id;
+}
+
+/** Whether the newest row of this alert's id in <home>/alerts/alerts.jsonl is open (not cleared). Oct 5: a writer
+ *  restarted in an outage clears its own RPC_DOWN once the chain answers (WriterConfig.rpcDownOpen). */
+export function alertOpen(home: string, a: AlertInput & { index?: string }): boolean {
+  const f = join(home, "alerts", "alerts.jsonl");
+  if (!existsSync(f)) return false;
+  const id = alertId(a);
+  let open = false;
+  for (const line of readFileSync(f, "utf8").split("\n")) {
+    if (!line.includes(id)) continue;
+    try {
+      const r = JSON.parse(line) as { id?: string; cleared?: number };
+      if (r.id === id) open = r.cleared === undefined;
+    } catch {
+      // a torn last line: the next run reads it whole
+    }
+  }
+  return open;
 }
 
 /** Appends every alert to <home>/alerts/alerts.jsonl (one line, one write: atomic for concurrent appenders) and
@@ -35,9 +54,11 @@ export function alertSink(o: { home: string; writer: Address; now?: () => number
   // per alert id per process, like the watcher's AlertSink
   const notified = new Set<string>();
   const notify = o.notify ?? runNotify;
-  return (a) => {
+  return ({ clear, ...a }) => {
     const writer = a.writer ?? o.writer;
-    const full: Alert & { index?: string } = { ...a, writer, id: alertId({ ...a, writer, ...(index ? { index } : {}) }), at: now(), ...(index ? { index } : {}) };
+    const t = now();
+    // a clear is the same row with `cleared` set: the watcher's AlertSink keeps the last row of an id (alerts.ts)
+    const full: Alert & { index?: string; cleared?: number } = { ...a, writer, id: alertId({ ...a, writer, ...(index ? { index } : {}) }), at: t, ...(index ? { index } : {}), ...(clear ? { cleared: t } : {}) };
     const line = scrub(JSON.stringify(full, (_k, v) => (typeof v === "bigint" ? v.toString() : v)));
     try {
       mkdirSync(dir, { recursive: true });
@@ -46,6 +67,10 @@ export function alertSink(o: { home: string; writer: Address; now?: () => number
       print(scrub(JSON.stringify({ event: "alert_write_failed", error: e instanceof Error ? e.message : String(e) })));
     }
     print(`{"event":"alert",${line.slice(1)}`);
+    if (clear) {
+      notified.delete(full.id); // the next time it is raised, it notifies again
+      return;
+    }
     if (o.notifyCmd && a.severity === "action" && !notified.has(full.id)) {
       notified.add(full.id);
       notify(o.notifyCmd, line);

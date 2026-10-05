@@ -273,7 +273,9 @@ describe.skipIf(!haveAnvil)("RPC chaos on a PRODUCTION clock (Oct 3, 8.1 step 2)
       expect(r.rec.incomplete).toBe(false);
       expect(r.rec.source.toLowerCase()).toBe(STANDBY.toLowerCase());
     }
-    expect(s.alerts.filter((x) => x.code === "RPC_DOWN").length).toBe(1);
+    // raised once in the outage, cleared once by the first tick that reached the chain again (Oct 5)
+    expect(s.alerts.filter((x) => x.code === "RPC_DOWN" && !x.clear).length).toBe(1);
+    expect(s.alerts.filter((x) => x.code === "RPC_DOWN" && x.clear).length).toBe(1);
     expect(await w.skipped()).toBe(0); // nothing sent twice, nothing out of its slice
   }, 300_000);
 });

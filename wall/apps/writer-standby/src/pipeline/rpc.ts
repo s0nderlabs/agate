@@ -19,6 +19,8 @@ export interface AlertInput {
   writer?: `0x${string}`;
   deadline?: number;
   data?: unknown;
+  /** clears the open alert with this alert's id (same code, gpuId, day, slot, writer) instead of raising one */
+  clear?: true;
 }
 export type AlertFn = (a: AlertInput) => void;
 

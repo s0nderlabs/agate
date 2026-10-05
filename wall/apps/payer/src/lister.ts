@@ -91,8 +91,37 @@ export class Lister {
     return a > b ? a : b;
   }
 
+  /** Oct 5: the lister's alerts of a factory this process no longer serves (bots-real-only.json drops the demo factory
+   *  once a stopped session is over) never clear by themselves, since their months never come up again. Cleared at the
+   *  first tick: six demo LISTER_STUCK stayed open for hours after the switch. */
+  private forgetForeign(): void {
+    const mine = new Set(this.d.factories.map((f) => f.factory.toLowerCase()));
+    const factoryOf = (a: { id: string; data?: unknown }): string | undefined => {
+      const k = /:(0x[0-9a-f]{40})-\d+(?:@|$)/.exec(a.id)?.[1]; // LISTER_STUCK, _REFUSED, _INDEX_STARTS_AFTER: <factory>-<month>
+      if (k) return k;
+      const d = a.data as { factory?: unknown } | undefined; // LISTER_MARKET_REFUSED carries its factory
+      return typeof d?.factory === "string" ? d.factory.toLowerCase() : undefined;
+    };
+    this.d.alerts?.clearWhere((a) => {
+      if (typeof a.code !== "string" || !a.code.startsWith("LISTER_")) return false;
+      const f = factoryOf(a);
+      return f !== undefined && !mine.has(f);
+    });
+  }
+
+  private forgotForeign = false;
+
   async tick(t: bigint): Promise<ListerReport> {
     const rep: ListerReport = { listed: [], created: [], waiting: [], owed: [], errors: 0, sends: 0 };
+    if (!this.forgotForeign) {
+      // housekeeping only: a failure (an unwritable alerts file) must never stop the listing or the claims
+      try {
+        this.forgetForeign();
+      } catch (e) {
+        this.say("forget_foreign_failed", { error: (e as Error).message.split("\n")[0] });
+      }
+      this.forgotForeign = true;
+    }
     for (const f of this.d.factories) {
       try {
         await this.factory(f, t, rep);

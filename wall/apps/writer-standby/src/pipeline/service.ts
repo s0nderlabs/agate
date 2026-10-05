@@ -13,7 +13,7 @@ import { type IndexChain, indexChain } from "./chain.ts";
 import { makeFetcher, PageReader, timeoutFor } from "./fetch.ts";
 import { FileLock } from "./lock.ts";
 import { ReadingLog, type Role, wallHome } from "./log.ts";
-import { alertSink } from "./ops.ts";
+import { alertOpen, alertSink } from "./ops.ts";
 import { type AlertFn, RpcDownError, RpcPool, SendRoute } from "./rpc.ts";
 import { timingFor } from "./sender.ts";
 import { type RpcEndpoints, sendUrls } from "@agate/report/env";
@@ -175,6 +175,7 @@ export async function runService(o: ServiceOptions): Promise<void> {
     rand: () => crypto.getRandomValues(new Uint32Array(1))[0]! / 2 ** 32,
     say,
     alert,
+    rpcDownOpen: alertOpen(home, { code: "RPC_DOWN", severity: "action", message: "", writer: writerAddr, index }),
     heartbeatDir: join(home, o.role),
     tickS,
     api,
