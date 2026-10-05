@@ -116,6 +116,53 @@ export function lastTradingDay(series: Series) {
   return Date.UTC(y, m, 0);
 }
 
+/** How long before a month closes its market maker stops quoting (agate: about an hour), so selling ends then. */
+export const MAKER_STOP_MS = HOUR;
+
+/** Where a month's final value can still land, per GPU-hour, as the client's band() (writes.ts): with k of its N days
+ *  priced (their clamped sum S), every day left adds between the floor and the ceiling. Before the month it is the
+ *  floor to the ceiling. Also what pay me daily pays at once: a Long the low end (the priced days, plus the floor for
+ *  the days left), a Short the ceiling less each priced day (AgateSeries._owed). */
+export function bandNow(series: Pick<Series, "n" | "k" | "S" | "floor" | "cap">) {
+  const n = Math.max(1, series.n);
+  const k = Math.min(Math.max(0, series.k), n);
+  const left = n - k;
+  const lo = (series.S + left * series.floor) / n;
+  const hi = (series.S + left * series.cap) / n;
+  return { k, n, left, lo, hi, longNow: lo, shortNow: (k * series.cap - series.S) / n, soFar: k > 0 ? series.S / k : null };
+}
+
+/** Where a month stands at `now`: not listed yet, listed before it starts, paying out, its last day to sell, closed
+ *  but its last day not final yet (nothing can be sold or collected), or final. */
+export type MonthStage = "upcoming" | "listed" | "paying" | "lastDay" | "closed" | "final";
+export function monthStage(series: Series, now: number): MonthStage {
+  if (series.phase === "upcoming") return "upcoming";
+  if (series.phase === "settled" || series.k >= series.n) return "final";
+  const close = Date.parse(series.closesAt);
+  if (Number.isFinite(close) && now >= close - MAKER_STOP_MS) return "closed";
+  if (Number.isFinite(close) && now >= close - DAY) return "lastDay";
+  return series.phase === "trading" ? "listed" : "paying";
+}
+
+/** A month that can be traded now: listed, priced in the book, and its maker still quoting. */
+export function monthOpen(series: Series, now: number) {
+  const st = monthStage(series, now);
+  return (st === "listed" || st === "paying" || st === "lastDay") && !!series.quote;
+}
+
+/** When selling a month ends (its maker stops, about an hour before the month closes), ISO. */
+export function sellEndsAt(series: Series) {
+  const close = Date.parse(series.closesAt);
+  return Number.isFinite(close) ? iso(close - MAKER_STOP_MS) : "";
+}
+
+/** The month Simple trades and the market row shows: the next month that has not started (listed, else the one
+ *  opening next), so the screen always carries one month beside the index. A market with none shows its first. */
+export function frontMonth(market: Pick<Market, "series">, now: number): Series | undefined {
+  const ahead = market.series.filter((s) => s.phase !== "settled" && !(Date.parse(s.startsAt) <= now));
+  return ahead.find((s) => s.phase === "trading") ?? ahead[0] ?? market.series[0];
+}
+
 /** A stand-in month for a market with none (a price-only GPU, or while nothing has loaded): the month after the next
  *  index price, upcoming, no band and no quote, so every screen can lay out without inventing a price. */
 export function placeholderSeries(market: Pick<Market, "gpu" | "nextUpdateAt">): Series {
@@ -248,7 +295,7 @@ export function headline(market: Market, series: Series | null | undefined, cand
       : {
           label: `Today's ${gpu} index`,
           value: usd(market.price),
-          sub: first ? "First day of our record" : Math.abs(delta) < 0.005 ? "Same as yesterday" : `${delta > 0 ? "+" : "−"}${usd(Math.abs(delta))} since yesterday`,
+          sub: first ? `First day of our record, ${dateText(market.priceDate)}` : Math.abs(delta) < 0.005 ? "Same as yesterday" : `${delta > 0 ? "+" : "−"}${usd(Math.abs(delta))} since yesterday`,
         };
   const s = series ?? null;
   const name = s ? monthLong(s.month) : "";

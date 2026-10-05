@@ -536,6 +536,8 @@ export interface ConnectRun {
   assistant?: string;
   pocket?: string;
   approval?: string;
+  /** unix seconds the permission was signed to end at: the grant is registered with the same one */
+  validUntil?: number;
   grantId?: string;
   /** a stopped run's money was taken back from the failure panel: these dollars are back in the account */
   tookBack?: number;
@@ -574,7 +576,7 @@ export type ConnectEvent =
   | { type: "needStepUp" }
   | { type: "assistantReady"; address: string; at: number }
   | { type: "delegated"; at: number }
-  | { type: "permissionSigned"; pocket: string; approval: string; pocketBalance: number; at: number }
+  | { type: "permissionSigned"; pocket: string; approval: string; pocketBalance: number; at: number; validUntil?: number }
   | { type: "funded"; at: number }
   | { type: "notYet"; at: number }
   /** in-app: the connection exists (POST /api/grants answered); the same step then asks only for its link, so a
@@ -676,7 +678,7 @@ export function connectReducer(s: ConnectState, e: ConnectEvent): ConnectState {
     case "permissionSigned": {
       if (s.step !== "running" || s.at !== "permission") return s;
       const full = e.pocketBalance >= s.terms.budget;
-      return advance(s, { ...s.run, pocket: e.pocket, approval: e.approval, skipped: full ? [...s.run.skipped, "funding"] : s.run.skipped }, e.at);
+      return advance(s, { ...s.run, pocket: e.pocket, approval: e.approval, validUntil: e.validUntil ?? s.run.validUntil, skipped: full ? [...s.run.skipped, "funding"] : s.run.skipped }, e.at);
     }
     case "funded":
       return s.step === "running" && s.at === "funding" ? advance(s, s.run, e.at) : s;
@@ -838,7 +840,12 @@ export interface ApprovalView {
   note: string | null;
   status: ApprovalStatus;
   expiresAt: number;
+  /** an approval its AI ended before it was answered says why (server/API.md): "the AI was disconnected" or "the AI's
+   *  permission ended"; a plain 15-minute expiry has none */
+  result?: { reason?: string } | null;
 }
+
+export const APPROVAL_ENDED_BY = { disconnected: "the AI was disconnected", ended: "the AI's permission ended" } as const;
 
 /** Done and failed are still accepted this long after the approval expired, for a trade started just before. */
 export const APPROVAL_REPORT_GRACE_MS = 15 * 60_000;

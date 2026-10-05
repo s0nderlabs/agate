@@ -5,35 +5,47 @@
 // cannot be closed until it finishes.
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { DRIP, useAccount } from "@/lib/account";
-import { COPY } from "@/lib/account/errors";
+import { DRIP, useAccount, type DoneResult, type Order, type SendStep } from "@/lib/account";
+import { explorerTx } from "@/lib/account/aiView";
+import { COPY, refusalOfOrder, sendRefusal, type Refusal } from "@/lib/account/errors";
+import { guardFromQuote } from "@/lib/account/machine";
 import { ticketOrder, ticketShown } from "@/lib/account/ticket";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { finePointer, tapMode, useModalFocus } from "@/lib/ui/hooks";
 import { fmtHours } from "@/lib/size";
 import { int, usd, usd0 } from "@/lib/format";
 import { AccountHead, AccountSheet, AddressRow, AisRow, SECURED, SIGN_OUT_NOTE, useAiSummary } from "@/components/flow/AccountSheet";
+import { CloseSheet } from "@/components/flow/CloseSheet";
 import { DisconnectSheet } from "@/components/flow/DisconnectSheet";
 import { dripOpen, useDrip } from "@/components/flow/DripButton";
 import { PocketSheet, type PocketTarget } from "@/components/flow/PocketSheet";
 import { SignInSheet, signInLocked, type SignInFrom } from "@/components/flow/SignInSheet";
 import { HowTo } from "@/components/ai/HowTo";
+import { bandNow } from "@/lib/data/derive";
 import { monthName } from "./PriceChart";
 import type { TradeNumbers } from "./useTrade";
+import type { Position } from "@/lib/mock/types";
 
 type Sheet =
   /** then: the trade to go on with; after: what a page goes on with (the Allow page, an approval) */
   | { kind: "signin"; then?: TradeNumbers; from?: SignInFrom; ai?: string; after?: () => void }
   | { kind: "funds"; then: TradeNumbers }
-  | { kind: "review"; n: TradeNumbers }
-  | { kind: "placing"; n: TradeNumbers }
-  | { kind: "done"; n: TradeNumbers }
+  /** problem: the last Confirm was refused before anything was sent, in plain words; retry: the same trade at what
+   *  the book offers now (the price moved, or only part of it fills), one tap away */
+  | { kind: "review"; n: TradeNumbers; problem?: string; retry?: { order: Order; label: string }; final?: boolean }
+  | { kind: "placing"; n: TradeNumbers; step: SendStep }
+  /** result: what the trade did, read from its own receipt (the real account) */
+  | { kind: "done"; n: TradeNumbers; result?: DoneResult }
+  /** sent, but not seen landing (or it landed and reverted): never sent twice, and never called failed */
+  | { kind: "sent"; n: TradeNumbers; message: string }
   | { kind: "account" }
   | { kind: "info"; title: string; body: ReactNode; wide?: boolean }
   | { kind: "more" }
   /** onMoved: the page that opened it hears when the dollars moved (a stopped connect run, after a take back) */
   | { kind: "pocket"; target: PocketTarget; mode: "add" | "takeBack"; onMoved?: (dollars: number) => void }
   | { kind: "disconnect"; grantId: string }
+  /** close a position (sell held tokens, or close a pay me daily Long or a Short) */
+  | { kind: "close"; p: Position }
   | { kind: "howto" };
 
 interface FlowCtx {
@@ -52,6 +64,8 @@ interface FlowCtx {
   openPocket: (target: PocketTarget, mode: "add" | "takeBack", onMoved?: (dollars: number) => void) => void;
   /** disconnect a connected AI */
   openDisconnect: (grantId: string) => void;
+  /** close a position (the real account) */
+  openClose: (p: Position) => void;
   /** how to let an AI trade: add Agate's link to the AI app */
   openHowTo: () => void;
 }
@@ -122,18 +136,31 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
     at.after?.();
   }, []);
 
-  // Confirm: plan the ticket's trade, send it, then Done (the pretend account records a practice trade in about a
-  // second). Run from the tap, not an effect, so a trade is sent once. A refusal goes back to Review for now; the
-  // full trade machine (moved, thin, funds, failed, pending) lands in build step 6.
+  // Confirm: plan the ticket's trade from the chain, send it as one operation, then Done from its receipt (the pretend
+  // account records a practice trade in about a second). Run from the tap, not an effect, so a trade is sent once.
+  // Refused before sending (the price moved, a thin book, the fee): back to Review with why, so Confirm plans again.
+  // Short of dollars: the Funds sheet. Sent but not seen landing: said so, and never sent again.
   const place = useCallback(
-    async (n: TradeNumbers) => {
-      setSheet({ kind: "placing", n });
+    async (n: TradeNumbers, again?: Order) => {
+      const order = again ?? ticketOrder(n);
+      setSheet({ kind: "placing", n, step: "checking" });
+      let plan;
       try {
-        const plan = await account.plan(ticketOrder(n), ticketShown(n));
-        await account.send(plan);
-        setSheet({ kind: "done", n });
-      } catch {
-        setSheet({ kind: "review", n });
+        plan = await account.plan(order, ticketShown(n));
+      } catch (e) {
+        const r = refusalOfOrder(e, order);
+        if (r.sheet === "funds") return setSheet({ kind: "funds", then: n });
+        if (sendRefusal(e).sheet === "signin") return setSheet({ kind: "signin", then: n });
+        if (r.sheet === "ticket") return setSheet({ kind: "review", n, problem: r.message, final: true });
+        return setSheet({ kind: "review", n, problem: r.message, retry: retryOf(order, r) });
+      }
+      try {
+        const result = await account.send(plan, (step) => setSheet((s) => (s?.kind === "placing" ? { ...s, step } : s)));
+        setSheet({ kind: "done", n, result });
+      } catch (e) {
+        const r = sendRefusal(e);
+        if (r.sheet === "signin") return setSheet({ kind: "signin", then: n });
+        setSheet(r.nothingSent ? { kind: "review", n, problem: r.message } : { kind: "sent", n, message: r.message });
       }
     },
     [account],
@@ -151,6 +178,7 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
         signInFor: (opts) => setSheet({ kind: "signin", ...opts }),
         openPocket: (target, mode, onMoved) => setSheet({ kind: "pocket", target, mode, onMoved }),
         openDisconnect: (grantId) => setSheet({ kind: "disconnect", grantId }),
+        openClose: (p) => setSheet({ kind: "close", p }),
         openHowTo: () => setSheet({ kind: "howto" }),
       }}
     >
@@ -172,12 +200,14 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
                 onClose={close}
               />
             )}
-            {sheet.kind === "review" && <Review n={sheet.n} onConfirm={() => place(sheet.n)} onBack={close} />}
-            {sheet.kind === "placing" && <Placing n={sheet.n} />}
-            {sheet.kind === "done" && <Done n={sheet.n} onClose={close} />}
+            {sheet.kind === "review" && <Review n={sheet.n} problem={sheet.problem} retryLabel={sheet.retry?.label} final={sheet.final} onConfirm={() => place(sheet.n, sheet.retry?.order)} onBack={close} />}
+            {sheet.kind === "placing" && <Placing n={sheet.n} step={sheet.step} />}
+            {sheet.kind === "done" && <Done n={sheet.n} result={sheet.result} onClose={close} />}
+            {sheet.kind === "sent" && <Sent message={sheet.message} onClose={close} />}
             {sheet.kind === "account" && <AccountSheet onClose={close} />}
             {sheet.kind === "pocket" && <PocketSheet target={sheet.target} mode={sheet.mode} onMoved={sheet.onMoved} onClose={close} onLock={setHeld} />}
             {sheet.kind === "disconnect" && <DisconnectSheet grantId={sheet.grantId} onClose={close} onLock={setHeld} />}
+            {sheet.kind === "close" && <CloseSheet p={sheet.p} onClose={close} onLock={setHeld} />}
             {sheet.kind === "howto" && (
               <>
                 <HowTo onGo={close} />
@@ -257,10 +287,18 @@ export function sideLabel(n: TradeNumbers) {
   return `${n.side === "long" ? "Long" : "Short"} ${n.series.gpu}, ${monthName(n.series.month)}`;
 }
 
-function Review({ n, onConfirm, onBack }: { n: TradeNumbers; onConfirm: () => void; onBack: () => void }) {
+/** The price moved or the book is thin: the same trade guarded by what the book offers now, and what its button says. */
+function retryOf(order: Order, r: Refusal): { order: Order; label: string } | undefined {
+  if (!r.quote || (r.sheet !== "moved" && r.sheet !== "thin")) return undefined;
+  const next = guardFromQuote(order, r.quote, r.sheet);
+  if (r.sheet === "thin") return { order: next, label: `Buy ${usd(r.quote.dollars)} instead` };
+  const buy = order.kind === "buyLong" || order.kind === "openLongDaily";
+  return { order: next, label: buy ? "Buy at the new price" : "Sell at the new price" };
+}
+
+/** final: the order itself cannot run (an amount under the market's step): no Try again, only Back to change it */
+function Review({ n, problem, retryLabel, final = false, onConfirm, onBack }: { n: TradeNumbers; problem?: string; retryLabel?: string; final?: boolean; onConfirm: () => void; onBack: () => void }) {
   const L = n.side === "long";
-  // live prices, practice wallet: until sign-in brings a real wallet, nothing goes to Monad, and the sheets say so
-  const practice = useMock().config.source === "live";
   return (
     <>
       <h2>{sideLabel(n)}</h2>
@@ -277,8 +315,8 @@ function Review({ n, onConfirm, onBack }: { n: TradeNumbers; onConfirm: () => vo
         </div>
         {n.daily && (
           <div>
-            <span>{L ? "Back right away" : "Paid out"}</span>
-            <span>{L ? usd0(n.backNow) : "Every morning"}</span>
+            <span>{L || n.backNow > 0 ? "Back right away" : "Paid out"}</span>
+            <span>{L || n.backNow > 0 ? usd0(n.backNow) : "Every morning"}</span>
           </div>
         )}
         <div>
@@ -292,14 +330,20 @@ function Review({ n, onConfirm, onBack }: { n: TradeNumbers; onConfirm: () => vo
       </div>
       <p style={{ fontSize: 15 }}>
         {L
-          ? `You get ${monthName(n.series.month)}'s average ${n.series.gpu} price for every GPU-hour, between ${usd(n.series.floor)} and ${usd(n.series.cap)}.`
+          ? `You get ${monthName(n.series.month)}'s average ${n.series.gpu} price for every GPU-hour, between ${usd(bandNow(n.series).lo)} and ${usd(bandNow(n.series).hi)}${bandNow(n.series).k > 0 ? ` now that ${bandNow(n.series).k} of its days are priced` : ""}.`
           : `You get ${usd(n.series.cap)} minus ${monthName(n.series.month)}'s average for every GPU-hour, so you gain when the average comes in below ${usd(n.price)}.`}{" "}
         {n.daily ? "Paid a share every morning. This locks the market rate, not your bill." : `Paid once, after ${monthName(n.series.month)} ends.`}
-        {practice && " Practice for now: nothing is sent to Monad yet."}
       </p>
-      <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={onConfirm}>
-        Confirm {L ? "Long" : "Short"}
-      </button>
+      {problem && (
+        <p className="ag-err" role="alert">
+          {problem}
+        </p>
+      )}
+      {!final && (
+        <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={onConfirm}>
+          {retryLabel ?? (problem ? "Try again" : `Confirm ${L ? "Long" : "Short"}`)}
+        </button>
+      )}
       <button className="ag-btn ag-btn--ghost" onClick={onBack}>
         Back
       </button>
@@ -307,30 +351,50 @@ function Review({ n, onConfirm, onBack }: { n: TradeNumbers; onConfirm: () => vo
   );
 }
 
-function Placing({ n }: { n: TradeNumbers }) {
-  const practice = useMock().config.source === "live";
+/** Placing, step by step: the price checked against the chain, the wallet signing, then Monad. */
+function Placing({ n, step }: { n: TradeNumbers; step: SendStep }) {
+  const what = `${n.side === "long" ? "Buying" : "Selling"} ${fmtHours(n.hours)} GPU-hours of ${n.series.gpu} ${monthName(n.series.month)}`;
   return (
-    <div className="grid justify-items-center gap-4 py-6 text-center">
+    <div className="grid justify-items-center gap-4 py-6 text-center" aria-live="polite">
       <span className="ag-spinner" />
-      <h2>Placing your order</h2>
-      <p>
-        {practice ? (
-          "Saving your practice order at the live price."
-        ) : (
-          <>
-            {n.side === "long" ? "Buying" : "Selling"} {fmtHours(n.hours)} {n.series.symbol} on Monad. This takes about a second.
-          </>
-        )}
-      </p>
+      <h2>{step === "checking" ? "Checking the price" : step === "signing" ? "Your wallet is signing" : "Sending to Monad"}</h2>
+      <p>{step === "sending" ? `${what}. About 6 seconds on Monad's test network. Network fees are on Agate.` : `${what}.`}</p>
     </div>
   );
 }
 
-function Done({ n, onClose }: { n: TradeNumbers; onClose: () => void }) {
+/** Sent, but not seen landing, or landed without filling: the money is safe either way, and nothing is resent. */
+function Sent({ message, onClose }: { message: string; onClose: () => void }) {
+  const router = useRouter();
+  const linkQuery = useLinkQuery();
+  return (
+    <>
+      <h2>Sent to Monad</h2>
+      <p role="status">{message}</p>
+      <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={onClose}>
+        Close
+      </button>
+      <button
+        className="ag-btn ag-btn--ghost"
+        onClick={() => {
+          onClose();
+          router.push(`/positions${linkQuery}`);
+        }}
+      >
+        See your positions
+      </button>
+    </>
+  );
+}
+
+function Done({ n, result, onClose }: { n: TradeNumbers; result?: DoneResult; onClose: () => void }) {
   const L = n.side === "long";
   const router = useRouter();
   const linkQuery = useLinkQuery();
-  const practice = useMock().config.source === "live";
+  // the real account's numbers come from the trade's own receipt; the pretend account's from the ticket
+  const hours = result?.gpuHours ?? n.hours;
+  const price = result?.avg ?? n.price;
+  const backNow = result?.paidNow ?? n.backNow;
   return (
     <>
       <svg className="ag-done" viewBox="0 0 48 48" width="44" height="44" aria-hidden="true">
@@ -339,12 +403,18 @@ function Done({ n, onClose }: { n: TradeNumbers; onClose: () => void }) {
       </svg>
       <h2>You're {L ? "long" : "short"} {monthName(n.series.month)}</h2>
       <p>
-        {fmtHours(n.hours)} GPU-hours of {n.series.gpu} at {usd(n.price)}.{" "}
+        {fmtHours(hours)} GPU-hours of {n.series.gpu} at {usd(price)}.{" "}
         {n.daily
-          ? `${L ? `${usd0(n.backNow)} is back in your balance. ` : ""}Your first daily share arrives the morning after ${monthName(n.series.month).slice(0, 3)} 1.`
+          ? `${L ? `${usd0(backNow)} is back in your balance. ` : ""}Your first daily share arrives the morning after ${monthName(n.series.month).slice(0, 3)} 1.`
           : "You get paid once, after the month ends."}
-        {practice && " Practice order saved in this browser at the live price. Real test trades open with sign-in."}
       </p>
+      {result?.txHash && (
+        <p>
+          <a className="ag-textbtn" href={explorerTx(result.txHash)} target="_blank" rel="noreferrer">
+            See it on Monad's explorer
+          </a>
+        </p>
+      )}
       <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={onClose}>
         Done
       </button>

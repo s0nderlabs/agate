@@ -10,7 +10,7 @@ import { NOVEMBER } from "@/lib/mock/data";
 import { isCheckTab, type AisScenario, type ConnectOutcome, type DisconnectOutcome } from "@/lib/mock/config";
 import type { Gpu, MarketGpu, Position } from "@/lib/mock/types";
 import type { ActivityEvent, Grant, GrantRequest, OAuthRequest, ServerConfig, StandingOrder, Transport } from "./api";
-import type { ApprovalView } from "./machine";
+import { APPROVAL_ENDED_BY, type ApprovalView } from "./machine";
 
 const H = 3_600_000;
 const MIN = 60_000;
@@ -348,8 +348,10 @@ const viewOf = (g: GrantRow, now = Date.now()): Grant => {
 function approvalNow(w: World, a: ApprovalView, now = Date.now()): ApprovalView {
   if (a.status !== "pending") return a;
   const g = w.grants.find((x) => x.id === a.grantId);
-  const grantOff = !!g && (g.status !== "active" || Date.parse(g.expiresAt) <= now);
-  return a.expiresAt <= now || grantOff ? { ...a, status: "expired" } : a;
+  // like the server: an end date that already passed reads as ended, even if a disconnect came later
+  if (g && Date.parse(g.expiresAt) <= now) return { ...a, status: "expired", result: { reason: APPROVAL_ENDED_BY.ended } };
+  if (g && g.status !== "active") return { ...a, status: "expired", result: { reason: APPROVAL_ENDED_BY.disconnected } };
+  return a.expiresAt <= now ? { ...a, status: "expired" } : a;
 }
 
 const json = (status: number, body: unknown) => ({ status, body });
@@ -369,6 +371,8 @@ export function fakeTransport(getWorld: () => World): Transport {
     if (p === "/health") return offline ? { status: null, body: null } : json(200, { ok: true });
     if (p === "/.well-known/oauth-protected-resource") return json(200, { resource: "https://agate.example/mcp" });
     if (p === "/api/config") {
+      // the app's liveness check reads this, so the "Connect outcome: offline" row turns it off too
+      if (offline) return { status: null, body: null };
       const config: ServerConfig = { chainId: 10143, dollar: DOLLAR, routers: [ROUTER], factory: "real", shortSizingPrice: "8000000", maxGrantDays: 90, maxTradesPerDay: 50 };
       return json(200, config);
     }
@@ -426,7 +430,10 @@ export function fakeTransport(getWorld: () => World): Transport {
       g.revokedAt = now;
       for (const o of w.orders) if (o.grantId === g.id && o.status === "active") o.status = "stopped";
       // its requests still waiting end with it: nothing can be approved for an AI that is disconnected
-      w.approvals = w.approvals.map((a) => (a.grantId === g.id && a.status === "pending" ? { ...a, status: "expired" } : a));
+      const ended = Date.parse(g.expiresAt) <= now;
+      const reason = ended ? APPROVAL_ENDED_BY.ended : APPROVAL_ENDED_BY.disconnected;
+      for (const a of w.approvals) if (a.grantId === g.id && a.status === "pending") w.events.push(ev(now, "approval.expired", g.id, { requestId: a.id, reason }));
+      w.approvals = w.approvals.map((a) => (a.grantId === g.id && a.status === "pending" ? { ...a, status: "expired", result: { reason } } : a));
       w.events.push(ev(now, "grant.disconnected", g.id, { label: g.label }));
       return json(200, viewOf(g, now));
     }

@@ -43,6 +43,9 @@ Connect an AI (the Allow page): `ensureAssistantWallet` -> `delegateAssistant` -
 terms)` (one signature by main) -> `sendCalls(kc, fundPocketCalls(AGATE.dollar, pocket, budget))` -> POST the grant to
 agate's server (`/api/grants`, `Authorization: Bearer ${sessionToken(client)}`). Disconnect: `revokeAssistant` +
 `POST /api/grants/:id/disconnect`. The working reference is `lab/main.ts` (`bun run lab`, http://localhost:5174).
+A delegation whose webhook agate's server missed (`/api/me` lists no active delegation, yet `isDelegated(client,
+assistant)` is true) is redone in the app: `revokeAssistant` (a failed revoke is shown, never ignored), a fresh step-up
+when the scope has lapsed, then `delegateAssistant`, so Dynamic sends the share again.
 
 ## Measured on Monad testnet (Oct 4 2026, test account, n = 1 to 3 each)
 

@@ -256,7 +256,7 @@ function Card({ g }: { g: Grant }) {
           ) : positions.length ? (
             <>
               <p className={s.line}>Held by {g.label}, paying your account.</p>
-              <PositionCards positions={positions} lastFor={lastFor} />
+              <PositionCards positions={positions} lastFor={lastFor} closable={false} />
             </>
           ) : (
             <p className={s.line}>{g.label} hasn't opened any positions yet.</p>

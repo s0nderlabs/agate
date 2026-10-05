@@ -356,6 +356,8 @@ describe("connect and disconnect copy (spec 9.6, 10.5)", () => {
     expect(connectFailure("sign", ctx)).toEqual({ message: "Your wallet couldn't sign the limits. Nothing moved.", actions: ["retry"] });
     expect(connectFailure("funding", ctx)).toEqual({ message: "The limits are set, but the $1,000 didn't move. Nothing was spent.", actions: ["retry"] });
     expect(connectFailure("notYet", ctx).message).toBe("Agate hasn't heard from Dynamic yet. Try again in a few seconds.");
+    // a late message from Dynamic never leaves the pocket's money waiting with it
+    expect(connectFailure("notYet", { ...ctx, funded: true })).toEqual({ message: "Agate hasn't heard from Dynamic yet. Try again in a few seconds. Your $1,000 is in the pocket.", actions: ["retry", "takeBack"] });
     expect(connectFailure("refused", { ...ctx, funded: true })).toEqual({ message: "Agate didn't accept this connection, so Claude isn't connected. Your $1,000 is in the pocket.", actions: ["retry", "takeBack"] });
     expect(connectFailure("refused", ctx)).toEqual({ message: "Agate didn't accept this connection, so Claude isn't connected. Nothing moved.", actions: ["retry"] });
     expect(connectFailure("unchecked", ctx).message).toBe("Agate couldn't check the permission. Try again.");

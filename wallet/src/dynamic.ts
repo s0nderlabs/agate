@@ -199,6 +199,11 @@ export async function ensureAssistantWallet(client: DynamicClient): Promise<EvmW
   return w.assistant;
 }
 
+/** Whether Dynamic counts this wallet as delegated (agate's server may still lack the share if its webhook was missed). */
+export function isDelegated(client: DynamicClient, account: EvmWalletAccount): boolean {
+  return hasDelegatedAccess({ walletAccount: account }, client);
+}
+
 /** Delegates the Assistant (never the main wallet) to agate. Dynamic posts the encrypted share to agate's webhook. */
 export async function delegateAssistant(client: DynamicClient, assistant: EvmWalletAccount): Promise<void> {
   const w = wallets(client);

@@ -553,7 +553,8 @@ function connectFailureOf(problem: ConnectProblem, ctx: { ai: string; budget: nu
     case "funding":
       return { message: `The limits are set, but the ${amount} didn't move. Nothing was spent.`, actions: ["retry"] };
     case "notYet":
-      return { message: SERVER_COPY.notYet, actions: ["retry"] };
+      // it can take a while (Dynamic's message to Agate is late): the pocket's money is never stuck waiting for it
+      return { message: `${SERVER_COPY.notYet}${ctx.funded ? where : ""}`, actions: ctx.funded ? ["retry", "takeBack"] : ["retry"] };
     case "refused":
       return { message: `Agate didn't accept this connection, so ${ctx.ai} isn't connected.${where}`, actions: ctx.funded ? ["retry", "takeBack"] : ["retry"] };
     case "unchecked":

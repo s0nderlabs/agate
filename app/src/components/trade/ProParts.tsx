@@ -1,7 +1,9 @@
 "use client";
 // Pro depth: the November book on Kuru, positions, recent fills. Simple mode keeps all of this out of view.
 import { useState } from "react";
+import { closeOrder } from "@/components/flow/CloseSheet";
 import { useDrip } from "@/components/flow/DripButton";
+import { useFlow } from "@/components/markets/Flow";
 import { monthName } from "@/components/markets/PriceChart";
 import { Num } from "@/components/num/Num";
 import { useBook, useFills, useIndexer, useLastFor } from "@/lib/data/hooks";
@@ -381,7 +383,12 @@ export function AccountBox({ orders }: { orders: OpenOrder[] }) {
 
 /** Positions as cards (phones, and the Positions page): what you hold in words, the gain or loss on the right.
  * lastFor values each position at its own market's last price (ProBottom's, so no new data calls). */
-export function PositionCards({ positions, lastFor }: { positions: Position[]; lastFor: (p: Position) => number | null }) {
+/** closable: false for positions the account does not hold itself (an AI's pocket: closing plans from the main account). */
+export function PositionCards({ positions, lastFor, closable = true }: { positions: Position[]; lastFor: (p: Position) => number | null; closable?: boolean }) {
+  const account = useAccount();
+  const { openClose } = useFlow();
+  // closing is a plan and one operation (the pretend account books it from the book's top)
+  const canClose = closable && account.ready;
   if (!positions.length) return <p className={s.empty}>No positions yet. When you go Long or Short, it shows up here with what it's worth and what's been paid.</p>;
   return (
     <ul className={s.cards}>
@@ -396,6 +403,11 @@ export function PositionCards({ positions, lastFor }: { positions: Position[]; l
                 {p.gpu} {month.slice(0, 3)}, {p.side === "long" ? "Long" : "Short"}
               </b>
               <span className={`${s.cardPnl} ${pnlTone(pnl)}`}>{pnl === null ? "No price yet" : <Num>{pnlText(pnl)}</Num>}</span>
+              {canClose && closeOrder(p) && (
+                <button type="button" className={s.cardCancel} onClick={() => openClose(p)}>
+                  Close
+                </button>
+              )}
             </div>
             <p className={s.cardLine}>
               <Num>{fmtHours(p.q)}</Num> GPU-hours at <Num>{usd(p.entry)}</Num>

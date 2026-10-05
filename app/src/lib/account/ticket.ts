@@ -18,5 +18,5 @@ export function ticketOrder(n: TradeNumbers): Order {
 }
 
 export function ticketShown(n: TradeNumbers): TicketShown {
-  return { side: n.side, gpuHours: n.hours, price: n.price, floor: n.series.floor, cap: n.series.cap, daily: n.daily };
+  return { side: n.side, gpuHours: n.hours, price: n.price, floor: n.series.floor, cap: n.series.cap, daily: n.daily, backNow: n.backNow };
 }

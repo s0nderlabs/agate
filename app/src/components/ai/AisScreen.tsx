@@ -148,6 +148,9 @@ function AiRow({ g, events, now }: { g: Grant; events: ActivityEvent[] | undefin
   const trades = tradesIn24h(g.id, events, now);
   const ends = whenText(g.expiresAt);
   const leftText = pocket.isError ? "Can't read" : left === undefined ? "" : usd0(left);
+  // what it was given, while that is what the pocket is measured against: once more is in it than the first move in
+  // (dollars added, a refund, a sale back into the pocket) only what is left is said, never a guessed total
+  const given = left !== undefined && left > lim.budget + 0.005 ? null : lim.budget;
   return (
     <li className={s.row}>
       <div className={s.who}>
@@ -164,7 +167,8 @@ function AiRow({ g, events, now }: { g: Grant; events: ActivityEvent[] | undefin
           <span className={s.status}>Can't read</span>
         ) : (
           <>
-            <Num>{leftText}</Num> <small>of {usd0(lim.budget)}</small>
+            <Num>{leftText}</Num>
+            {given !== null && <small> of {usd0(given)}</small>}
           </>
         )}
       </div>
@@ -182,7 +186,7 @@ function AiRow({ g, events, now }: { g: Grant; events: ActivityEvent[] | undefin
       </div>
       <div className={s.cardLines}>
         <span>
-          {pocket.isError ? "Can't read its pocket right now." : left === undefined ? " " : `${usd0(left)} left of ${usd0(lim.budget)}.`}
+          {pocket.isError ? "Can't read its pocket right now." : left === undefined ? " " : `${usd0(left)} left${given !== null ? ` of ${usd0(given)}` : ""}.`}
           {spent !== null ? ` Spent ${usd0(spent)}.` : ""}
         </span>
         <span>

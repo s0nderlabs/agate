@@ -13,6 +13,14 @@ type Row = { key: keyof MockConfig; label: string; options: [string, string][] }
 /** Options being judged right now: the proposal first (the default), the state before it marked "(before)". */
 const DESIGN_ROWS: Row[] = [
   {
+    key: "months",
+    label: "Simple's months",
+    options: [
+      ["one", "Next full month"],
+      ["both", "Every open month (before)"],
+    ],
+  },
+  {
     key: "dfill",
     label: "Dark trade button",
     options: [
@@ -83,6 +91,19 @@ const STATE_ROWS: Row[] = [
     ],
   },
   {
+    key: "when",
+    label: "Day",
+    // example data only: the month timeline (lib/mock/timeline.ts)
+    options: [
+      ["oct", "Today: Nov listed"],
+      ["nov3", "Nov 3: Nov paying, Dec just listed"],
+      ["nov13", "Nov 13: day 12 of 30"],
+      ["nov30", "Nov 30, 22:15: last hour"],
+      ["dec1gap", "Dec 1, 03:00: Nov not final"],
+      ["dec1final", "Dec 1, 09:00: Nov final"],
+    ],
+  },
+  {
     key: "gpu",
     label: "GPU",
     options: [
@@ -107,6 +128,14 @@ const STATE_ROWS: Row[] = [
 /** How the pretend wallet and Agate's pretend server answer (example data only), so every sheet and page state can be
  *  judged without the chain. */
 const WALLET_ROWS: Row[] = [
+  {
+    key: "holds",
+    label: "Holds",
+    options: [
+      ["none", "Only my trades"],
+      ["nov", "H100 November (3)"],
+    ],
+  },
   {
     key: "signin",
     label: "Sign-in outcome",
@@ -200,7 +229,7 @@ export function MockDock() {
           </div>
           {[...DESIGN_ROWS, ...STATE_ROWS, ...WALLET_ROWS].map((r) => {
             // the example's states do nothing to live data: the row stands down while the source is live
-            const idle = (r.key === "data" || WALLET_ROWS.includes(r)) && config.source === "live";
+            const idle = (r.key === "data" || r.key === "when" || WALLET_ROWS.includes(r)) && config.source === "live";
             return (
               <div className={s.row} key={r.key}>
                 <span>{r.label}</span>

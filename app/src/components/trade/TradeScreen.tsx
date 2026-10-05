@@ -50,8 +50,12 @@ export function TradeScreen() {
   // one shared markets read (example or live, per Mock controls); a neutral stand-in until it answers
   const read = useScreenMarket(config.gpu);
   const market = read.market;
-  const days = market.history;
-  const trade = useTrade(market);
+  // the logger's days before the index's first onchain day come first, drawn lighter (display only: never in the
+  // price, its history or anything that settles)
+  const prelaunch = market.prelaunch;
+  const days = useMemo(() => (prelaunch?.length ? [...prelaunch, ...market.history] : market.history), [prelaunch, market.history]);
+  // Simple keeps to one month, the next full one beside the index (Mock controls can show every open month, as before)
+  const trade = useTrade(market, { one: config.mode !== "pro" && config.months === "one" });
   const [range, setRange] = useState<Range>("3M");
   const [showBand, setShowBand] = useState(false);
   // what the chart shows: the daily index (one fix a day, a step line) or the traded month (hourly, line or candles)
@@ -113,7 +117,9 @@ export function TradeScreen() {
   // the "Example history" legend only when some day on the chart is one
   const hasExample = days.some((d) => d.example);
   // where our own record starts and when the month listed, for the chart legends
-  const recordFrom = dateText(days.find((d) => !d.example)?.date);
+  const recordFrom = dateText(days.find((d) => !d.example && d.onchain !== false)?.date);
+  const hasLogger = days.some((d) => d.onchain === false);
+  const hasRecord = days.some((d) => !d.example && d.onchain !== false);
   const listedOn = dateText(nov.listedAt);
   // where today's index comes from: "5 of 5 clouds" opens the sources and the comparison on click; before the first
   // price, how many clouds are being read
@@ -317,12 +323,28 @@ export function TradeScreen() {
                     <button role="tab" aria-selected={view === "index"} onClick={() => setSeries("index")}>
                       Index
                     </button>
-                    {/* a price-only GPU has no month to chart */}
-                    {market.tradable && (
-                      <button role="tab" aria-selected={view === "month"} onClick={() => setSeries("month")}>
-                        {monthName(nov.month)} market
-                      </button>
-                    )}
+                    {/* a price-only GPU has no month to chart. Two months trading (Pro): one tab each, and picking one
+                        moves the whole screen to it (header, chart, book, trades and ticket) */}
+                    {market.tradable &&
+                      (trade.pickable ? (
+                        trade.open.map((sr) => (
+                          <button
+                            key={sr.month}
+                            role="tab"
+                            aria-selected={view === "month" && trade.month === sr.month}
+                            onClick={() => {
+                              trade.setMonth(sr.month);
+                              setSeries("month");
+                            }}
+                          >
+                            {monthName(sr.month)} market
+                          </button>
+                        ))
+                      ) : (
+                        <button role="tab" aria-selected={view === "month"} onClick={() => setSeries("month")}>
+                          {monthName(nov.month)} market
+                        </button>
+                      ))}
                   </div>
                 )}
                 {view === "month" && monthDraw && (
@@ -376,7 +398,7 @@ export function TradeScreen() {
             {/* the month's plot is a skeleton of its own while its candles are on their way */}
             <div className={`${s.chartBody} ag-skel${view === "month" && candlesWait ? " ag-skel-on" : ""}`}>
               {view === "index" ? (
-                before ? (
+                before && !hasLogger ? (
                   <StateBox>
                     <p className={s.tCopy}>{indexStartsText(market)}</p>
                   </StateBox>
@@ -395,13 +417,21 @@ export function TradeScreen() {
             {view === "index"
               ? !loading &&
                 !nodata &&
-                !before && (
+                (!before || hasLogger) && (
                   <div className={s.legend}>
-                    <span>One price a day, so it moves in steps.</span>
-                    <span>
-                      <i className={s.lgLine} aria-hidden="true" />
-                      Our record{recordFrom ? `, from ${recordFrom}` : ""}
-                    </span>
+                    <span>{before ? indexStartsText(market) : "One price a day, so it moves in steps."}</span>
+                    {hasRecord && (
+                      <span>
+                        <i className={s.lgLine} aria-hidden="true" />
+                        Our record{recordFrom ? `, from ${recordFrom}` : ""}
+                      </span>
+                    )}
+                    {hasLogger && (
+                      <span>
+                        <i className={`${s.lgLine} ${s.lgExample}`} aria-hidden="true" />
+                        Recorded by our logger, not onchain
+                      </span>
+                    )}
                     {hasExample && (
                       <span>
                         <i className={`${s.lgLine} ${s.lgExample}`} aria-hidden="true" />

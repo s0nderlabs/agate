@@ -83,3 +83,91 @@
     padding-bottom: calc(var(--dock-h, 0px) + env(safe-area-inset-bottom));
   }
 }
+
+/* positions by month (MonthGroups): the month's title, its days priced as one bar, where it stands in a line, then
+   each holding with the one thing it can do now */
+.group {
+  display: grid;
+  gap: 8px;
+  padding: 18px 0 6px;
+}
+.group + .group {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.groupTitle {
+  font-size: 17px;
+  font-weight: 500;
+}
+.days {
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+  overflow: hidden;
+}
+.days > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink-2);
+}
+.stage {
+  font-size: 15px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+  max-width: 62ch;
+}
+.holdings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.holding {
+  display: grid;
+  gap: 2px;
+  padding: 14px 0;
+}
+.holding + .holding {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.hTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 16px;
+}
+.hTop > b {
+  font-weight: 500;
+}
+.hPnl {
+  font-size: 17px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.hPnl[data-tone="up"] {
+  color: var(--up);
+}
+.hPnl[data-tone="down"] {
+  color: var(--down);
+}
+.hLine {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.hFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.hQuiet {
+  font-size: 15px;
+  color: var(--mute);
+  flex: 1 1 240px;
+}
+.hFoot > :global(.ag-btn) {
+  min-height: 44px;
+  padding-inline: 18px;
+}

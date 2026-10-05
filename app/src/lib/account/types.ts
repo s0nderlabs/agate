@@ -99,6 +99,10 @@ export interface TicketShown {
   floor: number;
   cap: number;
   daily: boolean;
+  /** pay me daily's part paid at once, in dollars (useTrade's backNow); absent: the floor for a Long, none for a Short */
+  backNow?: number;
+  /** a close: the position it closes, at `price` (the bid it sells at, or the ask a Short buys back at) */
+  close?: Position;
 }
 
 /** Sending, step by step: checking the price, the wallet signing, then waiting for Monad. */
@@ -141,6 +145,8 @@ export interface Account {
   address: string | null;
   /** test dollars in the account */
   balance: number;
+  /** the real account's first wallet read is still on its way: balance and positions are not known yet (skeleton) */
+  walletLoading?: boolean;
   positions: Position[];
   /** a drip would go through now */
   canDrip: boolean;
@@ -170,6 +176,9 @@ export interface Account {
   drip: () => Promise<void>;
   /** plans one trade (nothing is sent); rejects with the client's refusal (WriteError, AmountError, ReadError) */
   plan: (order: Order, shown?: TicketShown) => Promise<AccountPlan>;
+  /** collects a finished month's position (what it pays at the end); the pretend account's only, until the real
+   *  account's settle is wired (the first month ends Dec 1) */
+  collect?: (p: Position) => Promise<number>;
   /** sends a plan as one operation and resolves with what it did */
   send: (plan: AccountPlan, onStep?: OnStep) => Promise<DoneResult>;
 

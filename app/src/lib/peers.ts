@@ -32,6 +32,30 @@ const AKASH: Partial<Record<Gpu, PeerPrice>> = {
   B200: { name: "Akash", kind: "traded-onchain", price: null, note: "No B200 offered on Akash yet.", asOf: "Oct 1" },
 };
 
-export function peersFor(gpu: Gpu): PeerPrice[] {
-  return [ORNN[gpu], AKASH[gpu]].filter((p): p is PeerPrice => !!p);
+/** The shared-akash robot's latest read (GET /api/akash): per GPU, the GPU-weighted median of active leases. */
+export interface AkashTraded {
+  /** unix seconds of the last good read */
+  generatedAt: number;
+  gpus: Partial<Record<Gpu, { median: number | null; gpus: number; leases: number; sellers: number; buyers: number }>>;
+}
+
+const dayOf = (s: number) => new Date(s * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+/** The prices beside ours. With the robot's read (live data), Akash's number is today's chain read, its seller and
+ *  buyer counts always beside it (a thin market); without it, the dated reading above. */
+export function peersFor(gpu: Gpu, akash?: AkashTraded | null): PeerPrice[] {
+  const a = akash?.gpus[gpu];
+  const fresh: PeerPrice | undefined = a
+    ? {
+        name: "Akash",
+        kind: "traded-onchain",
+        price: a.median,
+        note:
+          a.median === null
+            ? `No ${gpu} rented on Akash's chain right now. Display only.`
+            : `Real rentals on Akash's own chain: ${a.leases} ${a.leases === 1 ? "lease" : "leases"}, ${a.sellers} ${a.sellers === 1 ? "seller" : "sellers"}, ${a.buyers} ${a.buyers === 1 ? "buyer" : "buyers"}. Display only.`,
+        asOf: dayOf(akash!.generatedAt),
+      }
+    : undefined;
+  return [ORNN[gpu], fresh ?? AKASH[gpu]].filter((p): p is PeerPrice => !!p);
 }

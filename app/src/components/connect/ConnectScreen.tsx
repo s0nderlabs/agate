@@ -14,7 +14,7 @@ import { Check, Steps, type StepRow } from "@/components/flow/Steps";
 import { useScreenTheme } from "@/components/ai/AisScreen";
 import { useAccount } from "@/lib/account";
 import { useAiBackend, useAiRefresh } from "@/lib/account/ai";
-import { clock } from "@/lib/account/aiView";
+import { clock, safeReturn } from "@/lib/account/aiView";
 import { ServerError } from "@/lib/account/api";
 import { CONNECT_COPY, codeProblemOf, codeProblemText, connectFailure, connectProblemOf, sendCodeProblemOf, SIGNIN_COPY } from "@/lib/account/errors";
 import {
@@ -49,6 +49,9 @@ import c from "./connect.module.css";
 const WHICH = ["Claude", "ChatGPT", "Cursor"] as const;
 /** A step running longer than this says so. */
 const SLOW_MS = 15_000;
+
+/** A step that stopped says why in the console; the screen says it in plain words. */
+const logStep = (step: string, e: unknown) => console.warn(`[connect] ${step} failed`, e);
 
 export function ConnectScreen({ requestId }: { requestId: string | null }) {
   const { config } = useMock();
@@ -191,9 +194,11 @@ export function ConnectScreen({ requestId }: { requestId: string | null }) {
           dispatch({ type: "delegated", at: Date.now() });
         } else if (step === "permission") {
           try {
-            const r = await backend.tradingKey.signPermission(s.run.pocketIndex);
-            dispatch({ type: "permissionSigned", pocket: r.pocket, approval: r.approval, pocketBalance: r.pocketBalance, at: Date.now() });
-          } catch {
+            const { validUntil } = termsWire(s.terms, Date.now());
+            const r = await backend.tradingKey.signPermission(s.run.pocketIndex, { routers: s.run.routers, perTradeCap: s.terms.perTradeCap, tradesPerDay: s.terms.tradesPerDay, validUntil });
+            dispatch({ type: "permissionSigned", pocket: r.pocket, approval: r.approval, pocketBalance: r.pocketBalance, at: Date.now(), validUntil });
+          } catch (e) {
+            logStep(step, e);
             dispatch({ type: "stepFailed", problem: "sign" });
           }
         } else if (step === "funding") {
@@ -212,14 +217,15 @@ export function ConnectScreen({ requestId }: { requestId: string | null }) {
               backend.expireRequest(requestId);
               dispatch({ type: "requestExpired" });
             }
-          } catch {
+          } catch (e) {
+            logStep(step, e);
             dispatch({ type: "stepFailed", problem: "funding" });
           }
         } else if (step === "registering") {
           if (!s.run.grantId) {
             // an Assistant that exists but was never delegated is not in /api/me: the key gives its address
             if (!assistant.current) assistant.current = await backend.tradingKey.ensureAssistant();
-            const wire = termsWire(s.terms, Date.now());
+            const wire = { ...termsWire(s.terms, Date.now()), ...(s.run.validUntil ? { validUntil: s.run.validUntil } : {}) };
             const who = deps.current.account;
             try {
               const grant = await backend.api.createGrant({ ...wire, mainOwner: who.owner ?? who.address ?? "", assistantAddress: assistant.current, pocketIndex: s.run.pocketIndex, approval: s.run.approval ?? "" });
@@ -253,7 +259,8 @@ export function ConnectScreen({ requestId }: { requestId: string | null }) {
             else dispatch({ type: "stepFailed", problem: "approve" });
           }
         }
-      } catch {
+      } catch (e) {
+        logStep(step, e);
         dispatch({ type: "stepFailed", problem: "key" });
       }
     },
@@ -857,11 +864,14 @@ function LinkAgain({ name, onGetLink }: { name: string; onGetLink: () => Promise
 function BackTo({ name, redirect, example, pocketHref }: { name: string; redirect?: string; example: boolean; pocketHref: string }) {
   const [auto, setAuto] = useState(true);
   const [note, setNote] = useState(false);
+  // a return address that could run script in this page is never opened (the person goes back to the app themselves)
+  const target = safeReturn(redirect);
   const go = useCallback(() => {
     if (!redirect) return;
     if (example) setNote(true);
-    else window.location.assign(redirect);
-  }, [redirect, example]);
+    else if (target) window.location.assign(target);
+    else setNote(true);
+  }, [redirect, example, target]);
   useEffect(() => {
     if (!auto) return;
     const stop = () => setAuto(false);
@@ -886,7 +896,7 @@ function BackTo({ name, redirect, example, pocketHref }: { name: string; redirec
       </div>
       {note && (
         <p className={c.fine} role="status" style={{ textAlign: "center" }}>
-          Practice: this is where the page returns to {name}.
+          {example ? `Practice: this is where the page returns to ${name}.` : `${name}'s return address can't be opened from here. Go back to ${name} yourself; it is connected.`}
         </p>
       )}
     </>
@@ -895,8 +905,10 @@ function BackTo({ name, redirect, example, pocketHref }: { name: string; redirec
 
 function ExampleRedirect({ example, to }: { example: boolean; to?: string }) {
   useEffect(() => {
-    if (!example && to) {
-      const id = window.setTimeout(() => window.location.assign(to), 1_500);
+    // never a return address that could run script in this page
+    const target = safeReturn(to);
+    if (!example && target) {
+      const id = window.setTimeout(() => window.location.assign(target), 1_500);
       return () => window.clearTimeout(id);
     }
   }, [example, to]);

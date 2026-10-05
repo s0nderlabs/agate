@@ -1,7 +1,8 @@
 "use client";
 // The index as it really moves: flat for days, then a step when a cloud reprices. Drawn as a step line
 // with a real crosshair (follows the pointer, vertical guide, date and value readout). Example days
-// before Sep 30 are drawn lighter so nobody mistakes them for our record.
+// before Sep 30, and the logger's days before the index's first onchain day (Market.prelaunch), are drawn lighter so
+// nobody mistakes them for our onchain record.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Day } from "@/lib/mock/market";
 import { Num } from "@/components/num/Num";
@@ -58,8 +59,8 @@ export function LineChart({ days: all, range, band, height = 360 }: { days: Day[
   const Y = (p: number) => ((hi - p) / (hi - lo)) * 400;
   const pct = (v: number, max: number) => `${(v / max) * 100}%`;
 
-  // step-after path, split where example history ends
-  const firstReal = days.findIndex((d) => !d.example);
+  // step-after path, split where the lighter days (example history, the logger's pre-launch days) end
+  const firstReal = days.findIndex((d) => !d.example && d.onchain !== false);
   const pathFor = (from: number, to: number) => {
     if (to < from) return "";
     let d = `M${X(from).toFixed(2)},${Y(days[from].price).toFixed(2)}`;
@@ -71,7 +72,8 @@ export function LineChart({ days: all, range, band, height = 360 }: { days: Day[
   const realPath = firstReal === -1 ? "" : pathFor(firstReal, n - 1);
   const area = `${pathFor(0, n - 1)} V400 H0 Z`;
   const last = days[n - 1];
-  const xTicks = [0, Math.round((n - 1) / 3), Math.round(((n - 1) * 2) / 3), n - 1];
+  // a few days only (the first days of the index): each day once, never the same date twice
+  const xTicks = [...new Set([0, Math.round((n - 1) / 3), Math.round(((n - 1) * 2) / 3), n - 1])];
 
   const onMove = (e: React.PointerEvent) => {
     const r = plotRef.current?.getBoundingClientRect();
@@ -127,7 +129,8 @@ export function LineChart({ days: all, range, band, height = 360 }: { days: Day[
           {days.map((d, i) =>
             d.status === "carried" ? <span key={d.date} className={s.carried} style={{ left: pct(X(i), 1000), top: pct(Y(d.price), 400) }} title={`${shortDate(d.date)}: carried, unverified`} /> : null,
           )}
-          <span className={s.endDot} style={{ left: "100%", top: pct(Y(last.price), 400) }} />
+          {/* only an onchain day is today's price: before the first one, the chart has no end mark */}
+          {last.onchain !== false && <span className={s.endDot} style={{ left: "100%", top: pct(Y(last.price), 400) }} />}
           {h && (
             <>
               <span className={s.hoverDot} style={{ left: pct(X(hover!), 1000), top: pct(Y(h.price), 400) }} />
@@ -138,6 +141,7 @@ export function LineChart({ days: all, range, band, height = 360 }: { days: Day[
                 <span>{shortDate(h.date)}, 2026</span>
                 {h.status === "carried" && <span className={s.note}>Carried, unverified</span>}
                 {h.example && <span className={s.note}>Example history</span>}
+                {h.onchain === false && <span className={s.note}>Recorded by our logger, not onchain. It can be off by a cent.</span>}
               </div>
             </>
           )}
@@ -145,15 +149,17 @@ export function LineChart({ days: all, range, band, height = 360 }: { days: Day[
         <div className={s.axis} aria-hidden="true">
           {/* a tick label the end tag would cover is left out (its gridline stays) */}
           {ticks.map((v) =>
-            Math.abs(Y(v) - Y(last.price)) < 26 ? null : (
+            last.onchain !== false && Math.abs(Y(v) - Y(last.price)) < 26 ? null : (
               <span key={v} style={{ top: pct(Y(v), 400) }}>
                 <Num>{usd(v)}</Num>
               </span>
             ),
           )}
-          <span className={s.endTag} style={{ top: pct(Y(last.price), 400) }}>
-            <Num>{last.price.toFixed(2)}</Num>
-          </span>
+          {last.onchain !== false && (
+            <span className={s.endTag} style={{ top: pct(Y(last.price), 400) }}>
+              <Num>{last.price.toFixed(2)}</Num>
+            </span>
+          )}
         </div>
       </div>
       <div className={s.xaxis} aria-hidden="true">

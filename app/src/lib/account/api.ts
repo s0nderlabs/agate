@@ -127,7 +127,12 @@ export function serverApi(t: Transport) {
   }
   const id = (s: string) => encodeURIComponent(s);
   return {
-    health: () => call<{ ok: boolean }>("GET", "/health"),
+    // is the server up: /api/config needs no sign-in and answers the app's origin (the bare /health sends no CORS
+    // headers, so a browser can't read it)
+    health: async () => {
+      await call<ServerConfig>("GET", "/api/config");
+      return { ok: true };
+    },
     config: () => call<ServerConfig>("GET", "/api/config"),
     me: () => call<Me>("GET", "/api/me"),
     grants: () => call<Grant[]>("GET", "/api/grants"),

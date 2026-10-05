@@ -29,7 +29,17 @@ export interface MockConfig {
   connect: ConnectOutcome;
   /** example only: how a disconnect runs */
   disc: DisconnectOutcome;
+  /** example only: the day the example stands on: today (November listed, December not yet), or a day when two months
+   *  are live, November's last hours, the gap before its last day is final, and after it (lib/mock/timeline.ts) */
+  when: Moment;
+  /** example only: the signed-in example account already holds H100 November (Long with pay me daily, Long, Short) */
+  holds: "none" | "nov";
+  /** Simple's months, being judged: one (the next full month beside the index) or every open month (before) */
+  months: "one" | "both";
 }
+
+export const MOMENTS = ["oct", "nov3", "nov13", "nov30", "dec1gap", "dec1final"] as const;
+export type Moment = (typeof MOMENTS)[number];
 
 export const SIGNIN_OUTCOMES = ["auto", "new", "returning", "wrong", "expired", "walletfail", "dripfail", "slow"] as const;
 export type SignInOutcome = (typeof SIGNIN_OUTCOMES)[number];
@@ -48,7 +58,7 @@ export const MOCK_CONTROLS = flag === "on" || (flag !== "off" && process.env.NOD
 // source: example data by default while the live empty states are reviewed (flip to "live" once November lists);
 // a build without Mock controls is always live, so its links never carry ?source. pbar: filled, the research
 // pick (Oct 4: every persistent trade bar measured is filled; tint keeps meaning "picked side" inside the ticket)
-export const DEFAULT_CONFIG: MockConfig = { dfill: "deep", mode: "simple", theme: "light", auth: "out", data: "normal", gpu: "H100", source: MOCK_CONTROLS ? "example" : "live", dock: "closed", phone: "new", pbar: "fill", signin: "auto", ais: "none", connect: "normal", disc: "normal" };
+export const DEFAULT_CONFIG: MockConfig = { dfill: "deep", mode: "simple", theme: "light", auth: "out", data: "normal", gpu: "H100", source: MOCK_CONTROLS ? "example" : "live", dock: "closed", phone: "new", pbar: "fill", signin: "auto", ais: "none", connect: "normal", disc: "normal", when: "oct", holds: "none", months: "one" };
 
 export function parseConfig(sp: Record<string, string | string[] | undefined>): MockConfig {
   const pick = <T extends string>(k: string, allowed: readonly T[], d: T): T => {
@@ -71,13 +81,16 @@ export function parseConfig(sp: Record<string, string | string[] | undefined>): 
     ais: pick("ais", AIS_SCENARIOS, DEFAULT_CONFIG.ais),
     connect: pick("connect", CONNECT_OUTCOMES, DEFAULT_CONFIG.connect),
     disc: pick("disc", DISCONNECT_OUTCOMES, DEFAULT_CONFIG.disc),
+    when: pick("when", MOMENTS, DEFAULT_CONFIG.when),
+    holds: pick("holds", ["none", "nov"] as const, DEFAULT_CONFIG.holds),
+    months: pick("months", ["one", "both"] as const, DEFAULT_CONFIG.months),
   };
   // a build without the controls (a hosted one) shows live data only: example numbers can never reach it from a link
   if (!MOCK_CONTROLS) all.source = "live";
   // without the controls, options being judged stay at their default and the made-up data states and the panel
   // cannot be opened from a link
   const D = DEFAULT_CONFIG;
-  return MOCK_CONTROLS ? all : { ...all, dfill: D.dfill, data: D.data, dock: D.dock, phone: D.phone, pbar: D.pbar, signin: D.signin, ais: D.ais, connect: D.connect, disc: D.disc };
+  return MOCK_CONTROLS ? all : { ...all, dfill: D.dfill, data: D.data, dock: D.dock, phone: D.phone, pbar: D.pbar, signin: D.signin, ais: D.ais, connect: D.connect, disc: D.disc, when: D.when, holds: D.holds, months: D.months };
 }
 
 /** A render-check tab (opened with ?agentcheck=1): it keeps its own wallets and pocket dollars, so it never touches a person's own. */

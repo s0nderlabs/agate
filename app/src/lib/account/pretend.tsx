@@ -8,7 +8,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useMock, type OpenArgs } from "@/lib/mock/store";
 import type { SignInOutcome } from "@/lib/mock/config";
-import type { Wallet } from "@/lib/mock/types";
+import type { Position, Wallet } from "@/lib/mock/types";
+import { holderPositions, positionAt } from "@/lib/mock/timeline";
 import { SIGNIN_COPY } from "./errors";
 import { CREATING_SLOW_MS, isCode, SIGNED_OUT, signInReducer, toAccountStep, type SignInEvent, type SignInState } from "./machine";
 import { type Account, type AccountPlan, DRIP, type DoneResult, type OnStep, type Order, type SignInStep, type TicketShown, type TradeAction } from "./types";
@@ -259,13 +260,40 @@ export function usePretendAccount(): Account {
 
   // a practice plan keeps the trade it will record beside it, out of the shared plan shape
   const practice = useRef(new WeakMap<AccountPlan, OpenArgs>());
+  // a practice close keeps the position and what comes back
+  const closes = useRef(new WeakMap<AccountPlan, { id: string; back: number; result: Omit<DoneResult, "txHash" | "userOpHash"> }>());
 
   const plan = useCallback(async (order: Order, shown?: TicketShown): Promise<AccountPlan> => {
     const account = live.current.wallet.address || PRETEND_ADDRESS;
     if (order.kind === "drip") return { account, calls: [], summary: { action: "drip", maxSpend: 0, bound: { kind: "minDollarsOut", value: 0 } }, plannedAt: Date.now() };
     const action = ACTION[order.kind];
-    if (action !== "openLong" && action !== "openLongDaily" && action !== "openShort") throw new Error("Practice closes come with the close sheet.");
     if (!shown) throw new Error("A practice plan is made from the ticket's numbers.");
+    if (action === "closeLong" || action === "closeLongDaily" || action === "closeShort") {
+      // a close at the book's top: held tokens sell at the bid; a pay me daily Long sells at the bid and hands back
+      // what it was paid; a Short buys back at the ask and gets the ceiling less what it was paid
+      const pos = shown.close;
+      if (!pos || !(shown.price > 0)) throw new Error("Can't read the market's price right now. Nothing was sent. Try again in a moment.");
+      const q = pos.q;
+      const cents = (x: number) => Math.round(x * 100) / 100;
+      const spent = action === "closeShort" ? cents(shown.price * q) : 0;
+      const received = cents(action === "closeShort" ? q * shown.cap - pos.paid : shown.price * q - (action === "closeLongDaily" ? pos.paid : 0));
+      const p: AccountPlan = {
+        account,
+        calls: [],
+        summary: {
+          action,
+          gpu: pos.gpu,
+          month: pos.month,
+          gpuHours: q,
+          maxSpend: action === "closeLongDaily" ? pos.paid : spent,
+          // as the real plan: the sale itself (a pay me daily Long then hands back what it was paid)
+          bound: action === "closeShort" ? { kind: "maxDollarsIn", value: spent } : { kind: "minDollarsOut", value: cents(shown.price * q) },
+        },
+        plannedAt: Date.now(),
+      };
+      closes.current.set(p, { id: pos.id, back: received - spent, result: { action, gpuHours: q, spent, received } });
+      return p;
+    }
     const L = shown.side === "long";
     // what the practice wallet takes: a Long pays the price, a Short puts up ceiling minus price (store.tsx open)
     const take = (L ? shown.price : shown.cap - shown.price) * shown.gpuHours;
@@ -283,7 +311,7 @@ export function usePretendAccount(): Account {
       },
       plannedAt: Date.now(),
     };
-    practice.current.set(p, { gpu: order.gpu, month: order.month, side: shown.side, q: shown.gpuHours, price: shown.price, floor: shown.floor, cap: shown.cap, daily: shown.daily });
+    practice.current.set(p, { gpu: order.gpu, month: order.month, side: shown.side, q: shown.gpuHours, price: shown.price, floor: shown.floor, cap: shown.cap, daily: shown.daily, backNow: shown.backNow });
     return p;
   }, []);
 
@@ -293,6 +321,18 @@ export function usePretendAccount(): Account {
         if (p.summary.action === "drip") {
           live.current.store.drip();
           resolve({ action: "drip", txHash: null, userOpHash: null, amount: DRIP });
+          return;
+        }
+        const c = closes.current.get(p);
+        if (c) {
+          onStep?.("signing");
+          later(PRETEND_MS.signing, () => {
+            onStep?.("sending");
+            later(PRETEND_MS.landing, () => {
+              live.current.store.finish(c.id, "closed", c.back);
+              resolve({ ...c.result, txHash: null, userOpHash: null });
+            });
+          });
           return;
         }
         const a = practice.current.get(p);
@@ -323,6 +363,27 @@ export function usePretendAccount(): Account {
   // signed in is the example wallet's own flag, so the Visitor row and ?auth= keep working as before; the machine's
   // step follows it (the effect above catches up a render later)
   const ready = wallet.signedIn;
+
+  // Mock controls "Holds November": the Day's example holder (a Long with pay me daily, a Long, a Short), ahead of the
+  // practice trades; collected ones are paid in full, closed ones gone
+  const { finished, finish } = store;
+  const positions = useMemo<Position[]>(() => {
+    const example = config.source === "example";
+    const held = example && config.holds === "nov" ? holderPositions(config.when) : [];
+    // practice trades follow the Day too (paid so far, what a collect pays), as if made on the example's own morning
+    const own = example ? wallet.positions.map((p) => positionAt(p, config.when)) : wallet.positions;
+    return [...held.filter((p) => finished[p.id]?.how !== "closed"), ...own].map((p) => (finished[p.id]?.how === "collected" ? { ...p, paid: p.paid + p.claimable, claimable: 0 } : p));
+  }, [config.source, config.holds, config.when, finished, wallet.positions]);
+  const collect = useCallback(
+    (p: Position) =>
+      new Promise<number>((resolve) => {
+        later(PRETEND_MS.signing + PRETEND_MS.landing, () => {
+          finish(p.id, "collected", p.claimable);
+          resolve(p.claimable);
+        });
+      }),
+    [later, finish],
+  );
   const signIn = useMemo<SignInStep>(() => {
     const step = toAccountStep(m);
     if (ready) return step.status === "ready" ? step : { status: "ready" };
@@ -339,7 +400,7 @@ export function usePretendAccount(): Account {
       owner: null,
       address: wallet.address || (ready ? PRETEND_ADDRESS : null),
       balance: wallet.balance,
-      positions: wallet.positions,
+      positions,
       canDrip,
       nextDrip,
       marginBalance: wallet.marginBalance,
@@ -356,7 +417,8 @@ export function usePretendAccount(): Account {
       plan,
       send,
       signInAtOnce,
+      collect,
     }),
-    [signIn, ready, wallet, canDrip, nextDrip, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, retry, cancelSignIn, signOut, drip, plan, send, signInAtOnce],
+    [signIn, ready, wallet, positions, canDrip, nextDrip, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, retry, cancelSignIn, signOut, drip, plan, send, signInAtOnce, collect],
   );
 }

@@ -4,7 +4,8 @@
 import { Stone } from "@/components/brand/Logo";
 import { AkashMark, OrnnMark } from "@/components/brand/Peers";
 import { Num } from "@/components/num/Num";
-import { median, peersFor } from "@/lib/peers";
+import { median } from "@/lib/peers";
+import { usePeers } from "@/lib/data/peers";
 import type { Market } from "@/lib/mock/types";
 import { usd } from "@/lib/format";
 import { dateText, panelCount, timeText } from "@/lib/data/derive";
@@ -58,7 +59,7 @@ export function Sources({ market }: { market: Market }) {
 
 /** Our posted price beside two traded ones, with how far each sits from ours. */
 export function Beside({ market }: { market: Market }) {
-  const peers = peersFor(market.gpu);
+  const peers = usePeers(market.gpu);
   const before = market.priceDate === null;
   const panel = panelCount(market);
   const word = (n: number) => (WORDS[n] ?? String(n)).toLowerCase();

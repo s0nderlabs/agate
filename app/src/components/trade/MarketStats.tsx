@@ -6,7 +6,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { Num } from "@/components/num/Num";
 import { monthName } from "@/components/markets/PriceChart";
 import { useCandles, useIndexer, useNow } from "@/lib/data/hooks";
-import { countdown, dateText, lastTradingDay, monthLong, nextMonthOf, placeholderSeries, timeText, tradedToday, whenText } from "@/lib/data/derive";
+import { countdown, dateText, lastTradingDay, monthLong, monthStage, nextMonthOf, placeholderSeries, sellEndsAt, timeText, tradedToday, whenText } from "@/lib/data/derive";
 import type { Market, Series } from "@/lib/mock/types";
 import { int } from "@/lib/format";
 import s from "./trade.module.css";
@@ -41,8 +41,11 @@ export function HeadStats({ market, series: picked, row = false, loading = false
   const closes = lastTradingDay(series);
   const days = Math.max(0, Math.ceil((closes - now) / 86400000));
   const month = monthName(series.month);
-  // the month after: it opens for trading as this one starts
-  const after = `${monthLong(nextMonthOf(series.month))} opens ${dateText(`${series.month}-01`)}`;
+  // the month after: it opens for trading as this one starts (said only before it does)
+  const stage = monthStage(series, now);
+  const after = stage === "listed" || stage === "upcoming" ? `; ${monthLong(nextMonthOf(series.month))} opens ${dateText(`${series.month}-01`)}` : "";
+  // its last day: selling ends when the maker stops, an hour before the month closes
+  const lastDay = stage === "lastDay";
 
   // skel: this figure's own read is still on its way (a skeleton even after the screen has loaded)
   const cells: { label: string; note: string; value: React.ReactNode; skel?: boolean }[] = [
@@ -64,8 +67,8 @@ export function HeadStats({ market, series: picked, row = false, loading = false
     },
     {
       label: "Held open",
-      note: `GPU-hours of ${month} sitting in open positions right now.`,
-      value: waiting ? (
+      note: noTrades ? `Nobody holds ${month} yet: the GPU-hours that exist so far are the market maker's own, for its quotes.` : `GPU-hours of ${month} in existence right now: what traders hold, plus the market maker's own stock for its quotes.`,
+      value: waiting || noTrades ? (
         "None yet"
       ) : (
         <>
@@ -81,8 +84,16 @@ export function HeadStats({ market, series: picked, row = false, loading = false
     },
     {
       label: "Trading closes",
-      note: `The last day to trade ${month}, in ${days} days. It settles on the month's average index; ${after}.`,
-      value: row ? (
+      note: lastDay ? `Selling ${month} stops at ${timeText(sellEndsAt(series))} today. It settles on the month's average index.` : `The last day to trade ${month}, in ${days} days. It settles on the month's average index${after}.`,
+      value: lastDay ? (
+        row ? (
+          `Today ${timeText(sellEndsAt(series)).replace(" UTC", "")}`
+        ) : (
+          <>
+            Today <small>until {timeText(sellEndsAt(series))}</small>
+          </>
+        )
+      ) : row ? (
         `${month.slice(0, 3)} ${new Date(closes).getUTCDate()}`
       ) : (
         <>

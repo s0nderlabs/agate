@@ -9,9 +9,10 @@ import { useFlow } from "@/components/markets/Flow";
 import { monthName } from "@/components/markets/PriceChart";
 import type { Trade, TradeNumbers } from "@/components/markets/useTrade";
 import { Num } from "@/components/num/Num";
-import { useBook } from "@/lib/data/hooks";
-import { topOf } from "@/lib/data/derive";
-import { emptySideText } from "./States";
+import { useBook, useNow } from "@/lib/data/hooks";
+import { bandNow, topOf } from "@/lib/data/derive";
+import { emptySideText, MonthSeg, monthSoFarText } from "./States";
+import { numbersFor } from "@/components/markets/useTrade";
 import { useAccount } from "@/lib/account";
 import { useMock } from "@/lib/mock/store";
 import { cleanTyping, dollarsToHours, floorCents, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, LIMIT_MAX, LIMIT_MIN, maxFor, parseAmount, walkDollars, walkHours } from "@/lib/size";
@@ -40,8 +41,8 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
   const { config } = useMock();
   const account = useAccount();
   const signedIn = account.ready;
-  // live prices on a practice wallet: a resting order is saved in this browser only, and says so
-  const practice = config.source === "live";
+  // the real account (live): an order that would wait in the book is not open yet; it fills now or not at all
+  const realAccount = account.kind === "real";
   const series = trade.n.series;
   // the month's book (empty while it is not listed); its top is the quote, so the walk and the labels agree
   const bq = useBook(series);
@@ -80,7 +81,9 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
   const top = L ? q.ask : q.bid;
   const none = type === "market" && (L ? noAsk : noBid);
   const limit = Number(limitStr);
-  const limitOk = type === "limit" && limitStr !== "" && limit > series.floor && limit < series.cap;
+  // where the month can still end (the floor to the ceiling before it starts): a limit outside it is a sure loss
+  const b = bandNow(series);
+  const limitOk = type === "limit" && limitStr !== "" && limit > b.lo && limit < b.hi;
   const price = type === "market" ? top : limitOk ? limit : top;
   // a limit at or through the book fills now; otherwise it rests as an open order
   // (only against a side that has orders: with nobody selling, a Long limit can only rest, and that is the point of it)
@@ -117,28 +120,16 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
     setSizeStr(unit === "hours" ? fmtHours(h) : fmtDollars(floorCents(crosses ? walkHours(levels, trade.side, h, series.cap).outlay : h * restPer)));
   };
 
-  const n = useMemo<TradeNumbers>(() => {
-    const F = series.floor;
-    const C = series.cap;
-    return {
-      series,
-      side: trade.side,
-      gpus: size / (24 * series.n),
-      daily,
-      hours: size,
-      price: fillPrice,
-      outlay: L ? fillPrice * size : (C - fillPrice) * size,
-      backNow: L && daily ? F * size : 0,
-      maxLoss: L ? (fillPrice - F) * size : (C - fillPrice) * size,
-      maxGain: L ? (C - fillPrice) * size : (fillPrice - F) * size,
-    };
-  }, [series, trade.side, daily, size, fillPrice, L]);
+  const n = useMemo<TradeNumbers>(() => numbersFor(series, trade.side, size, daily, fillPrice), [series, trade.side, daily, size, fillPrice]);
 
   const position = account.positions.filter((p) => p.gpu === market.gpu && p.month === series.month).reduce((a, p) => a + (p.side === "long" ? p.q : -p.q), 0);
   const gpusAllMonth = size / (24 * series.n);
   const m = monthName(series.month);
-  const worst = L ? series.floor : series.cap;
-  const best = L ? series.cap : series.floor;
+  const mid = b.k > 0;
+  const now = useNow();
+  const soFar = monthSoFarText(series, now);
+  // reached when every day not priced yet comes in at the floor or the ceiling
+  const at = (lo: boolean) => (mid ? `${b.left} days left at ${usd(lo ? series.floor : series.cap)} or ${lo ? "less" : "more"}` : `at ${usd(lo ? series.floor : series.cap)} or ${lo ? "less" : "more"}`);
 
   const gated = !signedIn;
   // the button waits while prices load, and once they are two minutes old (it says which)
@@ -152,9 +143,10 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
     // an order that fills now goes through the review sheets, unless open orders hold the dollars it needs
     if (crosses && !(over && held > 0)) return submit(n);
     if (!signedIn) return openSignIn();
+    if (realAccount) return setPlaced(`Orders that wait in the book aren't open yet. Set a price that fills now (${L ? `the best ask, ${usd(q.ask)}, or above` : `the best bid, ${usd(q.bid)}, or below`}), or use Market.`);
     if (n.outlay > balance + 0.005) return setPlaced(`Not enough test dollars: this order needs ${usd0(n.outlay)} and ${usd0(balance)} is free${held > 0 ? ` (${usd0(held)} is held by your open orders)` : ""}.`);
     onPlace({ id: Math.random().toString(36).slice(2, 10), gpu: market.gpu, month: series.month, side: trade.side, price, q: size, hold: n.outlay, daily: false, placedAt: new Date().toISOString() });
-    setPlaced(practice ? "Practice order: it waits here until you cancel it or reload the page." :`${L ? "Long" : "Short"} ${fmtHours(size)} GPU-hours at ${usd(price)} is waiting in the book.`);
+    setPlaced(`${L ? "Long" : "Short"} ${fmtHours(size)} GPU-hours at ${usd(price)} is waiting in the book.`);
   };
 
   return (
@@ -167,10 +159,15 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
             {t === "market" ? "Market" : "Limit"}
           </button>
         ))}
-        <span className={s.month}>
-          {m} {market.gpu}
-        </span>
+        {trade.pickable ? (
+          <MonthSeg trade={trade} className={s.monthSeg} />
+        ) : (
+          <span className={s.month}>
+            {m} {market.gpu}
+          </span>
+        )}
       </div>
+      {soFar && <p className={s.soFar}>{soFar}</p>}
 
       <dl className={s.facts}>
         <div>
@@ -206,7 +203,7 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
               </button>
             ))}
           </div>
-          {limitStr !== "" && !limitOk ? <p className={s.warn}>A limit has to sit between the floor {usd(series.floor)} and the ceiling {usd(series.cap)}.</p> : <p className={s.help}>Good till canceled.</p>}
+          {limitStr !== "" && !limitOk ? <p className={s.warn}>{mid ? `A limit has to sit between ${usd(b.lo)} and ${usd(b.hi)}, where ${m} can still end.` : `A limit has to sit between the floor ${usd(series.floor)} and the ceiling ${usd(series.cap)}.`}</p> : <p className={s.help}>Good till canceled.</p>}
         </div>
       )}
 
@@ -296,7 +293,7 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
           <input type="checkbox" checked={trade.daily} onChange={(e) => trade.setDaily(e.target.checked)} />
           <span className={s.box} aria-hidden="true" />
           <span>
-            Pay me daily <em>{L ? "floor back now, then daily" : "a share every morning"}</em>
+            Pay me daily <em>{L ? (mid ? "priced days and floor back now" : "floor back now, then daily") : mid ? "priced days now, then daily" : "a share every morning"}</em>
           </span>
         </label>
       ) : (
@@ -320,7 +317,7 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
         )}
         <div>
           <dt>
-            Max loss <span>{sk(`at ${usd(worst)} or ${L ? "less" : "more"}`)}</span>
+            Max loss <span>{sk(at(L))}</span>
           </dt>
           <dd className={skel}>
             <Num>{usd0(n.maxLoss)}</Num>
@@ -328,7 +325,7 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
         </div>
         <div>
           <dt>
-            Max gain <span>{sk(`at ${usd(best)} or ${L ? "more" : "less"}`)}</span>
+            Max gain <span>{sk(at(!L))}</span>
           </dt>
           <dd className={skel}>
             <Num>{usd0(n.maxGain)}</Num>

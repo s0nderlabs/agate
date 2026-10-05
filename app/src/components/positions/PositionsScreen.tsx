@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import { useFlow } from "@/components/markets/Flow";
 import { NavBar, Notice } from "@/components/shell/Shell";
 import { BottomDock } from "@/components/shell/Dock";
-import { PositionCards } from "@/components/trade/ProParts";
+import { MonthGroups } from "./MonthGroups";
 import { DripButton } from "@/components/flow/DripButton";
 import { YourAis } from "@/components/ai/YourAis";
 import { groundFor } from "@/lib/mock/config";
@@ -65,7 +65,7 @@ export function PositionsScreen() {
           <section className={s.section} aria-labelledby="positions-h">
             <h2 id="positions-h">Positions</h2>
             {account.positions.length ? (
-              <PositionCards positions={account.positions} lastFor={lastFor} />
+              <MonthGroups positions={account.positions} lastFor={lastFor} />
             ) : (
               <div className={s.empty}>
                 <p>No positions yet. When you go Long or Short, it shows up here with what it's worth and what's been paid.</p>

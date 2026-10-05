@@ -27,7 +27,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         },
       }),
   );
-  const source = config.source === "live" ? liveSource : exampleSource(config.data);
+  const source = config.source === "live" ? liveSource : exampleSource(config.data, config.when);
   return (
     <QueryClientProvider client={client}>
       <SourceCtx.Provider value={source}>

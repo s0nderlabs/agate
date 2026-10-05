@@ -16,6 +16,7 @@ import { approvalWhat, clock, grantState, limitsOf, shortAddress } from "@/lib/a
 import type { ApprovalView } from "@/lib/account/api";
 import { refusalOfOrder, sendRefusal } from "@/lib/account/errors";
 import {
+  APPROVAL_ENDED_BY,
   approvalOrder,
   approvalReducer,
   approvalStart,
@@ -29,7 +30,7 @@ import {
 } from "@/lib/account/machine";
 import type { TicketShown } from "@/lib/account/types";
 import { useSeriesFor } from "@/lib/data/hooks";
-import { monthLong, timeText } from "@/lib/data/derive";
+import { bandNow, monthLong, timeText } from "@/lib/data/derive";
 import { usd, usd0 } from "@/lib/format";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { fmtHours } from "@/lib/size";
@@ -124,7 +125,9 @@ export function ApproveScreen({ id }: { id: string }) {
     const L = order.kind !== "openShort";
     const price = (L ? series?.quote?.ask : series?.quote?.bid) || (w?.gpuHours && w.dollars ? w.dollars / w.gpuHours : 0);
     const hours = order.kind === "openShort" ? Number(order.gpuHours) : (aboutHours ?? (price ? need / price : 0));
-    const shown: TicketShown = { side: L ? "long" : "short", gpuHours: hours, price, floor: series?.floor ?? 0, cap: series?.cap ?? 0, daily: order.kind === "openLongDaily" || (order.kind === "openShort" && order.daily) };
+    const daily = order.kind === "openLongDaily" || (order.kind === "openShort" && order.daily);
+    const band = series ? bandNow(series) : null;
+    const shown: TicketShown = { side: L ? "long" : "short", gpuHours: hours, price, floor: series?.floor ?? 0, cap: series?.cap ?? 0, daily, backNow: daily && band ? (L ? band.longNow : band.shortNow) * hours : 0 };
     // a practice trade is priced from the market read: without it nothing runs (never a $0 Long or a Short that pays in)
     if (account.kind === "pretend" && !(series && price > 0 && hours > 0 && (L || series.cap > price))) {
       setT(TRADE_IDLE);
@@ -219,7 +222,10 @@ export function ApproveScreen({ id }: { id: string }) {
   // each end page: the heading says what happened, the line under it only what is new
   if (a.step === "notFound") return whole("We can't find this request", "It may belong to another account. Nothing was traded.");
   if (a.step === "expired") {
-    const why = grantOff === "disconnected" ? `It ended when ${ai} was disconnected.` : grantOff === "ended" ? `It ended when ${ai}'s permission ended.` : "It wasn't answered in time.";
+    // the server's reason first (it knows what ended it), then the AI's state as read here
+    const reason = a.approval?.result?.reason;
+    const off = reason === APPROVAL_ENDED_BY.disconnected ? "disconnected" : reason === APPROVAL_ENDED_BY.ended ? "ended" : grantOff;
+    const why = off === "disconnected" ? `It ended when ${ai} was disconnected.` : off === "ended" ? `It ended when ${ai}'s permission ended.` : "It wasn't answered in time.";
     return whole("This request has ended", `${why} Nothing was traded.`);
   }
   if (a.step === "declined") return whole("Declined", `${ai} will see it. Nothing was traded.`);

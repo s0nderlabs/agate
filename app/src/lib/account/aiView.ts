@@ -5,7 +5,7 @@ import { usd0 } from "@/lib/format";
 import { fmtHours } from "@/lib/size";
 import { fromU, summaryDollars, type ActivityEvent, type Grant } from "./api";
 import { autopilotText, refusedText, type AutopilotResult } from "./errors";
-import type { ApprovalView } from "./machine";
+import { APPROVAL_ENDED_BY, type ApprovalView } from "./machine";
 
 /** Where a connection stands on screen: the server says expired only on its next read, so the end date counts too. */
 export type GrantState = "active" | "ended" | "disconnected";
@@ -164,6 +164,11 @@ export function activityLine(e: ActivityEvent, ai: string): ActivityLine | null 
       return { text: "You approved a trade over its limit. It ran from your account.", txHash: tx };
     case "approval.denied":
       return { text: "You declined a trade over its limit." };
+    case "approval.expired":
+      return {
+        text: d.reason === APPROVAL_ENDED_BY.disconnected ? `A request to go over its limit ended when ${ai} was disconnected.` : d.reason === APPROVAL_ENDED_BY.ended ? `A request to go over its limit ended with ${ai}'s permission.` : "A request to go over its limit ended unanswered.",
+        quiet: true,
+      };
     case "approval.failed":
       return { text: "A trade over its limit that you approved didn't go through. Nothing changed.", quiet: true };
     case "autopilot.started":
@@ -227,3 +232,18 @@ export const shortAddress = (a: string | null | undefined) => (a && a.length > 1
 /** Monad's test-network explorer. */
 export const explorerAddress = (a: string) => `https://testnet.monadexplorer.com/address/${a}`;
 export const explorerTx = (h: string) => `https://testnet.monadexplorer.com/tx/${h}`;
+
+/** Schemes that run script in this page or read local data: an AI app's return address with one is never opened. */
+const UNSAFE_SCHEMES = new Set(["javascript:", "data:", "vbscript:", "file:", "blob:", "about:"]);
+
+/** An AI app's return address (OAuth redirect_uri from Agate's server), if it is safe to open from this page: http(s)
+ *  and an app's own scheme (cursor://, vscode://) pass; one that would run script here (javascript:, data: ...) or does
+ *  not parse is refused. The URL parser lowercases the scheme and drops the tabs and spaces that could hide it. */
+export function safeReturn(url: string | undefined | null): string | null {
+  if (!url) return null;
+  try {
+    return UNSAFE_SCHEMES.has(new URL(url).protocol.toLowerCase()) ? null : url;
+  } catch {
+    return null;
+  }
+}

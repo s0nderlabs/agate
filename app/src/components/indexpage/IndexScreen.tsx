@@ -10,6 +10,7 @@ import { dateText, statusLine, timeText } from "@/lib/data/derive";
 import { usd } from "@/lib/format";
 import { MarketStrip, NavBar, Notice } from "@/components/shell/Shell";
 import { PriceMap } from "@/components/trade/PriceMap";
+import { LineChart } from "@/components/trade/LineChart";
 import { Beside } from "@/components/trade/Insight";
 import { NoData } from "@/components/trade/States";
 import s from "./index.module.css";
@@ -28,6 +29,9 @@ export function IndexScreen() {
   const nodata = read.missing && !loading;
   const st = useDataStatus();
   const { markets } = useMarkets();
+  // the history: the logger's days before the first onchain day (drawn lighter), then the index's own
+  const days = useMemo(() => (market.prelaunch?.length ? [...market.prelaunch, ...market.history] : market.history), [market.prelaunch, market.history]);
+  const hasLogger = days.some((d) => d.onchain === false);
   const dark = config.theme === "dark";
   useEffect(() => {
     document.documentElement.style.background = groundFor(config);
@@ -37,21 +41,21 @@ export function IndexScreen() {
     <div className={`${s.screen} ${dark ? "tone-dark" : "tone-light"} ${loading ? "is-loading" : ""}`} data-phone={config.phone} aria-busy={loading || undefined}>
       <Notice status={statusLine(st, !!markets)} />
       <NavBar active="index" />
-      <MarketStrip />
+      <MarketStrip all />
       <main className={s.main}>
         <header className={s.head}>
           <span className={s.label}>{first ? `${market.gpu} index` : `Today's ${market.gpu} index`}</span>
           {nodata ? (
             <NoData start />
           ) : (
-            <span className={`${s.price} font-display ag-skel`}>
+            <span className={`${s.price} font-display ag-skel`} aria-hidden={loading || undefined}>
               {first ? dateText(first) : usd(market.price)}
             </span>
           )}
           <span className={s.sub}>
             {first
               ? `The first daily price is published about ${timeText(market.nextCloseAt)} and turns final about ${timeText(first)} on ${dateText(first)}. It is set once a day from the clouds' own price pages and written onchain on Monad.`
-              : "Set once a day from the clouds' own price pages and written onchain on Monad: published about 01:00 UTC, final about 07:00 UTC after a six-hour window for checks."}
+              : `The price for ${dateText(market.priceDate)}. Set once a day from the clouds' own price pages and written onchain on Monad: published about 01:00 UTC, final about 07:00 UTC after a six-hour window for checks.`}
           </span>
         </header>
         {/* nothing read: the header says so; there are no readings to list or compare */}
@@ -61,13 +65,30 @@ export function IndexScreen() {
               <h2>Today's readings</h2>
               {loading ? <div className={`${s.skelBlock} ag-skel`} aria-hidden="true" /> : <PriceMap market={market} />}
             </section>
+            {days.length > 0 && (
+              <section className={s.section}>
+                <h2>History</h2>
+                {loading ? (
+                  <div className={`${s.skelBlock} ag-skel`} aria-hidden="true" />
+                ) : (
+                  <>
+                    <div className={s.chart}>
+                      <LineChart days={days} range="ALL" height="100%" />
+                    </div>
+                    <p className={s.legend}>
+                      One price a day, so it moves in steps.{hasLogger ? " The lighter days were recorded by our logger before the index went onchain." : ""}
+                    </p>
+                  </>
+                )}
+              </section>
+            )}
             <section className={s.section}>
               <h2>Beside other prices</h2>
               {loading ? <div className={`${s.skelBlock} ag-skel`} aria-hidden="true" /> : <Beside market={market} />}
             </section>
           </>
         )}
-        <p className={s.next}>Still to come on this page: how the index is made, each day's proof on Monad, and the full history.</p>
+        <p className={s.next}>Still to come on this page: how the index is made and each day's proof on Monad.</p>
       </main>
       {config.phone === "new" && <BottomDock active="index" />}
     </div>

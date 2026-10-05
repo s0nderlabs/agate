@@ -30,6 +30,14 @@ export interface OpenArgs {
   floor: number;
   cap: number;
   daily: boolean;
+  /** dollars pay me daily pays at once (the ticket's backNow) */
+  backNow?: number;
+}
+
+/** An example position collected or closed in this tab, and what came back. */
+export interface Finished {
+  how: "collected" | "closed";
+  dollars: number;
 }
 
 interface Ctx {
@@ -42,6 +50,10 @@ interface Ctx {
   open: (a: OpenArgs) => Position;
   /** moves test dollars in or out of the pretend account (a pocket funded from it, or taken back into it) */
   shift: (dollars: number) => void;
+  /** a position collected or closed: its dollars come in, a closed one leaves the wallet (the Day's example positions
+   *  are kept here, by id, since they are made from the Day rather than saved) */
+  finish: (id: string, how: Finished["how"], dollars: number) => void;
+  finished: Record<string, Finished>;
   /** the data source whose wallet is loaded in state (null between a source switch and its load) */
   loadedFor: MockConfig["source"] | null;
   reset: () => void;
@@ -124,9 +136,14 @@ export function MockProvider({ initial, children }: { initial: MockConfig; child
 
   const open = useCallback((a: OpenArgs): Position => {
     const cost = a.side === "long" ? a.price * a.q : (a.cap - a.price) * a.q;
-    const backNow = a.side === "long" && a.daily ? a.floor * a.q : 0;
+    const backNow = a.backNow ?? (a.side === "long" && a.daily ? a.floor * a.q : 0);
+    const id = Math.random().toString(36).slice(2, 10);
+    // held tokens for a plain Long; a pay me daily Long or a Short is a position, closed by its id
+    const tokens = a.side === "long" && !a.daily;
     const pos = practicePosition({
-      id: Math.random().toString(36).slice(2, 10),
+      id,
+      kind: tokens ? "tokens" : "position",
+      positionId: tokens ? null : id,
       gpu: a.gpu,
       month: a.month,
       side: a.side,
@@ -142,8 +159,30 @@ export function MockProvider({ initial, children }: { initial: MockConfig; child
 
   const shift = useCallback((dollars: number) => setWallet((w) => ({ ...w, balance: Math.max(0, Math.round((w.balance + dollars) * 100) / 100) })), []);
 
+  const [finished, setFinished] = useState<Record<string, Finished>>({});
+  // kept beside the wallet it paid into (its own key), loaded and saved with it
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`${key}-finished`);
+      setFinished(raw ? (JSON.parse(raw) as Record<string, Finished>) : {});
+    } catch {
+      setFinished({});
+    }
+  }, [key]);
+  useEffect(() => {
+    if (loadedKey !== key) return;
+    try {
+      localStorage.setItem(`${key}-finished`, JSON.stringify(finished));
+    } catch {}
+  }, [finished, loadedKey, key]);
+  const finish = useCallback((id: string, how: Finished["how"], dollars: number) => {
+    setFinished((f) => ({ ...f, [id]: { how, dollars } }));
+    setWallet((w) => ({ ...w, balance: Math.max(0, Math.round((w.balance + dollars) * 100) / 100), positions: how === "closed" ? w.positions.filter((p) => p.id !== id) : w.positions }));
+  }, []);
+
   const [resets, setResets] = useState(0);
   const reset = useCallback(() => {
+    setFinished({});
     setWallet(EMPTY_WALLET);
     setConfig({ auth: "out" });
     setResets((n) => n + 1);
@@ -151,8 +190,8 @@ export function MockProvider({ initial, children }: { initial: MockConfig; child
 
   const loadedFor = loadedKey === key ? config.source : null;
   const value = useMemo(
-    () => ({ config, setConfig, wallet, signIn, signOut, drip, open, shift, loadedFor, reset, resets }),
-    [config, setConfig, wallet, signIn, signOut, drip, open, shift, loadedFor, reset, resets],
+    () => ({ config, setConfig, wallet, signIn, signOut, drip, open, shift, finish, finished, loadedFor, reset, resets }),
+    [config, setConfig, wallet, signIn, signOut, drip, open, shift, finish, finished, loadedFor, reset, resets],
   );
   return <MockCtx.Provider value={value}>{children}</MockCtx.Provider>;
 }

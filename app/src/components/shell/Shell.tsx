@@ -7,9 +7,9 @@ import { Lockup, Stone } from "@/components/brand/Logo";
 import { Num } from "@/components/num/Num";
 import { useFlow } from "@/components/markets/Flow";
 import { useDrip } from "@/components/flow/DripButton";
-import { GPUS } from "@/lib/mock/data";
-import { useMarkets } from "@/lib/data/hooks";
-import { dateText, monthLong } from "@/lib/data/derive";
+import { ALL_GPUS, GPUS } from "@/lib/mock/data";
+import { useMarkets, useNow } from "@/lib/data/hooks";
+import { dateText, frontMonth, monthLong } from "@/lib/data/derive";
 import { DRIP, useAccount } from "@/lib/account";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import type { Gpu } from "@/lib/mock/types";
@@ -58,17 +58,20 @@ export function Notice({ status }: { status?: string | null } = {}) {
   );
 }
 
-/** The three markets, still (no marquee). Each one is the way to switch GPU. */
-export function MarketStrip() {
+/** The three markets, still (no marquee). Each one is the way to switch GPU. all: every GPU the index prices (the Index
+ *  page), the price-only ones with their index price alone. */
+export function MarketStrip({ all = false }: { all?: boolean }) {
   const { config, setConfig } = useMock();
   const { markets, loading } = useMarkets();
+  const now = useNow();
   const items = useMemo(
     () =>
       // the three GPUs with a market, from the one shared read; before the index's first price its date, a month not
       // open yet when it opens (never a made-up $0.00)
-      GPUS.map((g) => {
+      (all ? ALL_GPUS : GPUS).map((g) => {
         const m = markets?.find((x) => x.gpu === g);
-        const mo = m?.series.find((x) => x.quote) ?? m?.series[0];
+        // the month Simple trades: the next full one (a month already paying out lives in Positions and Pro)
+        const mo = m ? frontMonth(m, now) : undefined;
         const short = mo ? monthLong(mo.month).slice(0, 3) : "Nov";
         const waiting = !!mo && (mo.phase === "upcoming" || !mo.quote);
         return {
@@ -80,10 +83,10 @@ export function MarketStrip() {
           short,
           month: mo && !waiting && mo.quote?.last ? mo.quote.last : null,
           // the month in words when it has no price: not open yet, or nothing quoted yet
-          note: !mo ? "" : waiting ? `${short} opens ${dateText(mo.opensOn) || "soon"}` : mo.quote?.last ? "" : `${short}, no price yet`,
+          note: m && !m.tradable ? "Index only" : !mo ? "" : waiting ? `${short} opens ${dateText(mo.opensOn) || "soon"}` : mo.quote?.last ? "" : `${short}, no price yet`,
         };
       }),
-    [markets],
+    [markets, now, all],
   );
   return (
     <div className={s.strip} role="tablist" aria-label="Markets">
@@ -117,7 +120,8 @@ export function MarketStrip() {
           )}
         </button>
       ))}
-      <span className={s.stripNote}>Per GPU-hour. A new index price each day, final about 07:00 UTC.</span>
+      {/* six GPUs fill the row: the note would be cut off at the edge (the Index page says the same in its header) */}
+      {!all && <span className={s.stripNote}>Per GPU-hour. A new index price each day, final about 07:00 UTC.</span>}
     </div>
   );
 }
@@ -188,8 +192,9 @@ export function NavBar({ active = "markets" }: { active?: "markets" | "positions
           </button>
         </div>
         <ThemeToggle />
-        {account.status === "restoring" ? (
-          // a session is being restored: the account button's shape, never a "Sign in" flash
+        {account.status === "restoring" || (account.ready && account.walletLoading) ? (
+          // a session is being restored (or its first wallet read is on its way): the account button's shape, never a
+          // "Sign in" or "0 test dollars" flash
           <span className={s.acct} aria-busy="true" aria-label="Loading your account">
             <span className={`${s.acctBal} ag-skel ag-skel-on`} aria-hidden="true">
               10,000 test dollars

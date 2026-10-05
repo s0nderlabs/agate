@@ -17,7 +17,16 @@ import { useMock } from "@/lib/mock/store";
 import { serverApi, type ServerApi } from "./api";
 import { expireRequest, fakeChain, fakeKey, fakeTransport, fakeWorld, forgetWorld, takeOwed, type PocketRead } from "./fakeServer";
 import { PRETEND_ADDRESS } from "./pretend";
+import { realAiBackend } from "./realAi";
 import { useAccount } from "./index";
+
+/** What a pocket's key may do, as signed: the routers in /api/config's order, dollars, unix seconds. */
+export interface PermissionAsk {
+  routers: string[];
+  perTradeCap: number;
+  tradesPerDay: number;
+  validUntil: number;
+}
 
 export interface AiBackend {
   /** what the caches are keyed by: a new person or a new pretend world reads afresh */
@@ -36,7 +45,9 @@ export interface AiBackend {
     delegate: () => Promise<void>;
     stepUpSend: () => Promise<void>;
     stepUpVerify: (code: string) => Promise<void>;
-    signPermission: (index: number) => Promise<{ pocket: string; approval: string; pocketBalance: number }>;
+    /** createPocketPermission: the main wallet signs the pocket's onchain limits once (validUntil in unix seconds,
+     *  the same one the grant is registered with) */
+    signPermission: (index: number, ask: PermissionAsk) => Promise<{ pocket: string; approval: string; pocketBalance: number }>;
     revoke: () => Promise<void>;
   };
   /** example only: the request runs out mid-way (the "expired" connect outcome) */
@@ -73,7 +84,23 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
   const [owedTick, setOwedTick] = useState(0);
   const owe = useCallback(() => setOwedTick((n) => n + 1), []);
 
+  const qcLive = useQueryClient();
+  const realWho = account.kind === "real" && account.owner && account.address ? { owner: account.owner, address: account.address } : null;
+  const realOwner = realWho?.owner;
+  const realAddress = realWho?.address;
   const backend = useMemo<AiBackend>(() => {
+    // the real account talks to Agate's server and the chain; its pockets' moves change what both accounts hold
+    if (realOwner && realAddress) {
+      return realAiBackend({
+        owner: realOwner,
+        address: realAddress,
+        onMoved: () => {
+          const again = () => void qcLive.invalidateQueries({ queryKey: ["live"] });
+          again();
+          window.setTimeout(again, 4_000);
+        },
+      });
+    }
     // example and live each get their own pretend world and their own cached reads: they never mix
     const world = () => fakeWorld({ source, scenario, main, email, connect, disc, onReseed: owe });
     return {
@@ -103,7 +130,7 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
       example,
       fake: true,
     };
-  }, [source, scenario, main, email, connect, disc, shift, owe, example]);
+  }, [source, scenario, main, email, connect, disc, shift, owe, example, realOwner, realAddress, qcLive]);
 
   // signed in: the world is made now, not at the first read, so a reload's dollars are back before any screen needs
   // them; then whatever is owed goes into the wallet

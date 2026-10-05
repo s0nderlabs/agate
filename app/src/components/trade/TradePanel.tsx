@@ -3,9 +3,9 @@
 // what it costs and risks (tied to the floor and ceiling), one button. Sized so the button sits above the fold.
 import { useFlow } from "@/components/markets/Flow";
 import { useMemo, useState } from "react";
-import { useBook } from "@/lib/data/hooks";
-import { dateText, topOf } from "@/lib/data/derive";
-import { emptySideText, MonthSeg } from "./States";
+import { useBook, useNow } from "@/lib/data/hooks";
+import { bandNow, dateText, topOf } from "@/lib/data/derive";
+import { emptySideText, HeldNote, MonthSeg, monthSoFarText } from "./States";
 import { DRIP, useAccount } from "@/lib/account";
 import { cleanTyping, dollarsToHours, floorCents, floorGpus, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, maxFor, parseAmount, walkDollars, walkHours } from "@/lib/size";
 import { SideToggle } from "./SideToggle";
@@ -70,13 +70,17 @@ export function TradePanel({ market, trade, held = 0, loading: marketLoading = f
   const walks = fill.filled > 0 && Math.abs(fill.avg - (levels[0]?.price ?? fill.avg)) >= 0.0005;
   const L = n.side === "long";
   const m = monthName(n.series.month);
-  const open = trade.months.filter((sr) => sr.phase !== "upcoming");
+  const now = useNow();
+  // a month part paid (the Pro ticket, or Simple showing every open month): its days so far, and the band now
+  const soFar = loading ? null : monthSoFarText(n.series, now);
+  const band = bandNow(n.series);
+  const mid = band.k > 0;
   // the month after this one, when it is not open yet (never the ticket's own month)
   const next = loading ? undefined : trade.months.find((sr) => sr.phase === "upcoming" && sr.month !== n.series.month);
   // the button waits while prices load, and once they are two minutes old (it says which)
   const wait = marketLoading || (bq.loading && !bq.error) ? "Loading prices" : stale === "stale" ? "Waiting for fresh prices" : stale === "nodata" || bq.loading ? "Waiting for prices" : null;
-  const worst = L ? n.series.floor : n.series.cap;
-  const best = L ? n.series.cap : n.series.floor;
+  // the most you can lose or make is reached when every day not priced yet comes in at the floor or the ceiling
+  const worstAt = (lo: boolean) => (mid ? `if the ${band.left} days left come in at ${usd(lo ? n.series.floor : n.series.cap)} or ${lo ? "less" : "more"}` : `if it averages ${usd(lo ? n.series.floor : n.series.cap)} or ${lo ? "less" : "more"}`);
   // what a dollar comes to on this side at the book's top (a Long pays the ask, a Short puts up ceiling minus bid);
   // no number until a price is known
   const perUnit = loading || none ? 0 : L ? top.ask : s0.cap - top.bid;
@@ -85,15 +89,16 @@ export function TradePanel({ market, trade, held = 0, loading: marketLoading = f
     <div className={s.ticket}>
       {/* one month open: say so in a line; a control with one live choice and one disabled one is noise */}
       <div className={s.tTop}>
-        {open.length > 1 ? (
+        {trade.pickable ? (
           <MonthSeg trade={trade} />
         ) : (
           <b>
             {m} {market.gpu}
           </b>
         )}
-        {next && <span>{monthName(next.month)} opens {dateText(next.opensOn ?? `${next.month}-01`)}</span>}
+        {soFar ? <span>{soFar}</span> : next && <span>{monthName(next.month)} opens {dateText(next.opensOn ?? `${next.month}-01`)}</span>}
       </div>
+      <HeldNote month={n.series.month} />
 
       <SideToggle side={trade.side} onSide={trade.setSide} ask={noAsk ? null : top.ask} bid={noBid ? null : top.bid} skel={loading} />
 
@@ -201,7 +206,15 @@ export function TradePanel({ market, trade, held = 0, loading: marketLoading = f
         <span className={s.switch} aria-hidden="true" />
         <span className={s.toggleText}>
           <b>Pay me daily</b>
-          <span>{L ? "Get the floor back now, then a share every morning." : "Get your share every morning, not once at the end."}</span>
+          <span>
+            {L
+              ? mid
+                ? `Get the ${band.k} priced days and the floor for the rest back now, then a share every morning.`
+                : "Get the floor back now, then a share every morning."
+              : mid
+                ? `Get your share of the ${band.k} priced days now, then a share every morning.`
+                : "Get your share every morning, not once at the end."}
+          </span>
         </span>
       </label>
 
@@ -224,7 +237,7 @@ export function TradePanel({ market, trade, held = 0, loading: marketLoading = f
               <Num>{usd0(n.outlay)}</Num>
             </dd>
           </div>
-          {n.daily && L && (
+          {n.daily && (L || n.backNow > 0) && (
             <div>
               <dt>Back right away</dt>
               <dd className={skel}>
@@ -235,7 +248,7 @@ export function TradePanel({ market, trade, held = 0, loading: marketLoading = f
           <div>
             <dt>
               Most you can lose{" "}
-              <span className={s.hint}>{sk(`if it averages ${usd(worst)} or ${L ? "less" : "more"}`)}</span>
+              <span className={s.hint}>{sk(worstAt(L))}</span>
             </dt>
             <dd className={skel}>
               <Num>{usd0(n.maxLoss)}</Num>
@@ -244,7 +257,7 @@ export function TradePanel({ market, trade, held = 0, loading: marketLoading = f
           <div>
             <dt>
               Most you can make{" "}
-              <span className={s.hint}>{sk(`if it averages ${usd(best)} or ${L ? "more" : "less"}`)}</span>
+              <span className={s.hint}>{sk(worstAt(!L))}</span>
             </dt>
             <dd className={skel}>
               <Num>{usd0(n.maxGain)}</Num>
@@ -281,7 +294,7 @@ export function TradePanel({ market, trade, held = 0, loading: marketLoading = f
           ))}
         </button>
         <p className={s.fine}>
-          {gated ? "Free to try: 10,000 test dollars a day. Your order stays as you set it." : <>{n.daily ? `Paid a share every morning from ${m.slice(0, 3)} 2.` : `Paid once, after ${m} ends.`} Fully backed, no margin calls.</>}
+          {gated ? "Free to try: 10,000 test dollars a day. Your order stays as you set it." : <>{n.daily ? (mid || n.series.phase === "paying" ? `Paid a share every morning, ${band.left} ${band.left === 1 ? "day" : "days"} to go.` : `Paid a share every morning from ${m.slice(0, 3)} 2.`) : `Paid once, after ${m} ends.`} Fully backed, no margin calls.</>}
         </p>
       </div>
     </div>

@@ -4,7 +4,8 @@
 // rows to fit eight names in the header and pushed the trade button below the fold; two ordered lines say the
 // same in a third of the height.
 import { AkashMark, OrnnMark } from "@/components/brand/Peers";
-import { median, peersFor } from "@/lib/peers";
+import { median } from "@/lib/peers";
+import { usePeers } from "@/lib/data/peers";
 import type { Market } from "@/lib/mock/types";
 import { usd } from "@/lib/format";
 import { readTodayText } from "./States";
@@ -18,7 +19,8 @@ export function PriceMap({ market }: { market: Market }) {
   const clouds = [...read, ...rest].sort((a, b) => Number(b.live) - Number(a.live) || (a.price ?? 1e9) - (b.price ?? 1e9));
   const live = clouds.filter((x) => x.live && x.price !== null);
   const mid = median(live.map((x) => x.price!));
-  const traded = peersFor(market.gpu).sort((a, b) => (a.price ?? 1e9) - (b.price ?? 1e9));
+  const peers = usePeers(market.gpu);
+  const traded = [...peers].sort((a, b) => (a.price ?? 1e9) - (b.price ?? 1e9));
   // the traded prices are fixed readings, not today's: their date shows in the text (a hover title never reaches a
   // touch screen). One date for all of them goes once, after "display only"; otherwise beside each price
   const dates = [...new Set(traded.filter((c) => c.price !== null).map((c) => c.asOf))];

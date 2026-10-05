@@ -50,6 +50,14 @@
   font-size: 17px;
   font-weight: 500;
 }
+.chart {
+  height: 280px;
+  max-width: 880px;
+}
+.legend {
+  font-size: 15px;
+  color: var(--mute);
+}
 .next {
   padding-top: 22px;
   box-shadow: inset 0 1px 0 var(--line);
