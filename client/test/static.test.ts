@@ -83,6 +83,6 @@ describe("the app's shapes", () => {
     expect(types).toContain('export type Gpu = "H100" | "H200" | "B200" | "B300" | "A100" | "L40S";');
   });
   test("the repo files the generator reads exist", () => {
-    for (const f of ["contracts/deployments/10143.json", "contracts/deployments/10143-indexes.json", "wall/packages/sources/panels/launch.json"]) expect(readFileSync(join(ROOT, f), "utf8").length).toBeGreaterThan(10);
+    for (const f of ["contracts/deployments/10143.json", "contracts/deployments/10143-indexes.json", "contracts/deployments/10143-prelaunch.json", "wall/packages/sources/panels/launch.json"]) expect(readFileSync(join(ROOT, f), "utf8").length).toBeGreaterThan(10);
   });
 });

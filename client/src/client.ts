@@ -7,7 +7,7 @@ import { agateDollarAbi, agateFactoryAbi, agateIndexAbi, agateRouterAbi, agateSe
 import { decodeL2Book, type RawBook, toBook } from "./book.ts";
 import { dayIdAt, dayStart, expectedClose, expectedFinal, type IndexClocks, type RecordTimes } from "./clock.ts";
 import { DEFAULT_GRAPHQL_URL, type FixRow, type FlowRow, type GraphQL, graphql, IndexerError, type OrderRow, type PositionRow, Q, type SeriesRow, type TradeRow } from "./graphql.ts";
-import { PANELS, TESTNET_DEPLOYMENTS } from "./static.ts";
+import { PANELS, TESTNET_DEPLOYMENTS, TESTNET_PRELAUNCH } from "./static.ts";
 import type { Book, Candle, Deployments, FactoryRecord, Fill, Gpu, IndexDay, Market, OpenOrder, PanelGpu, PanelSlot, Position, Quote, Series, SourceReading, TickerItem, Wallet } from "./types.ts";
 import { dateOfDay, daysIn, firstDayOf, iso, LOT, monthLabel, monthOfDay, monthOfLabel, monthShort, SIZE_PER_TOKEN, TICK, toNumber6, U, unitsToHours, ZERO_ADDRESS } from "./units.ts";
 
@@ -493,6 +493,13 @@ export class AgateClient {
     return out;
   }
 
+  /** The production index's pre-launch days of a GPU (static.ts, display only), before its registered firstDay; none
+   *  for any other index or chain. */
+  private prelaunchOf(v: GpuView): IndexDay[] {
+    if (this.chain.id !== TESTNET_PRELAUNCH.chainId || this.index.toLowerCase() !== TESTNET_PRELAUNCH.index) return [];
+    return (TESTNET_PRELAUNCH.days[v.gpu] ?? []).filter((d) => d.day < v.firstDay).map((d) => ({ date: dateOfDay(d.day), price: toNumber6(BigInt(d.valueU)), status: d.status, example: false, onchain: false }));
+  }
+
   // ------------------------------------------------------------------ series
 
   /** A series' immutable terms, token, name and symbol (read once). */
@@ -739,6 +746,7 @@ export class AgateClient {
         updatedAt: v.latest ? iso(v.latest.rec.finalAt) : "",
         sources: s.sources,
         history: hist.get(v.gpu) ?? [],
+        prelaunch: this.prelaunchOf(v),
         series: series[i]!,
         nextUpdateAt: iso(expectedFinal(c, nextDay, v.next, now)),
         nextCloseAt: iso(expectedClose(c, nextDay, v.next, now)),

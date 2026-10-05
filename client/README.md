@@ -97,6 +97,13 @@ What the fields mean, where the chain gives a choice:
   today).
 - **history** is real days only (`example` is always false), final or carried, oldest first, never before the GPU's
   first day. A day counts as final by its `finalAt` against chain time, so the indexer's slower FINAL label never hides it.
+- **prelaunch** (added, optional in the type) is the days before the GPU's first day, oldest first, each `onchain: false`:
+  on the Monad testnet production index only (Oct 1 to 3 2026; empty on any other index). They are the prices the
+  index's own formula records from our index logger's archived hours (`contracts/deployments/10143-prelaunch.json`, made
+  by `wall/apps/watcher/scripts/prelaunch.ts`), never onchain and never part of `history`, `price` or anything that
+  settles. Draw them apart (greyed, "recorded by our logger, not onchain"). The logger read each page at its own minute,
+  so on a day a cloud changes price one can differ by a cent from what the writers would have posted (checked on Oct 4,
+  the first onchain day, computed the same way: H100 and B300 equal, H200 and B200 one cent above).
 - **nextUpdateAt** is when the next index price is expected to be final, from the index's own rule
   (`contracts/src/lib/IndexDays.sol`): a day closes from its end plus CLOSE_GRACE (01:00 UTC on the production clock),
   which publishes the record, and the record is final at **postedAt + T_PEND** (about **07:00 UTC**). A countersign
@@ -254,7 +261,7 @@ sponsors it.
 |---|---|
 | `getMarket(gpu, state)` | `agate.getMarket(gpu)` (`state` is the real one: `priceDate` null before the first final day; carried days in `history`) |
 | `GPUS` | `GPUS` (six; `market.tradable` false for B300, A100, L40S) |
-| `indexHistory(gpu, today)` | `market.history` (real days only) |
+| `indexHistory(gpu, today)` | `market.history` (real days only); `market.prelaunch` for the greyed days before the first (`onchain: false`) |
 | `book(gpu, market, mode)` | `agate.book(gpu, month)` |
 | `recentFills(gpu, market)` | `agate.recentFills(gpu, month)` |
 | `novCandles(gpu, market)` | `agate.candles(gpu, month)` |

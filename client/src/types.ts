@@ -31,6 +31,17 @@ export interface IndexDay {
   status: "final" | "carried";
   /** true for history we invented before our own record starts. Always false here: the client returns real days only. */
   example: boolean;
+  /** added: false on a pre-launch day (Market.prelaunch): computed by the index's formula from our logger's archive,
+   *  never onchain, nothing settles on it (draw it greyed, "recorded by our logger, not onchain"). Absent = onchain. */
+  onchain?: boolean;
+}
+/** static.ts's pre-launch days (contracts/deployments/10143-prelaunch.json): per GPU, the index model's record of each
+ *  day before the index's firstDay, for the index (and chain) named here only. valueU: 10^-6 USD per GPU-hour. */
+export interface PrelaunchDays {
+  chainId: number;
+  /** lowercase */
+  index: string;
+  days: Record<string, { day: number; valueU: number; status: "final" | "carried" }[]>;
 }
 /** market.ts's Day: the same shape. */
 export type Day = IndexDay;
@@ -94,6 +105,9 @@ export interface Market {
   updatedAt: string;
   sources: SourceReading[];
   history: IndexDay[];
+  /** added: the days before the index's firstDay, oldest first, each `onchain: false` (Monad testnet production index
+   *  only: Oct 1 to 3 2026; empty elsewhere). Display only: never part of `history`, price or any settlement */
+  prelaunch?: IndexDay[];
   /** the two months a user can trade (this month and next, or next only early in a month); empty for price-only GPUs */
   series: Series[];
   /** when the next index price is expected to become final (ISO): the next day's close plus T_PEND (README) */

@@ -9,7 +9,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Hex, PublicClient } from "viem";
 import { AgateClient, ReadError } from "../../src/client.ts";
-import { PANELS } from "../../src/static.ts";
+import { PANELS, TESTNET_DEPLOYMENTS, TESTNET_PRELAUNCH } from "../../src/static.ts";
 import { AmountError } from "../../src/units.ts";
 import {
   buyLong,
@@ -524,5 +524,37 @@ describe("a price-only GPU asked for a series", () => {
     await expect(c.book("H300" as never, "2026-11")).rejects.toBeInstanceOf(ReadError);
     await expect(c.book("H100", "2026-13")).rejects.toBeInstanceOf(AmountError);
     await expect(c.book("B300", "Nov 2026")).rejects.toBeInstanceOf(AmountError);
+  });
+});
+
+// ================================================================== the pre-launch days (Oct 5)
+
+describe("the pre-launch days are display only", () => {
+  const base = { records: Object.fromEntries(PANELS.map((p) => [p.gpu, { 20730: { value: 3_990_000, status: 1, final: true } }])), head: Object.fromEntries(PANELS.map((p) => [p.gpu, 20731])), now: dayTs(20731) + 30_000n };
+  test("the production index: Oct 1 to 3 per GPU, onchain false, never in history, the price or the change line", async () => {
+    const ms = await new AgateClient({ publicClient: fakeChain(base), graphqlUrl: null }).getMarkets();
+    for (const m of ms) {
+      const pre = m.prelaunch ?? [];
+      expect(pre.map((d) => d.date)).toEqual(["2026-10-01", "2026-10-02", "2026-10-03"]);
+      expect(pre.every((d) => d.onchain === false && d.example === false && d.price > 0)).toBe(true);
+      expect(pre.map((d) => d.price)).toEqual((TESTNET_PRELAUNCH.days[m.gpu] ?? []).map((d) => d.valueU / 1e6));
+      expect(m.history.map((d) => d.date)).toEqual(["2026-10-04"]);
+      expect(m.history.every((d) => d.onchain === undefined)).toBe(true);
+      expect([m.price, m.prevPrice]).toEqual([3.99, 3.99]);
+    }
+  });
+  test("any other index (the demo factory's), or the same address on another chain, has none", async () => {
+    const ms = await new AgateClient({ publicClient: fakeChain(base), graphqlUrl: null, factory: "demo" }).getMarkets();
+    expect(ms.map((m) => m.prelaunch)).toEqual(ms.map(() => []));
+    const local = await new AgateClient({ publicClient: fakeChain(base), graphqlUrl: null, deployments: { ...TESTNET_DEPLOYMENTS, chainId: 31_337 } }).getMarkets();
+    expect(local.map((m) => m.prelaunch)).toEqual(local.map(() => []));
+  });
+  test("a day at or after the GPU's registered firstDay is never shown as pre-launch", async () => {
+    // an index registered with firstDay Oct 2: only Oct 1 is before it
+    const chain = fakeChain(base) as unknown as { readContract: (r: { functionName: string }) => Promise<unknown> };
+    const inner = chain.readContract;
+    chain.readContract = async (r) => (r.functionName === "gpu" ? { ...((await inner(r)) as object), firstDay: 20728 } : inner(r));
+    const m = await new AgateClient({ publicClient: chain as unknown as PublicClient, graphqlUrl: null }).getMarket("H100");
+    expect((m.prelaunch ?? []).map((d) => d.date)).toEqual(["2026-10-01"]);
   });
 });
