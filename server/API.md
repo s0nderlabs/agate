@@ -77,15 +77,16 @@ code with `stepUp` is short-lived (gone ~1 h after sign-in); `canDelegate(client
 ## Approval card (a trade an AI asked for above its cap)
 
 The AI sends the person `/approve?request=<id>`.
-- `GET /api/approvals` -> the person's approvals `{ id, grantId, action, params, summary, note, status, expiresAt }`
-  (pending ones expire after 15 minutes).
+- `GET /api/approvals` -> the person's approvals `{ id, grantId, action, params, summary, note, status, expiresAt, result }`
+  (pending ones expire after 15 minutes, or at once when their AI is disconnected or passes its end date; those carry
+  `result.reason`: "the AI was disconnected" or "the AI's permission ended").
 - Approve = the app plans `params` with `@agate/client` (`planBuyLong` / `planOpenLongDaily` / `planOpenShort` /
   `planCloseShort`, same arguments as the MCP tool) for the account `summary.runFrom` names and sends it with
   `sendCalls(kc, plan.calls)`: `"main"` is the main account; `"pocket"` (closing a Short, whose positions belong to the
   pocket) is the AI's pocket, sent with the main wallet as its owner (`kernelAccount(pc, mainSigner,
   BigInt(grant.pocketIndex))`, the take-back path),
-  then `POST /api/approvals/:id/done { txHash, userOpHash }` (or `/failed { reason }`; both are still accepted for
-  15 minutes after the approval expired, for a trade started just before). Deny: `POST /api/approvals/:id/deny`.
+  then `POST /api/approvals/:id/done { txHash, userOpHash }` (or `/failed { reason }`; both are still accepted until
+  15 minutes after the approval's own `expiresAt`, also when its AI ended it earlier, for a trade started just before). Deny: `POST /api/approvals/:id/deny`.
   The AI reads the outcome with `approval_status`.
 
 ## For AI apps (not the app)

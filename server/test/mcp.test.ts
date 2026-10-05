@@ -216,6 +216,38 @@ describe("HTTP lanes and OAuth", () => {
     expect((await post(put(20 * 60_000).id, "done")).status).toBe(409);
   });
 
+  test("a pending approval runs out with its AI: disconnected, or past the AI's end date; a settled one stays", async () => {
+    const { store, app } = mk();
+    store.putGrant(grantRow());
+    store.putGrant(grantRow({ id: "g-2", pocket: "0x3333333333333333333333333333333333333333" as Address }));
+    const put = (grantId: string) => store.putApproval({ grantId, userId: "u-1", action: "open_long", params: {}, summary: {}, note: null, expiresAt: Date.now() + 3_600_000 });
+    const pending = put("g-1");
+    const denied = put("g-1");
+    store.setApproval(denied.id, "denied", null);
+    const other = put("g-2");
+    expect((await app.request("/api/grants/g-1/disconnect", { method: "POST", headers: { authorization: "Bearer good" } })).status).toBe(200);
+    // expired at the disconnect itself, with an activity entry, before anyone reads it
+    const row = store.db.query("SELECT status, result FROM approvals WHERE id = ?").get(pending.id) as { status: string; result: string };
+    expect([row.status, JSON.parse(row.result).reason]).toEqual(["expired", "the AI was disconnected"]);
+    const act = (await (await app.request("/api/activity?grantId=g-1", { headers: { authorization: "Bearer good" } })).json()) as { name: string }[];
+    expect(act.map((e) => e.name)).toContain("approval.expired");
+    const list = (await (await app.request("/api/approvals", { headers: { authorization: "Bearer good" } })).json()) as { id: string; status: string; result: { reason?: string } | null }[];
+    const by = (id: string) => list.find((a) => a.id === id)!;
+    expect([by(pending.id).status, by(pending.id).result?.reason]).toEqual(["expired", "the AI was disconnected"]);
+    expect([by(denied.id).status, by(other.id).status]).toEqual(["denied", "pending"]);
+    // the person was already sending it: the result can still be reported
+    const post = (id: string) => app.request(`/api/approvals/${id}/done`, { method: "POST", headers: { authorization: "Bearer good", "content-type": "application/json" }, body: JSON.stringify({ txHash: "0xtx" }) });
+    expect((await post(pending.id)).status).toBe(200);
+    // the other AI's end date passes: its pending approval runs out at the next read
+    store.putGrant(grantRow({ id: "g-2", pocket: "0x3333333333333333333333333333333333333333" as Address, expiresAt: Date.now() - 1 }));
+    expect([store.approval(other.id)?.status, store.approval(other.id)?.result]).toEqual(["expired", { reason: "the AI's permission ended" }]);
+    // past its end date, then disconnected before anyone read the approval: it ended, it was not cut short
+    store.putGrant(grantRow({ id: "g-3", pocket: "0x5555555555555555555555555555555555555555" as Address, expiresAt: Date.now() - 1 }));
+    const third = put("g-3");
+    expect((await app.request("/api/grants/g-3/disconnect", { method: "POST", headers: { authorization: "Bearer good" } })).status).toBe(200);
+    expect(store.approval(third.id)?.result).toEqual({ reason: "the AI's permission ended" });
+  });
+
   test("the API answers the app cross-origin, /api/config included, and a bad activity limit is clamped", async () => {
     const { store, app } = mk();
     store.putGrant(grantRow());

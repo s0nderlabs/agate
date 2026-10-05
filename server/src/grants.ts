@@ -14,7 +14,7 @@ import { type DynamicUser, owns } from "./dynamic/jwt.ts";
 import { delegatedAccount, NotLandedYet, sendWithIntent, type SignContext } from "./dynamic/signer.ts";
 import { refreshWallets } from "./dynamic/users.ts";
 import { OAuthStore } from "./oauth/store.ts";
-import type { GrantRow, Store } from "./store.ts";
+import { AI_DISCONNECTED, AI_ENDED, type GrantRow, type Store } from "./store.ts";
 
 export const MAX_GRANT_DAYS = 90;
 export const MAX_TRADES_PER_DAY = 50;
@@ -120,9 +120,13 @@ export async function createGrant(store: Store, user: DynamicUser, req: GrantReq
 
 export type TradeRefusal = { refused: string; detail: string };
 
-/** Ends an AI connection everywhere it could still act: its status, its autopilot orders, its connector URL and its
- *  OAuth tokens. Disconnect, Dynamic's revoke webhook and agate's kill switch all end a connection this way. */
+/** Ends an AI connection everywhere it could still act: its status, its pending approvals, its autopilot orders, its
+ *  connector URL and its OAuth tokens. Disconnect, Dynamic's revoke webhook and agate's kill switch all end a connection this way. */
 export function endGrant(store: Store, id: string): void {
+  // its pending approvals end with it, with the true reason recorded now (an end date already passed reads as ended)
+  const g = store.grant(id);
+  const reason = g && g.expiresAt <= Date.now() ? AI_ENDED : AI_DISCONNECTED;
+  for (const a of store.expireApprovalsOfGrant(id, reason)) store.event({ source: "agate", name: "approval.expired", userId: a.userId, grantId: id, detail: { requestId: a.id, reason } });
   store.setGrantStatus(id, "revoked");
   for (const o of store.standingOrdersOf({ grantId: id, status: "active" })) store.setStandingOrder(o.id, { status: "stopped" });
   store.newConnectorSecret(id); // the old connector URL stops working; the new one is never shown

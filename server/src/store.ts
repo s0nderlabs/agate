@@ -131,6 +131,10 @@ export type ApprovalRow = {
 
 const sha = (v: string) => createHash("sha256").update(v).digest("hex");
 
+/** Why a pending approval ran out before its own time (ApprovalRow.result.reason). */
+export const AI_DISCONNECTED = "the AI was disconnected";
+export const AI_ENDED = "the AI's permission ended";
+
 export type ReviewRow = {
   id: number;
   at: number;
@@ -458,11 +462,27 @@ export class Store {
     const r = this.db.query("SELECT * FROM approvals WHERE id = ?").get(id) as Record<string, unknown> | null;
     if (!r) return null;
     const a = toApproval(r);
-    if (a.status === "pending" && a.expiresAt <= Date.now()) {
-      this.setApproval(a.id, "expired", null);
-      return { ...a, status: "expired" };
-    }
-    return a;
+    if (a.status !== "pending") return a;
+    // a pending approval runs out with its own time, and with its AI: past the end date the person gave it, or
+    // disconnected (endGrant expires them at that moment; this catches a grant gone or revoked before it did). An
+    // expired one can still be reported done or failed until its own time plus REPORT_GRACE_MS
+    const now = Date.now();
+    if (a.expiresAt <= now) return this.expireApproval(a, null);
+    const g = this.grant(a.grantId);
+    const reason = g && g.expiresAt <= now ? AI_ENDED : !g || g.status !== "active" ? AI_DISCONNECTED : null;
+    return reason ? this.expireApproval(a, reason) : a;
+  }
+
+  /** Every pending approval of a connection that ends now (endGrant), with why; returns the ones it expired. */
+  expireApprovalsOfGrant(grantId: string, reason: string): ApprovalRow[] {
+    const rows = this.db.query("SELECT * FROM approvals WHERE grant_id = ? AND status = 'pending'").all(grantId) as Record<string, unknown>[];
+    return rows.map((r) => this.expireApproval(toApproval(r), reason));
+  }
+
+  private expireApproval(a: ApprovalRow, reason: string | null): ApprovalRow {
+    const result = reason ? { reason } : null;
+    this.setApproval(a.id, "expired", result);
+    return { ...a, status: "expired", result };
   }
 
   approvalsOf(userId: string, limit = 50): ApprovalRow[] {
