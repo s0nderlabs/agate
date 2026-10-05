@@ -82,7 +82,7 @@ describe("P-L2: while a month waits to be listed, the claims leave one listing's
     expect(listingCostWei(lim, fee) / 10n ** 18n).toBe(1n); // about 1.17 MON at the 200 gwei cap
   });
 
-  test("a budget that fits the claims only without the reserve: nothing is selected while the reserve applies", async () => {
+  test("a headroom that fits the claims only without the reserve: nothing is selected while the reserve applies", async () => {
     const w = new FakeWorld();
     const f = w.addFactory("demo");
     const s = w.addSeries(f, gpu(0x100), 24_322, { n: 30, floor: 1_800_000n, cap: 7_200_000n, startTs: w.t, day: 600 });
@@ -92,9 +92,10 @@ describe("P-L2: while a month waits to be listed, the claims leave one listing's
     s.open({ owner: addr(1), payee: addr(0xa1), side: 0, q: 720n * U, daily: true });
     s.finalDays = 1;
     w.t = s.t.startTs + 600n + 400n;
-    const allowance = 10n ** 18n; // 1 MON: plenty for one sync and one claim
-    const budget: BudgetView = { allowance: () => allowance, headroom: () => 10n ** 30n, spent: () => {} };
-    let reserve = allowance; // a listing waits and needs it all
+    // Oct 5: the reserve comes out of the floor's headroom only (a listing is a safety send, held by the floor alone)
+    const headroom = 10n ** 18n; // 1 MON above the floor: plenty for one sync and one claim
+    const budget: BudgetView = { allowance: () => 10n ** 30n, headroom: () => headroom, spent: () => {} };
+    let reserve = headroom; // a listing waits and needs it all
     const p = new Payer({ reads: new FakeReads(w), sender: new FakeSender(w), scanner: new FakeScanner(w), positions: new Positions([entry]), state: new StateStore(dir), limits: new LimitTable(), config: { claimThresholdU: CENT, maxIdsPerCall: 50, claimEveryDays: { demo: 1 } }, budget, reserveWei: () => reserve, log: () => {} });
     const a = await p.tick(w.t);
     expect(a.selected).toBe(0);

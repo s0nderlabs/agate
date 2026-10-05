@@ -15,6 +15,11 @@
 //          finding R1-L2 (fixed): under pacing the claims went out in tiny batches nearly every tick, paying each
 //          transaction's fixed gas again; now they wait for a full batch while the day can still pay one.
 // The recheck round pinned the old behaviour; the fix round flipped each assertion (recheck R1).
+// Oct 5: the lister's list and createMarket became safety sends (the real Budget holds them only at the floor), and
+// the claims' reserve moved out of the floor's headroom alone. R1-C3 now pins that reserve against a floor refusal and
+// checks that an owed listing no longer holds the paced allowance back; R1-C3b's legacy run replays the lister as it
+// was (non-safety, reserve from the allowance) so the measured difference stays in the suite, and its fixed run lists
+// within one tick of turning ready.
 // Fakes only: no chain, no key, no network.
 import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -150,8 +155,8 @@ describe("R1-C2 (finding R1-L1, fixed): the D1 margin reaches the boundary day k
   });
 });
 
-describe("R1-C3 (finding R1-H1, fixed): the lister's reserve covers a ready month the budget refused", () => {
-  test("list refused BUDGET is owed: the app keeps the reserve and the claims leave the room to the listing", async () => {
+describe("R1-C3 (finding R1-H1, fixed; Oct 5: out of the floor's headroom): the lister's reserve", () => {
+  test("a list the floor refused is owed: the claims leave that headroom to it; the paced allowance is not held back", async () => {
     const w = new FakeWorld();
     const ready: ListingCheck = { ok: true, floor: F, cap: C };
     const f = w.addFactory("demo", { gpus: [gpu(0x100)], listing: () => ready });
@@ -162,12 +167,15 @@ describe("R1-C3 (finding R1-H1, fixed): the lister's reserve covers a ready mont
     for (let i = 0; i < 5; i++) s.open({ owner: addr(0x300 + i), payee: addr(0x400 + i), side: 0, q: 2_000n * U, daily: true });
     s.finalDays = 1;
     w.t = s.t.startTs + 600n + 300n;
-    // one budget for both, as in the app: the day's paced allowance is 0.3 MON; a list needs about 0.44 MON at 100 gwei
-    let allowance = 300_000_000_000_000_000n;
+    // the guard as Budget.canSpend applies it: the floor's headroom to every send, the paced allowance to non-safety
+    // ones. 0.3 MON of headroom: a list needs about 0.44 MON at 100 gwei, so the floor refuses it
+    let headroom = 300_000_000_000_000_000n;
+    let allowance = 10n ** 19n;
     const guard: SpendGuard = {
-      canSpend: (cost, safety) => (!safety && cost > allowance ? { ok: false, why: "BUDGET" } : { ok: true }),
-      record: (cost) => {
-        allowance = allowance > cost ? allowance - cost : 0n;
+      canSpend: (cost, safety) => (cost > headroom ? { ok: false, why: "FLOOR" } : !safety && cost > allowance ? { ok: false, why: "BUDGET" } : { ok: true }),
+      record: (cost, safety) => {
+        headroom = headroom > cost ? headroom - cost : 0n;
+        if (!safety) allowance = allowance > cost ? allowance - cost : 0n;
       },
     };
     const sender = new FakeSender(w, { guard });
@@ -177,52 +185,57 @@ describe("R1-C3 (finding R1-H1, fixed): the lister's reserve covers a ready mont
     let owes = false;
     const limits = new LimitTable();
     const reserveWei = (fee: bigint) => (owes ? listingCostWei(limits, fee, lister.gasSeen) : 0n);
-    const budget: BudgetView = { allowance: () => allowance, headroom: () => 10n ** 30n, spent: () => {} };
+    const budget: BudgetView = { allowance: () => allowance, headroom: () => headroom, spent: () => {} };
     const payer = new Payer({ reads: new FakeReads(w), sender, scanner: new FakeScanner(w), positions: new Positions([entry]), state, limits, config: { claimThresholdU: CENT, maxIdsPerCall: 50, claimEveryDays: { demo: 1 } }, budget, reserveWei, log: () => {} });
     const rep = await lister.tick(w.t);
     owes = listerOwes(rep);
-    expect(w.sends.filter((x) => x.fn === "list")).toEqual([]); // refused: over the day's allowance
-    // FIXED: the refused months are owed (was: not "waiting", reserve 0); NotReady months stay what `waiting` counts
+    expect(w.sends.filter((x) => x.fn === "list")).toEqual([]); // refused at the floor
     expect(rep.waiting).toEqual([]);
-    expect(rep.owed.length).toBe(2); // this month and the next, both ready, both refused BUDGET
+    expect(rep.owed.length).toBe(2); // this month and the next, both ready, both refused FLOOR
     expect(owes).toBe(true);
     expect(lister.gasSeen.list).toBeGreaterThan(0n); // the refused plan's gas limit, for the reserve
-    const before = allowance;
+    const before = headroom;
     await payer.tick(w.t);
-    // FIXED: the claims leave the allowance to the listing (was: sync and claimMany took it)
+    // the claims leave the headroom to the listing (the allowance is large: only the reserve holds them)
     expect(w.sends).toEqual([]);
-    expect(allowance).toBe(before);
+    expect(headroom).toBe(before);
     // a NotReady month is owed too (the case the P-L2 fix covered)
     f.listing = () => ({ ok: false, error: "NotReady()" });
     const nr = await lister.tick(w.t + 1n);
+    owes = listerOwes(nr);
     expect(nr.waiting.length).toBeGreaterThan(0);
-    expect(listerOwes(nr)).toBe(true);
+    expect(owes).toBe(true);
+    // Oct 5: with headroom to spare, a listing owed for hours (NotReady) no longer holds the paced allowance back
+    headroom = 100n * 10n ** 18n;
+    allowance = 300_000_000_000_000_000n;
+    await payer.tick(w.t + 2n);
+    expect(w.sends.filter((x) => x.fn === "claimMany").length).toBeGreaterThan(0);
   });
 
-  test("a listed series whose createMarket the budget refused is owed; once the market exists nothing is", async () => {
+  test("a listed series whose createMarket the floor refused is owed; once the market exists nothing is", async () => {
     const w = new FakeWorld();
     const f = w.addFactory("demo", { gpus: [gpu(0x100)], listing: () => ({ ok: true, floor: F, cap: C }) });
     const entry: FactoryEntry = { name: "demo", index: f.index, dollar: addr(0xd011a7), tag: "demo", factory: f.address, router: addr(0x7007), tPend: 210, startBlock: 0n };
-    // enough for one list, not for the createMarket after it
+    // headroom for one list, not for the createMarket after it
     const limits = new LimitTable();
     const fee = w.maxFeePerGas;
     const plan = (shape: "factory.list" | "factory.createMarket") => ((BigInt(limits.limitFor(shape) + 21_000) * 6n + 4n) / 5n) * fee;
-    let allowance = plan("factory.list") + plan("factory.createMarket") / 2n;
+    let headroom = plan("factory.list") + plan("factory.createMarket") / 2n;
     const guard: SpendGuard = {
-      canSpend: (cost, safety) => (!safety && cost > allowance ? { ok: false, why: "BUDGET" } : { ok: true }),
+      canSpend: (cost) => (cost > headroom ? { ok: false, why: "FLOOR" } : { ok: true }),
       record: (cost) => {
-        allowance = allowance > cost ? allowance - cost : 0n;
+        headroom = headroom > cost ? headroom - cost : 0n;
       },
     };
     const lister = new Lister({ reads: new FakeReads(w), sender: new FakeSender(w, { guard }), factories: [entry], state: new StateStore(tmp()), log: () => {} });
     const a = await lister.tick(w.t);
     expect(a.listed.length).toBe(1);
     expect(a.created).toEqual([]);
-    // this month's market (refused BUDGET) and next month (its list refused BUDGET) are owed
+    // this month's market (refused FLOOR) and next month (its list refused FLOOR) are owed
     expect(a.owed.length).toBe(2);
     expect(a.owed.some((x) => x.startsWith("market "))).toBe(true);
     expect(listerOwes(a)).toBe(true);
-    allowance = 10n ** 30n;
+    headroom = 10n ** 30n;
     const b = await lister.tick(w.t + 1n);
     expect(b.created.length).toBe(2);
     expect(b.owed).toEqual([]);
@@ -302,8 +315,10 @@ describe("R1-C3b (findings R1-H1, R1-L2, fixed): a simulated demo morning with d
     // since midnight the claims have kept the day's spend at its paced line (they spend whatever pacing frees)
     budget.record(paced(budget.today!.budgetWei, t0) - 50_000_000_000_000_000n, false);
     const spent0 = budget.today!.spentWei;
-    // the fake sender plans at the 200 gwei cap; the chain bills about 102 gwei (Oct 3): record what it would bill
-    const guard: SpendGuard = { canSpend: (c, safety) => budget.canSpend(c, safety), record: (c, safety) => { const paid = (c * 102n) / 200n; balance -= paid; budget.record(paid, safety); } };
+    // the fake sender plans at the 200 gwei cap; the chain bills about 102 gwei (Oct 3): record what it would bill.
+    // legacy also replays the lister before Oct 5, whose sends were not safety sends (only the lister and the claims
+    // send here, and claims never are)
+    const guard: SpendGuard = { canSpend: (c, safety) => budget.canSpend(c, legacy ? false : safety), record: (c, safety) => { const paid = (c * 102n) / 200n; balance -= paid; budget.record(paid, legacy ? false : safety); } };
     const sender = new FakeSender(w, { guard });
     const state = new StateStore(dir);
     const limits = new LimitTable();
@@ -346,9 +361,11 @@ describe("R1-C3b (findings R1-H1, R1-L2, fixed): a simulated demo morning with d
     const legacy = await morning(true);
     const r = await morning(false);
     expect(r.listedAt).not.toBeNull();
-    expect(r.listedAt! - r.readyAt).toBeLessThan(3_600n);
+    // Oct 5: a listing is a safety send, so it goes out in the first tick after it turns ready (was 1,380 s, the time
+    // pacing took to free one listing through the reserve)
+    expect(r.listedAt! - r.readyAt).toBeLessThanOrEqual(30n);
     expect(r.createdAt).not.toBeNull();
-    expect(r.createdAt! - r.readyAt).toBeLessThan(3_600n);
+    expect(r.createdAt! - r.readyAt).toBeLessThanOrEqual(30n);
     // R1-L2: full batches (140 candidates: 50 ids a batch), a fraction of the transactions
     expect(r.idsPerClaim).toBeGreaterThanOrEqual(40);
     expect(r.claimTxs * 5).toBeLessThan(legacy.claimTxs);

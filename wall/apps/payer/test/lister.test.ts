@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AlertSink, RpcDown } from "@agate/watcher";
 import { Lister, monthLabel } from "../src/lister.ts";
-import type { FactoryEntry, ListingCheck, SpendGuard } from "@agate/market";
+import { Budget, type FactoryEntry, type ListingCheck, type SendSpec, type SpendGuard } from "@agate/market";
 import { StateStore } from "../src/state.ts";
 import { addr, type FakeFactory, FakeReads, FakeSender, FakeWorld, ZERO } from "./fake/world.ts";
 
@@ -157,30 +157,102 @@ describe("listing windows (4.2)", () => {
     expect(codes(r.alerts)).toEqual([]);
   });
 
-  test("recheck R1-H1: a ready month the day's budget refused is owed; LISTER_STUCK past expectedAt, cleared once listed", async () => {
+  test("recheck R1-H1: a ready month the guard refused is owed; LISTER_STUCK past expectedAt, cleared once listed", async () => {
     const r = rig({ gpus: [addr(0x100) as `0x${string}`], listing: () => ready });
     r.f.firstRecord.set(r.f.gpus[0]!, r.w.epochDay);
-    let budget = true; // the guard refuses every send while the day's budget is out
-    const guard: SpendGuard = { canSpend: () => (budget ? { ok: false, why: "BUDGET" } : { ok: true }), record: () => {} };
+    // the guard refuses every send while the key sits at its floor (since Oct 5 a first listing is a safety send, so the
+    // floor is the refusal it can meet)
+    let budget = true;
+    const guard: SpendGuard = { canSpend: () => (budget ? { ok: false, why: "FLOOR" } : { ok: true }), record: () => {} };
     const l = new Lister({ reads: r.reads, sender: new FakeSender(r.w, { guard }), factories: [r.entry], state: new StateStore(r.dir), alerts: r.alerts, log: () => {} });
     r.w.t = r.w.epochTs + 1_000n; // before expectedAt
     let rep = await l.tick(r.w.t);
     expect(r.w.sends).toEqual([]);
     expect(rep.waiting).toEqual([]); // ready, not NotReady
     expect(rep.owed).toEqual(["demo H100 2026-10", "demo H100 2026-11"]);
-    expect(codes(r.alerts)).toEqual([]); // not late yet: the budget refusal alone is no alert
+    expect(codes(r.alerts)).toEqual([]); // not late yet: the refusal alone is no alert
     r.w.t = r.w.epochTs + 1_561n; // past expectedAt
     rep = await l.tick(r.w.t);
     const stuck = r.alerts.open().filter((a) => (a.code as string) === "LISTER_STUCK");
     expect(stuck.length).toBe(2);
     expect(stuck[0]!.severity).toBe("action");
-    expect(stuck[0]!.message).toContain("budget");
+    expect(stuck[0]!.message).toContain("floor");
     budget = false;
     rep = await l.tick(r.w.t + 30n);
     expect(rep.listed.length).toBe(2);
     expect(rep.created.length).toBe(2);
     expect(rep.owed).toEqual([]);
     expect(codes(r.alerts)).not.toContain("LISTER_STUCK");
+  });
+
+  test("Oct 5: a listing is a safety send, so the real budget's day (paced, below one listing) never holds it; the floor does", async () => {
+    const MON = 10n ** 18n;
+    const budgetOf = (r: ReturnType<typeof rig>, balance: bigint) => {
+      const b = new Budget({ dir: r.dir, role: "payer", keepWei: 15n * MON, lowBalanceWei: 0n, runUntil: Number(r.w.t) + 1_000 * 86_400, alerts: r.alerts, lowCode: "PAYER_KEY_LOW", spentCode: "PAYER_BUDGET_SPENT", address: addr(0xbee) });
+      b.tick(r.w.t, balance);
+      return b;
+    };
+    // 5 MON above the floor over 1,000 days: B = 0.005 MON, far below one listing, yet both months and markets go out
+    const r = rig({ gpus: [addr(0x100) as `0x${string}`], listing: () => ready });
+    r.f.firstRecord.set(r.f.gpus[0]!, r.w.epochDay);
+    r.w.t = r.w.epochTs + 1_561n; // past expectedAt
+    const b = budgetOf(r, 20n * MON);
+    expect(b.canSpend(10n ** 17n, false)).toEqual({ ok: false, why: "BUDGET" }); // what a claim would meet
+    const l = new Lister({ reads: r.reads, sender: new FakeSender(r.w, { guard: b }), factories: [r.entry], state: new StateStore(r.dir), alerts: r.alerts, log: () => {} });
+    const rep = await l.tick(r.w.t);
+    expect(r.w.sends.map((s) => s.fn)).toEqual(["list", "createMarket", "list", "createMarket"]);
+    expect(rep.owed).toEqual([]);
+    expect(b.today!.safetyWei).toBeGreaterThan(0n);
+    expect(b.today!.safetyWei).toBe(b.today!.spentWei); // it still counts in the day's spend
+    expect(codes(r.alerts)).not.toContain("LISTER_STUCK");
+
+    // 0.1 MON above the floor: the floor refuses the list; past expectedAt LISTER_STUCK names the floor
+    const q = rig({ gpus: [addr(0x100) as `0x${string}`], listing: () => ready });
+    q.f.firstRecord.set(q.f.gpus[0]!, q.w.epochDay);
+    q.w.t = q.w.epochTs + 1_561n;
+    const low = budgetOf(q, 15n * MON + 10n ** 17n);
+    const ql = new Lister({ reads: q.reads, sender: new FakeSender(q.w, { guard: low }), factories: [q.entry], state: new StateStore(q.dir), alerts: q.alerts, log: () => {} });
+    const qrep = await ql.tick(q.w.t);
+    expect(q.w.sends).toEqual([]);
+    expect(qrep.owed).toEqual(["demo H100 2026-10", "demo H100 2026-11"]);
+    const stuck = q.alerts.open().filter((a) => (a.code as string) === "LISTER_STUCK");
+    expect(stuck.length).toBe(2);
+    expect(stuck[0]!.message).toContain("floor");
+  });
+
+  test("Oct 5: a list or createMarket that reverted onchain is retried under the day's budget until its slot fills", async () => {
+    const r = rig({ gpus: [addr(0x100) as `0x${string}`], listing: () => ready });
+    const seen: { fn: string; safety: boolean }[] = [];
+    const revert = new Set(["list", "createMarket"]); // the first try of each reverts onchain (Monad bills its gas)
+    class Reverts extends FakeSender {
+      override async send(s: SendSpec) {
+        seen.push({ fn: s.functionName, safety: s.safety === true });
+        if (revert.has(s.functionName)) {
+          revert.delete(s.functionName);
+          return { ok: false, sent: true, txHash: `0x${"cd".repeat(32)}` as `0x${string}`, gasLimit: 1n, error: "reverted onchain" };
+        }
+        return super.send(s);
+      }
+    }
+    const state = new StateStore(r.dir);
+    const l = new Lister({ reads: r.reads, sender: new Reverts(r.w), factories: [r.entry], state, alerts: r.alerts, log: () => {} });
+    await l.tick(r.w.t);
+    // the current month's list reverted; the next month's list went through as a safety send, then its createMarket reverted
+    expect(seen).toEqual([
+      { fn: "list", safety: true },
+      { fn: "list", safety: true },
+      { fn: "createMarket", safety: true },
+    ]);
+    expect(state.data.budgetBound.length).toBe(2);
+    seen.length = 0;
+    await l.tick(r.w.t + 3_601n); // past the retry hour: both retries are the budget's
+    expect(seen).toEqual([
+      { fn: "list", safety: false },
+      { fn: "createMarket", safety: true }, // a first try for the series just listed
+      { fn: "createMarket", safety: false },
+    ]);
+    expect(state.data.budgetBound).toEqual([]); // every slot filled: nothing stays bound
+    expect(new StateStore(r.dir).data.budgetBound).toEqual([]); // and that was saved
   });
 
   test("the pilot factory (no Kuru router) lists and never creates a market", async () => {

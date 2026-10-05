@@ -7,9 +7,9 @@
 // daily = true and claimable >= $0.01; in the sweep (kPrev == N) claimable >= $0.01, or q >= 1 token and claimable > 0.
 // Across every due series of every factory: largest claimable first (ties: lower id, then lower series address),
 // as many as the day's budget pays (a strict prefix), after a reserve for the lister's next listing (audit P-L2, kept
-// while the lister owes anything: recheck R1-H1); when pacing is what cuts it, only whole batches (each series' next
-// 50 ids or all it has left, in the order of their largest candidate: recheck R2-L1), if the day can still pay the
-// first one (recheck R1-L2). Then
+// while the lister owes anything: recheck R1-H1; out of the floor's headroom only since Oct 5); when pacing is what
+// cuts it, only whole batches (each series' next 50 ids or all it has left, in the order of their largest candidate:
+// recheck R2-L1), if the day can still pay the first one (recheck R1-L2). Then
 // per series: one sync(kPrev - kState) (in chunks that fit the LIMIT table when the whole is refused GAS_CAP; when no
 // chunk fits, claimMany carries the sync itself: audit P-M1), then claimMany batches of at most 50 ids, each checked
 // by its simulation's total against the offchain sum (PAYER_DRIFT), a reverting batch bisected by simulation
@@ -333,23 +333,29 @@ export class Payer {
     return "ok";
   }
 
-  /** What the claims may spend now: the paced allowance and the floor's headroom, less the lister's reserve. */
-  private room(maxFeePerGas: bigint): bigint {
-    const b = this.d.budget!;
-    const raw = b.allowance() < b.headroom() ? b.allowance() : b.headroom();
+  /** The floor's headroom less the lister's reserve. Since Oct 5 a listing is a safety send (only the floor holds it),
+   *  so the reserve comes out of the headroom alone: taken from the paced allowance it would only hold the claims back. */
+  private headroomLeft(maxFeePerGas: bigint): bigint {
+    const h = this.d.budget!.headroom();
     const reserve = this.d.reserveWei?.(maxFeePerGas) ?? 0n;
-    return raw > reserve ? raw - reserve : 0n;
+    return h > reserve ? h - reserve : 0n;
   }
 
-  /** (R1-L2) The most the claims can still reach today by waiting: the day's whole budget left and the floor's
-   *  headroom, less the lister's reserve. null: the budget cannot say (no deferral). */
+  /** What the claims may spend now: the paced allowance, and the floor's headroom less the lister's reserve. */
+  private room(maxFeePerGas: bigint): bigint {
+    const a = this.d.budget!.allowance();
+    const h = this.headroomLeft(maxFeePerGas);
+    return a < h ? a : h;
+  }
+
+  /** (R1-L2) The most the claims can still reach today by waiting: the day's whole budget left, and the floor's
+   *  headroom less the lister's reserve. null: the budget cannot say (no deferral). */
   private reach(maxFeePerGas: bigint): bigint | null {
     const b = this.d.budget!;
     if (!b.dayLeft) return null;
     const left = b.dayLeft();
-    const raw = left < b.headroom() ? left : b.headroom();
-    const reserve = this.d.reserveWei?.(maxFeePerGas) ?? 0n;
-    return raw > reserve ? raw - reserve : 0n;
+    const h = this.headroomLeft(maxFeePerGas);
+    return left < h ? left : h;
   }
 
   private async select(all: readonly Candidate[], byS: Map<string, View>): Promise<Candidate[]> {

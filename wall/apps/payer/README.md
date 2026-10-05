@@ -5,8 +5,9 @@ Each tick, in chain time:
 
 1. **Lister** (4.2): for each factory, GPU and month in {current, next}: `previewListing` (eth_call); when it
    answers, `list`, then `createMarket` on Kuru V1 (the pilot factory, with no Kuru router, lists only). `NotReady`
-   waits (`LISTER_STUCK` once past the expected time; also a ready month whose `list` the day's budget keeps refusing
-   past that time, recheck R1-H1), `MonthNotOpen` waits, `IndexStartsAfterMonth` is never asked
+   waits (`LISTER_STUCK` once past the expected time; also a ready month whose `list` the spend guard keeps refusing
+   past that time, recheck R1-H1: with the real budget only the floor can, since `list` and `createMarket` are
+   safety sends, see the budget below), `MonthNotOpen` waits, `IndexStartsAfterMonth` is never asked
    again (`LISTER_INDEX_STARTS_AFTER`, info, once), any other revert is `LISTER_REFUSED` and retried hourly; a
    reverted `createMarket` simulation is `LISTER_MARKET_REFUSED`, retried hourly. Both calls are idempotent on chain.
    Only a receipt with a revert status counts as the chain's refusal: a send whose outcome is not known yet
@@ -23,10 +24,11 @@ Each tick, in chain time:
    before each `claimMany` (audit P-H1, recheck R1-L1). A sync refused `GAS_CAP` is sent in chunks that fit; when
    not even `sync(1)` fits, `claimMany` carries the sync itself and `PAYER_SYNC_CAPPED` (action) asks for
    `AGATE_MARKET_GAS_LIMITS` (audit P-M1). While the lister owes anything (a month of its window not listed, for
-   whatever reason, a ready month whose `list` the budget refused included; a listed series of a Kuru factory without
+   whatever reason, a ready month whose `list` the guard refused included; a listed series of a Kuru factory without
    its market; a factory whose pass failed), the claims leave one listing's cost to it, at least the gas the sender
-   last planned for each send (audit P-L2, recheck R1-H1). When pacing is what cuts the claims, only whole batches go
-   out: each series' next 50 ids (or all it has left), the batches in the order of their largest candidate, each as
+   last planned for each send (audit P-L2, recheck R1-H1), out of the floor's headroom only (Oct 5: a listing no
+   longer needs the paced allowance, so holding that back only delayed the claims). When pacing is what cuts the
+   claims, only whole batches go out: each series' next 50 ids (or all it has left), the batches in the order of their largest candidate, each as
    soon as it fits, as long as the day can still pay the first one, instead of paying each transaction's fixed gas for
    two ids (recheck R1-L2; per series since R2-L1, so the largest position no longer waits for every series at once).
    Each batch's simulated total is checked against the scanned positions (`PAYER_DRIFT`); a batch whose simulation
@@ -105,7 +107,13 @@ replacement transaction (a higher fee after 120 s unmined) asks the MON floor ag
 
 The budget (2.6): `B = (balance - keepMon) / days to runUntil` (7 days once it has passed), computed at the first
 tick of each UTC day of chain time and kept in `budget-<day>.json`, paced hourly (by second s of the day the spend
-may reach `B x (s + 3,600) / 86,400`); never below `keepMon`. The lister spends first. What the budget leaves waits
+may reach `B x (s + 3,600) / 86,400`); never below `keepMon`. The lister spends first, and its `list` and
+`createMarket` are safety sends (Oct 5): they ignore B and pacing, never `keepMon`, and still count in the day's spend.
+A month opens once per GPU, about 0.6 MON with its market at 102 gwei, so a month's listings cost under 2 MON for the
+real factory; on Oct 5 a paced 1.27 MON day refused the three November listings for hours, and on the 1st of every
+month it would refuse the next month the same way. A `list` or `createMarket` that reverted onchain (Monad bills the
+whole gas limit) is retried hourly as a budget send until its slot fills (`budgetBound` in `state.json`), so one that
+keeps reverting stays bounded by B. What the budget leaves waits
 for the next day or for its owner's Claim button (`PAYER_BUDGET_SPENT`, info, once a day). `PAYER_KEY_LOW` under
 `lowBalanceMon`.
 

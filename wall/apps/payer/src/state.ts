@@ -1,8 +1,9 @@
 // BOTS-SPEC 4.6: the payer's persisted state (state.json, written atomically after every receipt): lastClaimK and
 // sweepDone per series, the ids skipped after a bisection (until a later PayoutChanged), and the lister's never-list
-// set, its retry times and the info alerts it raised once. It carries the scan identity (chain id, start block,
-// factory set: audit P-M3): a state of another chain or deployment is set aside and the payer starts fresh (every
-// action is idempotent by chain state), so a fork rehearsal's lastClaimK or sweepDone never hides a real series.
+// set, its retry times, the sends its budget bounds again (Oct 5) and the info alerts it raised once. It carries the
+// scan identity (chain id, start block, factory set: audit P-M3): a state of another chain or deployment is set aside
+// and the payer starts fresh (every action is idempotent by chain state), so a fork rehearsal's lastClaimK or
+// sweepDone never hides a real series.
 import { existsSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { writeAtomic } from "@agate/watcher";
@@ -24,12 +25,15 @@ export interface PayerStateData {
   retryAt: Record<string, number>;
   /** series -> chain time of the next createMarket try after LISTER_MARKET_REFUSED */
   marketRetryAt: Record<string, number>;
+  /** (Oct 5) list keys and series whose lister send reverted onchain: their retries are the day's budget's, not
+   *  safety sends, until the slot fills; absent in an older file (empty) */
+  budgetBound: string[];
   /** what this state belongs to (P-M3); absent in an older file (adopted) */
   identity?: ScanIdentity;
 }
 
 export function emptyState(): PayerStateData {
-  return { version: 1, series: {}, badIds: {}, neverList: [], retryAt: {}, marketRetryAt: {} };
+  return { version: 1, series: {}, badIds: {}, neverList: [], retryAt: {}, marketRetryAt: {}, budgetBound: [] };
 }
 
 export class StateStore {

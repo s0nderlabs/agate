@@ -31,17 +31,19 @@ export interface ListerReport {
   /** months whose previewListing says NotReady (their anchor days are not final yet) */
   waiting: string[];
   /** (recheck R1-H1) what the lister still has to send: every month of its window that is not listed (whatever the
-   *  reason: NotReady, a list the day's budget refused, a retry, a race), except one that can never list; and every
+   *  reason: NotReady, a list the spend guard refused, a retry, a race), except one that can never list; and every
    *  listed series of a factory with a Kuru router whose market is still NONE. While any is owed (or a factory's pass
-   *  failed, `errors`), the claims keep one listing's cost back for the lister (BOTS-SPEC 4.5). */
+   *  failed, `errors`), the claims keep one listing's cost of the floor's headroom back for the lister (BOTS-SPEC 4.5;
+   *  since Oct 5 a listing is a safety send, so the floor is all that can hold it). */
   owed: string[];
   /** factories whose pass failed with an error other than RpcDown (lister_error): what they owe is unknown */
   errors: number;
   sends: number;
 }
 
-/** The newest gas limit the sender planned for each lister send (a send refused by the budget carries it too): the
- *  reserve covers at least that, so a LIMIT row below the chain's real estimate cannot starve the listing (R1-H1). */
+/** The newest gas limit the sender planned for each lister send (a send the guard refused carries it too): the reserve
+ *  covers at least that, so a LIMIT row below the chain's real estimate cannot leave the listing short of the floor's
+ *  headroom (R1-H1). */
 export interface ListerGas {
   list: bigint;
   createMarket: bigint;
@@ -103,10 +105,17 @@ export class Lister {
     return rep;
   }
 
-  private async send(fn: "list" | "createMarket", f: FactoryEntry, args: readonly unknown[], label: string, rep: ListerReport): Promise<SendResult | null> {
+  /** Oct 5 (BOTS-SPEC 2.6 v6): a listing send is a safety action. It ignores the day's budget and its pacing, never the
+   *  floor, and its cost still counts in the day's spend. A month opens once per GPU (each send simulated first;
+   *  AlreadyListed and MarketAlreadySet end it), so this is a few MON a month. On Oct 5 a 1.27 MON day, paced, refused
+   *  the three November listings (about 0.6 MON each with the market) for hours; the 1st of each month would do the
+   *  same. A send whose last try reverted onchain (`key` in budgetBound) goes back to the day's budget: on Monad a
+   *  revert bills the whole gas limit, and the hourly retries of one that keeps reverting must stay bounded. */
+  private async send(fn: "list" | "createMarket", f: FactoryEntry, args: readonly unknown[], label: string, rep: ListerReport, key: string): Promise<SendResult | null> {
     if (this.d.stopping?.()) return null;
     rep.sends++;
-    const res = await this.d.sender.send({ to: f.factory, abi: agateFactoryAbi, functionName: fn, args, shape: fn === "list" ? "factory.list" : "factory.createMarket", label });
+    const safety = !this.d.state.data.budgetBound.includes(key);
+    const res = await this.d.sender.send({ to: f.factory, abi: agateFactoryAbi, functionName: fn, args, shape: fn === "list" ? "factory.list" : "factory.createMarket", label, safety });
     if (res.gasLimit !== undefined && res.gasLimit > 0n) this.gasSeen[fn] = res.gasLimit;
     return res;
   }
@@ -149,7 +158,7 @@ export class Lister {
         rep.owed.push(what);
         const chk = await r.previewListing(f.factory, g, month);
         if (chk.ok) {
-          const res = await this.send("list", f, [g, month], `list ${what}`, rep);
+          const res = await this.send("list", f, [g, month], `list ${what}`, rep, key);
           if (!res) return;
           if (res.ok && res.sent) {
             rep.listed.push(what);
@@ -158,6 +167,7 @@ export class Lister {
             this.clear("LISTER_STUCK", { gpuId: g, key: alertKey });
             this.clear("LISTER_REFUSED", { gpuId: g, key: alertKey });
             delete st.retryAt[key];
+            this.unbind(key);
             this.d.state.save();
             s = await r.seriesOf(f.factory, g, month);
           } else {
@@ -171,10 +181,11 @@ export class Lister {
               // (BROADCAST_UNCONFIRMED, or NONCE_STUCK: the sender raised its own alert; the next tick's view shows
               // whether it landed): next tick, no lister alert
               this.say("list_skipped", { what, error: res.error });
-              if (!res.sent && name === "BUDGET") await this.budgetStuck(f, g, month, what, alertKey, t);
+              if (!res.sent && (name === "BUDGET" || name === "FLOOR")) await this.budgetStuck(f, g, month, what, alertKey, t, name);
               continue;
             } else {
               unowe(what); // nothing to keep back for it inside the retry hour (R2-L2)
+              if (res.sent) this.bind(key); // reverted onchain: its retries are the day's budget's
               this.refused(f, g, month, label, alertKey, key, t, res.sent ? `reverted onchain (${res.txHash})` : (res.error ?? "refused"));
               continue;
             }
@@ -213,6 +224,7 @@ export class Lister {
         this.clear("LISTER_STUCK", { gpuId: g, key: alertKey });
         this.clear("LISTER_REFUSED", { gpuId: g, key: alertKey });
         delete st.retryAt[key];
+        this.unbind(key);
       }
       if (s.toLowerCase() === ZERO_ADDRESS) {
         rep.owed.push(what); // listed, yet the view has no series yet (a lagging node): the next tick looks again
@@ -225,13 +237,14 @@ export class Lister {
         // the market exists (ours, a stranger's, or the admin's attach): clear a createMarket refusal (P-L1)
         this.clear("LISTER_MARKET_REFUSED", { key: sk });
         delete st.marketRetryAt[sk];
+        this.unbind(sk);
         continue;
       }
       // no market yet: owed until it exists (R1-H1), whether this tick creates it or not; not inside the hour after a
       // refusal (R2-L2: no spend can create it then)
       if ((st.marketRetryAt[sk] ?? 0) > Number(t)) continue;
       rep.owed.push(`market ${what}`);
-      const res = await this.send("createMarket", f, [s], `createMarket ${what}`, rep);
+      const res = await this.send("createMarket", f, [s], `createMarket ${what}`, rep, sk);
       if (!res) return;
       if (res.ok && res.sent) {
         unowe(`market ${what}`);
@@ -239,6 +252,7 @@ export class Lister {
         this.say("market_created", { factory: f.name, gpu: label, month: monthLabel(month), series: s, tx: res.txHash });
         this.clear("LISTER_MARKET_REFUSED", { key: sk });
         delete st.marketRetryAt[sk];
+        this.unbind(sk);
         this.d.state.save();
         continue;
       }
@@ -253,19 +267,34 @@ export class Lister {
         // here res.sent means a receipt with a revert status (unconfirmed() took every other sent outcome)
         unowe(`market ${what}`); // R2-L2
         st.marketRetryAt[sk] = Number(t) + RETRY_S;
+        if (res.sent) this.bind(sk); // reverted onchain: its retries are the day's budget's
         this.d.state.save();
         this.d.alerts?.raise({ code: "LISTER_MARKET_REFUSED", severity: "action", key: sk, message: `lister: createMarket for ${what} (series ${s}) ${res.sent ? `reverted onchain (${res.txHash})` : `refused: ${res.error}`}; retrying hourly`, data: { factory: fk, month } });
       } else this.say("create_market_skipped", { what, error: res.error });
     }
   }
 
-  /** (R1-H1) A ready month whose list the day's budget refused past expectedAt: LISTER_STUCK (action), cleared once the
-   *  slot is filled. The claims keep the listing's cost back meanwhile (BOTS-SPEC 4.5), so this is a budget too small
-   *  for one listing, or a day already spent before the month turned ready. */
-  private async budgetStuck(f: FactoryEntry, g: Hex, month: number, what: string, alertKey: string, t: bigint): Promise<void> {
+  /** (R1-H1) A ready month whose list the spend guard refused past expectedAt: LISTER_STUCK (action), cleared once the
+   *  slot is filled. A first listing is a safety send, so the guard refuses it only at the floor (the key needs MON);
+   *  the day's budget refuses only the retry of a list that reverted onchain (budgetBound). */
+  private async budgetStuck(f: FactoryEntry, g: Hex, month: number, what: string, alertKey: string, t: bigint, why: "BUDGET" | "FLOOR"): Promise<void> {
     const at = await this.expectedAt(f, g, month);
     if (at === null || t <= at) return;
-    this.d.alerts?.raise({ code: "LISTER_STUCK", severity: "action", gpuId: g, key: alertKey, message: `lister: ${what} on factory ${f.factory} is ready but the day's budget has refused its list past ${at} (the claims keep one listing's cost back for it; a budget below one listing, or a day spent before the month turned ready, is the usual cause)`, data: { lateS: (t - at).toString() } });
+    const cause = why === "FLOOR" ? "the key's floor (keepMon) has refused its list" : "the day's budget has refused the retry of its list, which reverted onchain";
+    const fix = why === "FLOOR" ? "top up the key with MON (ops/testnet/fund.sh)" : "see its LISTER_REFUSED for why it reverts";
+    this.d.alerts?.raise({ code: "LISTER_STUCK", severity: "action", gpuId: g, key: alertKey, message: `lister: ${what} on factory ${f.factory} is ready but ${cause} past ${at} (${fix})`, data: { lateS: (t - at).toString() } });
+  }
+
+  /** A list key or series whose send reverted onchain: its next sends are the day's budget's, until its slot fills. */
+  private bind(k: string): void {
+    const b = this.d.state.data.budgetBound;
+    if (!b.includes(k)) b.push(k);
+  }
+
+  private unbind(k: string): void {
+    const b = this.d.state.data.budgetBound;
+    const i = b.indexOf(k);
+    if (i >= 0) b.splice(i, 1);
   }
 
   private refused(f: FactoryEntry, g: Hex, month: number, label: string, alertKey: string, key: string, t: bigint, error: string): void {

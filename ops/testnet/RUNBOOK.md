@@ -343,7 +343,10 @@ index.
 
 **The bots' MON during a session.** The maker's and the payer's daily MON budget is paced for the production horizon
 (B = (balance - keep) / days to Dec 2: about 3 MON a day for the maker, 1.4 for the payer), and on Oct 4 it refused the
-session's six listings (about 0.5 MON each, `list_skipped ... BUDGET` in `shared-payer.log`). So `start` gives each bot
+session's six listings (about 0.5 MON each, `list_skipped ... BUDGET` in `shared-payer.log`); on Oct 5 it refused the
+production November listings the same way. Since Oct 5 the lister's `list` and `createMarket` are safety sends (they
+ignore the day's budget and pacing, never the floor), so listings no longer wait for MON; the maker's quotes still
+do. So `start` gives each bot
 its share of the session's plan once, on top and unpaced: `AGATE_MM_SESSION_MON` and `AGATE_PAYER_SESSION_MON` (39.0
 and 9.8 for 5 h at 102 gwei) until `AGATE_*_SESSION_UNTIL` (unix seconds, an hour after the session's planned end),
 passed to the shared windows it restarts. A send takes the day's paced share first and the rest from the session; what

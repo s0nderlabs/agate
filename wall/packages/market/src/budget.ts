@@ -2,8 +2,9 @@
 // so a restart never resets the day. The day's budget B = (balance - keep) / daysLeft is computed at the first tick
 // of the day and frozen; daysLeft = max(1, ceil((runUntil - t) / 86,400)), and 7 once runUntil has passed. By second
 // s of the day the spend may reach B x min(1, (s + 3,600) / 86,400). Floor: never sign when balance - costMax < keep.
-// Safety actions (the maker's) ignore B and pacing, never the floor; what they spend still counts in spentWei (the
-// day's total, so a non-safety send after them gets only what is left) and also in safetyWei (BOTS-SPEC 2.6 v2).
+// Safety actions (the maker's cancels; since Oct 5 also the lister's list and createMarket) ignore B and pacing, never
+// the floor; what they spend still counts in spentWei (the day's total, so a non-safety send after them gets only what
+// is left) and also in safetyWei (BOTS-SPEC 2.6 v2).
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type AlertSink, alertId, writeAtomic } from "@agate/watcher";

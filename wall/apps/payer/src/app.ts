@@ -60,8 +60,9 @@ export interface PayerApp {
 export const SCAN_PACE_MS = 100;
 
 /** Wei one listing needs at a fee: list then createMarket, each ceil(1.2 x (LIMIT + 21,000 + calldata)) (P-L2), or
- *  the gas limit the sender last planned for it when that is more (recheck R1-H1: the claims leave the lister only this
- *  much plus what one tick of pacing frees, so a reserve below one send's planned cost would never let it through). */
+ *  the gas limit the sender last planned for it when that is more (recheck R1-H1). Since Oct 5 a listing is a safety
+ *  send, so the claims keep this much of the floor's headroom back while the lister owes anything: a reserve below one
+ *  send's planned cost could let the claims spend the key down to where the floor refuses the listing. */
 export function listingCostWei(limits: LimitTable, maxFeePerGas: bigint, seen?: Partial<ListerGas>): bigint {
   const one = (limit: number, calldata: number, s = 0n) => {
     const table = (BigInt(limit + 21_000 + calldata) * 6n + 4n) / 5n;
@@ -115,8 +116,9 @@ export async function buildApp(rt: Runtime, config: PayerConfig, o: AppOptions):
   const stopping = o.stopping ?? (() => false);
   const lister = new Lister({ reads: rt.reads, sender, factories, state, alerts: rt.alerts, log, stopping });
   // P-L2, as fixed by recheck R1-H1: while the lister owes anything (a month of its window not listed, for whatever
-  // reason, including a ready month whose list the budget refused; a listed series of a Kuru factory without its
-  // market; or a factory whose pass failed), the claims leave one listing's cost to the lister, until it lands
+  // reason, including a ready month whose list the guard refused; a listed series of a Kuru factory without its
+  // market; or a factory whose pass failed), the claims leave one listing's cost of the floor's headroom to the lister,
+  // until it lands (Oct 5: not of the paced allowance, which a listing no longer needs)
   let owes = false;
   const reserveWei = (fee: bigint) => (owes ? listingCostWei(rt.limits, fee, lister.gasSeen) : 0n);
   // a dry run needs no MON and must not move the day's alerts (BOTS-SPEC 2.3 step 7): no budget cut, no BUDGET_SPENT
