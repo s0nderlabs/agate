@@ -10,7 +10,8 @@ import type { Trade } from "@/components/markets/useTrade";
 import { useSource } from "@/lib/data/context";
 import { countWord, dateText, listText, panelCount, timeText, whenText } from "@/lib/data/derive";
 import { GPUS } from "@/lib/mock/data";
-import { DRIP, useMock } from "@/lib/mock/store";
+import { DRIP, useAccount } from "@/lib/account";
+import { useMock } from "@/lib/mock/store";
 import type { Market, Series } from "@/lib/mock/types";
 import { int } from "@/lib/format";
 import { SideToggle } from "./SideToggle";
@@ -103,7 +104,7 @@ export function MonthSeg({ trade }: { trade: Trade }) {
  * yet. Long / Short stay pickable (no prices on them), the line says why, the button says when. With more than one
  * month open, the month picker stays at its head, so the reader can go back to a month that trades. */
 export function TicketWait({ market, trade, kind }: { market: Market; trade: Trade; kind: "upcoming" | "emptyBook" | "nodata" }) {
-  const { wallet } = useMock();
+  const account = useAccount();
   const { openSignIn } = useFlow();
   const series = trade.n.series;
   const m = monthName(series.month);
@@ -116,7 +117,7 @@ export function TicketWait({ market, trade, kind }: { market: Market; trade: Tra
         : null;
   const cta = kind === "upcoming" ? (when ? `Opens ${when}` : "Opens soon") : kind === "emptyBook" ? "No prices in the book yet" : "Waiting for prices";
   // signed out, a month that is about to open is the moment to get the test dollars ready
-  const invite = kind === "upcoming" && !wallet.signedIn;
+  const invite = kind === "upcoming" && !account.ready;
   const pick = kind !== "nodata" && trade.months.filter((sr) => sr.phase !== "upcoming").length > 1;
   return (
     <div className={s.ticket}>

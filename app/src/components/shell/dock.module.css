@@ -48,7 +48,8 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-.tabbar > [aria-current="page"] {
+.tabbar > [aria-current="page"],
+.tabbar > [data-here] {
   color: var(--ink);
   font-weight: 500;
 }

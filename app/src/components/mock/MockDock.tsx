@@ -3,6 +3,7 @@
 // so any state can be shared as a link. Off in production builds (NEXT_PUBLIC_MOCK_CONTROLS).
 // Design options join DESIGN_ROWS while they are being judged, beside the current state, and leave once decided.
 import { useEffect } from "react";
+import { useAccount } from "@/lib/account";
 import { useMock, type MockConfig } from "@/lib/mock/store";
 import { useDataStatus, useIndexer } from "@/lib/data/hooks";
 import s from "./MockDock.module.css";
@@ -103,6 +104,57 @@ const STATE_ROWS: Row[] = [
   },
 ];
 
+/** How the pretend wallet and Agate's pretend server answer (example data only), so every sheet and page state can be
+ *  judged without the chain. */
+const WALLET_ROWS: Row[] = [
+  {
+    key: "signin",
+    label: "Sign-in outcome",
+    options: [
+      ["auto", "As the wallet is"],
+      ["new", "New person"],
+      ["returning", "Returning"],
+      ["wrong", "Wrong code first"],
+      ["expired", "Expired code first"],
+      ["walletfail", "Wallet fails once"],
+      ["dripfail", "First drip fails"],
+      ["slow", "Slow setup"],
+    ],
+  },
+  {
+    key: "ais",
+    label: "Connected AIs",
+    options: [
+      ["none", "None"],
+      ["one", "One"],
+      ["two", "Two"],
+      ["ended", "Ended"],
+    ],
+  },
+  {
+    key: "connect",
+    label: "Connect outcome",
+    options: [
+      ["normal", "Normal"],
+      ["stepup", "Needs a fresh code"],
+      ["notyet", "Key not there yet"],
+      ["fundfail", "Funding fails once"],
+      ["refused", "Agate refuses once"],
+      ["expired", "Request runs out"],
+      ["offline", "Server offline"],
+    ],
+  },
+  {
+    key: "disc",
+    label: "Disconnect outcome",
+    options: [
+      ["normal", "Normal"],
+      ["stopfail", "Server misses once"],
+      ["takebackfail", "Take back fails once"],
+    ],
+  },
+];
+
 /** While the source is live: whether the indexer answers and when the markets were last read (UTC). */
 function LiveRow() {
   const st = useDataStatus();
@@ -124,7 +176,8 @@ function LiveRow() {
 }
 
 export function MockDock() {
-  const { config, setConfig, reset, wallet } = useMock();
+  const { config, setConfig, reset } = useMock();
+  const account = useAccount();
   const open = config.dock === "open";
 
   useEffect(() => {
@@ -145,9 +198,9 @@ export function MockDock() {
             <b>Mock controls</b>
             <span>Press M to hide</span>
           </div>
-          {[...DESIGN_ROWS, ...STATE_ROWS].map((r) => {
+          {[...DESIGN_ROWS, ...STATE_ROWS, ...WALLET_ROWS].map((r) => {
             // the example's states do nothing to live data: the row stands down while the source is live
-            const idle = r.key === "data" && config.source === "live";
+            const idle = (r.key === "data" || WALLET_ROWS.includes(r)) && config.source === "live";
             return (
               <div className={s.row} key={r.key}>
                 <span>{r.label}</span>
@@ -167,7 +220,7 @@ export function MockDock() {
             <span>Wallet</span>
             <div className={s.opts}>
               <span className={s.stat}>
-                {wallet.signedIn ? `${Math.round(wallet.balance).toLocaleString("en-US")} test dollars, ${wallet.positions.length} ${wallet.positions.length === 1 ? "position" : "positions"}` : "No wallet yet"}
+                {account.ready ? `${Math.round(account.balance).toLocaleString("en-US")} test dollars, ${account.positions.length} ${account.positions.length === 1 ? "position" : "positions"}` : "No wallet yet"}
               </span>
               <button onClick={reset}>Reset</button>
             </div>

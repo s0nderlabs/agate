@@ -1,0 +1,301 @@
+/* The Allow page: a focused consent page (no market strip, no dock). From 1100 px two columns in the trade screen's
+   hairline style: the request, its limits and the button on the left, what the AI can and can never do on the right.
+   Below that one centered column, and in the new phone and tablet layout the button rides in a sticky bar. */
+.screen {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+}
+.main {
+  max-width: 1046px;
+  margin: 0 auto;
+  padding: 24px max(32px, env(safe-area-inset-right)) 48px max(32px, env(safe-area-inset-left));
+}
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "head" "form" "lists" "actions";
+  max-width: 600px;
+  margin: 0 auto;
+}
+@media (min-width: 1100px) {
+  .grid {
+    max-width: none;
+    grid-template-columns: minmax(0, 600px) 380px;
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas: "head lists" "form lists" "actions lists";
+    justify-content: center;
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  .lists {
+    box-shadow: inset 1px 0 0 var(--line);
+  }
+}
+/* one column at every width (an over-cap request): the head, the request, the answer */
+.grid.single {
+  max-width: 600px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: none;
+  grid-template-areas: "head" "form" "actions";
+}
+@media (min-width: 1100px) {
+  .grid.single {
+    box-shadow: none;
+    max-width: 600px;
+  }
+}
+.panel {
+  background: var(--bg);
+  padding: 24px;
+  min-width: 0;
+  display: grid;
+  gap: 20px;
+  align-content: start;
+}
+.head {
+  grid-area: head;
+  padding-bottom: 8px;
+}
+.form {
+  grid-area: form;
+  padding-top: 8px;
+}
+.lists {
+  grid-area: lists;
+  gap: 24px;
+}
+.actions {
+  grid-area: actions;
+  align-content: start;
+  gap: 10px;
+}
+/* desktop: the answer stays in reach while the limits are read (sticks to the bottom of the left column) */
+@media (min-width: 1100px) {
+  .actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    padding-top: 16px;
+    padding-bottom: 16px;
+    box-shadow: inset 0 1px 0 var(--line);
+  }
+  .form {
+    gap: 16px;
+  }
+}
+.h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(30px, 8vw, 40px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.lead {
+  font-size: 16px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.fine {
+  font-size: 15px;
+  color: var(--mute-text);
+  text-wrap: pretty;
+}
+.err {
+  font-size: 15px;
+  color: var(--down);
+  text-wrap: pretty;
+}
+.h2 {
+  font-size: 19px;
+  font-weight: 500;
+}
+.h2big {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+/* the four limits */
+.field {
+  display: grid;
+  gap: 6px;
+}
+.fieldLabel {
+  font-size: 16px;
+  font-weight: 500;
+}
+.fieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.amount {
+  width: 8.5ch;
+  height: 52px;
+  padding: 0 12px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-feature-settings: "lnum", "tnum";
+}
+.helper {
+  font-size: 15px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.helper button {
+  margin-left: 8px;
+}
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.stepper > button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 20px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.stepper > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.stepper > output {
+  min-width: 2.4ch;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-feature-settings: "lnum", "tnum";
+}
+.ends {
+  font-size: 17px;
+}
+.which {
+  justify-self: start;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.which > button {
+  min-height: 40px;
+}
+
+/* what it can and can never do */
+.lists ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.lists li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  font-size: 16px;
+  text-wrap: pretty;
+}
+.lists li svg {
+  margin-top: 4px;
+}
+.yes {
+  color: var(--up);
+}
+.no {
+  color: var(--down);
+}
+.listBlock {
+  display: grid;
+  gap: 12px;
+}
+
+/* the result: the connector link once, the way back */
+.link {
+  display: grid;
+  gap: 8px;
+}
+.linkActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  align-items: center;
+}
+.actions > :global(.ag-btn) {
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.actionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* a page-level answer: ended, not found, declined */
+.whole {
+  max-width: 600px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+  padding: 24px 0;
+}
+.whole > :global(.ag-btn) {
+  justify-self: start;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+/* phone and tablet, new layout: the button rides in a sticky bar above the safe area */
+@media (max-width: 1099.98px) {
+  .screen[data-phone="new"] .actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: var(--card);
+    box-shadow: inset 0 1px 0 var(--line);
+    padding: 12px max(16px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  .screen[data-phone="new"] .actions > :global(.ag-btn--quiet),
+  .screen[data-phone="new"] .actions > :global(.ag-textbtn) {
+    min-height: 44px;
+    justify-self: center;
+  }
+}
+@media (max-width: 639.98px) {
+  .screen[data-phone="new"] .main {
+    padding: 0 0 0;
+  }
+  .screen[data-phone="new"] .panel {
+    padding: 20px max(16px, env(safe-area-inset-right)) 20px max(16px, env(safe-area-inset-left));
+  }
+  .screen[data-phone="new"] .head {
+    padding-bottom: 4px;
+  }
+  .screen[data-phone="new"] .form {
+    padding-top: 4px;
+  }
+  .screen[data-phone="new"] .lists {
+    box-shadow: inset 0 1px 0 var(--line);
+  }
+  .screen[data-phone="new"] .whole {
+    padding: 24px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+  }
+}

@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { useBook } from "@/lib/data/hooks";
 import { dateText, topOf } from "@/lib/data/derive";
 import { emptySideText, MonthSeg } from "./States";
-import { DRIP, useMock } from "@/lib/mock/store";
+import { DRIP, useAccount } from "@/lib/account";
 import { cleanTyping, dollarsToHours, floorCents, floorGpus, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, maxFor, parseAmount, walkDollars, walkHours } from "@/lib/size";
 import { SideToggle } from "./SideToggle";
 import { monthName } from "@/components/markets/PriceChart";
@@ -21,8 +21,8 @@ import s from "./trade.module.css";
  * fresh read for two minutes), so the button waits for fresh ones. */
 export function TradePanel({ market, trade, held = 0, loading: marketLoading = false, stale = "none" }: { market: Market; trade: Trade; held?: number; loading?: boolean; stale?: "none" | "stale" | "nodata" }) {
   const { submit, openSignIn } = useFlow();
-  const { wallet } = useMock();
-  const gated = !wallet.signedIn;
+  const account = useAccount();
+  const gated = !account.ready;
   // Simple's size: one amount, in dollars (Polymarket, Kalshi, Public default) or in GPUs
   // for the month (the hedger's own words); either way the GPU-hours, fractions included, fall out of it
   const [unit, setUnit] = useState<"usd" | "gpus">("usd");
@@ -51,9 +51,9 @@ export function TradePanel({ market, trade, held = 0, loading: marketLoading = f
   const fill = unit === "usd" ? walkDollars(levels, side, typed, s0.cap) : walkHours(levels, side, floorHours(typed * 24 * days), s0.cap);
   // more than the book holds now: say so and offer what fills (agate's ThinBook rule, never fill less silently)
   const thin = unit === "usd" ? typed - fill.outlay > 0.01 : fill.short;
-  const signedIn = wallet.signedIn;
+  const signedIn = account.ready;
   // signed out, the 25% / 50% / Max chips work on the free test dollars you get at sign-in
-  const balance = signedIn ? Math.max(0, wallet.balance - held) : DRIP;
+  const balance = signedIn ? Math.max(0, account.balance - held) : DRIP;
   const max = maxFor(levels, side, balance, s0.cap);
   const n = numbersFor(s0, side, fill.filled, trade.daily, fill.avg);
   const over = fill.filled > 0 && n.outlay > balance + 0.005;

@@ -1,11 +1,13 @@
 "use client";
 // Pro depth: the November book on Kuru, positions, recent fills. Simple mode keeps all of this out of view.
 import { useState } from "react";
+import { useDrip } from "@/components/flow/DripButton";
 import { monthName } from "@/components/markets/PriceChart";
 import { Num } from "@/components/num/Num";
 import { useBook, useFills, useIndexer, useLastFor } from "@/lib/data/hooks";
 import { monthStateOf, placeholderSeries } from "@/lib/data/derive";
-import { DRIP, useMock } from "@/lib/mock/store";
+import { DRIP, useAccount } from "@/lib/account";
+import { useMock } from "@/lib/mock/store";
 import type { Gpu, Market, Position, Series } from "@/lib/mock/types";
 import { int, usd, usd0 } from "@/lib/format";
 import { fmtHours } from "@/lib/size";
@@ -129,8 +131,16 @@ type Tab = "positions" | "orders";
 function pnlOf(p: Position, now: number | null) {
   return now === null ? null : (p.side === "long" ? now - p.entry : p.entry - now) * p.q;
 }
+/** "+$12", "−$3", or "$0" when it rounds to nothing (never a signed zero). */
 function pnlText(pnl: number) {
-  return `${pnl >= 0 ? "+" : "−"}${usd0(Math.abs(pnl))}`;
+  const r = Math.round(pnl);
+  return r === 0 ? "$0" : `${r > 0 ? "+" : "−"}${usd0(Math.abs(r))}`;
+}
+/** The gain or loss color, none when it rounds to $0 (as the account box shows it). */
+function pnlTone(pnl: number | null) {
+  if (pnl === null) return "";
+  const r = Math.round(pnl);
+  return r > 0 ? s.up : r < 0 ? s.down : "";
 }
 
 /** Positions and resting limit orders (cancel each); the month's recent trades sit under the book. tab and onTab
@@ -143,7 +153,8 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
     setTabState(t);
     onTab?.(t);
   };
-  const { wallet, config } = useMock();
+  const { config } = useMock();
+  const { positions } = useAccount();
   const cards = config.phone === "new";
   // each position is valued at its own market's last price, not the market on screen (null: no price to read)
   const lastFor = useLastFor();
@@ -152,7 +163,7 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
       <div className={s.tabs} role="tablist">
         {(
           [
-            ["positions", `Positions${wallet.positions.length ? ` (${wallet.positions.length})` : ""}`],
+            ["positions", `Positions${positions.length ? ` (${positions.length})` : ""}`],
             ["orders", `Open orders${orders.length ? ` (${orders.length})` : ""}`],
           ] as [Tab, string][]
         ).map(([k, label]) => (
@@ -161,9 +172,9 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
           </button>
         ))}
       </div>
-      {tab === "positions" && cards && wallet.positions.length > 0 && (
+      {tab === "positions" && cards && positions.length > 0 && (
         <div className={s.cardsWrap}>
-          <PositionCards positions={wallet.positions} lastFor={lastFor} />
+          <PositionCards positions={positions} lastFor={lastFor} />
         </div>
       )}
       {tab === "orders" && cards && orders.length > 0 && (
@@ -172,7 +183,7 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
         </div>
       )}
       {tab === "positions" &&
-        (wallet.positions.length ? (
+        (positions.length ? (
           <div className={s.tableWrap}>
             <table className={s.table}>
               <thead>
@@ -187,7 +198,7 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
                 </tr>
               </thead>
               <tbody>
-                {wallet.positions.map((p) => {
+                {positions.map((p) => {
                   const now = lastFor(p);
                   const pnl = pnlOf(p, now);
                   return (
@@ -204,7 +215,7 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
                         <Num>{usd(p.entry)}</Num>
                       </td>
                       <td className={s.r}>{now === null ? "No price yet" : <Num>{usd(now)}</Num>}</td>
-                      <td className={`${s.r} ${pnl === null ? "" : pnl >= 0 ? s.up : s.down}`}>{pnl === null ? "Waiting for a price" : <Num>{pnlText(pnl)}</Num>}</td>
+                      <td className={`${s.r} ${pnlTone(pnl)}`}>{pnl === null ? "Waiting for a price" : <Num>{pnlText(pnl)}</Num>}</td>
                       <td className={s.r}>
                         <Num>{usd0(p.paid)}</Num>
                       </td>
@@ -322,20 +333,22 @@ export function RecentTrades({ market, series, loading = false, idle = false }: 
 /** Under Pro's ticket (Hyperliquid's account panel, Lighter's overview, Binance's assets): what you have to trade with
  * and what is at work, each position valued at its own market's last price. */
 export function AccountBox({ orders }: { orders: OpenOrder[] }) {
-  const { wallet, drip } = useMock();
+  const account = useAccount();
+  const { positions } = account;
   // the same valuation as the positions table and cards, so the two never disagree on one screen
   const lastFor = useLastFor();
   const inOrders = orders.reduce((a, o) => a + o.hold, 0);
   // a position with no price to read (an empty book, nothing read yet) adds nothing, rather than a guessed value
-  const priced = wallet.positions.map((p) => pnlOf(p, lastFor(p))).filter((x): x is number => x !== null);
+  const priced = positions.map((p) => pnlOf(p, lastFor(p))).filter((x): x is number => x !== null);
   const pnl = priced.reduce((a, x) => a + x, 0);
-  const valued = priced.length > 0 || !wallet.positions.length;
-  const paid = wallet.positions.reduce((a, p) => a + p.paid, 0);
-  const on = wallet.signedIn;
+  const valued = priced.length > 0 || !positions.length;
+  const paid = positions.reduce((a, p) => a + p.paid, 0);
+  const on = account.ready;
+  const drip = useDrip();
   const rows: [string, React.ReactNode, string?][] = [
-    ["Test dollars", on ? <Num>{usd0(wallet.balance)}</Num> : "Sign in to see"],
+    ["Test dollars", on ? <Num>{usd0(account.balance)}</Num> : "Sign in to see"],
     ["In open orders", on ? <Num>{usd0(inOrders)}</Num> : "None"],
-    ["Positions", on ? <Num>{String(wallet.positions.length)}</Num> : "None"],
+    ["Positions", on ? <Num>{String(positions.length)}</Num> : "None"],
     ["Gain or loss", !on ? "None" : !valued ? "No price yet" : <Num>{Math.abs(pnl) < 0.5 ? "$0" : pnlText(pnl)}</Num>, on && valued && Math.abs(pnl) >= 0.5 ? (pnl > 0 ? s.up : s.down) : undefined],
     ["Paid out so far", on ? <Num>{usd0(paid)}</Num> : "None"],
   ];
@@ -344,11 +357,16 @@ export function AccountBox({ orders }: { orders: OpenOrder[] }) {
       <div className={s.panelHead}>
         <b>Account</b>
         {on && (
-          <button type="button" className={s.textBtn} onClick={drip}>
-            Get {int(DRIP)} test dollars
+          <button type="button" className={s.textBtn} disabled={drip.busy} onClick={() => void drip.run()}>
+            {drip.busy ? "Getting test dollars" : `Get ${int(DRIP)} test dollars`}
           </button>
         )}
       </div>
+      {on && drip.error && (
+        <p className="ag-err" role="status">
+          {drip.error}
+        </p>
+      )}
       <dl>
         {rows.map(([k, v, cls]) => (
           <div key={k}>
@@ -377,7 +395,7 @@ export function PositionCards({ positions, lastFor }: { positions: Position[]; l
               <b>
                 {p.gpu} {month.slice(0, 3)}, {p.side === "long" ? "Long" : "Short"}
               </b>
-              <span className={`${s.cardPnl} ${pnl === null ? "" : pnl >= 0 ? s.up : s.down}`}>{pnl === null ? "No price yet" : <Num>{pnlText(pnl)}</Num>}</span>
+              <span className={`${s.cardPnl} ${pnlTone(pnl)}`}>{pnl === null ? "No price yet" : <Num>{pnlText(pnl)}</Num>}</span>
             </div>
             <p className={s.cardLine}>
               <Num>{fmtHours(p.q)}</Num> GPU-hours at <Num>{usd(p.entry)}</Num>

@@ -24,6 +24,8 @@
   --ink: #17171a;
   --ink-2: #4b4a46;
   --mute: #77766f;
+  /* quiet text at 15 to 16 px on the wallet screens and sheets: --mute is under 4.5:1 there in light */
+  --mute-text: #6a6963;
   --line: rgb(23 23 26 / 0.09);
   --line-2: rgb(23 23 26 / 0.16);
   --seg-on: #ffffff;
@@ -53,6 +55,7 @@
   --ink: #f2f0ea;
   --ink-2: #c8c6bf;
   --mute: #918e86;
+  --mute-text: #918e86;
   --line: rgb(242 240 234 / 0.09);
   --line-2: rgb(242 240 234 / 0.18);
   --seg-on: #312f2b;
@@ -747,6 +750,292 @@ h3 {
     padding: 4px 0;
   }
   .ag-backdrop[data-phone="new"][data-kind="more"] .ag-seg > button {
+    min-height: 44px;
+  }
+}
+
+/* ---------- wallet: step lists, the code field, inline errors, chips, quiet and text buttons (tokens only) ---------- */
+/* a list of real steps: done (the check), current (a spinner), waiting (a small square), skipped (the check, "Already
+   set up"), failed (the label in the down color). No percentage bars: every row is a real call. */
+.ag-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+.ag-steps > li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: start;
+}
+.ag-steps__icon {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+}
+.ag-steps__icon .ag-done {
+  width: 20px;
+  height: 20px;
+}
+.ag-steps__icon .ag-spinner {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+.ag-steps__dot {
+  width: 8px;
+  height: 8px;
+  background: var(--line-2);
+}
+.ag-steps__x {
+  width: 14px;
+  height: 14px;
+  color: var(--down);
+}
+.ag-steps__label {
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--ink);
+}
+.ag-steps > li[data-mark="waiting"] .ag-steps__label {
+  color: var(--ink-2);
+}
+.ag-steps > li[data-mark="failed"] .ag-steps__label {
+  color: var(--down);
+}
+.ag-steps__hint {
+  grid-column: 2;
+  font-size: 15px;
+  color: var(--mute-text);
+  text-wrap: pretty;
+}
+/* a button's place kept while steps run, so the sheet never jumps when it appears */
+.ag-slot {
+  min-height: 52px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+/* the 6-digit code: one field (paste and the OS's one-time-code autofill work), big tabular digits */
+.ag-code {
+  height: 56px;
+  padding: 0 0 0 0.35em;
+  font-family: var(--font-display);
+  font-size: 32px;
+  letter-spacing: 0.35em;
+  text-align: center;
+  font-feature-settings: "lnum", "tnum";
+}
+.ag-input[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 1px var(--down);
+}
+.ag-input:read-only {
+  color: var(--ink-2);
+}
+.ag-err,
+.ag-sheet p.ag-err {
+  font-size: 15px;
+  color: var(--down);
+  text-wrap: pretty;
+}
+.ag-fine,
+.ag-sheet p.ag-fine {
+  font-size: 15px;
+  color: var(--mute-text);
+  text-wrap: pretty;
+}
+
+/* buttons: quiet (Not now, Close, Cancel), destructive (Disconnect), text (Send a new code, Copy) */
+.ag-btn--quiet {
+  background: transparent;
+  color: var(--mute-text);
+}
+/* a step's heading or its "why" line takes focus when the step changes (so a screen reader hears it): no ring,
+   like the sheet itself */
+.ag-sheet h2[tabindex="-1"]:focus-visible,
+p[role="status"][tabindex="-1"]:focus-visible {
+  outline: none;
+}
+.ag-btn--danger {
+  background: var(--down-fill);
+  color: var(--fill-ink);
+}
+.ag-btn:has(> .ag-spinner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.ag-btn > .ag-spinner {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  border-color: color-mix(in oklch, currentColor 30%, transparent);
+  border-top-color: currentColor;
+}
+.ag-textbtn {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ag-textbtn:disabled {
+  cursor: default;
+  text-decoration: none;
+  color: var(--mute);
+}
+.ag-textbtn > .ag-spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  margin-right: 8px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-textbtn:not(:disabled):hover {
+    color: var(--ink);
+    text-decoration-color: currentColor;
+  }
+}
+.ag-textrow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+
+/* chips: a few likely amounts, 44 px tall, square like the rest */
+.ag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ag-chips > button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  font-feature-settings: "tnum";
+}
+.ag-chips > button[aria-pressed="true"] {
+  background: var(--seg-on);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+/* rows that hold actions: 52 px tall and centered; the value side wraps under its label on a narrow phone */
+.ag-rows[data-tall] > div,
+.ag-rows[data-tall] > a {
+  min-height: 52px;
+  align-items: center;
+  padding: 4px 0;
+}
+.ag-rows > a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+.ag-rows > a > span:first-child {
+  color: var(--ink-2);
+  min-width: 0;
+}
+/* the value and its chevron never shrink under the sentence on the left (it wraps instead); a long value wraps
+   inside its own share */
+.ag-rows > a > span:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  text-align: right;
+  flex-shrink: 0;
+  max-width: 62%;
+}
+.ag-rows > a > span:last-child > svg {
+  flex-shrink: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-rows > a:hover > span:first-child {
+    color: var(--ink);
+  }
+}
+.ag-rows > div:has(> .ag-val) > span:first-child {
+  white-space: nowrap;
+}
+.ag-rows .ag-val {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px 14px;
+  font-weight: 500;
+  text-align: right;
+  min-width: 0;
+}
+.ag-rows .ag-val .ag-textbtn,
+.ag-rows .ag-val a {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.ag-sheet .ag-done {
+  justify-self: start;
+}
+.ag-well {
+  background: var(--well);
+  padding: 14px 16px;
+  border-radius: var(--r-1);
+  font-size: 17px;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+/* the new phone and tablet layout: text buttons and links in the wallet sheets and pages get a 44 px hit area on
+   touch; the code's digits scale with a phone's width */
+@media (pointer: coarse) {
+  [data-phone="new"] .ag-textbtn,
+  [data-phone="new"] .ag-rows .ag-val a {
+    min-height: 44px;
+  }
+  [data-phone="new"] .ag-seg--tall > button {
+    min-height: 44px;
+  }
+}
+@media (max-width: 639.98px) {
+  [data-phone="new"] .ag-textbtn,
+  [data-phone="new"] .ag-rows .ag-val a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  [data-phone="new"] .ag-seg--tall > button {
+    min-height: 44px;
+  }
+  .ag-backdrop[data-phone="new"] .ag-code {
+    font-size: clamp(28px, 9vw, 34px);
+  }
+  .ag-backdrop[data-phone="new"] .ag-btn,
+  .ag-backdrop[data-phone="new"] .ag-textbtn {
     min-height: 44px;
   }
 }

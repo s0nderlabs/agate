@@ -3,6 +3,7 @@
 // prices with the month's figures over the chart (Hyperliquid, Coinbase Advanced). Pro adds the November book,
 // your positions and open orders, and an order ticket with limits.
 import { useEffect, useMemo, useState } from "react";
+import { useAccount } from "@/lib/account";
 import { useMock, useOpenOrders } from "@/lib/mock/store";
 import { groundFor } from "@/lib/mock/config";
 import { isOld, useBook, useCandles, useDataStatus, useMarkets, useNow, useScreenMarket } from "@/lib/data/hooks";
@@ -142,7 +143,8 @@ export function TradeScreen() {
   // Phone and tablet layout (mock option "Phone and tablet layout"; Stacked renders today's layout below 1100 px).
   // On phones the ticket is a bottom sheet opened from the trade bar; Pro's book, trades, positions and orders sit
   // behind tabs. Tablets put the ticket beside the chart. Desktop (1100 px and up) is unchanged.
-  const { wallet, setConfig } = useMock();
+  const { setConfig } = useMock();
+  const { positions } = useAccount();
   const flow = useFlow();
   const isPhone = useMedia("(max-width: 639.98px)");
   const phoneNew = config.phone === "new";
@@ -181,7 +183,7 @@ export function TradeScreen() {
   const ptabs: [typeof ptab, string][] = [
     ["book", "Book"],
     ["trades", "Trades"],
-    ["positions", `Positions${wallet.positions.length ? ` (${wallet.positions.length})` : ""}`],
+    ["positions", `Positions${positions.length ? ` (${positions.length})` : ""}`],
     ["orders", `Orders${orders.length ? ` (${orders.length})` : ""}`],
   ];
   const onPtabKey = (e: React.KeyboardEvent<HTMLDivElement>) => {

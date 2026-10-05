@@ -1,0 +1,498 @@
+/* Connected AIs, an AI's card, and an over-cap request: the trade screen's tokens, hairlines between sections,
+   no new colors. Phones (below 640 px, new layout) get cards and the bottom dock; tablets a single column. */
+.screen {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+}
+.main {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px max(32px, env(safe-area-inset-right)) 48px max(32px, env(safe-area-inset-left));
+  display: grid;
+  gap: 28px;
+  align-content: start;
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px 24px;
+}
+.headText {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  max-width: 60ch;
+}
+.h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.lead {
+  font-size: 16px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.h2 {
+  font-size: 19px;
+  font-weight: 500;
+}
+.section {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.line {
+  font-size: 15px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.quiet {
+  font-size: 15px;
+  color: var(--mute-text);
+  text-wrap: pretty;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.actions > :global(.ag-btn) {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.banner {
+  background: var(--well);
+  padding: 14px 16px;
+  border-radius: var(--r-1);
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  font-size: 16px;
+  text-wrap: pretty;
+}
+.banner > :global(.ag-btn) {
+  min-height: 44px;
+}
+.down {
+  color: var(--down);
+}
+.textDown {
+  color: var(--down);
+}
+.textDown:not(:disabled) {
+  text-decoration-color: color-mix(in oklch, var(--down) 40%, transparent);
+}
+
+/* ---------- the list of AIs ---------- */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.row,
+.cols {
+  display: grid;
+  /* fixed-width actions, so the header row and every AI row share their columns */
+  grid-template-columns: minmax(110px, 1fr) minmax(140px, 1.1fr) minmax(64px, 0.6fr) minmax(96px, 0.8fr) minmax(150px, 1.1fr) 170px;
+  gap: 14px;
+  align-items: center;
+}
+.cols {
+  font-size: 15px;
+  color: var(--ink-2);
+  padding: 0 0 10px;
+  align-items: end;
+}
+.row {
+  position: relative;
+  min-height: 72px;
+  padding: 12px 0;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.who {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.name {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.status {
+  font-size: 15px;
+  color: var(--mute-text);
+}
+.fig {
+  font-size: 17px;
+  min-width: 0;
+}
+.fig[data-k="ends"] {
+  white-space: nowrap;
+}
+.fig small {
+  font-size: 15px;
+  color: var(--mute-text);
+}
+.fig .k {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.rowActs {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.rowActs > :global(.ag-btn) {
+  min-height: 44px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.cardLines {
+  display: none;
+}
+.skelRow {
+  height: 72px;
+  box-shadow: inset 0 -1px 0 var(--line);
+  display: grid;
+  align-items: center;
+}
+.skelRow > span {
+  height: 22px;
+  width: 60%;
+}
+
+/* below 880 px the columns would crowd: each AI becomes a card, the whole card leads to its page */
+@media (max-width: 959.98px) {
+  .cols {
+    display: none;
+  }
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 12px;
+    min-height: 52px;
+    padding: 14px 0;
+  }
+  .who {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 12px;
+    grid-column: 1 / -1;
+  }
+  .fig {
+    display: none;
+  }
+  .cardLines {
+    display: grid;
+    gap: 2px;
+    grid-column: 1 / -1;
+  }
+  .cardLines > :first-child {
+    font-size: 15px;
+    color: var(--ink-2);
+  }
+  .cardLines > :last-child {
+    font-size: 15px;
+    color: var(--mute-text);
+  }
+  /* the name's link covers the card; Disconnect lives on the AI's own page */
+  .name::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  .rowActs {
+    display: none;
+  }
+  .ended .rowActs {
+    display: flex;
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    position: relative;
+    z-index: 1;
+  }
+  .ended .rowActs > :not([data-keep]) {
+    display: none;
+  }
+}
+
+/* ---------- one AI: the pocket on the left, what it did on the right ---------- */
+.cardMain {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 16px max(32px, env(safe-area-inset-right)) 48px max(32px, env(safe-area-inset-left));
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  justify-self: start;
+  color: var(--ink-2);
+  text-decoration: none;
+  font-size: 15px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .back:hover {
+    color: var(--ink);
+  }
+}
+.grid {
+  display: grid;
+  gap: 0;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line);
+  grid-template-columns: minmax(0, 1fr);
+}
+.grid > .panel + .panel {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.panel {
+  background: var(--bg);
+  padding: 24px;
+  min-width: 0;
+  display: grid;
+  gap: 24px;
+  align-content: start;
+}
+@media (min-width: 1100px) {
+  .grid {
+    grid-template-columns: 380px minmax(0, 1fr);
+  }
+  .grid > .panel + .panel {
+    box-shadow: inset 1px 0 0 var(--line);
+  }
+  .grid > .panel:first-child {
+    position: sticky;
+    top: calc(var(--nav-h) + 1px);
+    align-self: start;
+  }
+}
+.pocketHead {
+  display: grid;
+  gap: 6px;
+}
+.label {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.big {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(44px, 13vw, 56px);
+  line-height: 1;
+  font-feature-settings: "lnum", "tnum";
+}
+.stack {
+  display: grid;
+  gap: 10px;
+}
+.stack > :global(.ag-btn) {
+  min-height: 44px;
+}
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.pair > :global(.ag-btn) {
+  min-height: 44px;
+  padding-left: 10px;
+  padding-right: 10px;
+  white-space: normal;
+}
+/* its positions use the shared cards, whose quiet lines read --mute: here they take the wallet screens' darker quiet
+   text (4.5:1 in light), without changing the cards on the Positions page */
+.section[data-tab="positions"] {
+  --mute: var(--mute-text);
+}
+/* an empty pocket has nothing to take back: Add stands alone, full width */
+.pair > :only-child {
+  grid-column: 1 / -1;
+}
+.wait {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: var(--well);
+  border-radius: var(--r-1);
+}
+.wait p {
+  font-size: 16px;
+  text-wrap: pretty;
+}
+.feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.feed > li {
+  min-height: 56px;
+  padding: 10px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 16px;
+  align-items: baseline;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.feedText {
+  font-size: 16px;
+  text-wrap: pretty;
+}
+.feed > li[data-quiet] .feedText {
+  color: var(--ink-2);
+}
+.feedAmt {
+  font-size: 17px;
+  text-align: right;
+}
+.feedWhen {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  font-size: 15px;
+  color: var(--mute-text);
+}
+.feedWhen a {
+  color: var(--ink-2);
+}
+.autos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.autos > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 16px;
+  align-items: center;
+  min-height: 56px;
+  padding: 10px 0;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.autos > li > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.autos b {
+  font-weight: 500;
+}
+.autos > li > :global(.ag-btn) {
+  min-height: 44px;
+  padding: 0 16px;
+}
+.tabs {
+  display: none;
+}
+.err {
+  font-size: 15px;
+  color: var(--down);
+}
+
+/* ---------- phones (new layout): one column above the dock, Activity and Positions as tabs ---------- */
+@media (max-width: 639.98px) {
+  .screen[data-phone="new"] {
+    padding-bottom: calc(var(--dock-h, 0px) + env(safe-area-inset-bottom));
+  }
+  .screen[data-phone="new"] .main {
+    padding: 20px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+    gap: 22px;
+  }
+  .screen[data-phone="new"] .cardMain {
+    padding: 4px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+  }
+  .screen[data-phone="new"] .grid {
+    box-shadow: none;
+  }
+  .screen[data-phone="new"] .grid > .panel + .panel {
+    box-shadow: inset 0 1px 0 var(--line);
+    padding-top: 24px;
+  }
+  .screen[data-phone="new"] .panel {
+    padding: 0 0 24px;
+  }
+  .screen[data-phone="new"] .head > :global(.ag-btn) {
+    width: 100%;
+    min-height: 44px;
+  }
+  .screen[data-phone="new"] .tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    box-shadow: inset 0 -1px 0 var(--line);
+  }
+  .screen[data-phone="new"] .tabs > button {
+    min-height: 44px;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 16px;
+    color: var(--ink-2);
+    cursor: pointer;
+    box-shadow: inset 0 -2px 0 transparent;
+  }
+  .screen[data-phone="new"] .tabs > button[aria-selected="true"] {
+    color: var(--ink);
+    font-weight: 500;
+    box-shadow: inset 0 -2px 0 var(--ink);
+  }
+  .screen[data-phone="new"] [data-tab][data-shown="false"] {
+    display: none;
+  }
+  .screen[data-phone="new"] [data-tab] > .h2 {
+    display: none;
+  }
+  .screen[data-phone="new"] .stack > :global(.ag-textbtn) {
+    justify-content: center;
+  }
+  .screen[data-phone="new"] .feedWhen a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .screen[data-phone="new"] .feedWhen {
+    align-items: center;
+  }
+}
+/* a touch tablet: the activity's Explorer links get the phone's 44 px too */
+@media (pointer: coarse) {
+  .screen[data-phone="new"] .feedWhen a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .screen[data-phone="new"] .feedWhen {
+    align-items: center;
+  }
+}

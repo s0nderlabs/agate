@@ -1,23 +1,40 @@
 "use client";
-// Sign in, test dollars, review, place, done: the sheets every Markets variant shares.
+// Sign in, test dollars, review, place, done: the sheets every Markets variant shares. Plus the account's own sheets
+// (the Account sheet, More's account head, an AI's pocket, disconnecting an AI, how to connect an AI), whose bodies
+// live in components/flow/. Sheets that run a step (setting up an account, placing, a pocket move, a disconnect)
+// cannot be closed until it finishes.
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { DRIP, useLinkQuery, useMock } from "@/lib/mock/store";
+import { DRIP, useAccount } from "@/lib/account";
+import { COPY } from "@/lib/account/errors";
+import { ticketOrder, ticketShown } from "@/lib/account/ticket";
+import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { finePointer, tapMode, useModalFocus } from "@/lib/ui/hooks";
 import { fmtHours } from "@/lib/size";
 import { int, usd, usd0 } from "@/lib/format";
+import { AccountHead, AccountSheet, AddressRow, AisRow, SECURED, SIGN_OUT_NOTE, useAiSummary } from "@/components/flow/AccountSheet";
+import { DisconnectSheet } from "@/components/flow/DisconnectSheet";
+import { dripOpen, useDrip } from "@/components/flow/DripButton";
+import { PocketSheet, type PocketTarget } from "@/components/flow/PocketSheet";
+import { SignInSheet, signInLocked, type SignInFrom } from "@/components/flow/SignInSheet";
+import { HowTo } from "@/components/ai/HowTo";
 import { monthName } from "./PriceChart";
 import type { TradeNumbers } from "./useTrade";
 
 type Sheet =
-  | { kind: "signin"; then?: TradeNumbers }
+  /** then: the trade to go on with; after: what a page goes on with (the Allow page, an approval) */
+  | { kind: "signin"; then?: TradeNumbers; from?: SignInFrom; ai?: string; after?: () => void }
   | { kind: "funds"; then: TradeNumbers }
   | { kind: "review"; n: TradeNumbers }
   | { kind: "placing"; n: TradeNumbers }
   | { kind: "done"; n: TradeNumbers }
   | { kind: "account" }
   | { kind: "info"; title: string; body: ReactNode; wide?: boolean }
-  | { kind: "more" };
+  | { kind: "more" }
+  /** onMoved: the page that opened it hears when the dollars moved (a stopped connect run, after a take back) */
+  | { kind: "pocket"; target: PocketTarget; mode: "add" | "takeBack"; onMoved?: (dollars: number) => void }
+  | { kind: "disconnect"; grantId: string }
+  | { kind: "howto" };
 
 interface FlowCtx {
   submit: (n: TradeNumbers) => void;
@@ -29,6 +46,14 @@ interface FlowCtx {
   openInfo: (title: string, body: ReactNode, opts?: { wide?: boolean }) => void;
   /** the phone tab bar's More: balance, Simple or Pro, light or dark */
   openMore: () => void;
+  /** sign in for a page (the Allow page, an approval): its heading, then `after` once signed in */
+  signInFor: (opts: { from: SignInFrom; ai?: string; after?: () => void }) => void;
+  /** add test dollars to an AI's pocket, or take back what is left in it; onMoved hears the dollars that moved */
+  openPocket: (target: PocketTarget, mode: "add" | "takeBack", onMoved?: (dollars: number) => void) => void;
+  /** disconnect a connected AI */
+  openDisconnect: (grantId: string) => void;
+  /** how to let an AI trade: add Agate's link to the AI app */
+  openHowTo: () => void;
 }
 const Ctx = createContext<FlowCtx | null>(null);
 export const useFlow = () => {
@@ -38,9 +63,21 @@ export const useFlow = () => {
 };
 
 export function TradeFlow({ children }: { children: React.ReactNode }) {
-  const { wallet, signIn, signOut, drip, open, config } = useMock();
+  const { config } = useMock();
+  const account = useAccount();
   const [sheet, setSheet] = useState<Sheet | null>(null);
-  const close = () => setSheet(null);
+  // a sheet that runs a step holds itself open (the pocket and disconnect sheets say so; sign-in from its machine)
+  const [held, setHeld] = useState(false);
+  const locked = held || sheet?.kind === "placing" || (sheet?.kind === "signin" && signInLocked(account.signIn));
+  const live = useRef({ locked, sheet, account });
+  live.current = { locked, sheet, account };
+  const close = useCallback(() => {
+    const { sheet: at, account: a } = live.current;
+    // a sign-in closed mid-way starts at the email step next time, the email kept
+    if (at?.kind === "signin" && !a.ready) a.cancelSignIn();
+    setHeld(false);
+    setSheet(null);
+  }, []);
   const sheetRef = useRef<HTMLDivElement>(null);
   const kind = sheet?.kind ?? null;
   // the open sheet takes focus and keeps Tab inside (a sheet over the phone ticket included); closing it gives
@@ -63,28 +100,44 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
   const submit = useCallback(
     (n: TradeNumbers) => {
       if (!(n.hours > 0)) return;
-      if (!wallet.signedIn) return setSheet({ kind: "signin", then: n });
-      if (wallet.balance < n.outlay) return setSheet({ kind: "funds", then: n });
+      if (!account.ready) return setSheet({ kind: "signin", then: n });
+      if (account.balance < n.outlay) return setSheet({ kind: "funds", then: n });
       setSheet({ kind: "review", n });
     },
-    [wallet.signedIn, wallet.balance],
+    [account.ready, account.balance],
   );
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSheet((s) => (s?.kind === "placing" ? s : null));
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && live.current.sheet && !live.current.locked && close();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [close]);
+
+  // signed in from the sheet: on with the trade (test dollars first if short), the page's own next step, or close
+  const signedIn = useCallback((at: Extract<Sheet, { kind: "signin" }>) => {
+    const a = live.current.account;
+    setHeld(false);
+    if (at.then) return setSheet(a.balance < at.then.outlay ? { kind: "funds", then: at.then } : { kind: "review", n: at.then });
+    setSheet(null);
+    at.after?.();
   }, []);
 
-  useEffect(() => {
-    if (sheet?.kind !== "placing") return;
-    const n = sheet.n;
-    const t = setTimeout(() => {
-      open({ gpu: n.series.gpu, month: n.series.month, side: n.side, q: n.hours, price: n.price, floor: n.series.floor, cap: n.series.cap, daily: n.daily });
-      setSheet({ kind: "done", n });
-    }, 1100);
-    return () => clearTimeout(t);
-  }, [sheet, open]);
+  // Confirm: plan the ticket's trade, send it, then Done (the pretend account records a practice trade in about a
+  // second). Run from the tap, not an effect, so a trade is sent once. A refusal goes back to Review for now; the
+  // full trade machine (moved, thin, funds, failed, pending) lands in build step 6.
+  const place = useCallback(
+    async (n: TradeNumbers) => {
+      setSheet({ kind: "placing", n });
+      try {
+        const plan = await account.plan(ticketOrder(n), ticketShown(n));
+        await account.send(plan);
+        setSheet({ kind: "done", n });
+      } catch {
+        setSheet({ kind: "review", n });
+      }
+    },
+    [account],
+  );
 
   return (
     <Ctx.Provider
@@ -95,42 +148,43 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
         sheetKind: sheet?.kind ?? null,
         openInfo: (title, body, opts) => setSheet({ kind: "info", title, body, wide: opts?.wide }),
         openMore: () => setSheet({ kind: "more" }),
+        signInFor: (opts) => setSheet({ kind: "signin", ...opts }),
+        openPocket: (target, mode, onMoved) => setSheet({ kind: "pocket", target, mode, onMoved }),
+        openDisconnect: (grantId) => setSheet({ kind: "disconnect", grantId }),
+        openHowTo: () => setSheet({ kind: "howto" }),
       }}
     >
       {children}
       {sheet && (
-        <div className={`ag-backdrop ${config.theme === "dark" ? "tone-dark" : "tone-light"}`} data-phone={config.phone} data-kind={sheet.kind} onClick={(e) => e.target === e.currentTarget && sheet.kind !== "placing" && close()}>
-          <div ref={sheetRef} className="ag-sheet" role="dialog" aria-modal="true" tabIndex={-1} data-wide={(sheet.kind === "info" && sheet.wide) || undefined}>
+        <div className={`ag-backdrop ${config.theme === "dark" ? "tone-dark" : "tone-light"}`} data-phone={config.phone} data-kind={sheet.kind} onClick={(e) => e.target === e.currentTarget && !locked && close()}>
+          <div ref={sheetRef} className="ag-sheet" role="dialog" aria-modal="true" tabIndex={-1} data-wide={(sheet.kind === "info" && sheet.wide) || sheet.kind === "howto" || undefined}>
             {sheet.kind === "info" && <Info title={sheet.title} body={sheet.body} onClose={close} />}
-            {sheet.kind === "more" && <More onSignIn={() => setSheet({ kind: "signin" })} onClose={close} />}
-            {sheet.kind === "signin" && <SignIn onDone={(email) => { signIn(email); setSheet(sheet.then ? { kind: "funds", then: sheet.then } : { kind: "account" }); }} onClose={close} />}
+            {sheet.kind === "more" && <More onSignIn={() => setSheet({ kind: "signin", from: "nav" })} onClose={close} />}
+            {sheet.kind === "signin" && <SignInSheet from={sheet.from ?? (sheet.then ? "trade" : "nav")} ai={sheet.ai} onFinished={() => signedIn(sheet)} onClose={close} />}
             {sheet.kind === "funds" && (
               <Funds
                 need={sheet.then.outlay}
-                balance={wallet.balance}
-                onDrip={() => {
-                  drip();
-                  setSheet(wallet.balance + DRIP >= sheet.then.outlay ? { kind: "review", n: sheet.then } : { kind: "funds", then: sheet.then });
-                }}
+                balance={account.balance}
+                nextDrip={dripOpen(account) ? null : account.nextDrip}
+                // only once the drip has landed (the balance before it plus what it paid)
+                onDripped={() => setSheet(account.balance + DRIP >= sheet.then.outlay ? { kind: "review", n: sheet.then } : { kind: "funds", then: sheet.then })}
                 onReview={() => setSheet({ kind: "review", n: sheet.then })}
                 onClose={close}
               />
             )}
-            {sheet.kind === "review" && <Review n={sheet.n} onConfirm={() => setSheet({ kind: "placing", n: sheet.n })} onBack={close} />}
+            {sheet.kind === "review" && <Review n={sheet.n} onConfirm={() => place(sheet.n)} onBack={close} />}
             {sheet.kind === "placing" && <Placing n={sheet.n} />}
             {sheet.kind === "done" && <Done n={sheet.n} onClose={close} />}
-            {sheet.kind === "account" && (
-              <Account
-                email={wallet.email}
-                balance={wallet.balance}
-                positions={wallet.positions.length}
-                onDrip={drip}
-                onSignOut={() => {
-                  signOut();
-                  close();
-                }}
-                onClose={close}
-              />
+            {sheet.kind === "account" && <AccountSheet onClose={close} />}
+            {sheet.kind === "pocket" && <PocketSheet target={sheet.target} mode={sheet.mode} onMoved={sheet.onMoved} onClose={close} onLock={setHeld} />}
+            {sheet.kind === "disconnect" && <DisconnectSheet grantId={sheet.grantId} onClose={close} onLock={setHeld} />}
+            {sheet.kind === "howto" && (
+              <>
+                <HowTo onGo={close} />
+                <button className="ag-btn ag-btn--quiet" type="button" onClick={close}>
+                  Close
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -139,46 +193,23 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SignIn({ onDone, onClose }: { onDone: (email: string) => void; onClose: () => void }) {
-  const [email, setEmail] = useState("");
-  // the field takes focus from TradeFlow (not on a touch screen), after the sheet has recorded who opened it
-  return (
-    <form
-      className="grid gap-[18px]"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onDone(email || "you@example.com");
-      }}
-    >
-      <h2>Sign in to trade</h2>
-      <p>Use your email. We set up your wallet and pay the network fees, so there is nothing to install.</p>
-      <input
-        id="email"
-        className="ag-input"
-        type="email"
-        placeholder="you@example.com"
-        aria-label="Email"
-        autoComplete="email"
-        inputMode="email"
-        enterKeyHint="go"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <button className="ag-btn ag-btn--primary ag-btn--lg" type="submit">
-        Continue with email
-      </button>
-      <button className="ag-btn ag-btn--ghost ag-btn--lg" type="button" onClick={() => onDone("you@gmail.com")}>
-        Continue with Google
-      </button>
-      <button className="ag-btn" type="button" style={{ background: "transparent", color: "var(--mute)" }} onClick={onClose}>
-        Not now
-      </button>
-    </form>
-  );
-}
-
-function Funds({ need, balance, onDrip, onReview, onClose }: { need: number; balance: number; onDrip: () => void; onReview: () => void; onClose: () => void }) {
+function Funds({ need, balance, nextDrip, onDripped, onReview, onClose }: { need: number; balance: number; nextDrip: string | null; onDripped: () => void; onReview: () => void; onClose: () => void }) {
   const enough = balance >= need;
+  const drip = useDrip();
+  // today's test dollars are taken: when the next ones arrive, and a way back to a smaller amount
+  if (!enough && nextDrip) {
+    return (
+      <>
+        <h2>Get test dollars</h2>
+        <p>
+          {COPY.dripArrive(nextDrip)} This trade needs {usd0(need)} and you have {usd0(balance)}.
+        </p>
+        <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={onClose}>
+          Change the amount
+        </button>
+      </>
+    );
+  }
   return (
     <>
       <h2>{enough ? "You're set" : "Get test dollars"}</h2>
@@ -191,9 +222,29 @@ function Funds({ need, balance, onDrip, onReview, onClose }: { need: number; bal
           Review trade
         </button>
       ) : (
-        <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={onDrip}>
-          Get {int(DRIP)} test dollars
-        </button>
+        <>
+          <button
+            className="ag-btn ag-btn--primary ag-btn--lg"
+            disabled={drip.busy}
+            onClick={async () => {
+              if (await drip.run()) onDripped();
+            }}
+          >
+            {drip.busy ? (
+              <>
+                <span className="ag-spinner" aria-hidden="true" />
+                Getting your test dollars
+              </>
+            ) : (
+              `Get ${int(DRIP)} test dollars`
+            )}
+          </button>
+          {drip.error && (
+            <p className="ag-err" aria-live="polite">
+              {drip.error}
+            </p>
+          )}
+        </>
       )}
       <button className="ag-btn" style={{ background: "transparent", color: "var(--mute)" }} onClick={onClose}>
         Not now
@@ -310,34 +361,6 @@ function Done({ n, onClose }: { n: TradeNumbers; onClose: () => void }) {
   );
 }
 
-function Account({ email, balance, positions, onDrip, onSignOut, onClose }: { email: string | null; balance: number; positions: number; onDrip: () => void; onSignOut: () => void; onClose: () => void }) {
-  return (
-    <>
-      <h2>{usd0(balance)}</h2>
-      <p>Test dollars, signed in as {email}.</p>
-      <div className="ag-rows">
-        <div>
-          <span>Open positions</span>
-          <span>{positions}</span>
-        </div>
-        <div>
-          <span>Free test dollars</span>
-          <span>{int(DRIP)} a day</span>
-        </div>
-      </div>
-      <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={onDrip}>
-        Get {int(DRIP)} test dollars
-      </button>
-      <button className="ag-btn ag-btn--ghost" onClick={onSignOut}>
-        Sign out
-      </button>
-      <button className="ag-btn" style={{ background: "transparent", color: "var(--mute)" }} onClick={onClose}>
-        Close
-      </button>
-    </>
-  );
-}
-
 /** A note or the sources, as a sheet: the same words the hover note holds on desktop, readable on a phone. */
 function Info({ title, body, onClose }: { title: string; body: ReactNode; onClose: () => void }) {
   return (
@@ -354,17 +377,13 @@ function Info({ title, body, onClose }: { title: string; body: ReactNode; onClos
 /** The phone tab bar's More: the balance (or what Agate is), then Simple or Pro and light or dark, which leave the
  * top bar on phones. No Docs row until docs exist. */
 function More({ onSignIn, onClose }: { onSignIn: () => void; onClose: () => void }) {
-  const { wallet, config, setConfig, drip, signOut } = useMock();
+  const { config, setConfig } = useMock();
+  const account = useAccount();
+  const ai = useAiSummary();
   return (
     <>
-      {wallet.signedIn ? (
-        <>
-          <h2>{usd0(wallet.balance)}</h2>
-          <p>Test dollars, signed in as {wallet.email}.</p>
-          <button className="ag-btn ag-btn--primary ag-btn--lg" onClick={drip}>
-            Get {int(DRIP)} test dollars
-          </button>
-        </>
+      {account.ready ? (
+        <AccountHead />
       ) : (
         <>
           <h2>Agate</h2>
@@ -374,7 +393,13 @@ function More({ onSignIn, onClose }: { onSignIn: () => void; onClose: () => void
           </button>
         </>
       )}
-      <div className="ag-rows">
+      <div className="ag-rows" data-tall={account.ready || undefined}>
+        {account.ready && (
+          <>
+            <AddressRow />
+            <AisRow onGo={onClose} />
+          </>
+        )}
         <div>
           <span>Trading view</span>
           <div className="ag-seg" role="group" aria-label="Trading view">
@@ -398,16 +423,20 @@ function More({ onSignIn, onClose }: { onSignIn: () => void; onClose: () => void
           </div>
         </div>
       </div>
-      {wallet.signedIn && (
-        <button
-          className="ag-btn ag-btn--ghost"
-          onClick={() => {
-            signOut();
-            onClose();
-          }}
-        >
-          Sign out
-        </button>
+      {account.ready && (
+        <>
+          <p className="ag-fine">{SECURED}</p>
+          {ai.active > 0 && <p className="ag-fine">{SIGN_OUT_NOTE}</p>}
+          <button
+            className="ag-btn ag-btn--ghost"
+            onClick={() => {
+              void account.signOut();
+              onClose();
+            }}
+          >
+            Sign out
+          </button>
+        </>
       )}
       <button className="ag-btn" style={{ background: "transparent", color: "var(--mute)" }} onClick={onClose}>
         Close

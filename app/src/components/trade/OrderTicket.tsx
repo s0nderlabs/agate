@@ -12,6 +12,7 @@ import { Num } from "@/components/num/Num";
 import { useBook } from "@/lib/data/hooks";
 import { topOf } from "@/lib/data/derive";
 import { emptySideText } from "./States";
+import { useAccount } from "@/lib/account";
 import { useMock } from "@/lib/mock/store";
 import { cleanTyping, dollarsToHours, floorCents, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, LIMIT_MAX, LIMIT_MIN, maxFor, parseAmount, walkDollars, walkHours } from "@/lib/size";
 import { SideToggle } from "./SideToggle";
@@ -36,7 +37,9 @@ export interface OpenOrder {
  * is on its way (prices under skeletons, the button waits). stale: no fresh prices for two minutes (the button waits). */
 export function OrderTicket({ market, trade, picked, held, onPlace, loading: marketLoading = false, stale = "none" }: { market: Market; trade: Trade; picked: { price: number; n: number } | null; held: number; onPlace: (o: OpenOrder) => void; loading?: boolean; stale?: "none" | "stale" | "nodata" }) {
   const { submit, openSignIn } = useFlow();
-  const { wallet, config } = useMock();
+  const { config } = useMock();
+  const account = useAccount();
+  const signedIn = account.ready;
   // live prices on a practice wallet: a resting order is saved in this browser only, and says so
   const practice = config.source === "live";
   const series = trade.n.series;
@@ -100,13 +103,13 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
   // more than the book holds right now: say so, never fill less without asking (agate's ThinBook rule)
   const thin = !loading && !none && !!walk && (unit === "usd" ? typed - walk.outlay > 0.01 : walk.short);
   const depth = levels.reduce((a, l) => a + l.size, 0);
-  const balance = wallet.signedIn ? Math.max(0, wallet.balance - held) : 0;
+  const balance = signedIn ? Math.max(0, account.balance - held) : 0;
   const max = crosses ? maxFor(levels, trade.side, balance, series.cap) : { hours: restPer > 0 ? Math.min(LIMIT_MAX, floorHours(balance / restPer)) : 0, dollars: balance, bookBound: false };
   const maxSize = max.hours;
   // Kuru takes resting limits of 1 to 1,000,000 GPU-hours
   const belowLimitMin = type === "limit" && !crosses && size > 0 && size < LIMIT_MIN;
   const aboveLimitMax = type === "limit" && !crosses && size > LIMIT_MAX;
-  const over = wallet.signedIn && size > 0 && (L ? fillPrice : series.cap - fillPrice) * size > balance + 0.005;
+  const over = signedIn && size > 0 && (L ? fillPrice : series.cap - fillPrice) * size > balance + 0.005;
   const pct = maxSize > 0 ? Math.min(100, Math.round((size / maxSize) * 100)) : 0;
   // the slider and the % box set the size as a share of what the balance (and the book) allow
   const setShare = (p: number) => {
@@ -131,13 +134,13 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
     };
   }, [series, trade.side, daily, size, fillPrice, L]);
 
-  const position = wallet.positions.filter((p) => p.gpu === market.gpu && p.month === series.month).reduce((a, p) => a + (p.side === "long" ? p.q : -p.q), 0);
+  const position = account.positions.filter((p) => p.gpu === market.gpu && p.month === series.month).reduce((a, p) => a + (p.side === "long" ? p.q : -p.q), 0);
   const gpusAllMonth = size / (24 * series.n);
   const m = monthName(series.month);
   const worst = L ? series.floor : series.cap;
   const best = L ? series.cap : series.floor;
 
-  const gated = !wallet.signedIn;
+  const gated = !signedIn;
   // the button waits while prices load, and once they are two minutes old (it says which)
   const wait = marketLoading || (bq.loading && !bq.error) ? "Loading prices" : stale === "stale" ? "Waiting for fresh prices" : stale === "nodata" || bq.loading ? "Waiting for prices" : null;
   const inputs = `${trade.side}|${type}|${limitStr}|${sizeStr}`;
@@ -148,7 +151,7 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
     if (gated && !crosses) return openSignIn();
     // an order that fills now goes through the review sheets, unless open orders hold the dollars it needs
     if (crosses && !(over && held > 0)) return submit(n);
-    if (!wallet.signedIn) return openSignIn();
+    if (!signedIn) return openSignIn();
     if (n.outlay > balance + 0.005) return setPlaced(`Not enough test dollars: this order needs ${usd0(n.outlay)} and ${usd0(balance)} is free${held > 0 ? ` (${usd0(held)} is held by your open orders)` : ""}.`);
     onPlace({ id: Math.random().toString(36).slice(2, 10), gpu: market.gpu, month: series.month, side: trade.side, price, q: size, hold: n.outlay, daily: false, placedAt: new Date().toISOString() });
     setPlaced(practice ? "Practice order: it waits here until you cancel it or reload the page." :`${L ? "Long" : "Short"} ${fmtHours(size)} GPU-hours at ${usd(price)} is waiting in the book.`);
@@ -172,7 +175,7 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
       <dl className={s.facts}>
         <div>
           <dt>Available to trade</dt>
-          <dd>{wallet.signedIn ? <><Num>{int(balance)}</Num> test dollars</> : "Sign in to see"}</dd>
+          <dd>{signedIn ? <><Num>{int(balance)}</Num> test dollars</> : "Sign in to see"}</dd>
         </div>
         <div>
           <dt>Current position</dt>

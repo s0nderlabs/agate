@@ -6,10 +6,12 @@ import { useMemo, useState } from "react";
 import { Lockup, Stone } from "@/components/brand/Logo";
 import { Num } from "@/components/num/Num";
 import { useFlow } from "@/components/markets/Flow";
+import { useDrip } from "@/components/flow/DripButton";
 import { GPUS } from "@/lib/mock/data";
 import { useMarkets } from "@/lib/data/hooks";
 import { dateText, monthLong } from "@/lib/data/derive";
-import { DRIP, useLinkQuery, useMock } from "@/lib/mock/store";
+import { DRIP, useAccount } from "@/lib/account";
+import { useLinkQuery, useMock } from "@/lib/mock/store";
 import type { Gpu } from "@/lib/mock/types";
 import { int, usd } from "@/lib/format";
 import s from "./shell.module.css";
@@ -17,8 +19,11 @@ import s from "./shell.module.css";
 /** status: a line from the live data (a stale price, a pause) shown instead of the testnet copy, on every width
  * and signed in too, with no dismiss. */
 export function Notice({ status }: { status?: string | null } = {}) {
-  const { wallet, drip, config } = useMock();
+  const { config } = useMock();
+  const account = useAccount();
+  const signedIn = account.ready;
   const { openSignIn } = useFlow();
+  const drip = useDrip();
   const [open, setOpen] = useState(true);
   if (status)
     return (
@@ -28,9 +33,9 @@ export function Notice({ status }: { status?: string | null } = {}) {
     );
   if (!open) return null;
   return (
-    <div className={s.notice} data-signed={wallet.signedIn || undefined}>
+    <div className={s.notice} data-signed={signedIn || undefined}>
       {/* phones, new layout: one short line that opens sign-in (signed in, the balance is in the top bar instead) */}
-      {config.phone === "new" && !wallet.signedIn && (
+      {config.phone === "new" && !signedIn && (
         <button className={s.noticeShort} onClick={openSignIn} aria-label={`Sign in to get ${int(DRIP)} free test dollars a day`}>
           <span>Get {int(DRIP)} free test dollars a day</span>
           <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
@@ -38,9 +43,11 @@ export function Notice({ status }: { status?: string | null } = {}) {
           </svg>
         </button>
       )}
-      <span className={s.noticeLong}>Agate runs on Monad's test network. Trades use test dollars, {int(DRIP)} free a day.</span>
-      <button className={s.noticeBtn} onClick={wallet.signedIn ? drip : openSignIn}>
-        {wallet.signedIn ? "Get test dollars" : "Sign in to start"}
+      <span className={s.noticeLong} aria-live="polite">
+        {signedIn && drip.error ? drip.error : `Agate runs on Monad's test network. Trades use test dollars, ${int(DRIP)} free a day.`}
+      </span>
+      <button className={s.noticeBtn} disabled={signedIn && drip.busy} onClick={signedIn ? () => void drip.run() : openSignIn}>
+        {signedIn ? (drip.busy ? "Getting test dollars" : "Get test dollars") : "Sign in to start"}
       </button>
       <button className={s.noticeX} aria-label="Dismiss" onClick={() => setOpen(false)}>
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
@@ -134,11 +141,13 @@ function ThemeToggle() {
   );
 }
 
-export function NavBar({ active = "markets" }: { active?: "markets" | "positions" | "index" | "docs" }) {
-  const { wallet, config, setConfig } = useMock();
+/** active: the place on screen; null on pages outside the four (Connected AIs, the Allow page, an approval) */
+export function NavBar({ active = "markets" }: { active?: "markets" | "positions" | "index" | "docs" | null }) {
+  const { config, setConfig } = useMock();
+  const account = useAccount();
   const linkQuery = useLinkQuery();
   const { openAccount, openSignIn, openMore } = useFlow();
-  const links: [typeof active, string][] = [
+  const links: [NonNullable<typeof active>, string][] = [
     ["markets", "Markets"],
     ["positions", "Positions"],
     ["index", "Index"],
@@ -179,10 +188,19 @@ export function NavBar({ active = "markets" }: { active?: "markets" | "positions
           </button>
         </div>
         <ThemeToggle />
-        {wallet.signedIn ? (
-          <button className={s.acct} onClick={openAccount}>
+        {account.status === "restoring" ? (
+          // a session is being restored: the account button's shape, never a "Sign in" flash
+          <span className={s.acct} aria-busy="true" aria-label="Loading your account">
+            <span className={`${s.acctBal} ag-skel ag-skel-on`} aria-hidden="true">
+              10,000 test dollars
+            </span>
+            <span className={`${s.avatar} ag-skel ag-skel-on`} aria-hidden="true" />
+          </span>
+        ) : account.ready ? (
+          // phones (new layout): the More sheet carries the account; from 640 px the Account sheet
+          <button className={s.acct} onClick={() => (config.phone === "new" && window.matchMedia("(max-width: 639.98px)").matches ? openMore() : openAccount())}>
             <span className={s.acctBal}>
-              <Num>{int(wallet.balance)}</Num> test dollars
+              <Num>{int(account.balance)}</Num> test dollars
             </span>
             <span className={s.avatar}>
               <Stone size={16} />

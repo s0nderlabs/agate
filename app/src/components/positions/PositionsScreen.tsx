@@ -8,16 +8,20 @@ import { useFlow } from "@/components/markets/Flow";
 import { NavBar, Notice } from "@/components/shell/Shell";
 import { BottomDock } from "@/components/shell/Dock";
 import { PositionCards } from "@/components/trade/ProParts";
+import { DripButton } from "@/components/flow/DripButton";
+import { YourAis } from "@/components/ai/YourAis";
 import { groundFor } from "@/lib/mock/config";
 import { useDataStatus, useLastFor, useMarkets } from "@/lib/data/hooks";
 import { statusLine } from "@/lib/data/derive";
-import { DRIP, useLinkQuery, useMock } from "@/lib/mock/store";
+import { DRIP, useAccount } from "@/lib/account";
+import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { useThemeColor } from "@/lib/ui/hooks";
 import { int, usd0 } from "@/lib/format";
 import s from "./positions.module.css";
 
 export function PositionsScreen() {
-  const { config, wallet, drip } = useMock();
+  const { config } = useMock();
+  const account = useAccount();
   const { openSignIn } = useFlow();
   const linkQuery = useLinkQuery();
   const dark = config.theme === "dark";
@@ -35,15 +39,13 @@ export function PositionsScreen() {
       <Notice status={statusLine(st, !!markets)} />
       <NavBar active="positions" />
       <main className={s.main}>
-        {wallet.signedIn ? (
+        {account.ready ? (
           <header className={s.head}>
             <span className={s.label}>Test dollars</span>
-            <span className={`${s.balance} font-display`}>{usd0(wallet.balance)}</span>
+            <span className={`${s.balance} font-display`}>{usd0(account.balance)}</span>
             <div className={s.actions}>
-              <button className="ag-btn ag-btn--primary" onClick={drip}>
-                Get {int(DRIP)} test dollars
-              </button>
-              <Link className="ag-btn ag-btn--ghost" href={`/${linkQuery}`}>
+              <DripButton lg={false} />
+              <Link className="ag-btn ag-btn--ghost" href={`/${linkQuery}`} style={{ alignSelf: "start" }}>
                 Trade
               </Link>
             </div>
@@ -59,11 +61,11 @@ export function PositionsScreen() {
             </div>
           </header>
         )}
-        {wallet.signedIn && (
+        {account.ready && (
           <section className={s.section} aria-labelledby="positions-h">
             <h2 id="positions-h">Positions</h2>
-            {wallet.positions.length ? (
-              <PositionCards positions={wallet.positions} lastFor={lastFor} />
+            {account.positions.length ? (
+              <PositionCards positions={account.positions} lastFor={lastFor} />
             ) : (
               <div className={s.empty}>
                 <p>No positions yet. When you go Long or Short, it shows up here with what it's worth and what's been paid.</p>
@@ -72,6 +74,7 @@ export function PositionsScreen() {
             )}
           </section>
         )}
+        {account.ready && <YourAis className={s.section} />}
       </main>
       {config.phone === "new" && <BottomDock active="positions" />}
     </div>

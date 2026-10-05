@@ -1,9 +1,11 @@
 "use client";
 // The mock world: the mock-controls state (mirrored in the URL so every state is a link) and a
-// pretend wallet kept in localStorage. Swapping to live data replaces this provider, not the screens.
+// pretend wallet kept in localStorage. Screens never read the wallet here: they read useAccount() (lib/account), whose
+// pretend account (pretend.tsx) wraps this one.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { OpenOrder } from "@/components/trade/OrderTicket";
-import { configQuery, DEFAULT_CONFIG, type MockConfig } from "./config";
+import { DRIP } from "@/lib/account/types";
+import { configQuery, DEFAULT_CONFIG, isCheckTab, type MockConfig } from "./config";
 import type { Gpu, Position, Side, Wallet } from "./types";
 
 export type { MockConfig } from "./config";
@@ -11,13 +13,13 @@ export type { MockConfig } from "./config";
 // render checks open the app with ?agentcheck=1; they get their own wallets so they never touch a person's own. Practice trades
 // at live prices keep a wallet of their own, so example trades and live-price trades never mix.
 function walletKey(source: MockConfig["source"]) {
-  const check = typeof window !== "undefined" && window.location.search.includes("agentcheck");
+  const check = isCheckTab();
   if (source === "live") return check ? "agate-practice-wallet-live-check" : "agate-practice-wallet-live-v1";
   return check ? "agate-mock-wallet-check" : "agate-mock-wallet-v1";
 }
 // the practice wallet in the client's Wallet shape, the chain-only fields empty until sign-in brings an address
 const EMPTY_WALLET: Wallet = { signedIn: false, email: null, balance: 0, lastDrip: null, positions: [], address: "", nextDrip: null, canDrip: true, marginBalance: 0, mon: 0 };
-export const DRIP = 10_000;
+export { DRIP };
 
 export interface OpenArgs {
   gpu: Gpu;
@@ -38,7 +40,13 @@ interface Ctx {
   signOut: () => void;
   drip: () => void;
   open: (a: OpenArgs) => Position;
+  /** moves test dollars in or out of the pretend account (a pocket funded from it, or taken back into it) */
+  shift: (dollars: number) => void;
+  /** the data source whose wallet is loaded in state (null between a source switch and its load) */
+  loadedFor: MockConfig["source"] | null;
   reset: () => void;
+  /** how many times Reset was pressed on this page: what lives outside the wallet (pretend timers, the AI world) follows it */
+  resets: number;
 }
 
 const MockCtx = createContext<Ctx | null>(null);
@@ -132,12 +140,20 @@ export function MockProvider({ initial, children }: { initial: MockConfig; child
     return pos;
   }, []);
 
+  const shift = useCallback((dollars: number) => setWallet((w) => ({ ...w, balance: Math.max(0, Math.round((w.balance + dollars) * 100) / 100) })), []);
+
+  const [resets, setResets] = useState(0);
   const reset = useCallback(() => {
     setWallet(EMPTY_WALLET);
     setConfig({ auth: "out" });
+    setResets((n) => n + 1);
   }, [setConfig]);
 
-  const value = useMemo(() => ({ config, setConfig, wallet, signIn, signOut, drip, open, reset }), [config, setConfig, wallet, signIn, signOut, drip, open, reset]);
+  const loadedFor = loadedKey === key ? config.source : null;
+  const value = useMemo(
+    () => ({ config, setConfig, wallet, signIn, signOut, drip, open, shift, loadedFor, reset, resets }),
+    [config, setConfig, wallet, signIn, signOut, drip, open, shift, loadedFor, reset, resets],
+  );
   return <MockCtx.Provider value={value}>{children}</MockCtx.Provider>;
 }
 
@@ -185,7 +201,7 @@ export function useLinkQuery() {
   const { config } = useMock();
   const [check, setCheck] = useState(false);
   useEffect(() => {
-    setCheck(window.location.search.includes("agentcheck"));
+    setCheck(isCheckTab());
   }, []);
   return configQuery(config, check);
 }
