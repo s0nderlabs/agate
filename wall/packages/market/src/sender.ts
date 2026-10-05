@@ -15,6 +15,7 @@
 import { type Abi, type Address, BaseError, decodeErrorResult, decodeFunctionResult, encodeFunctionData, type Hex, keccak256, type Log, type PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { alertId, readKey, RpcDown, type RpcPool, type SendLock, type SendPath, type AlertSink } from "@agate/watcher";
+import type { TxSigner } from "./dynamic-signer.ts";
 import { capFor, type LimitTable } from "./limits.ts";
 import { kuruMarginAccountAbi, kuruOrderBookAbi } from "./kuru-abi.ts";
 import type { Sender, SendResult, SendSpec, SimResult } from "./types.ts";
@@ -55,6 +56,8 @@ export interface MarketSenderOptions {
   role: string;
   /** the variable holding the signing key (holdKey moved it into memory); absent only in a dry run */
   keyEnv?: string;
+  /** instead of a key: a signer that only signs (a Dynamic server wallet); this sender still sends */
+  signer?: TxSigner;
   /** the sender's address when there is no key (a dry run) */
   from?: Address;
   dryRun?: boolean;
@@ -146,7 +149,11 @@ export class MarketSender implements PlanningSender {
   readonly sent: SentRecord[] = [];
 
   constructor(readonly o: MarketSenderOptions) {
-    if (o.keyEnv) {
+    if (o.signer && o.keyEnv) throw new KeyMissing("a signer or a key, not both");
+    if (o.signer) {
+      this.from = o.signer.address;
+      if (o.from && o.from.toLowerCase() !== this.from.toLowerCase()) throw new KeyMissing("the signer is not the configured address");
+    } else if (o.keyEnv) {
       this.from = privateKeyToAccount(readKey(o.keyEnv)).address;
       if (o.from && o.from.toLowerCase() !== this.from.toLowerCase()) throw new KeyMissing(`${o.keyEnv} is not the key of the configured address`);
     } else if (o.dryRun && o.from) {
@@ -286,6 +293,18 @@ export class MarketSender implements PlanningSender {
   }
 
   private async sign(s: SendSpec, tx: { nonce: number; gas: bigint; maxFeePerGas: bigint; maxPriorityFeePerGas: bigint; data: Hex }): Promise<Hex> {
+    if (this.o.signer) {
+      const id = alertId({ code: "SIGNER_DOWN", key: this.o.role });
+      try {
+        const raw = await this.o.signer.signTransaction({ chainId: this.o.pool.chainId, type: "eip1559", to: s.to, value: 0n, ...tx });
+        this.o.alerts?.clearWhere((a) => a.id === id);
+        return raw;
+      } catch (e) {
+        // nothing is sent and the nonce stays free; the next tick tries again
+        this.o.alerts?.raise({ code: "SIGNER_DOWN", severity: "action", key: this.o.role, message: `${this.o.role}: the signer did not sign ${s.shape} nonce ${tx.nonce}: ${shortErr(e)}` });
+        throw e;
+      }
+    }
     if (!this.o.keyEnv) throw new KeyMissing("no signing key");
     const account = privateKeyToAccount(readKey(this.o.keyEnv));
     if (account.address.toLowerCase() !== this.from.toLowerCase()) throw new KeyMissing(`${this.o.keyEnv} changed while running`);

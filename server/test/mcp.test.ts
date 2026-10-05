@@ -152,6 +152,16 @@ describe("trades", () => {
     expect(sent).toBe(1);
   });
 
+  test("a paymaster refusal comes back as sponsor_limit, never as a raw RPC error", async () => {
+    const store = new Store(":memory:");
+    const g = grantRow();
+    store.putGrant(g);
+    const c = await connect(store, g, dripMarket, async () => {
+      throw new Error("UserOperation reverted: pm_sponsorUserOperation: gas policy request limit exceeded");
+    });
+    expect(json(await c.callTool({ name: "get_test_dollars", arguments: {} }))).toMatchObject({ status: "refused", rule: "sponsor_limit" });
+  });
+
   test("bad input is rejected by the schema", async () => {
     const store = new Store(":memory:");
     const c = await connect(store, grantRow());

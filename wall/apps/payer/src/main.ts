@@ -15,7 +15,7 @@ import { loadConfig } from "./config.ts";
 import { bootstrap, sessionFromEnv } from "@agate/market";
 
 const ROLE = "payer";
-const CODES = /^(PAYER_|LISTER_|GAS_CAP|NONCE_STUCK|RPC_)/;
+const CODES = /^(PAYER_|LISTER_|GAS_CAP|NONCE_STUCK|RPC_|SIGNER_)/;
 const now = () => Math.floor(Date.now() / 1000);
 const say = (event: string, data: Record<string, unknown> = {}) => console.log(jsonLine({ t: now(), role: ROLE, event, ...data }));
 
@@ -55,7 +55,7 @@ async function main(): Promise<number> {
   }
   if (flags.includes("--dry")) process.env.AGATE_DRY_RUN = "1";
   const config = loadConfig();
-  const rt = await bootstrap({ role: ROLE, keyVar: "AGATE_PAYER_KEY", addressVar: "AGATE_PAYER_ADDRESS", now, marginAccount: "optional" });
+  const rt = await bootstrap({ role: ROLE, keyVar: "AGATE_PAYER_KEY", addressVar: "AGATE_PAYER_ADDRESS", signerVar: "AGATE_PAYER_SIGNER", now, marginAccount: "optional" });
   let stopping = false;
   const waker = new Waker();
   const stop = () => {

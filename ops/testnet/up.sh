@@ -183,7 +183,13 @@ win_env() {
       rpc_env_of "$n"
       echo "AGATE_DEPLOYMENTS=$KIT_DEPLOYMENTS"
       echo "AGATE_MARKET_GAS_LIMITS=$MARKET_GAS_JSON"
-      if [ "$n" = shared-maker ]; then echo "AGATE_KEY_CMD=$(role_key_cmd bot)"; else echo "AGATE_KEY_CMD=$(role_key_cmd payer)"; fi
+      if [ "$n" = shared-maker ]; then
+        echo "AGATE_KEY_CMD=$(role_key_cmd bot)"
+      elif [ "${AGATE_PAYER_SIGNER:-}" = dynamic ]; then
+        payer_dynamic_env
+      else
+        echo "AGATE_KEY_CMD=$(role_key_cmd payer)"
+      fi
       ;;
     shared-indexer)
       echo "AGATE_RPC_URLS_CMD=$(rpc_cmd_of "$n")"
@@ -294,9 +300,20 @@ if [ "$STACK" = production ] && [ -n "$PROD_FD" ] && [ "$(date +%s)" -lt $((PROD
   note "firstDay $(day_date "$PROD_FD") begins $(utc_date $((PROD_FD * 86400))): prod-primary and prod-standby start at $(utc_date $((PROD_FD * 86400 - 600))), prod-health a minute later"
 fi
 
+# the payer on its Dynamic server wallet: the real testnet stack only (a fork or a rehearsal must never sign with the
+# real wallet), and its wallet file must exist, owner-only (attributes only: nothing is read here)
+if [ "${AGATE_PAYER_SIGNER:-}" = dynamic ]; then
+  [ "$KIT_FORK" = 0 ] && [ "$KIT_REHEARSAL" = 0 ] || die "AGATE_PAYER_SIGNER=dynamic is for the real testnet stack only (not --fork or a rehearsal): unset it; nothing opened"
+  [ -f "$(payer_wallet_file)" ] || die "no Dynamic wallet file $(payer_wallet_file) (server/scripts/payer-wallet.ts export): nothing opened"
+  [ "$(stat -f %Lp "$(payer_wallet_file)")" = 600 ] || die "$(payer_wallet_file) must be mode 600: nothing opened"
+fi
+
 # every Keychain item the windows' key commands will read exists (attributes only: no secret is read here)
 if [ "$KIT_FORK" = 0 ] && [ "$KIT_DRY" = 0 ]; then
-  for r in primary standby attester keeper bot payer; do
+  roles="primary standby attester keeper bot payer"
+  # the payer on its Dynamic server wallet has no Keychain key (its wallet file is checked above)
+  [ "${AGATE_PAYER_SIGNER:-}" = dynamic ] && roles="primary standby attester keeper bot"
+  for r in $roles; do
     keychain_has "$(role_svc "$r")" || die "no Keychain item $(role_svc "$r") (account private-key): nothing opened"
   done
   # light or all: the Alchemy key's item (its attributes; the key itself is read by each command at its start)

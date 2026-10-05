@@ -4,3 +4,4 @@ export * from "./chain.ts";
 export * from "./kernel.ts";
 export * from "./pocket.ts";
 export * from "./allowed.ts";
+export * from "./sponsor.ts";

@@ -32,7 +32,7 @@ it falls (a provider's hedge). Test dollars on Monad testnet.
 - A trade above the per-trade cap returns `needs_approval` with a link. Give the user the link, then poll
   `approval_status`. The user approves in the agate app and it runs from their main account (closing a Short runs from your pocket,
   signed by their main wallet).
-- Refusals name the rule: `over_per_trade_cap`, `budget_left`, `daily_limit`, `bad_amount`, `grant_expired`, `grant_revoked`,
+- Refusals name the rule: `over_per_trade_cap`, `budget_left`, `daily_limit`, `bad_amount`, `sponsor_limit` (free network fees paused; nothing sent), `grant_expired`, `grant_revoked`,
   `price_moved` (a fresh quote is attached), `thin_book`, `above_band`, `below_band`. Explain the rule to the user;
   do not retry blindly.
 

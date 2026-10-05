@@ -10,6 +10,7 @@ export * from "./math.ts";
 export * from "./limits.ts";
 export * from "./deployments.ts";
 export * from "./sender.ts";
+export * from "./dynamic-signer.ts";
 export * from "./reads.ts";
 export * from "./scanner.ts";
 export * from "./budget.ts";

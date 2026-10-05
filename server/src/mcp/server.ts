@@ -27,6 +27,7 @@ import {
   type Plan,
   type TradeSummary,
 } from "@agate/client";
+import { isSponsorRefusal, SPONSOR_REFUSAL_TEXT } from "@agate/wallet";
 import { describePocket } from "@agate/wallet/allowed";
 import { grantView } from "../app.ts";
 import { dailyLimitRefusal, limitsOf, pocketTrade } from "../grants.ts";
@@ -99,6 +100,7 @@ export function buildMcpServer(deps: McpDeps, grant: GrantRow): McpServer {
       if (e instanceof WriteError) return refusal(RULES[e.reason ?? ""] ?? (e.reason ? e.reason.toLowerCase() : "refused"), e.message, e.quote ? { quote: e.quote } : {});
       if ((e as Error)?.name === "WriteError") return refusal(String((e as WriteError).reason ?? "refused"), (e as Error).message);
       if ((e as Error)?.name === "AmountError") return refusal("bad_amount", (e as Error).message);
+      if (isSponsorRefusal(e)) return refusal("sponsor_limit", SPONSOR_REFUSAL_TEXT);
       return failed((e as Error)?.message ?? String(e));
     }
   };

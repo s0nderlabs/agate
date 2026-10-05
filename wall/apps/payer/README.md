@@ -63,6 +63,20 @@ exec-time environment, which `ps -wwE` shows: audit M-K1; tests pass a throwaway
 `AGATE_PAYER_ADDRESS`. A dry run never ticks the MON budget: no `budget-<day>.json` (which a real start the same UTC
 day would reload, frozen from the dry run's balance) and no `PAYER_KEY_LOW`.
 
+Signing with a Dynamic server wallet instead of a key (Oct 5): `AGATE_PAYER_SIGNER=dynamic` with
+`AGATE_PAYER_ADDRESS` (the wallet's address), `AGATE_DYNAMIC_TOKEN_CMD` (prints the Dynamic API token; run by the
+process itself and deleted from its environment, like `AGATE_KEY_CMD`) and `AGATE_DYNAMIC_WALLET_FILE` (default
+`~/.agate-dynamic/payer-wallet.json`, mode 600, written by `server/scripts/payer-wallet.ts export`). No key at all;
+`AGATE_KEY_CMD` and `AGATE_PAYER_KEY` are refused alongside it. Only signing changes
+(`packages/market/src/dynamic-signer.ts`): each signature runs in a short Node worker (`server/scripts/sw-node.mjs`,
+the token and our key shares on its stdin only), times out after 15 s (measured 4.9 to 6.5 s), and is checked to be
+the asked transaction signed by that address. The nonce, gas, fees, send route, meter, rebroadcast and the MON budget
+are the sender's as before. A failed signature sends nothing and keeps the nonce; it raises `SIGNER_DOWN` (action),
+cleared by the next signature. A dry run never reads the token or the wallet file. In the kit, `up.sh` run with
+`AGATE_PAYER_SIGNER=dynamic` in its shell gives `shared-payer` this environment instead of `AGATE_KEY_CMD`. The switch
+on the running payer is the owner's call: fund the new address with MON, restart the window, and expect the UTC
+day's budget to be frozen from the old key's balance until the next day.
+
 Config (`AGATE_PAYER_CONFIG`, every field optional, an unknown field refused):
 
 ```json

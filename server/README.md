@@ -6,7 +6,7 @@ signs as the AI's Assistant. The browser half (sign-in, wallets, the pocket perm
 (`../wallet`). The app's contract is [API.md](API.md).
 
 Run: `scripts/run.sh` (or `scripts/restart.sh` into tmux). Secrets live in `~/.agate-dynamic/` (mode 700), never in
-the repo. Tests: `bun test` (41). The environment itself is code: [`../ops/dynamic`](../ops/dynamic/README.md).
+the repo. Tests: `bun test` (42). The environment itself is code: [`../ops/dynamic`](../ops/dynamic/README.md).
 
 ## Code usage per Dynamic primitive
 

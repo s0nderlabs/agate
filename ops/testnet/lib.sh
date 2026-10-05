@@ -259,12 +259,32 @@ role_addr_rehearsal() {
 
 is_process_role() { case "$1" in primary | standby | attester | keeper | bot | payer) return 0 ;; *) return 1 ;; esac; }
 
-# The address a role has in this run.
+# The address a role has in this run (the payer on its Dynamic server wallet: that wallet's, so fund.sh tops it up).
 role_addr() {
-  if [ "$KIT_REHEARSAL" = 1 ] && is_process_role "$1"; then role_addr_rehearsal "$1"; else role_addr_real "$1"; fi
+  if [ "$KIT_REHEARSAL" = 1 ] && is_process_role "$1"; then
+    role_addr_rehearsal "$1"
+  elif [ "$1" = payer ] && [ "${AGATE_PAYER_SIGNER:-}" = dynamic ]; then
+    payer_dynamic_addr
+  else
+    role_addr_real "$1"
+  fi
 }
 
 # The command a process runs at start to print its key (never run by these scripts).
+# The payer on its Dynamic server wallet (AGATE_PAYER_SIGNER=dynamic in the shell that runs up.sh; Oct 5): no key
+# command at all. The wallet file is written by server/scripts/payer-wallet.ts export (mode 600); the token command
+# prints the Dynamic API token and is run by the payer process itself (never exported). Only the address is read here.
+payer_wallet_file() { echo "${AGATE_DYNAMIC_WALLET_FILE:-$HOME/.agate-dynamic/payer-wallet.json}"; }
+payer_dynamic_addr() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["address"])' "$(payer_wallet_file)"; }
+payer_dynamic_env() {
+  local a
+  a="$(payer_dynamic_addr)" || die "cannot read the address in $(payer_wallet_file)"
+  echo "AGATE_PAYER_SIGNER=dynamic"
+  echo "AGATE_DYNAMIC_WALLET_FILE=$(payer_wallet_file)"
+  echo "AGATE_PAYER_ADDRESS=$a"
+  echo "AGATE_DYNAMIC_TOKEN_CMD=${AGATE_DYNAMIC_TOKEN_CMD:-sed -n 's/^DYNAMIC_API_KEY=//p' $HOME/.agate-dynamic/api.env}"
+}
+
 role_key_cmd() {
   if [ "$KIT_REHEARSAL" = 1 ]; then
     is_process_role "$1" || die "no rehearsal key for $1"

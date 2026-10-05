@@ -1,7 +1,10 @@
 # @agate/wallet
 
 agate's accounts on Dynamic + ZeroDev, shared by the app (browser) and the server. Monad testnet (10143),
-Kernel v3.1 on EntryPoint 0.7 (ERC-4337), every user operation sponsored by ZeroDev.
+Kernel v3.1 on EntryPoint 0.7 (ERC-4337), every user operation sponsored by ZeroDev, under the project's chain
+policy (at most 2 MON a user operation, 1,000 a day; the heaviest measured is 0.77 MON, a first trade that installs the
+pocket's permission). When the paymaster refuses, `isSponsorRefusal(e)` is true and `SPONSOR_REFUSAL_TEXT` is the
+sentence to show: nothing was sent.
 
 ## Who holds what
 

@@ -94,6 +94,7 @@ export async function buildApp(rt: Runtime, config: PayerConfig, o: AppOptions):
     ...(rt.send ? { send: rt.send } : {}),
     role: rt.role,
     ...(rt.keyVar ? { keyEnv: rt.keyVar } : {}),
+    ...(rt.signer ? { signer: rt.signer } : {}),
     from: rt.from,
     dryRun: rt.dryRun,
     limits: rt.limits,
