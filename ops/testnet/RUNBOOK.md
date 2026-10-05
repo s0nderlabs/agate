@@ -341,6 +341,17 @@ the repair agent take the new factory and index. A start cut off halfway resumes
 index is reused). `stop` closes the demo windows and marks the session stopped; the next start deploys a fresh
 index.
 
+**The payer's signer (Oct 5).** The production payer signs with its Dynamic server wallet (0x31BC...2c45; the old
+Keychain key 0x3786...9505 was swept to the deployer). `AGATE_PAYER_SIGNER=dynamic ops/testnet/up.sh production
+--restart-shared` switched it. `up.sh` records an explicit choice once `shared-payer` has started with it (the
+top-level `payerSigner: "dynamic"` in the records file, which a redeploy leaves alone; never on a run that stopped
+early or left a running payer alone), so every later `up.sh` or `demo-session.sh` run keeps it without the variable,
+and `fund.sh` tops up that address. A value other than dynamic or key, in the variable or the file, stops the kit.
+`AGATE_PAYER_SIGNER=key` goes back to the Keychain key (fund it first: `AGATE_PAYER_SIGNER=key ops/testnet/fund.sh
+--send`). The wallet file `~/.agate-dynamic/payer-wallet.json` (mode 600) and the API token in
+`~/.agate-dynamic/api.env` must stay; `up.sh` refuses to open the window without the file. A failed signature raises
+`SIGNER_DOWN` and sends nothing.
+
 **The bots' MON during a session.** The maker's and the payer's daily MON budget is paced for the production horizon
 (B = (balance - keep) / days to Dec 2: about 3 MON a day for the maker, 1.4 for the payer), and on Oct 4 it refused the
 session's six listings (about 0.5 MON each, `list_skipped ... BUDGET` in `shared-payer.log`); on Oct 5 it refused the

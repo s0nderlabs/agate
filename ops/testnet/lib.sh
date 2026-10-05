@@ -261,20 +261,42 @@ is_process_role() { case "$1" in primary | standby | attester | keeper | bot | p
 
 # The address a role has in this run (the payer on its Dynamic server wallet: that wallet's, so fund.sh tops it up).
 role_addr() {
+  local s
   if [ "$KIT_REHEARSAL" = 1 ] && is_process_role "$1"; then
     role_addr_rehearsal "$1"
-  elif [ "$1" = payer ] && [ "${AGATE_PAYER_SIGNER:-}" = dynamic ]; then
-    payer_dynamic_addr
+  elif [ "$1" = payer ]; then
+    s="$(payer_signer)" || exit 1 # an invalid AGATE_PAYER_SIGNER: payer_signer said why
+    if [ "$s" = dynamic ]; then payer_dynamic_addr || die "cannot read the address in $(payer_wallet_file)"; else role_addr_real payer; fi
   else
     role_addr_real "$1"
   fi
 }
 
 # The command a process runs at start to print its key (never run by these scripts).
-# The payer on its Dynamic server wallet (AGATE_PAYER_SIGNER=dynamic in the shell that runs up.sh; Oct 5): no key
+# The payer on its Dynamic server wallet (payer_signer says dynamic; Oct 5): no key
 # command at all. The wallet file is written by server/scripts/payer-wallet.ts export (mode 600); the token command
 # prints the Dynamic API token and is run by the payer process itself (never exported). Only the address is read here.
 payer_wallet_file() { echo "${AGATE_DYNAMIC_WALLET_FILE:-$HOME/.agate-dynamic/payer-wallet.json}"; }
+# The payer's signer: AGATE_PAYER_SIGNER (dynamic or key) when set, else, on the real testnet stack, what the records
+# file remembers (up.sh records an explicit choice once the payer started with it: the top-level payerSigner, which a
+# redeploy of either index leaves alone), else key. Oct 5: without the memory, a later up.sh or demo-session.sh run
+# without the variable moved the payer back to its old key, whose MON had been swept. A fork or a rehearsal never reads
+# the memory (up.sh refuses dynamic there). Call it as `x="$(payer_signer)" || exit 1`: it stops on a bad value.
+payer_signer() {
+  case "${AGATE_PAYER_SIGNER:-}" in
+    dynamic | key) echo "$AGATE_PAYER_SIGNER"; return 0 ;;
+    "") ;;
+    *) die "AGATE_PAYER_SIGNER must be dynamic or key (or unset)" ;;
+  esac
+  if [ "$KIT_FORK" = 1 ] || [ "$KIT_REHEARSAL" = 1 ]; then echo key; return 0; fi
+  local r
+  r="$(records_get .payerSigner)" || die "cannot read payerSigner in $KIT_RECORDS"
+  case "$r" in
+    dynamic | key) echo "$r" ;;
+    "") echo key ;;
+    *) die "$KIT_RECORDS holds payerSigner \"$r\": it must be dynamic or key" ;;
+  esac
+}
 payer_dynamic_addr() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["address"])' "$(payer_wallet_file)"; }
 payer_dynamic_env() {
   local a

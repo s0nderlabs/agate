@@ -75,9 +75,12 @@ the token and our key shares on its stdin only), times out after 15 s (measured 
 the asked transaction signed by that address. The nonce, gas, fees, send route, meter, rebroadcast and the MON budget
 are the sender's as before. A failed signature sends nothing and keeps the nonce; it raises `SIGNER_DOWN` (action),
 cleared by the next signature. A dry run never reads the token or the wallet file. In the kit, `up.sh` run with
-`AGATE_PAYER_SIGNER=dynamic` in its shell gives `shared-payer` this environment instead of `AGATE_KEY_CMD`. The switch
-on the running payer is the owner's call: fund the new address with MON, restart the window, and expect the UTC
-day's budget to be frozen from the old key's balance until the next day.
+`AGATE_PAYER_SIGNER=dynamic` in its shell gives `shared-payer` this environment instead of `AGATE_KEY_CMD`, and once the
+window has started with it records the choice (the top-level `payerSigner` in the records file), so later runs without
+the variable keep it; `AGATE_PAYER_SIGNER=key` goes back. The switch on the running payer is the owner's call: fund the new address with
+MON, restart the window, and expect the UTC day's budget to be frozen from the old key's balance until the next day.
+Live since Oct 5 2026 16:16 WIB: the production payer signs as 0x31BC...2c45; the old key's MON went back to the
+deployer.
 
 Config (`AGATE_PAYER_CONFIG`, every field optional, an unknown field refused):
 

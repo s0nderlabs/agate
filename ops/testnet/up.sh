@@ -204,7 +204,7 @@ win_env() {
       fi
       if [ "$n" = shared-maker ]; then
         echo "AGATE_KEY_CMD=$(role_key_cmd bot)"
-      elif [ "${AGATE_PAYER_SIGNER:-}" = dynamic ]; then
+      elif [ "$PAYER_SIGNER" = dynamic ]; then
         payer_dynamic_env
       else
         echo "AGATE_KEY_CMD=$(role_key_cmd payer)"
@@ -321,7 +321,8 @@ fi
 
 # the payer on its Dynamic server wallet: the real testnet stack only (a fork or a rehearsal must never sign with the
 # real wallet), and its wallet file must exist, owner-only (attributes only: nothing is read here)
-if [ "${AGATE_PAYER_SIGNER:-}" = dynamic ]; then
+PAYER_SIGNER="$(payer_signer)" || exit 1 # an invalid AGATE_PAYER_SIGNER: payer_signer said why
+if [ "$PAYER_SIGNER" = dynamic ]; then
   [ "$KIT_FORK" = 0 ] && [ "$KIT_REHEARSAL" = 0 ] || die "AGATE_PAYER_SIGNER=dynamic is for the real testnet stack only (not --fork or a rehearsal): unset it; nothing opened"
   [ -f "$(payer_wallet_file)" ] || die "no Dynamic wallet file $(payer_wallet_file) (server/scripts/payer-wallet.ts export): nothing opened"
   [ "$(stat -f %Lp "$(payer_wallet_file)")" = 600 ] || die "$(payer_wallet_file) must be mode 600: nothing opened"
@@ -331,7 +332,7 @@ fi
 if [ "$KIT_FORK" = 0 ] && [ "$KIT_DRY" = 0 ]; then
   roles="primary standby attester keeper bot payer"
   # the payer on its Dynamic server wallet has no Keychain key (its wallet file is checked above)
-  [ "${AGATE_PAYER_SIGNER:-}" = dynamic ] && roles="primary standby attester keeper bot"
+  [ "$PAYER_SIGNER" = dynamic ] && roles="primary standby attester keeper bot"
   for r in $roles; do
     keychain_has "$(role_svc "$r")" || die "no Keychain item $(role_svc "$r") (account private-key): nothing opened"
   done
@@ -370,6 +371,7 @@ open_win() {
     tmx_show set-option -w -t "<id of $n>" remain-on-exit on
     tmx_show pipe-pane -o -t "<id of $n>" "cat >> $LOGDIR/$n.log"
     tmx_show respawn-pane -k -t "<id of $n>" -c "$WALL" "/bin/sh $f"
+    [ "$n" = shared-payer ] && PAYER_STARTED=1
     return 0
   fi
   id="$(win_id "$n")"
@@ -378,6 +380,7 @@ open_win() {
     if [ "$(tmx display-message -p -t "$id" '#{pane_dead}')" = 1 ]; then
       launcher "$n" >"$f"
       tmx respawn-pane -k -t "$id" -c "$WALL" "/bin/sh $f" || die "$n: the launcher did not restart in window $id"
+      [ "$n" = shared-payer ] && PAYER_STARTED=1
       note "$n: its launcher had stopped: started again ($id)"
     else
       note "$n: already open (left alone)"
@@ -390,6 +393,7 @@ open_win() {
   tmx set-option -w -t "$id" automatic-rename off >/dev/null
   tmx pipe-pane -o -t "$id" "cat >> '$LOGDIR/$n.log'"
   tmx respawn-pane -k -t "$id" -c "$WALL" "/bin/sh $f" || die "$n: the launcher did not start in window $id (left idle; close it with down.sh)"
+  [ "$n" = shared-payer ] && PAYER_STARTED=1
   note "$n: opened ($id)"
 }
 
@@ -410,7 +414,19 @@ for n in $PER; do
   case "$n" in *-health) HEALTH="$n" ;; *) open_win "$n" ;; esac
 done
 say "shared windows"
+PAYER_STARTED=0
 for n in $SHARED; do open_win "$n"; done
+# an explicit AGATE_PAYER_SIGNER on the real stack is remembered (payerSigner in the records file) once shared-payer has
+# started with it, so a later up.sh or demo-session.sh run without the variable keeps the payer on the same signer
+# (Oct 5). Never on a run that stopped before its windows, and never while a running payer was left alone.
+if [ -n "${AGATE_PAYER_SIGNER:-}" ] && [ "$KIT_FORK" = 0 ] && [ "$KIT_REHEARSAL" = 0 ] && [ "$(records_get .payerSigner)" != "$PAYER_SIGNER" ]; then
+  if [ "$PAYER_STARTED" = 1 ]; then
+    records_put '.payerSigner = $s' --arg s "$PAYER_SIGNER"
+    note "the payer's signer is now $PAYER_SIGNER, remembered in $KIT_RECORDS (AGATE_PAYER_SIGNER=key or dynamic changes it)"
+  else
+    note "AGATE_PAYER_SIGNER=$PAYER_SIGNER not applied: shared-payer is running and was left alone (add --restart-shared)"
+  fi
+fi
 # health last, once the roles it watches have written a first heartbeat (else a HEARTBEAT_LOST per role at start)
 if [ -n "$HEALTH" ]; then
   if [ "$KIT_DRY" = 0 ] && [ -z "$(win_id "$HEALTH")" ]; then sleep 30; fi

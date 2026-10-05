@@ -453,6 +453,76 @@ describe("Alchemy modes (AGATE_KIT_ALCHEMY, Oct 4)", () => {
     expect(JSON.parse(check.stdout.toString().trim())).toEqual([["real"], ["real"]]);
   }, 60_000);
 
+  // Oct 5 2026 live: the payer moved to its Dynamic server wallet and the old key's MON was swept, so a later up.sh or
+  // demo-session.sh run without AGATE_PAYER_SIGNER would have put it back on the empty key. The records file remembers
+  // an explicit choice once the payer started with it; the variable still wins both ways
+  test("the payer's signer is remembered in the records file; AGATE_PAYER_SIGNER overrides it; a bad value stops", () => {
+    const rec = JSON.parse(readFileSync(join(tmp, "records.json"), "utf8"));
+    const wallet = join(tmp, "payer-wallet.json");
+    const ADDR = "0x31BC1a1A7d4B6dD5888B584016ce194c27b82c45";
+    writeFileSync(wallet, JSON.stringify({ address: ADDR }));
+    chmodSync(wallet, 0o600);
+    let files = 0;
+    const memory = (v: unknown) => {
+      // a counter, not the value: macOS file names ignore case ("dynamic" and "Dynamic" are one file)
+      const f = join(tmp, `records-signer-${++files}.json`);
+      writeFileSync(f, JSON.stringify({ ...rec, payerSigner: v }));
+      return f;
+    };
+    const withMemory = memory("dynamic");
+    const payerOf = (records: string, extra: Record<string, string> = {}, args = ["production", "--dry-run"]) => {
+      const r = run("up.sh", args, { ...deployed(), AGATE_KIT_RECORDS: records, AGATE_DYNAMIC_WALLET_FILE: wallet, ...extra });
+      return { ...r, payer: launchersOf(r.out).find((l) => l.name === "shared-payer")?.body ?? "" };
+    };
+    // remembered: dynamic without the variable, and nothing new to record
+    const remembered = payerOf(withMemory);
+    expect(remembered.code).toBe(0);
+    expect(remembered.payer).toContain("AGATE_PAYER_SIGNER='dynamic'");
+    expect(remembered.payer).toContain(`AGATE_PAYER_ADDRESS='${ADDR}'`);
+    expect(remembered.payer).not.toContain("AGATE_KEY_CMD=");
+    expect(remembered.out).not.toContain("remembered in");
+    // the variable wins: key, and the change is recorded once the payer starts (a dry run prints the update only)
+    const key = payerOf(withMemory, { AGATE_PAYER_SIGNER: "key" });
+    expect(key.code).toBe(0);
+    expect(key.payer).toContain("AGATE_KEY_CMD='security find-generic-password -s agate.market.payer -a private-key -w'");
+    expect(key.payer).not.toContain("AGATE_PAYER_SIGNER=");
+    expect(key.out).toContain("the payer's signer is now key, remembered in");
+    expect(key.out).toContain("(not written in a dry run)");
+    expect(JSON.parse(readFileSync(withMemory, "utf8")).payerSigner).toBe("dynamic");
+    // review: a real run that stops before its windows (here at the Keychain check) records nothing
+    const stopped = payerOf(withMemory, { AGATE_PAYER_SIGNER: "key" }, ["production"]);
+    expect(stopped.code).not.toBe(0);
+    expect(stopped.out).toContain("nothing opened");
+    expect(stopped.out).not.toContain("remembered in");
+    expect(JSON.parse(readFileSync(withMemory, "utf8")).payerSigner).toBe("dynamic");
+    // no memory: key, unless the variable says dynamic (then recorded)
+    const plain = payerOf(join(tmp, "records.json"));
+    expect(plain.payer).toContain("AGATE_KEY_CMD='security find-generic-password -s agate.market.payer -a private-key -w'");
+    const chosen = payerOf(join(tmp, "records.json"), { AGATE_PAYER_SIGNER: "dynamic" });
+    expect(chosen.payer).toContain("AGATE_PAYER_SIGNER='dynamic'");
+    expect(chosen.out).toContain("the payer's signer is now dynamic, remembered in");
+    // a fork never reads the memory
+    const fork = payerOf(withMemory, { AGATE_KIT_FORK_RPC: "http://127.0.0.1:8549", AGATE_KIT_TMUX_SOCKET: "agate-rehearsal", AGATE_KIT_TMUX_SESSION: "rehearsal", AGATE_KIT_ROLES: "rehearsal" }, ["production", "--dry-run", "--fork"]);
+    expect(fork.code).toBe(0);
+    expect(fork.payer).not.toContain("AGATE_PAYER_SIGNER=");
+    // anything else, in the variable or the file, stops before a window is touched
+    const bad = payerOf(withMemory, { AGATE_PAYER_SIGNER: "Dynamic" });
+    expect(bad.code).not.toBe(0);
+    expect(bad.out).toContain("AGATE_PAYER_SIGNER must be dynamic or key");
+    expect(bad.out).not.toContain("write ");
+    const badFile = payerOf(memory("Dynamic"));
+    expect(badFile.code).not.toBe(0);
+    expect(badFile.out).toContain('holds payerSigner "Dynamic": it must be dynamic or key');
+    // fund.sh tops up the remembered signer's address, and says so when the wallet file is missing
+    const fund = run("fund.sh", ["--dry-run"], { ...deployed(), AGATE_KIT_RECORDS: withMemory, AGATE_DYNAMIC_WALLET_FILE: wallet });
+    expect(fund.code).toBe(0);
+    expect(fund.out).toContain(ADDR);
+    expect(fund.out).not.toContain(REAL.payer);
+    const noFile = run("fund.sh", ["--dry-run"], { ...deployed(), AGATE_KIT_RECORDS: withMemory, AGATE_DYNAMIC_WALLET_FILE: join(tmp, "no-wallet.json") });
+    expect(noFile.code).not.toBe(0);
+    expect(noFile.out).toContain("cannot read the address in");
+  }, 60_000);
+
   test("up.sh checks the Alchemy key's Keychain item (attributes only) in light and all, never in off or with the stand-in", () => {
     const bin = join(tmp, "kc-bin");
     mkdirSync(bin, { recursive: true });
