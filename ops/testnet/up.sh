@@ -79,6 +79,18 @@ if [ "$STACK" = demo ] && [ -z "$DEMO_IX" ]; then
   DEMO_IX="0xDEMOINDEX"; DEMO_BLOCK="0"; DEMO_EPOCH="0"
   note "(dry run: no active demo index recorded yet; shown as $DEMO_IX)"
 fi
+# a stopped session is over for the shared bots once its months have ended: the maker winds its books down at each
+# demo month's end (5 and 10 hours in), so it keeps the demo factory until two months of at most 31 demo days and an
+# hour have passed since the session began
+DEMO_OVER=0
+if [ -z "$DEMO_IX" ]; then
+  _ep="$(records_get .demo.epochTs)"
+  case "$_ep" in '' | *[!0-9]*) _ep="" ;; esac
+  case "$DEMO_DAY" in '' | *[!0-9]*) _ep="" ;; esac
+  # only a recorded session with its clock, and only while the deployments file has the real factory to keep
+  if [ -n "$_ep" ] && [ "$(date +%s)" -ge $((_ep + 62 * DEMO_DAY + 3600)) ] && [ -f "$KIT_DEPLOYMENTS" ] &&
+    jq -e '.factories.real and .factories.demo' "$KIT_DEPLOYMENTS" >/dev/null 2>&1; then DEMO_OVER=1; fi
+fi
 [ -f "$KIT_DEPLOYMENTS" ] || warn "no deployments file $KIT_DEPLOYMENTS yet: the market bots and the indexer are not started"
 
 # ------------------------------------------------------------------ the environment of every window
@@ -183,6 +195,13 @@ win_env() {
       rpc_env_of "$n"
       echo "AGATE_DEPLOYMENTS=$KIT_DEPLOYMENTS"
       echo "AGATE_MARKET_GAS_LIMITS=$MARKET_GAS_JSON"
+      # between demo sessions, once the last one's months are over, the bots leave the demo factory alone: its
+      # writers are stopped, so its days never close and every tick raised MM_INDEX_BEHIND and LISTER_STUCK (Oct 5).
+      # Both variables name a config FILE; the operator's own wins
+      if [ "$DEMO_OVER" = 1 ]; then
+        if [ "$n" = shared-maker ] && [ -z "${AGATE_MM_CONFIG:-}" ]; then echo "AGATE_MM_CONFIG=$KIT/bots-real-only.json"; fi
+        if [ "$n" = shared-payer ] && [ -z "${AGATE_PAYER_CONFIG:-}" ]; then echo "AGATE_PAYER_CONFIG=$KIT/bots-real-only.json"; fi
+      fi
       if [ "$n" = shared-maker ]; then
         echo "AGATE_KEY_CMD=$(role_key_cmd bot)"
       elif [ "${AGATE_PAYER_SIGNER:-}" = dynamic ]; then

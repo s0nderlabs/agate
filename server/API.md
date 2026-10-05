@@ -21,7 +21,12 @@ sends `Authorization: Bearer <Dynamic session JWT>` (`sessionToken(client)` from
    approval }` (u strings, 1e6 = $1; validUntil unix seconds, at most 90 days) -> `201` the connection (below), active
    at once: the key installs itself inside the AI's first operation (~7 s instead of ~5 s). `409` when the
    Assistant's delegation has not reached the server yet: retry after 2 to 5 s. The Assistant is delegated once per
-   person; later AIs need no new code (step-up only again after "Stop every AI").
+   person; later AIs need no new code (step-up only again after "Stop every AI"). The delegated key share reaches the
+   server only in Dynamic's delegation webhook: if it was missed (the public base was down, Oct 5), delegating again
+   is a no-op at Dynamic and the 409 never clears. Recover only while `/api/me` shows no active delegation: revoke the
+   Assistant's delegation (`revokeAssistant`), then a fresh "confirm it's you" step-up (`requestStepUp`, needed again
+   after a revoke) and `delegateAssistant`, so Dynamic sends the share once more. If the revoke fails, stop there and
+   show it: the wallet still counts as delegated, so the delegate step would do nothing.
 3. Give the AI app a way in, one of:
    - **Connector URL** (Claude Code, Claude.ai custom connector, Cursor): `POST /api/grants/:id/connector` ->
      `{ url, claudeCode, note }`. Shown once; asking again replaces it. Treat it like a password.

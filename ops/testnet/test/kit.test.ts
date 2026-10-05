@@ -417,6 +417,42 @@ describe("Alchemy modes (AGATE_KIT_ALCHEMY, Oct 4)", () => {
     expect(big.out).not.toContain("deploy-index");
   }, 60_000);
 
+  // Oct 5 2026 live: between sessions the shared bots raised MM_INDEX_BEHIND and LISTER_STUCK every tick on the demo
+  // factory, whose writers were stopped. AGATE_MM_CONFIG and AGATE_PAYER_CONFIG name a FILE (review finding: inline
+  // JSON would have crash-looped both bots)
+  test("the shared bots drop the demo factory once a stopped session's months are over; the operator's config wins", () => {
+    const FILE = join(KIT, "bots-real-only.json");
+    const rec = JSON.parse(readFileSync(join(tmp, "records.json"), "utf8"));
+    const dep = JSON.parse(readFileSync(join(tmp, "deployments.json"), "utf8"));
+    const both = join(tmp, "deployments-real-demo.json");
+    writeFileSync(both, JSON.stringify({ ...dep, factories: { ...dep.factories, demo: { ...dep.factories.real, index: "0x2222222222222222222222222222222222222222", factory: "0x6666666666666666666666666666666666666666" } } }));
+    const now = Math.floor(Date.now() / 1000);
+    const up = (demo: Record<string, unknown> | null, extra: Record<string, string> = {}, deployments = both) => {
+      const f = join(tmp, `records-demo-${JSON.stringify(demo).replace(/\W/g, "")}.json`);
+      writeFileSync(f, JSON.stringify(demo === null ? { ...rec, demo: undefined } : { ...rec, demo: { ...rec.demo, ...demo } }));
+      const r = run("up.sh", ["production", "--dry-run"], { ...deployed(), AGATE_KIT_RECORDS: f, AGATE_KIT_DEPLOYMENTS: deployments, ...extra });
+      expect(r.code).toBe(0);
+      return r.out;
+    };
+    const over = { session: "stopped", epochTs: now - 62 * 600 - 3_601 };
+    // still running, or stopped less than two demo months (62 days of 600 s) and an hour after it began (the maker
+    // still winds its books down), or no demo clock recorded, or no demo factory deployed: untouched
+    for (const out of [up({}), up({ session: "stopped", epochTs: now - 3_600 }), up(null), up(over, {}, join(tmp, "deployments.json"))]) {
+      expect(out).not.toContain("AGATE_MM_CONFIG=");
+      expect(out).not.toContain("AGATE_PAYER_CONFIG=");
+    }
+    const after = up(over);
+    expect(after).toContain(`AGATE_MM_CONFIG='${FILE}'`);
+    expect(after).toContain(`AGATE_PAYER_CONFIG='${FILE}'`);
+    const own = up(over, { AGATE_MM_CONFIG: "/tmp/my-maker.json" });
+    expect(own).toContain(`AGATE_MM_CONFIG='/tmp/my-maker.json'`);
+    expect(own).toContain(`AGATE_PAYER_CONFIG='${FILE}'`);
+    // the file loads with the bots' own loaders and keeps only the real factory
+    const check = Bun.spawnSync(["bun", "-e", `import { loadConfig as mm } from "./apps/marketmaker/src/config.ts"; import { loadConfig as payer } from "./apps/payer/src/config.ts"; console.log(JSON.stringify([mm(${JSON.stringify(FILE)}).factories, payer(${JSON.stringify(FILE)}).factories]));`], { cwd: join(ROOT, "wall") });
+    expect(check.exitCode).toBe(0);
+    expect(JSON.parse(check.stdout.toString().trim())).toEqual([["real"], ["real"]]);
+  }, 60_000);
+
   test("up.sh checks the Alchemy key's Keychain item (attributes only) in light and all, never in off or with the stand-in", () => {
     const bin = join(tmp, "kc-bin");
     mkdirSync(bin, { recursive: true });

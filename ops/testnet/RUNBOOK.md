@@ -355,8 +355,13 @@ session's bots the MON by hand: `AGATE_MM_SESSION_MON=39.0 AGATE_PAYER_SESSION_M
 AGATE_MM_SESSION_UNTIL=<unix> AGATE_PAYER_SESSION_UNTIL=<unix> AGATE_KIT_ALCHEMY_WS=prod ops/testnet/up.sh demo --restart-shared`.
 
 The maker keeps the stopped session's books and winds them down at each demo month's end (5 and 10 hours after the
-session began); a new session started before then replaces the demo factory in the deployments file, and the old
-books are left resting (Kuru orders never expire). To cancel them first, use the maker's kill switch, wait a minute
+session began). After that (62 demo days and an hour from the session's start) `up.sh` points the shared maker's and
+payer's `AGATE_MM_CONFIG` / `AGATE_PAYER_CONFIG` at `ops/testnet/bots-real-only.json` (`{"factories":["real"]}`; both
+variables name a config FILE) unless the operator set them, so the next
+`ops/testnet/up.sh production --restart-shared` stops their MM_INDEX_BEHIND and LISTER_STUCK alerts about the demo
+index nothing writes any more (Oct 5); the next `start` gives them the demo factory again. A new session started
+before the old one's months end replaces the demo factory in the deployments file, and the old books are left resting
+(Kuru orders never expire). To cancel them first, use the maker's kill switch, wait a minute
 (one maker tick), start the session, then lift it:
 
 ```
