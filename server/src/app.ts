@@ -14,7 +14,7 @@ import { SHORT_SIZING_PRICE } from "@agate/wallet/allowed";
 import { type AgateClient, createAgateClient, type Deployments, GPUS, TESTNET_DEPLOYMENTS } from "@agate/client";
 import { existsSync, readFileSync } from "node:fs";
 import { mcpRoutes } from "./mcp/routes.ts";
-import { appendRedirectParams, oauthRoutes, publicBase } from "./oauth/routes.ts";
+import { appendRedirectParams, oauthRoutes, publicBase, redirectUriAllowed } from "./oauth/routes.ts";
 import { OAuthStore } from "./oauth/store.ts";
 import { ed25519Signer } from "./dynamic/hmac.ts";
 import { checkHmac } from "./dynamic/hmac.ts";
@@ -252,11 +252,20 @@ export function publicApp(deps: AppDeps): Hono {
     return c.json({ requestId: r.request_id, clientName: client?.client_name ?? "an AI app", redirectHost, expiresAt: new Date(r.expires_at * 1000).toISOString() });
   });
 
+  /** the app follows the redirect in Agate's origin: a request stored before a policy tightening is
+   * re-checked here and dropped, never handed back as a redirect */
+  const returnAllowed = (r: { request_id: string; redirect_uri: string }): boolean => {
+    if (redirectUriAllowed(r.redirect_uri)) return true;
+    oauth.deleteRequest(r.request_id);
+    return false;
+  };
+
   app.post("/api/oauth/requests/:id/approve", async (c) => {
     const u = await authed(c);
     if (u instanceof Response) return u;
     const r = oauth.getRequest(c.req.param("id"));
     if (!r || !oauth.bindRequestUser(r.request_id, u.userId)) return c.json({ error: "this request expired or belongs to someone else" }, 404);
+    if (!returnAllowed(r)) return c.json({ error: "this AI app's return address is not allowed" }, 400);
     const body = (await c.req.json().catch(() => ({}))) as { grantId?: string };
     const g = body.grantId ? deps.store.grant(body.grantId) : null;
     if (!g || g.userId !== u.userId || g.status !== "active" || g.expiresAt <= Date.now()) return c.json({ error: "connect the AI first (no live connection with that id)" }, 409);
@@ -271,6 +280,7 @@ export function publicApp(deps: AppDeps): Hono {
     if (u instanceof Response) return u;
     const r = oauth.getRequest(c.req.param("id"));
     if (!r || !oauth.bindRequestUser(r.request_id, u.userId)) return c.json({ error: "this request expired or belongs to someone else" }, 404);
+    if (!returnAllowed(r)) return c.json({ error: "this AI app's return address is not allowed" }, 400);
     oauth.deleteRequest(r.request_id);
     return c.json({ redirect: appendRedirectParams(r.redirect_uri, { error: "access_denied", ...(r.state ? { state: r.state } : {}) }) });
   });

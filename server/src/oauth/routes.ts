@@ -51,13 +51,18 @@ export const appBase = (): string => (process.env.AGATE_APP_BASE ?? "http://127.
 // ---------------------------------------------------------------------------
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+/** AI apps that return on a plain custom scheme (AGATE_OAUTH_REDIRECT_SCHEMES adds more) */
+const APP_SCHEMES = new Set(["cursor:", "vscode:", "vscode-insiders:", "windsurf:", "zed:"]);
 
-/** Redirect-URI registration policy:
+/** Redirect-URI policy, checked at registration and again wherever the URI is about to be used:
  *  - https: any host (optionally restricted via AGATE_OAUTH_REDIRECT_HOSTS),
  *  - http: loopback only, any port (RFC 8252, Claude Code, VS Code, Cursor local),
- *  - custom schemes (cursor:// ...): allowed, rejecting them breaks Cursor,
+ *  - custom schemes: an allowlist, never a denylist. The app follows this redirect in Agate's
+ *    origin, where the person's session lives, so javascript:, data: or an OS handler
+ *    (ms-msdt:, search-ms:) must never get through: only reverse-DNS schemes (com.example.app:,
+ *    RFC 8252 7.1) and the known app schemes above,
  *  - no fragments anywhere. Exact-string match happens later at /authorize. */
-function redirectUriAllowed(uri: string): boolean {
+export function redirectUriAllowed(uri: string): boolean {
   if (uri.length > 2000 || uri.includes("#")) return false;
   let url: URL;
   try {
@@ -70,7 +75,9 @@ function redirectUriAllowed(uri: string): boolean {
     const restrict = (process.env.AGATE_OAUTH_REDIRECT_HOSTS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
     return restrict.length === 0 || restrict.includes(url.hostname);
   }
-  return true; // custom scheme (cursor://, vscode:// ...)
+  // url.protocol is the scheme a browser would act on (lowercased, tabs/newlines and leading space stripped)
+  const extra = (process.env.AGATE_OAUTH_REDIRECT_SCHEMES ?? "").split(",").map((s) => s.trim().toLowerCase().replace(/:$/, "")).filter(Boolean).map((s) => `${s}:`);
+  return url.protocol.slice(0, -1).includes(".") || APP_SCHEMES.has(url.protocol) || extra.includes(url.protocol);
 }
 
 const b64urlSha256 = (input: string): string => createHash("sha256").update(input).digest("base64url");
@@ -216,6 +223,8 @@ export function oauthRoutes(deps: AppDeps, oauth: OAuthStore): Hono {
     if (!redirectUri || !client.redirect_uris.includes(redirectUri)) {
       return c.text("redirect_uri is not registered for this client", 400);
     }
+    // a client registered before a policy tightening keeps its old row: re-check, never redirect
+    if (!redirectUriAllowed(redirectUri)) return c.text("redirect_uri is not allowed", 400);
 
     // everything else reports back to the client via the (validated) redirect. Use the
     // exact-string appender (not new URL()) so custom-scheme redirects survive the error path.

@@ -9,6 +9,8 @@ import type { DynamicUser } from "../src/dynamic/jwt.ts";
 import { NotLandedYet } from "../src/dynamic/signer.ts";
 import { handleWebhook } from "../src/dynamic/webhook.ts";
 import { buildMcpServer } from "../src/mcp/server.ts";
+import { redirectUriAllowed } from "../src/oauth/routes.ts";
+import { OAuthStore } from "../src/oauth/store.ts";
 import { type GrantRow, Store } from "../src/store.ts";
 
 const MAIN = "0x1111111111111111111111111111111111111111" as Address;
@@ -303,5 +305,69 @@ describe("HTTP lanes and OAuth", () => {
     // the person disconnects: the token dies with the connection
     await app.request("/api/grants/g-1/disconnect", { method: "POST", headers: { authorization: "Bearer good" } });
     expect((await rpc(app, "/mcp", tok.access_token)).status).toBe(401);
+  });
+
+  test("redirect policy: custom schemes are an allowlist, so script, local-file and OS-handler schemes never pass", () => {
+    for (const bad of [
+      "javascript:alert(1)",
+      "javascript://%0aalert(1)",
+      "JavaScript:alert(1)",
+      " javascript:alert(1)",
+      "java\tscript:alert(1)",
+      "java\nscript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "vbscript:msgbox(1)",
+      "file:///etc/passwd",
+      "blob:https://agate.example/1",
+      "about:blank",
+      "filesystem:https://agate.example/temporary/x",
+      "view-source:https://agate.example",
+      "ms-msdt:/id PCWDiagnostic",
+      "search-ms:query=x",
+      "myapp://cb",
+      "http://agate.example/cb",
+      "https://agate.example/cb#frag",
+    ]) expect(redirectUriAllowed(bad)).toBe(false);
+    for (const ok of [
+      "cursor://anysphere.cursor-retrieval/oauth/callback",
+      "vscode://vscode.github-authentication/did-authenticate",
+      "com.example.app:/cb",
+      "https://claude.ai/api/mcp/auth_callback",
+      "http://127.0.0.1:5555/cb",
+    ]) expect(redirectUriAllowed(ok)).toBe(true);
+    process.env.AGATE_OAUTH_REDIRECT_SCHEMES = " MyApp: ,other";
+    try {
+      expect(redirectUriAllowed("myapp://cb")).toBe(true);
+      expect(redirectUriAllowed("javascript:alert(1)")).toBe(false);
+    } finally {
+      delete process.env.AGATE_OAUTH_REDIRECT_SCHEMES;
+    }
+  });
+
+  test("/register applies the policy (400 invalid_redirect_uri), an app scheme still registers", async () => {
+    const { app } = mk();
+    const register = (uri: string) => app.request("/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ redirect_uris: [uri], client_name: "x" }) });
+    const r = await register("javascript:alert(1)");
+    expect(r.status).toBe(400);
+    expect(((await r.json()) as { error: string }).error).toBe("invalid_redirect_uri");
+    expect((await register("cursor://anysphere.cursor-retrieval/oauth/callback")).status).toBe(201);
+  });
+
+  test("a client or request stored before the policy is re-checked at /authorize, Allow and Decline, never redirected to", async () => {
+    const { store, app } = mk();
+    store.putGrant(grantRow());
+    const oauth = new OAuthStore(store.db);
+    const bad = "javascript:alert(1)";
+    const client = oauth.createClient({ redirectUris: [bad], clientName: "old" });
+    const auth = await app.request(`/authorize?response_type=code&client_id=${client.client_id}&redirect_uri=${encodeURIComponent(bad)}&code_challenge=x&code_challenge_method=S256`);
+    expect(auth.status).toBe(400);
+    expect(auth.headers.get("location")).toBeNull();
+    for (const [action, body] of [["approve", { grantId: "g-1" }], ["deny", {}]] as const) {
+      const id = oauth.createRequest({ client_id: client.client_id, redirect_uri: bad, code_challenge: "x", resource: null, scope: null, state: "s" }, 900);
+      const r = await app.request(`/api/oauth/requests/${id}/${action}`, { method: "POST", headers: { authorization: "Bearer good", "content-type": "application/json" }, body: JSON.stringify(body) });
+      expect(r.status).toBe(400);
+      expect(JSON.stringify(await r.json())).not.toContain("javascript");
+      expect(oauth.getRequest(id)).toBeNull();
+    }
   });
 });
