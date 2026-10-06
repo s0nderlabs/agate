@@ -7,6 +7,15 @@ export const DEFAULT_GRAPHQL_URL = "http://localhost:8080/v1/graphql";
 
 export class IndexerError extends Error {
   override name = "IndexerError";
+  /** retryable: another indexer may answer (true for everything but a malformed request); rest: the failure is about
+   *  this indexer (unreachable, an HTTP error, not JSON, a rate limit or database error), so it steps back a minute */
+  constructor(
+    message: string,
+    readonly retryable = false,
+    readonly rest = false,
+  ) {
+    super(message);
+  }
 }
 
 export interface GraphQL {
@@ -14,36 +23,80 @@ export interface GraphQL {
   query<T>(q: string, variables?: Record<string, unknown>): Promise<T>;
 }
 
-export function graphql(url: string, o: { fetch?: typeof fetch; timeoutMs?: number } = {}): GraphQL {
+// Hasura's codes for a query this schema cannot run: another indexer (a newer deployment) may, but this one is healthy
+const SCHEMA_CODES = new Set(["validation-failed", "parse-failed"]);
+
+/** A reader over one indexer URL, or several separated by commas (since Oct 6: Envio Cloud first, whose free plan
+ *  allows 100 queries a minute, then agate's own indexer). Every query goes to the current indexer: the first URL that
+ *  is not resting. A failure another indexer could answer moves the query to the next URL; a failure about the indexer
+ *  itself (unreachable, an HTTP error, not JSON, a rate limit or database error in the body) also rests that URL for
+ *  restMs (default 60 s, never cut short), so following queries start at the next one. Sticky on purpose: the client's
+ *  paired reads (newest ids, then the rows) land on one indexer unless it fails between them, and then the next poll
+ *  reads both again. A malformed request (HTTP 400, 413, 422, or variables that cannot be sent) is never retried. An
+ *  attempt with a later URL to fall back on waits at most 5 s. A value with no URL in it reads the chain only, as an
+ *  unset one does: every query throws an IndexerError. */
+export function graphql(url: string, o: { fetch?: typeof fetch; timeoutMs?: number; restMs?: number; now?: () => number } = {}): GraphQL {
+  const urls = url
+    .split(",")
+    .map((u) => u.trim())
+    .filter(Boolean);
   const f = o.fetch ?? globalThis.fetch.bind(globalThis);
   const timeoutMs = o.timeoutMs ?? 10_000;
+  const restMs = o.restMs ?? 60_000;
+  const now = o.now ?? Date.now;
+  const restingUntil = new Map<string, number>();
+
+  async function once<T>(u: string, body: string, ms: number): Promise<T> {
+    let r: Response;
+    try {
+      r = await f(u, { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(ms) });
+    } catch (e) {
+      throw new IndexerError(`the indexer at ${u} is not reachable (${e instanceof Error ? e.message : String(e)})`, true, true);
+    }
+    if (!r.ok) {
+      const malformed = r.status === 400 || r.status === 413 || r.status === 422;
+      throw new IndexerError(`the indexer answered HTTP ${r.status}`, !malformed, !malformed);
+    }
+    // whatever answers at the URL must be GraphQL's JSON: a dev server's HTML page or a proxy's error page (even with
+    // status 200) means no indexer there
+    let j: { data?: T; errors?: { message: string; extensions?: { code?: string } }[] };
+    try {
+      j = (await r.json()) as typeof j;
+    } catch (e) {
+      throw new IndexerError(`the indexer at ${u} did not answer JSON (${e instanceof Error ? e.message : String(e)})`, true, true);
+    }
+    if (!j || typeof j !== "object") throw new IndexerError(`the indexer at ${u} did not answer a GraphQL object`, true, true);
+    if (j.errors?.length) {
+      const schema = j.errors.every((e) => SCHEMA_CODES.has(e.extensions?.code ?? ""));
+      throw new IndexerError(`the indexer refused the query: ${j.errors.map((e) => e.message).join("; ")}`, true, !schema);
+    }
+    if (!j.data) throw new IndexerError("the indexer answered without data", true, true);
+    return j.data;
+  }
+
   return {
-    url,
+    url: urls[0] ?? "",
     async query<T>(q: string, variables: Record<string, unknown> = {}): Promise<T> {
-      let r: Response;
+      if (urls.length === 0) throw new IndexerError("no indexer URL is set");
+      let body: string;
       try {
-        r = await f(url, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ query: q, variables }),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
+        body = JSON.stringify({ query: q, variables });
       } catch (e) {
-        throw new IndexerError(`the indexer at ${url} is not reachable (${e instanceof Error ? e.message : String(e)})`);
+        throw new IndexerError(`the query's variables cannot be sent (${e instanceof Error ? e.message : String(e)})`);
       }
-      if (!r.ok) throw new IndexerError(`the indexer answered HTTP ${r.status}`);
-      // whatever answers at the URL must be GraphQL's JSON: a dev server's HTML page or a proxy's error page (even with
-      // status 200) means no indexer there
-      let j: { data?: T; errors?: { message: string }[] };
-      try {
-        j = (await r.json()) as { data?: T; errors?: { message: string }[] };
-      } catch (e) {
-        throw new IndexerError(`the indexer at ${url} did not answer JSON (${e instanceof Error ? e.message : String(e)})`);
+      const t = now();
+      const order = [...urls.filter((u) => (restingUntil.get(u) ?? 0) <= t), ...urls.filter((u) => (restingUntil.get(u) ?? 0) > t)];
+      let last: unknown;
+      for (const [i, u] of order.entries()) {
+        try {
+          return await once<T>(u, body, i < order.length - 1 ? Math.min(timeoutMs, 5_000) : timeoutMs);
+        } catch (e) {
+          last = e;
+          if (!(e instanceof IndexerError) || !e.retryable) throw e;
+          if (e.rest) restingUntil.set(u, Math.max(restingUntil.get(u) ?? 0, now() + restMs));
+        }
       }
-      if (!j || typeof j !== "object") throw new IndexerError(`the indexer at ${url} did not answer a GraphQL object`);
-      if (j.errors?.length) throw new IndexerError(`the indexer refused the query: ${j.errors.map((e) => e.message).join("; ")}`);
-      if (!j.data) throw new IndexerError("the indexer answered without data");
-      return j.data;
+      throw last;
     },
   };
 }

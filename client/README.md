@@ -40,7 +40,7 @@ const res = await buyLong(agate, walletClient, { gpu: "H100", month: "2026-11", 
 | `factory` | `"real"` | which factory entry (`"real"`, or `"demo"` during a demo session) |
 | `rpcUrl` | `https://testnet-rpc.monad.xyz` | a key-free RPC; never put a URL that carries a key into a browser bundle or a `NEXT_PUBLIC_` variable |
 | `chainId` | the deployments' `chainId` | must equal it |
-| `graphqlUrl` | `NEXT_PUBLIC_AGATE_GRAPHQL_URL`, else `http://localhost:8080/v1/graphql` where that is this machine's own indexer (outside a browser, or on a page served from localhost); a page hosted elsewhere with no URL set reads the chain only | the Envio indexer's GraphQL; `null` reads the chain only |
+| `graphqlUrl` | `NEXT_PUBLIC_AGATE_GRAPHQL_URL`, else `http://localhost:8080/v1/graphql` where that is this machine's own indexer (outside a browser, or on a page served from localhost); a page hosted elsewhere with no URL set reads the chain only | the Envio indexer's GraphQL, or several URLs separated by commas, tried in order: a failure another indexer could answer moves the query on, and one about the indexer itself (unreachable, an HTTP error, not JSON, a rate limit or database error) rests that URL for a minute; a malformed request (HTTP 400, 413, 422) is never retried (Envio Cloud's free plan allows 100 queries a minute, so the hosted app lists it first and agate's own indexer next); `null` reads the chain only |
 | `publicClient` | a viem public client over `rpcUrl` | bring your own |
 | `panels` | `PANELS` (from `wall/packages/sources/panels/launch.json`) | slot order, cloud names and the reserve per GPU |
 
