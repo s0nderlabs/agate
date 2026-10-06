@@ -23,25 +23,29 @@ export const metadata: Metadata = {
 // theme-color follows the in-app theme once a screen mounts (useThemeColor).
 export const viewport: Viewport = { themeColor: "#f6f5f1", viewportFit: "cover", interactiveWidget: "resizes-content" };
 
-// The hosts every page reads first (the indexer, the chain): their connections open while the page loads instead of
-// after the scripts run. The indexer list is read the way @agate/client reads it (its first URL), and the RPC from the
-// same setting; the fallback is a copy of the client's PUBLIC_RPC, kept literal so this server file does not load viem.
-// fetch() asks without cookies, so the connections are opened the same way (crossOrigin). Dynamic's own connection
-// opens when Dynamic starts (getDynamic), since a signed-out visit never loads it.
+// The hosts every page reads first (the markets snapshot, the indexer, the chain): their connections open while the
+// page loads instead of after the scripts run. The indexer and RPC settings are comma lists the client reads from the
+// first entry, so the first entry of each is preconnected; the snapshot is one URL, as the client reads it. The RPC
+// fallback is a copy of the client's PUBLIC_RPC, kept literal so this server file does not load viem. fetch() asks
+// without cookies, so the connections are opened the same way (crossOrigin). A loopback host (the client's local rule)
+// is skipped. Dynamic's own connection opens when Dynamic starts (getDynamic), since a signed-out visit never loads it.
 const PUBLIC_RPC = "https://testnet-rpc.monad.xyz";
-const firstIndexer = (process.env.NEXT_PUBLIC_AGATE_GRAPHQL_URL ?? "")
-  .split(",")
-  .map((u) => u.trim())
-  .filter(Boolean)[0];
-const origins = [firstIndexer, process.env.NEXT_PUBLIC_AGATE_RPC_URL || PUBLIC_RPC]
+const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/;
+const first = (list: string | undefined) =>
+  (list ?? "")
+    .split(",")
+    .map((u) => u.trim())
+    .filter(Boolean)[0];
+const origins = [process.env.NEXT_PUBLIC_AGATE_SNAPSHOT_URL?.trim(), first(process.env.NEXT_PUBLIC_AGATE_GRAPHQL_URL), first(process.env.NEXT_PUBLIC_AGATE_RPC_URL) ?? PUBLIC_RPC]
   .map((u) => {
     try {
-      return u ? new URL(u).origin : null;
+      const url = u ? new URL(u) : null;
+      return url && !LOCAL.test(url.hostname) ? url.origin : null;
     } catch {
       return null;
     }
   })
-  .filter((o): o is string => !!o && !o.includes("localhost"));
+  .filter((o): o is string => !!o);
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

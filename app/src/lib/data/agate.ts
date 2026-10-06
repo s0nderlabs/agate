@@ -10,10 +10,13 @@ export function getAgate(): Promise<AgateClient> {
   if (!client) {
     client = import("@agate/client").then(({ createAgateClient }) => {
       // literal process.env reads, so Next inlines them at build time. Without a GraphQL URL a page on localhost asks
-      // the local indexer and a hosted page reads the chain only (the client decides; README).
+      // the local indexer and a hosted page reads the chain only (the client decides; README). The snapshot (Agate's
+      // server: every market and listed month's book in one read) answers markets and books while it is fresh; the
+      // client falls back to the chain without it. The RPC may be a comma list (the client falls back down it).
       const graphqlUrl = process.env.NEXT_PUBLIC_AGATE_GRAPHQL_URL;
       const rpcUrl = process.env.NEXT_PUBLIC_AGATE_RPC_URL;
-      return createAgateClient({ ...(graphqlUrl ? { graphqlUrl } : {}), ...(rpcUrl ? { rpcUrl } : {}) });
+      const snapshotUrl = process.env.NEXT_PUBLIC_AGATE_SNAPSHOT_URL;
+      return createAgateClient({ ...(graphqlUrl ? { graphqlUrl } : {}), ...(rpcUrl ? { rpcUrl } : {}), ...(snapshotUrl ? { snapshotUrl } : {}) });
     });
     // a failed import (a dropped chunk) is retried on the next call instead of failing forever
     client.catch(() => {

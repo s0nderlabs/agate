@@ -39,7 +39,7 @@ Phones (under 640 px) get one column with a Long/Short bar over four bottom tabs
 
 `NEXT_PUBLIC_*` values are inlined when the app is built, so set them before `bun run build`.
 
-On Vercel, pages render in Singapore (`vercel.json` `regions: ["sin1"]`, next to Agate's server); every page reads its settings from the URL, so pages render per request rather than as static files. The page head opens the connections to the first indexer URL and the RPC while it loads, and Dynamic's connection opens when Dynamic starts.
+On Vercel, pages render in Singapore (`vercel.json` `regions: ["sin1"]`, next to Agate's server); every page reads its settings from the URL, so pages render per request rather than as static files. The page head opens the connections to the markets snapshot, the first indexer URL and the first RPC URL while it loads, and Dynamic's connection opens when Dynamic starts.
 
 ## Data
 
