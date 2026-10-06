@@ -244,3 +244,88 @@ describe("an RPC list", () => {
     expect(createAgateClient({ rpcUrl: " , ", graphqlUrl: null }).chain.rpcUrls.default.http).toEqual([PUBLIC_RPC]);
   });
 });
+
+describe("after a trade, and how old the numbers are", () => {
+  test("freshReads: for its window the reads go to the chain, then the snapshot answers again", async () => {
+    const { pub, reads } = chain();
+    const s = server(() => json(snap()));
+    const c = new AgateClient({ publicClient: pub, graphqlUrl: null, snapshotUrl: "http://snap/api/markets", fetch: s.fetch });
+    const t0 = Date.now();
+    try {
+      expect(await c.book("H100", "2026-11")).toEqual(BOOK);
+      expect(s.calls()).toBe(1);
+      c.freshReads(20_000);
+      c.freshReads(5_000); // a shorter window never cuts a longer one
+      await c.book("H100", "2026-11");
+      expect(reads).toContain(`getL2Book@${M1}`);
+      expect(s.calls()).toBe(1);
+      setSystemTime(new Date(t0 + 10_000));
+      reads.length = 0;
+      await c.book("H100", "2026-11");
+      expect(reads).toContain(`getL2Book@${M1}`);
+      expect(s.calls()).toBe(1);
+      setSystemTime(new Date(t0 + 21_000));
+      reads.length = 0;
+      expect(await c.book("H100", "2026-11")).toEqual(BOOK);
+      expect(s.calls()).toBe(2);
+      expect(reads).toEqual([]);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test("getMarketsAt and bookAt: the snapshot's read time, counted back from its age", async () => {
+    const { pub } = chain();
+    const c = new AgateClient({ publicClient: pub, graphqlUrl: null, snapshotUrl: "http://snap/api/markets", fetch: server(() => json(snap({ ageMs: 30_000 }))).fetch });
+    const before = Date.now();
+    const m = await c.getMarketsAt();
+    const b = await c.bookAt("H100", "2026-11");
+    expect(m.markets.map((x) => x.gpu)).toEqual(GPUS);
+    expect(m.readAt).toBeGreaterThanOrEqual(before - 30_000);
+    expect(m.readAt).toBeLessThanOrEqual(Date.now() - 30_000);
+    expect(b.book).toEqual(BOOK);
+    expect(b.readAt).toBe(m.readAt);
+  });
+
+  test("read here, the read time is when the read started", async () => {
+    const { pub } = chain();
+    const c = new AgateClient({ publicClient: pub, graphqlUrl: null });
+    const before = Date.now();
+    const b = await c.bookAt("H100", "2026-11");
+    expect(b.readAt).toBeGreaterThanOrEqual(before);
+    expect(b.readAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  test("after the window, a snapshot read before the trade is a miss (read the chain), not a failure (no rest)", async () => {
+    const { pub, reads } = chain();
+    let age = 30_000;
+    const s = server(() => json(snap({ ageMs: age })));
+    const c = new AgateClient({ publicClient: pub, graphqlUrl: null, snapshotUrl: "http://snap/api/markets", fetch: s.fetch });
+    const t0 = Date.now();
+    try {
+      c.freshReads(20_000);
+      setSystemTime(new Date(t0 + 21_000));
+      await c.book("H100", "2026-11"); // the server's copy was read at t0 - 9 s: before the trade
+      expect(s.calls()).toBe(1);
+      expect(reads).toContain(`getL2Book@${M1}`);
+      age = 1_000;
+      setSystemTime(new Date(t0 + 24_000));
+      reads.length = 0;
+      expect(await c.book("H100", "2026-11")).toEqual(BOOK);
+      expect(s.calls()).toBe(2);
+      expect(reads).toEqual([]);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test("freshReads with a bad window falls back to 20 s", async () => {
+    const { pub, reads } = chain();
+    const s = server(() => json(snap()));
+    const c = new AgateClient({ publicClient: pub, graphqlUrl: null, snapshotUrl: "http://snap/api/markets", fetch: s.fetch });
+    c.freshReads(Number.NaN);
+    await c.book("H100", "2026-11");
+    expect(s.calls()).toBe(0);
+    expect(reads).toContain(`getL2Book@${M1}`);
+  });
+});

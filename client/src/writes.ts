@@ -161,6 +161,9 @@ export async function send(c: AgateClient, w: WalletClient, call: Call, landed: 
     throw new WriteError(`${call.label}: sent as ${hash}, but no receipt within ${RECEIPT_TIMEOUT_MS / 1000} s (${errorName(e)}); it may still land: look it up before sending again`, "receipt", "NoReceipt", hash);
   }
   if (rc.status !== "success") throw new WriteError(`${call.label} reverted onchain (${hash})`, "receipt", "reverted", hash);
+  // the chain changed: this client's next reads skip a snapshot that may still show the state before it (never a
+  // reason for a landed write to fail: a stand-in client without it is fine)
+  (c as { freshReads?: () => void }).freshReads?.();
   return { label: call.label, hash, to: call.address, gasLimit: gas, gasUsed: rc.gasUsed, block: rc.blockNumber, events: decodeLogs(rc.logs) };
 }
 

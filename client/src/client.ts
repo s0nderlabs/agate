@@ -93,6 +93,8 @@ export class ReadError extends Error {
 
 type Call = { address: Address; abi: Abi; functionName: string; args?: readonly unknown[] };
 type HistoryRows = { DailyFix: (FixRow & { gpuId: string })[] };
+/** a snapshot as the client holds it: `at` is when the server read it, on this machine's clock (ms) */
+type Snap = MarketsSnapshot & { at: number };
 /** the value of a result already checked ok */
 const okValue = (r: Res): unknown => (r as { ok: true; value: unknown }).value;
 /** marks a promise as handled (its own await still throws): for reads started early whose caller may fail first */
@@ -231,7 +233,10 @@ export class AgateClient {
   private lastMarket = new Map<string, Address>();
   private readonly snapUrl: string | null;
   private readonly fetchFn: (url: string, init?: RequestInit) => Promise<Response>;
-  private snap: { until: number; p: Promise<MarketsSnapshot | null> } | null = null;
+  private snap: { until: number; p: Promise<Snap | null> } | null = null;
+  /** freshReads: the snapshot is not used before snapOffUntil, nor one read before freshSince (ms) */
+  private snapOffUntil = 0;
+  private freshSince = 0;
 
   constructor(cfg: ClientConfig = {}) {
     this.deployments = cfg.deployments ?? TESTNET_DEPLOYMENTS;
@@ -855,8 +860,16 @@ export class AgateClient {
   /** The six GPUs (index price, sources, history; the two open months of the market GPUs): from the snapshot when one
    *  is configured and fresh, else read here. */
   async getMarkets(): Promise<Market[]> {
+    return (await this.getMarketsAt()).markets;
+  }
+
+  /** getMarkets with when its numbers were read (ms, this machine's clock): the snapshot's read time when it answered
+   *  (its age when the server answered, counted back from when it was asked), else when this read started. */
+  async getMarketsAt(): Promise<{ markets: Market[]; readAt: number }> {
     const s = await this.snapshot();
-    return s ? s.markets : this.markets(GPUS);
+    if (s) return { markets: s.markets, readAt: s.at };
+    const readAt = Date.now();
+    return { markets: await this.markets(GPUS), readAt };
   }
 
   async getMarket(gpu: Gpu): Promise<Market> {
@@ -953,10 +966,17 @@ export class AgateClient {
   /** The Kuru book of one month: the real levels, sizes in GPU-hours. Empty when the month is not listed (an
    *  upcoming month, a price-only GPU) or the series has no market. */
   async book(gpu: Gpu, month: string): Promise<Book> {
-    const hit = (await this.snapshot())?.books[`${gpu} ${month}`];
-    if (hit) return hit;
-    const s = await this.listedAt(gpu, month);
-    return s?.book ? toBook(s.book) : { asks: [], bids: [], spread: 0 };
+    return (await this.bookAt(gpu, month)).book;
+  }
+
+  /** book with when it was read (ms, this machine's clock), as getMarketsAt. */
+  async bookAt(gpu: Gpu, month: string): Promise<{ book: Book; readAt: number }> {
+    const s = await this.snapshot();
+    const hit = s?.books[`${gpu} ${month}`];
+    if (hit) return { book: hit, readAt: s!.at };
+    const readAt = Date.now();
+    const l = await this.listedAt(gpu, month);
+    return { book: l?.book ? toBook(l.book) : { asks: [], bids: [], spread: 0 }, readAt };
   }
 
   /** Recent fills of one month, newest first by block and log index (indexer; [] without it, and for a month not
@@ -1060,18 +1080,35 @@ export class AgateClient {
 
   // ------------------------------------------------------------------ the markets snapshot
 
-  /** The configured markets snapshot while it answers and is fresh, shared by the reads of SNAPSHOT_SHARE_MS; null
-   *  (the reads go to the chain and the indexer) when none is set, it fails, is late, or is of another chain or index.
-   *  A failed snapshot rests SNAPSHOT_REST_MS before it is asked again. */
-  private snapshot(): Promise<MarketsSnapshot | null> {
+  /** Call after a transaction lands: for the next `ms` (default 20 s) getMarkets, getMarket and book read the chain and
+   *  the indexer, not the snapshot, and after that a snapshot read before this call is never used, so the book and
+   *  prices never go back to before the transaction (the snapshot can be seconds behind). A longer window already set
+   *  is kept. The client's own writes call it themselves. */
+  freshReads(ms = 20_000): void {
+    const now = Date.now();
+    const w = Number.isFinite(ms) ? Math.max(0, ms) : 20_000;
+    this.snapOffUntil = Math.max(this.snapOffUntil, now + w);
+    this.freshSince = Math.max(this.freshSince, now);
+  }
+
+  /** The configured markets snapshot while it answers and is fresh, shared by the reads of SNAPSHOT_SHARE_MS, with its
+   *  read time on this machine's clock; null (the reads go to the chain and the indexer) when none is set, during
+   *  freshReads, or when it fails, is late, or is of another chain or index. A failed snapshot rests SNAPSHOT_REST_MS
+   *  before it is asked again. */
+  private snapshot(): Promise<Snap | null> {
     if (!this.snapUrl) return Promise.resolve(null);
     const t = Date.now();
-    if (this.snap && t < this.snap.until) return this.snap.p;
+    if (t < this.snapOffUntil) return Promise.resolve(null);
+    // one read before the last freshReads is a miss (never a failure: the snapshot does not rest for it)
+    const young = (s: Snap | null) => (s && s.at >= this.freshSince ? s : null);
+    if (this.snap && t < this.snap.until) return this.snap.p.then(young);
     const url = this.snapUrl;
     const p = (async () => {
       try {
         const r = await this.fetchFn(url, { signal: AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS) });
-        return r.ok ? snapshotOf(await r.json(), this.chain.id, this.index) : null;
+        const s = r.ok ? snapshotOf(await r.json(), this.chain.id, this.index) : null;
+        // counted back from when it was asked, so the transit never makes it look younger
+        return s ? { ...s, at: t - s.ageMs } : null;
       } catch {
         return null;
       }
@@ -1080,7 +1117,7 @@ export class AgateClient {
     p.then((s) => {
       if (!s && this.snap?.p === p) this.snap = { until: Date.now() + SNAPSHOT_REST_MS, p };
     });
-    return p;
+    return p.then(young);
   }
 
   // ------------------------------------------------------------------ the wallet
