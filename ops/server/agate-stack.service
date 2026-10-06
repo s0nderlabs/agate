@@ -1,0 +1,16 @@
+# The server's half of agate's production stack, started at boot (install: "Split across a local machine and a server" in ops/testnet/RUNBOOK.md).
+[Unit]
+Description=agate production stack (tmux session "agate")
+Wants=network-online.target
+After=network-online.target docker.service tailscaled.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=agate
+WorkingDirectory=/home/agate/agate
+ExecStart=/home/agate/agate/ops/server/stack.sh
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

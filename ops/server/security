@@ -1,0 +1,23 @@
+#!/bin/sh
+# A stand-in for macOS `security` on the Linux server, so the operator kit's key commands run unchanged there.
+# Supports only what the kit uses: find-generic-password -s SERVICE -a ACCOUNT [-w]. Each secret is one owner-only
+# file, $AGATE_SECRETS_DIR/SERVICE__ACCOUNT (default ~/.agate-secrets), holding the value and nothing else.
+# Without -w it only says whether the item exists (exit 0 or 44, as macOS does), never the value.
+set -eu
+[ "${1:-}" = find-generic-password ] || { echo "security (agate shim): only find-generic-password is supported" >&2; exit 2; }
+shift
+svc="" acct="" print=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -s) svc="${2:-}"; shift 2 ;;
+    -a) acct="${2:-}"; shift 2 ;;
+    -w) print=1; shift ;;
+    *) echo "security (agate shim): unsupported option $1" >&2; exit 2 ;;
+  esac
+done
+case "$svc$acct" in */* | *..*) echo "security (agate shim): bad item name" >&2; exit 2 ;; esac
+[ -n "$svc" ] && [ -n "$acct" ] || { echo "security (agate shim): -s and -a are required" >&2; exit 2; }
+f="${AGATE_SECRETS_DIR:-$HOME/.agate-secrets}/${svc}__${acct}"
+[ -f "$f" ] || { echo "security: The specified item could not be found in the keychain." >&2; exit 44; }
+if [ "$print" = 1 ]; then tr -d '\n' <"$f"; echo; fi
+exit 0

@@ -29,6 +29,8 @@ export interface HealthDeps {
   /** KEY_LOW when a key holds less than this many hours of its spend at the recent rate (AGATE_KEY_LOW_HOURS, 24) */
   keyLowHours?: number;
   heartbeat?: Heartbeat;
+  /** false: skip the chain-wide checks (R5_HEAD_LAG, KEY_LOW), which the other machine's health runs; default true */
+  global?: boolean;
 }
 
 const MON = 10n ** 18n;
@@ -114,6 +116,10 @@ export class Health {
       const skewMax = Math.max(5, c.slice / 20);
       this.skewTicks = Math.abs(chainNow - now) > skewMax ? this.skewTicks + 1 : 0;
       if (this.skewTicks >= 3) this.x.alerts.raise({ code: AlertCode.CLOCK_SKEW, severity: "action", message: `health: local clock ${now} vs chain head ${chainNow} (more than ${skewMax} s for 3 ticks)` });
+      if (this.x.global === false) {
+        this.x.heartbeat?.beat(now, "ok");
+        return;
+      }
       for (const g of this.x.gpuIds) {
         const head = await this.x.view.head(g);
         const r = await this.x.view.record(g, head - 1);

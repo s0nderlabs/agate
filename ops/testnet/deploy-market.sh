@@ -135,7 +135,7 @@ else
   RUN_JSON="$FOUNDRY_BROADCAST/DeployMarket.s.sol/$CHAIN_ID/run-latest.json"
   if [ "$SENT" = 0 ]; then
     note "nothing sent: every address of this plan already has code (DeployMarket reused them)"
-  elif [ -f "$RUN_JSON" ] && [ "$(stat -f %m "$RUN_JSON")" -ge "$STARTED" ]; then
+  elif [ -f "$RUN_JSON" ] && [ "$(file_mtime "$RUN_JSON")" -ge "$STARTED" ]; then
     set -- $(gas_of "$RUN_JSON")
     note "$1 transactions: gas limits $2 (billed on Monad: $(mon "$2") MON at $GAS_GWEI gwei), gas used $3"
   else

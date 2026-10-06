@@ -147,7 +147,8 @@ base_env() {
   # gas limits come from MARKET_GAS_FILE only (win_env)
   for v in AGATE_MAX_FEE_GWEI AGATE_GAS_POST AGATE_GAS_ONREPORT AGATE_GAS_CLOSE AGATE_GAS_MEASURED \
     AGATE_KEY_LOW_HOURS AGATE_MM_CONFIG AGATE_PAYER_CONFIG AGATE_ALCHEMY_DAILY_CU AGATE_MM_SESSION_MON \
-    AGATE_MM_SESSION_UNTIL AGATE_PAYER_SESSION_MON AGATE_PAYER_SESSION_UNTIL; do
+    AGATE_MM_SESSION_UNTIL AGATE_PAYER_SESSION_MON AGATE_PAYER_SESSION_UNTIL AGATE_HEALTH_CORE AGATE_HEALTH_WRITERS \
+    AGATE_HEALTH_EXTRA AGATE_HEALTH_GLOBAL; do
     if [ -n "${!v:-}" ]; then echo "$v=${!v}"; fi
   done
   return 0
@@ -215,6 +216,8 @@ win_env() {
       echo "AGATE_DEPLOYMENTS=$KIT_DEPLOYMENTS"
       echo "AGATE_KIT_RECORDS=$KIT_RECORDS"
       echo "AGATE_KIT_STATE=$KIT_STATE"
+      # Envio's terminal UI redraws into the window's log: about 600 MB by Oct 6 on the local machine. Plain log lines instead.
+      echo "TUI_OFF=true"
       if [ "$KIT_FORK" = 1 ]; then echo "AGATE_KIT_FORK_RPC=$KIT_RPC"; fi
       ;;
     shared-repair)
@@ -305,13 +308,64 @@ if [ -f "$KIT_DEPLOYMENTS" ]; then
     SHARED="shared-maker shared-payer shared-indexer $SHARED"
   fi
 fi
-[ "$KIT_FORK" = 1 ] || SHARED="$SHARED shared-awake"
+# caffeinate keeps a Mac awake; a Linux server has no such window
+[ "$KIT_FORK" = 1 ] || [ "$(uname)" != Darwin ] || SHARED="$SHARED shared-awake"
+# AGATE_KIT_WINDOWS (Oct 6): open only these windows (exact names, space or comma separated), for a stack split across
+# machines: the server runs most roles, the local machine keeps the standby writer. Only the keys of the opened windows are checked.
+if [ -n "${AGATE_KIT_WINDOWS:-}" ]; then
+  only() {
+    local out="" n
+    for n in $1; do
+      case " $(printf '%s' "$AGATE_KIT_WINDOWS" | tr ',' ' ') " in *" $n "*) out="$out $n" ;; esac
+    done
+    echo "${out# }"
+  }
+  PER="$(only "$PER")"
+  SHARED="$(only "$SHARED")"
+  [ -n "$PER$SHARED" ] || die "AGATE_KIT_WINDOWS ($AGATE_KIT_WINDOWS) names none of this stack's windows: nothing opened"
+  note "AGATE_KIT_WINDOWS: only $PER $SHARED"
+fi
+# $KIT_STATE/elsewhere (this machine only): window names that run on another machine, never opened here, so a plain
+# up.sh on the local machine cannot start a second copy of a role the server runs (two processes on one key)
+ELSEWHERE_FILE="$KIT_STATE/elsewhere"
+if [ -f "$ELSEWHERE_FILE" ]; then
+  ELSEWHERE=" $(tr ',\n' '  ' <"$ELSEWHERE_FILE") "
+  skip() {
+    local out="" n
+    for n in $1; do case "$ELSEWHERE" in *" $n "*) note "$n: runs on another machine ($ELSEWHERE_FILE): not opened here" >&2 ;; *) out="$out $n" ;; esac; done
+    echo "${out# }"
+  }
+  PER="$(skip "$PER")"
+  SHARED="$(skip "$SHARED")"
+fi
+# health on a split stack watches the roles opened on this machine only (heartbeat files are local), and only the
+# machine that runs the keeper checks the chain-wide items (late days, key balances), so the local machine and the server never
+# raise one alert twice. An AGATE_HEALTH_* set in the shell wins; "none" is an empty list (an empty value is not passed).
+if [ -n "${AGATE_KIT_WINDOWS:-}" ] || [ -f "$ELSEWHERE_FILE" ]; then
+  h_core="log" h_writers="" h_extra="" h_global=0
+  for n in $PER $SHARED; do
+    case "$n" in
+      *-attest) h_core="$h_core,attest" ;;
+      *-keep) h_core="$h_core,keep" h_global=1 ;;
+      *-primary) h_writers="$h_writers,primary" ;;
+      *-standby) h_writers="$h_writers,standby" ;;
+      *-pagecheck) h_extra="$h_extra,pagecheck" ;;
+      shared-repair) h_extra="$h_extra,repair" ;;
+      shared-akash) h_extra="$h_extra,akash" ;;
+    esac
+  done
+  h_writers="${h_writers#,}" h_extra="${h_extra#,}"
+  AGATE_HEALTH_CORE="${AGATE_HEALTH_CORE:-$h_core}"
+  AGATE_HEALTH_WRITERS="${AGATE_HEALTH_WRITERS:-${h_writers:-none}}"
+  AGATE_HEALTH_EXTRA="${AGATE_HEALTH_EXTRA:-${h_extra:-none}}"
+  AGATE_HEALTH_GLOBAL="${AGATE_HEALTH_GLOBAL:-$h_global}"
+fi
 
 if [ "$STACK" = production ] && [ "$KIT_FORK" = 0 ] && [ "$KIT_DRY" = 0 ]; then
   HB="$PROD_LOG_DIR/heartbeat-log.json"
   if [ ! -f "$HB" ]; then
     warn "no watcher logger heartbeat at $HB: is the logger (wall-log) running?"
-  elif [ $(($(date +%s) - $(stat -f %m "$HB"))) -gt 7200 ]; then
+  elif [ $(($(date +%s) - $(file_mtime "$HB"))) -gt 7200 ]; then
     warn "the watcher logger's heartbeat $HB is over 2 h old"
   fi
 fi
@@ -324,15 +378,28 @@ fi
 PAYER_SIGNER="$(payer_signer)" || exit 1 # an invalid AGATE_PAYER_SIGNER: payer_signer said why
 if [ "$PAYER_SIGNER" = dynamic ]; then
   [ "$KIT_FORK" = 0 ] && [ "$KIT_REHEARSAL" = 0 ] || die "AGATE_PAYER_SIGNER=dynamic is for the real testnet stack only (not --fork or a rehearsal): unset it; nothing opened"
+fi
+# its wallet file only when this run opens the payer (on a split stack it may run on the other machine)
+if [ "$PAYER_SIGNER" = dynamic ] && case " $PER $SHARED " in *" shared-payer "*) true ;; *) false ;; esac; then
   [ -f "$(payer_wallet_file)" ] || die "no Dynamic wallet file $(payer_wallet_file) (server/scripts/payer-wallet.ts export): nothing opened"
-  [ "$(stat -f %Lp "$(payer_wallet_file)")" = 600 ] || die "$(payer_wallet_file) must be mode 600: nothing opened"
+  [ "$(file_mode "$(payer_wallet_file)")" = 600 ] || die "$(payer_wallet_file) must be mode 600: nothing opened"
 fi
 
 # every Keychain item the windows' key commands will read exists (attributes only: no secret is read here)
 if [ "$KIT_FORK" = 0 ] && [ "$KIT_DRY" = 0 ]; then
-  roles="primary standby attester keeper bot payer"
-  # the payer on its Dynamic server wallet has no Keychain key (its wallet file is checked above)
-  [ "$PAYER_SIGNER" = dynamic ] && roles="primary standby attester keeper bot"
+  # the roles of the windows this run opens (all of them unless AGATE_KIT_WINDOWS narrows it); the payer on its Dynamic
+  # server wallet has no Keychain key (its wallet file is checked above)
+  roles=""
+  for n in $PER $SHARED; do
+    case "$n" in
+      *-primary) roles="$roles primary" ;;
+      *-standby) roles="$roles standby" ;;
+      *-attest) roles="$roles attester" ;;
+      *-keep) roles="$roles keeper" ;;
+      shared-maker) roles="$roles bot" ;;
+      shared-payer) [ "$PAYER_SIGNER" = dynamic ] || roles="$roles payer" ;;
+    esac
+  done
   for r in $roles; do
     keychain_has "$(role_svc "$r")" || die "no Keychain item $(role_svc "$r") (account private-key): nothing opened"
   done

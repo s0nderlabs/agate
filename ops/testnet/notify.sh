@@ -7,4 +7,10 @@ a="$(head -c 65536)"
 code="$(printf '%s' "$a" | sed -n 's/.*"code":"\([A-Z0-9_]\{1,40\}\)".*/\1/p' | head -1)"
 ix="$(printf '%s' "$a" | sed -n 's/.*"index":"0x\([0-9a-fA-F]\{8\}\)[0-9a-fA-F]*".*/\1/p' | head -1)"
 [ -n "$code" ] || code="ALERT"
-/usr/bin/osascript -e "display notification \"$code ${ix:+index $ix}\" with title \"agate\" sound name \"Submarine\"" >/dev/null 2>&1 || true
+if [ -x /usr/bin/osascript ]; then
+  /usr/bin/osascript -e "display notification \"$code ${ix:+index $ix}\" with title \"agate\" sound name \"Submarine\"" >/dev/null 2>&1 || true
+else
+  # a Linux server has no notification centre: spool the code and index for the local machine's forwarder
+  # (ops/server/alerts-forward.sh), which shows them with this same script
+  printf '{"at":%s,"code":"%s","index":"0x%s"}\n' "$(date +%s)" "$code" "${ix:-}" >>"${AGATE_NOTIFY_SPOOL:-$HOME/.agate-wall/notify-spool.jsonl}" 2>/dev/null || true
+fi

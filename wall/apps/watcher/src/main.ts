@@ -61,18 +61,24 @@ export function oldGuardianLogWarning(home: string): string | null {
   return old.length > 0 ? `ignoring the shared guardian log files ${old.join(", ")} in ${join(home, "guardian")} (since Oct 3 each index has its own folder, 13.7)` : null;
 }
 
-/** The roles health watches, with their tick periods (13.4); since Oct 3 also the page check of this index (one
- *  slice, at most 3,600 s), the repair agent (3,600 s) and the Akash reader (its interval), unless left out of
- *  AGATE_HEALTH_EXTRA (default "pagecheck,repair,akash"). */
+/** A comma list from the environment; "none" is the empty list (an empty variable falls back to the default). */
+const envList = (name: string, dflt: string): string[] => (process.env[name] || dflt).split(",").map((x) => x.trim()).filter((x) => x && x !== "none");
+
+/** The roles health watches, with their tick periods (13.4): the logger, attester and keeper (AGATE_HEALTH_CORE,
+ *  default "log,attest,keep"), the writers (AGATE_HEALTH_WRITERS, default "primary,standby"), and since Oct 3 the
+ *  page check of this index (one slice, at most 3,600 s), the repair agent (3,600 s) and the Akash reader (its
+ *  interval), unless left out of AGATE_HEALTH_EXTRA (default "pagecheck,repair,akash"). Since Oct 6 a stack split
+ *  across two machines runs a health on each, watching that machine's roles only (heartbeat files are local). */
 export function roleBeats(w: Wall): RoleBeat[] {
   const c = w.clock;
-  const extra = new Set((process.env.AGATE_HEALTH_EXTRA ?? "pagecheck,repair,akash").split(",").map((x) => x.trim()).filter(Boolean));
+  const core = new Set(envList("AGATE_HEALTH_CORE", "log,attest,keep"));
+  const extra = new Set(envList("AGATE_HEALTH_EXTRA", "pagecheck,repair,akash"));
   const akashS = Number(process.env.AGATE_AKASH_INTERVAL_S ?? 3_600);
   return [
-    { role: "log", path: heartbeatFile(w, "log"), periodS: c.slice },
-    { role: "attest", path: heartbeatFile(w, "attest"), periodS: c.slice },
-    { role: "keep", path: heartbeatFile(w, "keep"), periodS: c.keeperPeriod },
-    ...(process.env.AGATE_HEALTH_WRITERS ?? "primary,standby").split(",").filter(Boolean).map((r) => ({ role: r, path: writerBeatFile(w.home, r, w.index), periodS: c.slice })),
+    ...(core.has("log") ? [{ role: "log", path: heartbeatFile(w, "log"), periodS: c.slice }] : []),
+    ...(core.has("attest") ? [{ role: "attest", path: heartbeatFile(w, "attest"), periodS: c.slice }] : []),
+    ...(core.has("keep") ? [{ role: "keep", path: heartbeatFile(w, "keep"), periodS: c.keeperPeriod }] : []),
+    ...envList("AGATE_HEALTH_WRITERS", "primary,standby").map((r) => ({ role: r, path: writerBeatFile(w.home, r, w.index), periodS: c.slice })),
     ...(extra.has("pagecheck") ? [{ role: "pagecheck", path: join(w.home, "pagecheck", `heartbeat-${index8(w.index)}.json`), periodS: Math.min(3_600, c.slice) }] : []),
     ...(extra.has("repair") ? [{ role: "repair", path: join(w.home, "repair", "heartbeat.json"), periodS: 3_600 }] : []),
     ...(extra.has("akash") ? [{ role: "akash", path: join(w.home, "akash", "heartbeat.json"), periodS: Number.isFinite(akashS) && akashS > 0 ? akashS : 3_600 }] : []),
@@ -268,7 +274,9 @@ async function main(role: Role): Promise<void> {
     }
     const keyLowHours = process.env.AGATE_KEY_LOW_HOURS ? Number(process.env.AGATE_KEY_LOW_HOURS) : 24;
     if (!(Number.isFinite(keyLowHours) && keyLowHours > 0 && keyLowHours <= 8_760)) throw new Error("AGATE_KEY_LOW_HOURS must be a number of hours above 0 and at most 8,760");
-    const health = new Health({ view: w.view, pool: w.pool, clock: c, alerts: w.alerts, roles: roleBeats(w), gpuIds: w.panels.map((p) => p.gpuId), keys: keys.filter((k) => !/^0x0{40}$/i.test(k.address)), keyLowHours, heartbeat: hb });
+    // AGATE_HEALTH_GLOBAL=0: the late-day and key-balance checks are left to the other machine's health (Oct 6 split)
+    const global = process.env.AGATE_HEALTH_GLOBAL !== "0";
+    const health = new Health({ view: w.view, pool: w.pool, clock: c, alerts: w.alerts, roles: roleBeats(w), gpuIds: w.panels.map((p) => p.gpuId), keys: keys.filter((k) => !/^0x0{40}$/i.test(k.address)), keyLowHours, heartbeat: hb, global });
     return loop(role, Math.min(60, c.slice), (now) => health.tick(now));
   }
 

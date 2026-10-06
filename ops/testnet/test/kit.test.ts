@@ -808,6 +808,55 @@ describe("the testnet configs", () => {
   });
 });
 
+describe("a stack split across a local machine and a server", () => {
+  const deployed = () => ({ AGATE_KIT_RECORDS: join(tmp, "records.json"), AGATE_KIT_DEPLOYMENTS: join(tmp, "deployments.json") });
+  const opened = (out: string) => launchersOf(out).map((l) => l.name).sort();
+
+  test("AGATE_KIT_WINDOWS opens exactly the named windows, and naming none of them opens nothing", () => {
+    const r = run("up.sh", ["production", "--dry-run"], { ...deployed(), AGATE_KIT_WINDOWS: "prod-primary,shared-maker prod-keep" });
+    expect(r.code).toBe(0);
+    expect(opened(r.out)).toEqual(["prod-keep", "prod-primary", "shared-maker"]);
+    const none = run("up.sh", ["production", "--dry-run"], { ...deployed(), AGATE_KIT_WINDOWS: "prod-nothing" });
+    expect(none.code).not.toBe(0);
+    expect(none.out).toContain("names none of this stack's windows");
+    expect(launchersOf(none.out)).toEqual([]);
+  });
+
+  test("the elsewhere file keeps the roles another machine runs from opening here", () => {
+    const state = join(tmp, "state-split");
+    mkdirSync(state, { recursive: true });
+    writeFileSync(join(state, "elsewhere"), "prod-primary shared-maker\nshared-payer,prod-attest\n");
+    const all = opened(run("up.sh", ["production", "--dry-run"], deployed()).out);
+    const r = run("up.sh", ["production", "--dry-run"], { ...deployed(), AGATE_KIT_STATE: state });
+    expect(r.code).toBe(0);
+    const here = opened(r.out);
+    expect(here).toEqual(all.filter((n) => !["prod-primary", "shared-maker", "shared-payer", "prod-attest"].includes(n)));
+    expect(here).toContain("prod-standby");
+    expect(r.out).toContain("prod-primary: runs on another machine");
+  });
+
+  test("each side's health watches the roles opened there, and only the keeper's side checks the chain", () => {
+    const health = (out: string) => launchersOf(out).find((l) => l.name === "prod-health")?.body ?? "";
+    const server = health(run("up.sh", ["production", "--dry-run"], { ...deployed(), AGATE_KIT_WINDOWS: "prod-primary prod-attest prod-keep prod-pagecheck prod-health shared-maker shared-payer shared-indexer shared-akash" }).out);
+    for (const kv of ["AGATE_HEALTH_CORE='log,attest,keep'", "AGATE_HEALTH_WRITERS='primary'", "AGATE_HEALTH_EXTRA='pagecheck,akash'", "AGATE_HEALTH_GLOBAL='1'"]) expect(server).toContain(kv);
+    const state = join(tmp, "state-mac");
+    mkdirSync(state, { recursive: true });
+    writeFileSync(join(state, "elsewhere"), "prod-primary prod-attest prod-keep prod-pagecheck shared-maker shared-payer shared-indexer shared-akash\n");
+    const mac = health(run("up.sh", ["production", "--dry-run"], { ...deployed(), AGATE_KIT_STATE: state }).out);
+    for (const kv of ["AGATE_HEALTH_CORE='log'", "AGATE_HEALTH_WRITERS='standby'", "AGATE_HEALTH_EXTRA='repair'", "AGATE_HEALTH_GLOBAL='0'"]) expect(mac).toContain(kv);
+    // an unsplit stack keeps the defaults: no AGATE_HEALTH_* at all
+    expect(health(run("up.sh", ["production", "--dry-run"], deployed()).out)).not.toContain("AGATE_HEALTH_");
+  });
+
+  test("a demo session refuses to start or stop on a split machine", () => {
+    for (const action of ["start", "stop"]) {
+      const r = run("demo-session.sh", [action, "--dry-run"], { AGATE_KIT_WINDOWS: "prod-standby" });
+      expect(r.code).not.toBe(0);
+      expect(r.out).toContain("runs part of a split stack");
+    }
+  });
+});
+
 describe("repo files", () => {
   test("no em dash and no build-process words in the kit", () => {
     const files = ["lib.sh", "deploy-index.sh", "deploy-market.sh", "fund.sh", "up.sh", "down.sh", "demo-session.sh", "status.sh", "indexer.sh", "notify.sh", "send.ts", "gas-headroom.ts", "market-gas-limits.json", "rehearse.sh", "rehearse/days.ts", "rehearse/status.ts", "RUNBOOK.md", "test/kit.test.ts", "test/adversarial/kit-adversarial.test.ts"];

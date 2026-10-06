@@ -28,6 +28,11 @@ case "$ACTION" in start | stop) ;; *) die "usage: $0 <start|stop> [--hours H] [-
 # an unknown argument is refused, never dropped (a dropped --cancel-books would leave the books resting unannounced)
 [ "${#KIT_POS[@]}" -le 1 ] || die "unknown argument(s): ${KIT_POS[*]:1}; usage: $0 <start|stop> [--hours H] [--dry-run] [--fork]"
 case "$HOURS" in '' | *[!0-9.]*) die "--hours takes a number" ;; esac
+# a stack split across machines (since Oct 6): the shared bots and the indexer this session restarts may run on the
+# other machine, which this run cannot reach, so the new demo market would get no maker, payer or indexer
+if [ -n "${AGATE_KIT_WINDOWS:-}" ] || [ -f "$KIT_STATE/elsewhere" ]; then
+  die "this machine runs part of a split stack (AGATE_KIT_WINDOWS or $KIT_STATE/elsewhere): a demo session restarts the shared windows, so run it where the whole stack runs; nothing deployed or stopped"
+fi
 FLAGS=()
 [ "$KIT_DRY" = 1 ] && FLAGS+=(--dry-run)
 [ "$KIT_FORK" = 1 ] && FLAGS+=(--fork)
@@ -104,7 +109,7 @@ for v in "$AGATE_MM_SESSION_MON" "$AGATE_PAYER_SESSION_MON"; do
 done
 AGATE_MM_SESSION_UNTIL="$(awk -v h="$HOURS" -v now="$(date +%s)" 'BEGIN { printf "%d", now + (h + 1) * 3600 }')"
 AGATE_PAYER_SESSION_UNTIL="$AGATE_MM_SESSION_UNTIL"
-note "  the maker and the payer get $AGATE_MM_SESSION_MON and $AGATE_PAYER_SESSION_MON MON on top of their daily budget, once, until $(date -u -r "$AGATE_MM_SESSION_UNTIL" +%H:%M) UTC (AGATE_*_SESSION_MON, AGATE_*_SESSION_UNTIL)"
+note "  the maker and the payer get $AGATE_MM_SESSION_MON and $AGATE_PAYER_SESSION_MON MON on top of their daily budget, once, until $(utc_fmt "$AGATE_MM_SESSION_UNTIL" +%H:%M) UTC (AGATE_*_SESSION_MON, AGATE_*_SESSION_UNTIL)"
 "$KIT/deploy-index.sh" testnet-demo ${FLAGS[@]+"${FLAGS[@]}"}
 "$KIT/deploy-market.sh" demo ${FLAGS[@]+"${FLAGS[@]}"}
 "$KIT/up.sh" demo --restart-shared ${FLAGS[@]+"${FLAGS[@]}"}

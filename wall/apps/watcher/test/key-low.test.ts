@@ -159,3 +159,24 @@ describe("SpendWindow", () => {
     expect(w.add(12_060, 500n, 180)).toBe(true);
   });
 });
+
+describe("a split stack's second health (AGATE_HEALTH_GLOBAL=0)", () => {
+  test("leaves KEY_LOW and late days to the other machine's health, and still beats", async () => {
+    const t = 1_793_491_200;
+    const view = { blockTime: async () => t, balance: async () => MON, head: async () => { throw new Error("no day check on this side") } } as unknown as IndexView;
+    const make = (global: boolean) => {
+      const alerts = new AlertSink(null, { now: () => t, print: false });
+      const beats: string[] = [];
+      const health = new Health({ view, clock: { slice: 150, day: 600 } as never, alerts, roles: [], gpuIds: global ? [] : ["0x01" as Address], keys: [{ role: "primary", address: PRIMARY }], heartbeat: { beat: (_: number, s: string) => void beats.push(s) } as never, global });
+      return { alerts, beats, health };
+    };
+    const off = make(false);
+    await off.health.tick(t);
+    expect(off.alerts.open()).toEqual([]);
+    expect(off.beats).toEqual(["ok"]);
+    // the keeper's side, same key at 1 MON: KEY_LOW under the 10 MON floor
+    const on = make(true);
+    await on.health.tick(t);
+    expect(on.alerts.open().map((a) => a.code)).toEqual(["KEY_LOW"]);
+  });
+});

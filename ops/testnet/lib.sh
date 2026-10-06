@@ -530,8 +530,20 @@ deploy_block_of() {
 }
 
 index8() { printf '%s' "$1" | cut -c3-10 | tr 'A-F' 'a-f'; }
-utc_date() { date -u -r "$1" '+%Y-%m-%d %H:%M:%S UTC'; }
-day_date() { date -u -r "$(($1 * 86400))" '+%Y-%m-%d'; }
+# Dates and file attributes on macOS (BSD date and stat) or Linux (GNU): since Oct 6 most roles run on a Linux server
+if [ "$(uname)" = Darwin ]; then
+  utc_fmt() { date -u -r "$1" "$2"; }
+  file_mtime() { stat -f %m "$1"; }
+  file_mode() { stat -f %Lp "$1"; }
+  sed_inplace() { sed -i '' "$@"; }
+else
+  utc_fmt() { date -u -d "@$1" "$2"; }
+  file_mtime() { stat -c %Y "$1"; }
+  file_mode() { stat -c %a "$1"; }
+  sed_inplace() { sed -i "$@"; }
+fi
+utc_date() { utc_fmt "$1" '+%Y-%m-%d %H:%M:%S UTC'; }
+day_date() { utc_fmt "$(($1 * 86400))" '+%Y-%m-%d'; }
 # hexsum: the sum of the 0x-hex (or decimal) numbers on stdin, one per line
 hexsum() {
   local t=0 x
@@ -663,7 +675,7 @@ set_json_number() {
   n="$(grep -c "\"$key\": [0-9][0-9]*" "$file" || true)"
   [ "$n" = 1 ] || die "$file has $n \"$key\" numbers, expected 1"
   if [ "$KIT_DRY" = 1 ]; then show "set \"$key\": $val in $file  (not written in a dry run)"; return 0; fi
-  sed -E -i '' "s/\"$key\": [0-9]+/\"$key\": $val/" "$file"
+  sed_inplace -E "s/\"$key\": [0-9]+/\"$key\": $val/" "$file"
 }
 
 # ------------------------------------------------------------------ tmux (exact window names only)

@@ -352,6 +352,27 @@ describe("9.5: health watches the page check, the repair agent and the Akash rea
     if (saved === undefined) delete process.env.AGATE_HEALTH_EXTRA;
     else process.env.AGATE_HEALTH_EXTRA = saved;
   });
+
+  test("a split stack's health: AGATE_HEALTH_CORE narrows log, attest and keep; none is an empty list", () => {
+    const w = { home: "/h", index: "0xAbCdEf0100000000000000000000000000000001", dir: "/h/watcher/x", logDir: "/h/watcher/x", clock: { slice: 150, keeperPeriod: 50 } } as never;
+    const names = ["AGATE_HEALTH_CORE", "AGATE_HEALTH_WRITERS", "AGATE_HEALTH_EXTRA"] as const;
+    const saved = names.map((n) => process.env[n]);
+    try {
+      // the local machine: its own logger, the standby writer and the repair agent
+      Object.assign(process.env, { AGATE_HEALTH_CORE: "log", AGATE_HEALTH_WRITERS: "standby", AGATE_HEALTH_EXTRA: "repair" });
+      expect(roleBeats(w).map((r) => r.role)).toEqual(["log", "standby", "repair"]);
+      // the server: no standby, no repair
+      Object.assign(process.env, { AGATE_HEALTH_CORE: "log,attest,keep", AGATE_HEALTH_WRITERS: "primary", AGATE_HEALTH_EXTRA: "pagecheck,akash" });
+      expect(roleBeats(w).map((r) => r.role)).toEqual(["log", "attest", "keep", "primary", "pagecheck", "akash"]);
+      Object.assign(process.env, { AGATE_HEALTH_CORE: "log", AGATE_HEALTH_WRITERS: "none", AGATE_HEALTH_EXTRA: "none" });
+      expect(roleBeats(w).map((r) => r.role)).toEqual(["log"]);
+      // an empty value is the default, never an empty list
+      Object.assign(process.env, { AGATE_HEALTH_CORE: "", AGATE_HEALTH_WRITERS: "", AGATE_HEALTH_EXTRA: "" });
+      expect(roleBeats(w).map((r) => r.role)).toEqual(["log", "attest", "keep", "primary", "standby", "pagecheck", "repair", "akash"]);
+    } finally {
+      names.forEach((n, i) => (saved[i] === undefined ? delete process.env[n] : (process.env[n] = saved[i])));
+    }
+  });
 });
 
 // ------------------------------------------------------------------ 13.6 websocket wake (a local mock server)

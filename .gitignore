@@ -51,3 +51,5 @@ docs/market/BOTS-SPEC.md
 docs/market/model/
 docs/private/
 spikes/
+.vercel
+.env*.local

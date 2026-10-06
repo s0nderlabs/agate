@@ -470,6 +470,52 @@ start indexes again from the deploy blocks). After `--cancel-books` the maker st
 `cd wall && AGATE_WALL_HOME=~/.agate-wall bun run apps/marketmaker/src/main.ts unkill`. Kuru orders never expire: a
 maker stopped without `--cancel-books` leaves its ladder resting until it runs again.
 
+## Split across a local machine and a server (since Oct 6)
+
+Most roles run on a Linux server (Vultr, Ubuntu 24.04, on the operator's tailnet; SSH only over Tailscale): the
+primary writer, attester, keeper, page check, health, market maker, payer, indexer, Akash reader, its own watcher
+logger, the AI server and the indexer's public proxy. The local machine keeps the standby writer, the repair agent, its own
+logger and its own health; the public app runs on Vercel. The same kit runs on both:
+
+- **The server's stack:** `ops/server/stack.sh` opens everything in the tmux session `agate` (the kit's windows through
+  `AGATE_KIT_WINDOWS`, plus wall-log, graphql-proxy and ai-server with a 10 s restart loop each), and is idempotent. It
+  starts at boot from `ops/server/agate-stack.service` (copy it to `/etc/systemd/system/`, `systemctl enable --now
+  agate-stack`; it runs as the user `agate`, who is in the `docker` group for the indexer). Tailscale Funnel publishes
+  the AI server (port 443, to 127.0.0.1:5191) and `ops/server/graphql-proxy.ts` (port 8443, to 127.0.0.1:8081: POST
+  /v1/graphql with every x-hasura-* header dropped, and GET /akash-traded.json). The CRE CLI (Go) needs
+  `vm.overcommit_memory = 1` on a 2 GB server, else its simulation dies "out of memory" and the primary posts directly.
+
+- **Keys on the server:** `ops/server/security` is installed as `/usr/local/bin/security`, a stand-in for the macOS
+  command that serves `find-generic-password -s SERVICE -a ACCOUNT [-w]` from owner-only files
+  `~/.agate-secrets/SERVICE__ACCOUNT`, so every key command runs unchanged. A key is copied without being printed:
+  `security find-generic-password -s agate.wall.primary -a private-key -w | ssh <server> 'umask 077; cat > ~/.agate-secrets/agate.wall.primary__private-key'`.
+  The payer's Dynamic files go to `~/.agate-dynamic/` (mode 600).
+- **Which windows open where:** `AGATE_KIT_WINDOWS="prod-primary shared-maker shared-payer"` opens only those (and
+  checks only their keys); `$AGATE_KIT_STATE/elsewhere` (default `~/.agate-kit/elsewhere`, one machine only) lists
+  windows that run on the other machine and are never opened here, so a plain `up.sh production` on the local machine cannot
+  start a second process on a key the server uses. The server's session is named with `AGATE_KIT_TMUX_SESSION=agate`.
+- **Health on each side:** heartbeat files are local, so each machine runs its own health. On a split stack (either
+  of the two above in use) up.sh points it at the roles it opens there: `AGATE_HEALTH_CORE` (log, attest, keep),
+  `AGATE_HEALTH_WRITERS` and `AGATE_HEALTH_EXTRA` (pagecheck, repair, akash), with `none` for an empty list. Only the
+  machine that runs the keeper gets the chain-wide checks (late days, key balances; `AGATE_HEALTH_GLOBAL=0` on the
+  other), so no alert is raised twice. A value set in the shell wins. A demo session refuses to run on a split stack:
+  the shared windows it restarts may be on the other machine.
+- **Moving a role:** stop it by exact name on one machine (`AGATE_KIT_ONLY=<window> down.sh production --only-named`),
+  copy its state folder (`~/.agate-wall/<role>`, the market bots' `~/.agate-wall/market`), start it on the other with
+  `AGATE_KIT_WINDOWS=<window> up.sh production`, then add it to the first machine's `elsewhere`. Never run one role on
+  both. The attester, keeper and page check read the watcher logger's log: move them only once the server's own logger
+  has a complete UTC day, after the local machine's attester has handled the day before.
+- **The CRE writer on the server** needs its workflow's own packages (`cd wall/apps/writer-cre/workflow && bun install
+  --frozen-lockfile`), else it falls back to direct posting ("cre-compile failed"), and a one-time `cre login` through
+  an SSH tunnel (`ssh -L 53682:localhost:53682 <server>`, then `cre login` there and the printed link in the local machine's
+  browser). Compiling takes about 50 s and 0.8 GB on a 1-vCPU 2 GB server (a swapfile is set).
+- **Notifications:** on Linux `notify.sh` appends each action alert's code and index to
+  `~/.agate-wall/notify-spool.jsonl`. On the local machine, `ops/server/alerts-forward.sh` (in its own tmux window, e.g.
+  `server-alerts`) reads the new lines over the tailnet each minute (host `agate-1` in `~/.ssh/agate.conf`) and shows
+  them with the same notify.sh. It starts after what is already in the spool and moves its offset
+  (`~/.agate-kit/notify-spool.offset`) only after a read that worked. Full alerts stay in `~/.agate-wall/alerts` on
+  the server (`status.sh production` there).
+
 ## A half-done deploy
 
 Every step can be run again; none sends what has already landed.

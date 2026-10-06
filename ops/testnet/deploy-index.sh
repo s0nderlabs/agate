@@ -176,7 +176,7 @@ if [ -z "$IX" ]; then
       sed -E "s/\"firstDay\": [0-9]+/\"firstDay\": $FIRST_DAY/" "$CFG" >"$RUN_CFG"
       if [ "$KIT_REHEARSAL" = 1 ]; then
         for r in primary standby attester; do
-          sed -i '' "s/$(role_addr_real "$r")/$(role_addr_rehearsal "$r")/" "$RUN_CFG"
+          sed_inplace "s/$(role_addr_real "$r")/$(role_addr_rehearsal "$r")/" "$RUN_CFG"
         done
       fi
     fi
@@ -233,7 +233,7 @@ if [ -z "$IX" ]; then
     has_code "$IX" || die "no code at $IX after the broadcast (log $DEP_LOG)"
     RUN_JSON="$FOUNDRY_BROADCAST/DeployIndex.s.sol/$CHAIN_ID/run-latest.json"
     # the gas line only from a broadcast file this run wrote
-    if [ -f "$RUN_JSON" ] && [ "$(stat -f %m "$RUN_JSON")" -ge "$STARTED" ]; then
+    if [ -f "$RUN_JSON" ] && [ "$(file_mtime "$RUN_JSON")" -ge "$STARTED" ]; then
       set -- $(gas_of "$RUN_JSON")
       note "$1 transactions: gas limits $2 (billed on Monad: $(mon "$2") MON at $GAS_GWEI gwei), gas used $3"
     fi

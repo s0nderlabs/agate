@@ -1,0 +1,18 @@
+# `vercel deploy` runs from the repo root (the app's workspace packages live beside it; the project's root directory
+# is app/). Upload only what the app build needs: the bun workspace (root package.json, bun.lock, bunfig.toml),
+# app/, client/, wallet/ and server/'s package.json (the lockfile names every workspace).
+/contracts
+/wall
+/indexer
+/spikes
+/ops
+/docs
+/server/*
+!/server/package.json
+/client/e2e
+/client/test
+/wallet/lab
+**/node_modules
+**/.next
+**/.env*
+.claude
