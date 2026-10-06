@@ -286,6 +286,13 @@ final; anything else it answers is passed on to the public RPCs: down, a timeout
 capacity limit exceeded"). A send endpoint that does not answer in time rests for a minute, so a send pays one timeout,
 not one per call.
 
+**The app's own key (Oct 6).** Browsers read through a separate Alchemy app, `agate-browser` (Node API only; its
+key in the Keychain as `agate.alchemy-browser-key`), whose key is locked to the domains agate.elpabl0.xyz,
+agate-topaz.vercel.app and localhost (any other origin, or none, gets 403) and sits in the public
+`NEXT_PUBLIC_AGATE_RPC_URL` ahead of the public RPC: a refusal (403, a limit, an outage) passes the read to the public
+RPC. It shares the account's monthly capacity with the robots (51% used on Oct 6) and the robots' meter does not count
+it; the markets snapshot keeps most browser reads off the chain.
+
 **The budget.** Every process with Alchemy counts its calls and websocket bytes, writes them to
 `<wall home>/rpc-meter/<UTC date>/<role>-<index8 or market>.json` and sums the day's files every minute against
 `AGATE_ALCHEMY_DAILY_CU` (default 400,000: the 10.9M left to Oct 31 over the days left; set it in the shell that runs
@@ -486,6 +493,12 @@ logger and its own health; the public app runs on Vercel. The same kit runs on b
   the AI server (port 443, to 127.0.0.1:5191) and `ops/server/graphql-proxy.ts` (port 8443, to 127.0.0.1:8081: POST
   /v1/graphql with every x-hasura-* header dropped, and GET /akash-traded.json). The CRE CLI (Go) needs
   `vm.overcommit_memory = 1` on a 2 GB server, else its simulation dies "out of memory" and the primary posts directly.
+  The AI server also serves the app's markets snapshot, `GET /api/markets` (server/API.md).
+- **Restarting one of the server's windows:** its launcher (`~/agate/run/<name>.sh`) restarts the process after a
+  crash but stops for good on exit 0, 2, 3, 64, 130 or 143, and a plain `kill` is 143: a killed ai-server stayed down
+  (Oct 6, about 1.5 minutes). Restart a window by name the way `stack.sh` revives a dead pane:
+  `tmux respawn-pane -k -t "=agate:ai-server" "/bin/sh $HOME/agate/run/ai-server.sh"` (it replaces the running
+  process too), then check `/health`.
 
 - **Keys on the server:** `ops/server/security` is installed as `/usr/local/bin/security`, a stand-in for the macOS
   command that serves `find-generic-password -s SERVICE -a ACCOUNT [-w]` from owner-only files

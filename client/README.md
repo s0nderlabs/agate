@@ -38,11 +38,12 @@ const res = await buyLong(agate, walletClient, { gpu: "H100", month: "2026-11", 
 |---|---|---|
 | `deployments` | `TESTNET_DEPLOYMENTS` (a copy of `contracts/deployments/10143.json`) | the deployments file's JSON; pass another one for a fork or a new deploy |
 | `factory` | `"real"` | which factory entry (`"real"`, or `"demo"` during a demo session) |
-| `rpcUrl` | `https://testnet-rpc.monad.xyz` | a key-free RPC; never put a URL that carries a key into a browser bundle or a `NEXT_PUBLIC_` variable |
+| `rpcUrl` | `https://testnet-rpc.monad.xyz` | the RPC, or several URLs separated by commas, tried in order: a URL that fails, is rate limited or out of capacity passes the call to the next. In a browser bundle or a `NEXT_PUBLIC_` variable only a key-free URL, or a key the provider locks to the app's own origins (an allowlist) with a key-free URL after it (the hosted app: an origin-locked Alchemy key, then the public RPC) |
 | `chainId` | the deployments' `chainId` | must equal it |
 | `graphqlUrl` | `NEXT_PUBLIC_AGATE_GRAPHQL_URL`, else `http://localhost:8080/v1/graphql` where that is this machine's own indexer (outside a browser, or on a page served from localhost); a page hosted elsewhere with no URL set reads the chain only | the Envio indexer's GraphQL, or several URLs separated by commas, tried in order: a failure another indexer could answer moves the query on, and one about the indexer itself (unreachable, an HTTP error, not JSON, a rate limit or database error) rests that URL for a minute; a malformed request (HTTP 400, 413, 422) is never retried (Envio Cloud's free plan allows 100 queries a minute, so the hosted app lists it first and agate's own indexer next); `null` reads the chain only |
 | `publicClient` | a viem public client over `rpcUrl` | bring your own |
 | `panels` | `PANELS` (from `wall/packages/sources/panels/launch.json`) | slot order, cloud names and the reserve per GPU |
+| `snapshotUrl` | none | agate's markets snapshot (`GET /api/markets` on agate's server): `getMarkets`, `getMarket` and `book` answer from it in one request while it is of this chain and index and at most 60 s old (reads within 2 s share one request); unreachable, late (2.5 s), refused or malformed, the reads go to the chain and the indexer and the snapshot rests a minute |
 
 **The env var.** `NEXT_PUBLIC_AGATE_GRAPHQL_URL` is a public, build-time variable: Next.js inlines it when the app is
 built, so a hosted build must set it to the hosted indexer's URL before `next build`. The client reads it itself
@@ -65,6 +66,14 @@ transaction. GPU-hours must be whole multiples of 0.0001 (the series' LOT); limi
 The chain is the source of truth (viem over the RPC, batched through Multicall3); the indexer adds what only events
 hold. A transport failure is retried, then thrown (`ReadError`); a revert is never mistaken for one. When the indexer is
 unreachable every read still answers, as the last column says.
+
+**Round trips.** What never changes once seen is read once per client: a listed month's series (the factory writes it
+once), a series' terms, token, name and symbol, the factory's GPUs, the index clocks. A series' market is read every time
+(it can be replaced), with the last market's book in the same round. Reads that need nothing else start together, so
+`getMarkets()` takes four rounds the first time and three after (it took about seventeen in turn before Oct 6: 8.2 s
+then 2.9 s cold on the public RPC, output identical), `book` one round, `recentFills` and `candles` only the indexer once
+the month is known. On Monad testnet the client trusts Multicall3 at its usual address on its own public client (an app's
+own client keeps the one-time check).
 
 | Read | Returns | From | Without the indexer |
 |---|---|---|---|

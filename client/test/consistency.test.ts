@@ -94,6 +94,9 @@ function fakeChain(o: { listed?: boolean; positions?: Record<number, ChainPositi
         return { day: 86_400, slice: 3_600, tPend: 21_600, closeGrace: 3_600, slices: 24, minReadings: 2, epochTs: 0n, epochDay: 0 };
       case "previewListing":
         return [0n, 0n];
+      case "firstRecordDay":
+        // read beside the months' listing state (an upcoming month whose preview fails needs it)
+        return [true, 20730];
       default:
         throw new Error(`unexpected read ${functionName}`);
     }

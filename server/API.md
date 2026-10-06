@@ -6,6 +6,12 @@ sends `Authorization: Bearer <Dynamic session JWT>` (`sessionToken(client)` from
 
 ## Setup
 
+- `GET /api/markets` (no auth) -> the markets snapshot (`MarketsSnapshot` in `@agate/client`): `{ v: 1, chainId, index,
+  readAt, ageMs, markets, books }`, `markets` as `getMarkets()` and `books` every listed month's book keyed
+  `"GPU YYYY-MM"`. Read here once for every visitor (`src/snapshot.ts`): served as it is up to 5 s old, older ones at
+  once while one read refreshes it, never past 50 s; kept warm every 15 s from the first ask on. `503`
+  when it cannot be read. `Cache-Control: no-store` (`ageMs` is per answer). The app passes its URL as the client's
+  `snapshotUrl` (`NEXT_PUBLIC_AGATE_SNAPSHOT_URL`).
 - `GET /api/config` (no auth) -> `{ chainId, dollar, routers, factory, shortSizingPrice, maxGrantDays, maxTradesPerDay }`.
   Sign the pocket permission with exactly `routers` (same order) and `shortTokensCapFor(perTradeCap)`, or the grant
   fails with "the signed permission does not match".

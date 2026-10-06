@@ -19,6 +19,7 @@ import { OAuthStore } from "./oauth/store.ts";
 import { ed25519Signer } from "./dynamic/hmac.ts";
 import { checkHmac } from "./dynamic/hmac.ts";
 import { decide, type ReviewRequest } from "./dynamic/review.ts";
+import { type SnapshotCache, snapshotCache } from "./snapshot.ts";
 import { handleWebhook } from "./dynamic/webhook.ts";
 import type { PocketLimits } from "@agate/wallet/allowed";
 import type { GrantRow, Store } from "./store.ts";
@@ -48,6 +49,8 @@ export type AppDeps = {
   limitsOf?: (g: GrantRow) => PocketLimits;
   verifyUser?: (token: string) => Promise<DynamicUser>;
   agateClient?: () => AgateClient;
+  /** the markets snapshot behind GET /api/markets (default: read through agateClient) */
+  snapshots?: SnapshotCache;
 };
 
 /** The market reader the MCP tools use: the factory in AGATE_FACTORY ("real" by default), deployments from
@@ -99,6 +102,15 @@ export function publicApp(deps: AppDeps): Hono {
   app.use("/api/*", cors({ origin: origins, allowHeaders: ["authorization", "content-type"], allowMethods: ["GET", "POST"], maxAge: 600 }));
 
   app.get("/health", (c) => c.json({ ok: true }));
+
+  /** The markets snapshot (snapshot.ts): every market and listed book in one answer, so a visitor's browser does not
+   *  read the chain itself; 503 when it cannot be read (the app then reads the chain). */
+  const snapshots = deps.snapshots ?? snapshotCache(agate, { log });
+  app.get("/api/markets", async (c) => {
+    const s = await snapshots.get();
+    if (!s) return c.json({ error: "the markets could not be read; read them from the chain" }, 503, { "cache-control": "no-store" });
+    return c.json(s, 200, { "cache-control": "no-store" });
+  });
 
   /** What the app needs to build a pocket permission the server will accept (routers in the exact signing order). */
   app.get("/api/config", (c) =>

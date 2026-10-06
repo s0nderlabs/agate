@@ -202,6 +202,22 @@ export interface Book {
   spread: number;
 }
 
+/** GET /api/markets on agate's server: getMarkets() and every listed month's book, read once for every visitor. */
+export interface MarketsSnapshot {
+  v: 1;
+  chainId: number;
+  /** the index the markets are of (lowercase) */
+  index: string;
+  /** when the server read it (ISO) */
+  readAt: string;
+  /** milliseconds since that read, when the server answered */
+  ageMs: number;
+  /** as getMarkets() */
+  markets: Market[];
+  /** "GPU YYYY-MM" ("H100 2026-11") to that month's book, for every listed month with a market */
+  books: Record<string, Book>;
+}
+
 export interface Fill {
   /** "HH:MM" UTC */
   time: string;

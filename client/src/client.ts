@@ -2,13 +2,13 @@
 // for prices, series, books, balances and positions (viem over the public RPC, batched through Multicall3); the Envio
 // indexer adds what only events hold (index history, fills, candles, listing times, open orders, entry prices). When
 // the indexer cannot be reached the reads still answer from the chain, as documented per read (README).
-import { type Abi, type Address, type Chain, createPublicClient, decodeErrorResult, defineChain, type Hex, http, type PublicClient, toFunctionSelector } from "viem";
+import { type Abi, type Address, type Chain, createPublicClient, decodeErrorResult, defineChain, fallback, type Hex, http, type PublicClient, toFunctionSelector } from "viem";
 import { agateDollarAbi, agateFactoryAbi, agateIndexAbi, agateRouterAbi, agateSeriesAbi, agateTokenAbi, kuruMarginAccountAbi, kuruOrderBookAbi } from "./abi.ts";
 import { decodeL2Book, type RawBook, toBook } from "./book.ts";
 import { dayIdAt, dayStart, expectedClose, expectedFinal, type IndexClocks, type RecordTimes } from "./clock.ts";
 import { DEFAULT_GRAPHQL_URL, type FixRow, type FlowRow, type GraphQL, graphql, IndexerError, type OrderRow, type PositionRow, Q, type SeriesRow, type TradeRow } from "./graphql.ts";
 import { PANELS, TESTNET_DEPLOYMENTS, TESTNET_PRELAUNCH } from "./static.ts";
-import type { Book, Candle, Deployments, FactoryRecord, Fill, Gpu, IndexDay, Market, OpenOrder, PanelGpu, PanelSlot, Position, Quote, Series, SourceReading, TickerItem, Wallet } from "./types.ts";
+import type { Book, Candle, Deployments, FactoryRecord, Fill, Gpu, IndexDay, Market, MarketsSnapshot, OpenOrder, PanelGpu, PanelSlot, Position, Quote, Series, SourceReading, TickerItem, Wallet } from "./types.ts";
 import { dateOfDay, daysIn, firstDayOf, iso, LOT, monthLabel, monthOfDay, monthOfLabel, monthShort, SIZE_PER_TOKEN, TICK, toNumber6, U, unitsToHours, ZERO_ADDRESS } from "./units.ts";
 
 export const PUBLIC_RPC = "https://testnet-rpc.monad.xyz";
@@ -21,6 +21,24 @@ export const WALLET_MAX = 50_000;
 /** trades per indexer read when only the newest (or oldest) one is wanted: a 24 h base price */
 export const TRADE_PAGE = 100;
 export const GPUS: Gpu[] = ["H100", "H200", "B200", "B300", "A100", "L40S"];
+/** markets snapshot: the reads within this time share one request; a failed one rests this long; the longest wait;
+ *  the oldest snapshot used (its age when the server answered) */
+export const SNAPSHOT_SHARE_MS = 2_000;
+export const SNAPSHOT_REST_MS = 60_000;
+export const SNAPSHOT_TIMEOUT_MS = 2_500;
+export const SNAPSHOT_MAX_AGE_MS = 60_000;
+
+/** A markets snapshot (GET /api/markets) when it is one of this chain and index, young enough and well formed; else
+ *  null. */
+export function snapshotOf(j: unknown, chainId: number, index: string): MarketsSnapshot | null {
+  const s = j as Partial<MarketsSnapshot> | null;
+  if (!s || typeof s !== "object" || s.v !== 1 || s.chainId !== chainId || typeof s.index !== "string" || s.index.toLowerCase() !== index.toLowerCase()) return null;
+  if (typeof s.ageMs !== "number" || !(s.ageMs >= 0) || s.ageMs > SNAPSHOT_MAX_AGE_MS) return null;
+  if (!Array.isArray(s.markets) || s.markets.length !== GPUS.length || s.markets.some((m, i) => !m || m.gpu !== GPUS[i] || !Array.isArray(m.series) || !Array.isArray(m.history))) return null;
+  if (!s.books || typeof s.books !== "object" || Array.isArray(s.books)) return null;
+  for (const b of Object.values(s.books)) if (!b || !Array.isArray(b.asks) || !Array.isArray(b.bids) || typeof b.spread !== "number") return null;
+  return s as MarketsSnapshot;
+}
 
 /** The GraphQL URL: the value given, else NEXT_PUBLIC_AGATE_GRAPHQL_URL (a public, build-time variable in the
  *  app), else the local default http://localhost:8080/v1/graphql, but only where "localhost" is this machine's own
@@ -51,7 +69,9 @@ export interface ClientConfig {
   deployments?: Deployments;
   /** which factory entry: "real" (default) or "demo" */
   factory?: string;
-  /** a key-free RPC URL (default the public Monad testnet RPC); never a URL that carries a key in a browser bundle */
+  /** the RPC URL, or a comma list tried in order (a URL that fails, is rate limited or out of capacity passes the call
+   *  to the next); default the public Monad testnet RPC. In a browser bundle only a key-free URL or a key the provider
+   *  locks to the app's own origins (an allowlist), with a key-free URL after it. */
   rpcUrl?: string;
   /** default deployments.chainId */
   chainId?: number;
@@ -62,6 +82,9 @@ export interface ClientConfig {
   /** default: the launch panel of the six GPUs */
   panels?: PanelGpu[];
   fetch?: typeof fetch;
+  /** a markets snapshot URL (agate's server, GET /api/markets): getMarkets, getMarket and book answer from it in one
+   *  request while it is fresh, and read the chain and the indexer themselves when it is down, late or wrong */
+  snapshotUrl?: string | null;
 }
 
 export class ReadError extends Error {
@@ -69,6 +92,14 @@ export class ReadError extends Error {
 }
 
 type Call = { address: Address; abi: Abi; functionName: string; args?: readonly unknown[] };
+type HistoryRows = { DailyFix: (FixRow & { gpuId: string })[] };
+/** the value of a result already checked ok */
+const okValue = (r: Res): unknown => (r as { ok: true; value: unknown }).value;
+/** marks a promise as handled (its own await still throws): for reads started early whose caller may fail first */
+function early<T>(p: Promise<T>): Promise<T> {
+  p.catch(() => {});
+  return p;
+}
 type Res<T = unknown> = { ok: true; value: T } | { ok: false; error: string };
 
 // Errors are matched by their class name along the cause chain, never by instanceof: an app that passes its own
@@ -189,7 +220,18 @@ export class AgateClient {
   readonly gql: GraphQL | null;
   readonly panels: PanelGpu[];
   private mcOk: boolean | null = null;
+  private mcProbe: Promise<boolean> | null = null;
+  /** true when the client made its own public client (an app's own client keeps the Multicall3 check) */
+  private readonly ownPub: boolean;
   private memo = new Map<string, Promise<unknown>>();
+  /** what never changes once seen: a listed month's series ("gpuId:month"), a series' terms, token, name and symbol */
+  private listedAddr = new Map<string, Address>();
+  private termsOf = new Map<string, SeriesTerms>();
+  /** the market last read for a series: its book is read in the same round as marketOf, again only if it changed */
+  private lastMarket = new Map<string, Address>();
+  private readonly snapUrl: string | null;
+  private readonly fetchFn: (url: string, init?: RequestInit) => Promise<Response>;
+  private snap: { until: number; p: Promise<MarketsSnapshot | null> } | null = null;
 
   constructor(cfg: ClientConfig = {}) {
     this.deployments = cfg.deployments ?? TESTNET_DEPLOYMENTS;
@@ -199,18 +241,23 @@ export class AgateClient {
     this.f = f;
     const chainId = cfg.chainId ?? this.deployments.chainId;
     if (chainId !== this.deployments.chainId) throw new ReadError(`chain ${chainId} is not the deployments' chain ${this.deployments.chainId}`);
-    const rpcUrl = cfg.rpcUrl ?? PUBLIC_RPC;
+    const rpcUrls = (cfg.rpcUrl ?? PUBLIC_RPC).split(",").map((u) => u.trim()).filter(Boolean);
+    if (rpcUrls.length === 0) rpcUrls.push(PUBLIC_RPC);
     this.chain = defineChain({
       id: chainId,
       name: chainId === 10143 ? "Monad Testnet" : `chain ${chainId}`,
       nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-      rpcUrls: { default: { http: [rpcUrl] } },
+      rpcUrls: { default: { http: rpcUrls } },
       contracts: { multicall3: { address: MULTICALL3 } },
     });
-    this.pub = cfg.publicClient ?? (createPublicClient({ chain: this.chain, transport: http(rpcUrl, { timeout: 30_000, retryCount: 2 }) }) as PublicClient);
+    this.ownPub = !cfg.publicClient;
+    const transport = rpcUrls.length === 1 ? http(rpcUrls[0], { timeout: 30_000, retryCount: 2 }) : fallback(rpcUrls.map((u) => http(u, { timeout: 15_000, retryCount: 1 })), { retryCount: 1 });
+    this.pub = cfg.publicClient ?? (createPublicClient({ chain: this.chain, transport }) as PublicClient);
     const url = resolveGraphqlUrl(cfg.graphqlUrl);
     this.gql = url ? graphql(url, cfg.fetch ? { fetch: cfg.fetch } : {}) : null;
     this.panels = cfg.panels ?? PANELS;
+    this.snapUrl = cfg.snapshotUrl?.trim() || null;
+    this.fetchFn = cfg.fetch ?? ((url, init) => globalThis.fetch(url, init));
   }
 
   // ------------------------------------------------------------------ plumbing
@@ -245,8 +292,14 @@ export class AgateClient {
   async mc(calls: Call[]): Promise<Res[]> {
     if (calls.length === 0) return [];
     if (this.mcOk === null) {
-      const code = await this.pub.getCode({ address: MULTICALL3 });
-      this.mcOk = !!code && code !== "0x";
+      // Monad testnet has Multicall3 at its usual address: no check (a round trip) on a client of our own; elsewhere,
+      // and on an app's own client, one check shared by the reads that start together
+      if (this.ownPub && this.chain.id === 10143) this.mcOk = true;
+      else {
+        this.mcProbe ??= this.pub.getCode({ address: MULTICALL3 }).then((code) => !!code && code !== "0x");
+        this.mcProbe.catch(() => (this.mcProbe = null));
+        this.mcOk = await this.mcProbe;
+      }
     }
     if (!this.mcOk) {
       return Promise.all(
@@ -300,16 +353,24 @@ export class AgateClient {
     });
   }
 
-  /** The factory's GPUs: gpuId (lowercase) to label ("H100"). */
+  /** The factory's GPUs: gpuId (lowercase) to label ("H100"). The panels' GPU ids are asked in the same round as the
+   *  list; a listed id outside the panels is asked after. */
   marketGpus(): Promise<Map<string, Gpu>> {
     return this.once("gpus", async () => {
-      const ids = await this.must<readonly Hex[]>({ address: this.factory, abi: agateFactoryAbi as Abi, functionName: "gpuIds" });
-      const labels = await this.mc(ids.map((id) => ({ address: this.factory, abi: agateFactoryAbi as Abi, functionName: "labelOf", args: [id] })));
+      const F = agateFactoryAbi as Abi;
+      const guess = this.panels.map((p) => p.gpuId.toLowerCase());
+      const r = await this.mc([{ address: this.factory, abi: F, functionName: "gpuIds" }, ...guess.map((id) => ({ address: this.factory, abi: F, functionName: "labelOf", args: [id] }))]);
+      if (!r[0]!.ok) throw new ReadError(`gpuIds at ${this.factory} reverted: ${r[0]!.error}`);
+      const ids = r[0]!.value as readonly Hex[];
+      const labels = new Map(guess.map((id, i) => [id, r[i + 1]!]));
+      const extra = ids.filter((id) => !labels.has(id.toLowerCase()));
+      const more = await this.mc(extra.map((id) => ({ address: this.factory, abi: F, functionName: "labelOf", args: [id] })));
+      extra.forEach((id, i) => labels.set(id.toLowerCase(), more[i]!));
       const m = new Map<string, Gpu>();
-      ids.forEach((id, i) => {
-        const l = labels[i]!;
+      for (const id of ids) {
+        const l = labels.get(id.toLowerCase())!;
         if (l.ok && GPUS.includes(l.value as Gpu)) m.set(id.toLowerCase(), l.value as Gpu);
-      });
+      }
       return m;
     });
   }
@@ -447,10 +508,11 @@ export class AgateClient {
 
   /** IndexDay[] per GPU: final and carried days only, oldest first, from the indexer's daily fixes (final by their
    *  finalAt against chain time, so the indexer's lagging FINAL state never hides a day), with the chain's newest final
-   *  days merged in; chain records alone when the indexer is not reachable. Never a day before the GPU's firstDay. */
-  async history(views: GpuView[], now: bigint): Promise<Map<Gpu, IndexDay[]>> {
+   *  days merged in; chain records alone when the indexer is not reachable. Never a day before the GPU's firstDay.
+   *  `rows`: the indexer's answer when it was asked earlier (historyRows with the same GPUs). */
+  async history(views: GpuView[], now: bigint, rows_?: Promise<HistoryRows | null>): Promise<Map<Gpu, IndexDay[]>> {
     const out = new Map<Gpu, IndexDay[]>();
-    const rows = await this.gql_<{ DailyFix: (FixRow & { gpuId: string })[] }>(Q.history, { index: this.index.toLowerCase(), gpus: views.map((v) => v.gpuId.toLowerCase()) });
+    const rows = await (rows_ ?? this.historyRows(views.map((v) => v.gpuId)));
     if (rows) {
       const byGpu = new Map<Gpu, Map<number, IndexDay>>();
       const missing: { v: GpuView; d: number }[] = [];
@@ -493,6 +555,11 @@ export class AgateClient {
     return out;
   }
 
+  /** The indexer's daily fixes of these GPUs on this index (null without it). */
+  historyRows(gpuIds: string[]): Promise<HistoryRows | null> {
+    return this.gql_<HistoryRows>(Q.history, { index: this.index.toLowerCase(), gpus: gpuIds.map((g) => g.toLowerCase()) });
+  }
+
   /** The production index's pre-launch days of a GPU (static.ts, display only), before its registered firstDay; none
    *  for any other index or chain. */
   private prelaunchOf(v: GpuView): IndexDay[] {
@@ -502,109 +569,190 @@ export class AgateClient {
 
   // ------------------------------------------------------------------ series
 
-  /** A series' immutable terms, token, name and symbol (read once). */
-  seriesTerms(series: Address): Promise<SeriesTerms> {
-    return this.once(`terms:${series.toLowerCase()}`, async () => {
-      const [t, tok] = await this.mc([
-        { address: series, abi: agateSeriesAbi as Abi, functionName: "terms" },
-        { address: series, abi: agateSeriesAbi as Abi, functionName: "token" },
-      ]);
-      if (!t!.ok || !tok!.ok) throw new ReadError(`${series} is not a series`);
-      const x = t!.value as { gpuId: Hex; month: number; startDay: number; n: number; startTs: bigint; day: number; floor: number; cap: number };
-      const token = tok!.value as Address;
-      const [name, symbol] = await this.mc([
-        { address: token, abi: agateTokenAbi as Abi, functionName: "name" },
-        { address: token, abi: agateTokenAbi as Abi, functionName: "symbol" },
-      ]);
-      return {
-        series,
-        token,
-        gpuId: x.gpuId.toLowerCase() as Hex,
-        month: Number(x.month),
-        startDay: Number(x.startDay),
-        n: Number(x.n),
-        startTs: BigInt(x.startTs),
-        day: Number(x.day),
-        floor: BigInt(x.floor),
-        cap: BigInt(x.cap),
-        name: name!.ok ? String(name!.value) : "",
-        symbol: symbol!.ok ? String(symbol!.value) : "",
-      };
-    });
+  /** A series' terms from its terms(), token(), name() and symbol() answers, kept for the next read. */
+  private keepTerms(series: Address, terms: unknown, token: Address, name: Res, symbol: Res): SeriesTerms {
+    const x = terms as { gpuId: Hex; month: number; startDay: number; n: number; startTs: bigint; day: number; floor: number; cap: number };
+    const out: SeriesTerms = {
+      series,
+      token,
+      gpuId: x.gpuId.toLowerCase() as Hex,
+      month: Number(x.month),
+      startDay: Number(x.startDay),
+      n: Number(x.n),
+      startTs: BigInt(x.startTs),
+      day: Number(x.day),
+      floor: BigInt(x.floor),
+      cap: BigInt(x.cap),
+      name: name.ok ? String(name.value) : "",
+      symbol: symbol.ok ? String(symbol.value) : "",
+    };
+    this.termsOf.set(series.toLowerCase(), out);
+    return out;
   }
 
-  /** seriesOf for (gpuId, month) pairs; the zero address is none. */
+  /** seriesOf for (gpuId, month) pairs; the zero address is none. A listed month's series never changes (the factory
+   *  writes it once), so only the months not seen listed are read. */
   async seriesAddresses(pairs: { gpuId: string; month: number }[]): Promise<(Address | null)[]> {
-    const r = await this.mc(pairs.map((p) => ({ address: this.factory, abi: agateFactoryAbi as Abi, functionName: "seriesOf", args: [p.gpuId, p.month] })));
-    return r.map((x) => (x.ok && (x.value as string).toLowerCase() !== ZERO_ADDRESS ? (x.value as Address) : null));
+    const key = (p: { gpuId: string; month: number }) => `${p.gpuId.toLowerCase()}:${p.month}`;
+    const todo = pairs.filter((p) => !this.listedAddr.has(key(p)));
+    const r = await this.mc(todo.map((p) => ({ address: this.factory, abi: agateFactoryAbi as Abi, functionName: "seriesOf", args: [p.gpuId, p.month] })));
+    todo.forEach((p, i) => this.keepListed(p.gpuId, p.month, r[i]!));
+    return pairs.map((p) => this.listedAddr.get(key(p)) ?? null);
+  }
+
+  private keepListed(gpuId: string, month: number, r: Res): void {
+    if (r.ok && (r.value as string).toLowerCase() !== ZERO_ADDRESS) this.listedAddr.set(`${gpuId.toLowerCase()}:${month}`, r.value as Address);
   }
 
   /** Every listed series' live state: market, k and S after a sync, token supply, next position id, the book. A series
-   *  of a GPU the client does not know (a label outside the six) is left out. */
+   *  of a GPU the client does not know (a label outside the six) is left out. One round once the series' terms and
+   *  market are known: the market is read every time (it can be replaced) and the last one's book beside it; a second
+   *  round only for a series seen first (its name, symbol and supply) or a market that changed (its book). */
   async seriesLive(addrs: Address[]): Promise<SeriesLive[]> {
     const gpus = await this.marketGpus();
-    const terms = (await Promise.all(addrs.map((a) => this.seriesTerms(a)))).filter((t) => gpus.has(t.gpuId.toLowerCase()));
     const S = agateSeriesAbi as Abi;
-    const r = await this.mc(terms.flatMap((t) => [
-      { address: this.factory, abi: agateFactoryAbi as Abi, functionName: "marketOf", args: [t.series] },
-      { address: t.series, abi: S, functionName: "previewSync" },
-      { address: t.series, abi: S, functionName: "state" },
-      { address: t.token, abi: agateTokenAbi as Abi, functionName: "totalSupply" },
-    ]));
-    const live = terms.map((t, i) => {
-      const mk = r[4 * i]!;
-      const pv = r[4 * i + 1]!;
-      const st = r[4 * i + 2]!;
-      const ts = r[4 * i + 3]!;
+    const T = agateTokenAbi as Abi;
+    const K = kuruOrderBookAbi as Abi;
+    const plan = addrs.map((a) => ({ a, t: this.termsOf.get(a.toLowerCase()) ?? null, m: this.lastMarket.get(a.toLowerCase()) ?? null }));
+    const callsA: Call[] = [];
+    const at = plan.map((p) => {
+      const push = (c: Call) => callsA.push(c) - 1;
+      const i = { mk: -1, pv: -1, st: -1, terms: -1, token: -1, ts: -1, book: -1 };
+      i.mk = push({ address: this.factory, abi: agateFactoryAbi as Abi, functionName: "marketOf", args: [p.a] });
+      i.pv = push({ address: p.a, abi: S, functionName: "previewSync" });
+      i.st = push({ address: p.a, abi: S, functionName: "state" });
+      if (p.t) i.ts = push({ address: p.t.token, abi: T, functionName: "totalSupply" });
+      else {
+        i.terms = push({ address: p.a, abi: S, functionName: "terms" });
+        i.token = push({ address: p.a, abi: S, functionName: "token" });
+      }
+      if (p.m) i.book = push({ address: p.m, abi: K, functionName: "getL2Book" });
+      return i;
+    });
+    const ra = await this.mc(callsA);
+    const callsB: Call[] = [];
+    const markets: (Address | null)[] = [];
+    const bt = plan.map((p, j) => {
+      const push = (c: Call) => callsB.push(c) - 1;
+      const i = at[j]!;
+      const b = { name: -1, symbol: -1, ts: -1, book: -1 };
+      if (!p.t) {
+        if (!ra[i.terms]!.ok || !ra[i.token]!.ok) throw new ReadError(`${p.a} is not a series`);
+        const token = okValue(ra[i.token]!) as Address;
+        b.name = push({ address: token, abi: T, functionName: "name" });
+        b.symbol = push({ address: token, abi: T, functionName: "symbol" });
+        b.ts = push({ address: token, abi: T, functionName: "totalSupply" });
+      }
+      const mk = ra[i.mk]!;
       const [market, venue] = mk.ok ? (mk.value as readonly [Address, number]) : [ZERO_ADDRESS as Address, 0];
+      const usable = Number(venue) === 1 && market.toLowerCase() !== ZERO_ADDRESS ? market : null;
+      markets.push(usable);
+      if (usable && !(p.m && p.m.toLowerCase() === usable.toLowerCase())) b.book = push({ address: usable, abi: K, functionName: "getL2Book" });
+      return b;
+    });
+    const rb = await this.mc(callsB);
+    const live: SeriesLive[] = [];
+    plan.forEach((p, j) => {
+      const i = at[j]!;
+      const b = bt[j]!;
+      const t = p.t ?? this.keepTerms(p.a, okValue(ra[i.terms]!), okValue(ra[i.token]!) as Address, rb[b.name]!, rb[b.symbol]!);
+      const market = markets[j]!;
+      if (market) this.lastMarket.set(p.a.toLowerCase(), market);
+      else this.lastMarket.delete(p.a.toLowerCase());
+      if (!gpus.has(t.gpuId.toLowerCase())) return;
+      const pv = ra[i.pv]!;
+      const st = ra[i.st]!;
+      const ts = p.t ? ra[i.ts]! : rb[b.ts]!;
+      const bk = market ? (b.book >= 0 ? rb[b.book]! : ra[i.book]!) : null;
       const [k, sum] = pv.ok ? (pv.value as readonly [number, bigint]) : [0, 0n];
       const state = st.ok ? (st.value as readonly unknown[]) : [];
-      return {
+      live.push({
         gpu: gpus.get(t.gpuId.toLowerCase())!,
         terms: t,
-        market: Number(venue) === 1 && market.toLowerCase() !== ZERO_ADDRESS ? market : null,
+        market,
         k: Number(k),
         S: BigInt(sum),
         tokenSupply: ts.ok ? BigInt(ts.value as bigint) : 0n,
         nextId: state.length > 6 ? BigInt(state[6] as bigint) : 1n,
-        book: null as RawBook | null,
-      };
-    });
-    const withMarket = live.filter((l) => l.market);
-    const books = await this.mc(withMarket.map((l) => ({ address: l.market!, abi: kuruOrderBookAbi as Abi, functionName: "getL2Book" })));
-    withMarket.forEach((l, i) => {
-      const b = books[i]!;
-      if (b.ok) l.book = decodeL2Book(b.value as Hex);
+        book: bk?.ok ? decodeL2Book(bk.value as Hex) : null,
+      });
     });
     return live;
   }
 
-  /** Series shapes for one GPU's months (listed ones live, others upcoming with their expected listing time). */
-  async seriesFor(gpu: Gpu, months: number[], now: bigint): Promise<Series[]> {
+  /** Series shapes for one GPU's months (listed ones live, others upcoming with their expected listing time). Two
+   *  rounds once the months are listed and seen; `books` (optional) collects each listed month's book by
+   *  "GPU YYYY-MM", as book() reads it. */
+  async seriesFor(gpu: Gpu, months: number[], now: bigint, books?: Record<string, Book>): Promise<Series[]> {
     const gpus = await this.marketGpus();
     const gpuId = [...gpus.entries()].find(([, g]) => g === gpu)?.[0];
     if (!gpuId) return [];
-    const addrs = await this.seriesAddresses(months.map((m) => ({ gpuId, month: m })));
+    const F = agateFactoryAbi as Abi;
+    const A = agateIndexAbi as Abi;
+    const clocksP = early(this.clocks());
+    // one round for the months not seen listed: where their series is, their listing preview, and the GPU's first
+    // record day and registration (an upcoming month's expected listing time needs them)
+    const open = months.filter((m) => !this.listedAddr.has(`${gpuId}:${m}`));
+    const r = await this.mc(open.length === 0 ? [] : [
+      ...open.flatMap((m) => [
+        { address: this.factory, abi: F, functionName: "seriesOf", args: [gpuId, m] },
+        { address: this.factory, abi: F, functionName: "previewListing", args: [gpuId, m] },
+      ]),
+      { address: this.index, abi: A, functionName: "firstRecordDay", args: [gpuId] },
+      { address: this.index, abi: A, functionName: "gpu", args: [gpuId] },
+    ]);
+    open.forEach((m, i) => this.keepListed(gpuId, m, r[2 * i]!));
+    const fr = r[2 * open.length];
+    const g = r[2 * open.length + 1];
+    const addrs = months.map((m) => this.listedAddr.get(`${gpuId}:${m}`) ?? null);
     const listed = addrs.filter((a): a is Address => a !== null);
-    const live = await this.seriesLive(listed);
-    const extra = await this.seriesExtras(live.map((l) => l.terms.series));
-    const out: Series[] = [];
-    const unlisted = months.filter((_, i) => addrs[i] === null);
-    const previews = await this.mc(unlisted.map((m) => ({ address: this.factory, abi: agateFactoryAbi as Abi, functionName: "previewListing", args: [gpuId, m] })));
+    // an unlisted month lists later unless the index starts after it or it is outside the factory's two-month window
+    // (IndexStartsAfterMonth; before the first record previewListing says NotReady, so the GPU's firstDay decides);
+    // when its preview fails it lists once the record its band needs is final (RULE: the five days before the 1st of
+    // the month before; SEEDED, an index younger than that: its first record), read beside the live state
+    const upcoming: { m: number; anchor: number | null }[] = [];
     for (let i = 0; i < months.length; i++) {
-      const a = addrs[i];
-      if (a) {
-        const l = live.find((x) => x.terms.series.toLowerCase() === a.toLowerCase());
-        if (l) out.push(this.seriesShape(l, now, extra));
+      if (addrs[i]) continue;
+      const m = months[i]!;
+      const pv = r[2 * open.indexOf(m) + 1]!;
+      if (!pv.ok && (pv.error === "IndexStartsAfterMonth" || pv.error === "MonthNotOpen" || pv.error === "UnknownGpu")) continue;
+      if (!pv.ok && (g?.ok ? Number((g.value as { firstDay: number }).firstDay) : await this.gpuFirstDay(gpuId as Hex)) > firstDayOf(m)) continue;
+      if (pv.ok) {
+        upcoming.push({ m, anchor: null });
         continue;
       }
+      if (!g!.ok) throw new ReadError(`gpu(${gpu}) reverted: ${g!.error}`);
+      const first = fr!.ok && (fr!.value as readonly [boolean, number])[0] ? Number((fr!.value as readonly [boolean, number])[1]) : Number((g!.value as { firstDay: number }).firstDay);
+      const a = firstDayOf(m - 1);
+      upcoming.push({ m, anchor: first + 5 <= a ? a - 1 : first });
+    }
+    const anchored = upcoming.filter((u) => u.anchor !== null);
+    const [live, extra, recs] = await Promise.all([
+      this.seriesLive(listed),
+      this.seriesExtras(listed),
+      this.mc(anchored.map((u) => ({ address: this.index, abi: A, functionName: "record", args: [gpuId, u.anchor] }))),
+    ]);
+    const c = upcoming.length > 0 ? await clocksP : null;
+    const out: Series[] = [];
+    for (let i = 0; i < months.length; i++) {
+      const a = addrs[i];
       const m = months[i]!;
-      const pv = previews[unlisted.indexOf(m)]!;
-      // a month the index starts after never lists (IndexStartsAfterMonth; before the first record previewListing
-      // says NotReady, so the GPU's firstDay decides); a month outside the factory's two-month window is not open
-      if (!pv.ok && (pv.error === "IndexStartsAfterMonth" || pv.error === "MonthNotOpen" || pv.error === "UnknownGpu")) continue;
-      if (!pv.ok && (await this.gpuFirstDay(gpuId as Hex)) > firstDayOf(m)) continue;
-      out.push(await this.upcoming(gpu, gpuId as Hex, m, pv, now));
+      if (a) {
+        const l = live.find((x) => x.terms.series.toLowerCase() === a.toLowerCase());
+        if (!l) continue;
+        out.push(this.seriesShape(l, now, extra));
+        if (books && l.market) books[`${gpu} ${monthLabel(m)}`] = l.book ? toBook(l.book) : { asks: [], bids: [], spread: 0 };
+        continue;
+      }
+      const u = upcoming.find((x) => x.m === m);
+      if (!u) continue;
+      let opensOn = iso(now);
+      if (u.anchor !== null) {
+        const rr = recs[anchored.indexOf(u)]!;
+        const rec = rr.ok ? this.recordOf(rr.value) : null;
+        opensOn = iso(rec?.isFinal ? now : expectedFinal(c!, u.anchor, rec, now));
+      }
+      out.push(this.upcomingShape(gpu, m, c!, opensOn));
     }
     return out;
   }
@@ -658,11 +806,9 @@ export class AgateClient {
     };
   }
 
-  /** An unlisted month: its name and symbol as the factory will write them, N, and when it is expected to list:
-   *  now when previewListing passes, else when the last record its band needs is expected to be final (RULE: the
-   *  five days before the 1st of the month before; SEEDED, an index younger than that: its first record). */
-  private async upcoming(gpu: Gpu, gpuId: Hex, m: number, pv: Res, now: bigint): Promise<Series> {
-    const c = await this.clocks();
+  /** An unlisted month's shape: its name and symbol as the factory will write them, N, and `opensOn`, when it is
+   *  expected to list. */
+  private upcomingShape(gpu: Gpu, m: number, c: IndexClocks, opensOn: string): Series {
     const tag = this.f.tag;
     const mon = monthShort(m);
     const y = Math.floor(m / 12);
@@ -670,20 +816,6 @@ export class AgateClient {
     const symbol = `${tag ? tag[0] : ""}${gpu}-${mon.toUpperCase()}${String(y % 100).padStart(2, "0")}`;
     const startDay = firstDayOf(m);
     const n = daysIn(m);
-    let opensOn = iso(now);
-    if (!pv.ok) {
-      const [fr, g] = await this.mc([
-        { address: this.index, abi: agateIndexAbi as Abi, functionName: "firstRecordDay", args: [gpuId] },
-        { address: this.index, abi: agateIndexAbi as Abi, functionName: "gpu", args: [gpuId] },
-      ]);
-      if (!g!.ok) throw new ReadError(`gpu(${gpu}) reverted: ${g!.error}`);
-      const first = fr!.ok && (fr!.value as readonly [boolean, number])[0] ? Number((fr!.value as readonly [boolean, number])[1]) : Number((g!.value as { firstDay: number }).firstDay);
-      const a = firstDayOf(m - 1);
-      const anchor = first + 5 <= a ? a - 1 : first;
-      const [r] = await this.mc([{ address: this.index, abi: agateIndexAbi as Abi, functionName: "record", args: [gpuId, anchor] }]);
-      const rec = r!.ok ? this.recordOf(r!.value) : null;
-      opensOn = iso(rec?.isFinal ? now : expectedFinal(c, anchor, rec, now));
-    }
     const startTs = dayStart(c, startDay);
     return {
       gpu,
@@ -720,22 +852,39 @@ export class AgateClient {
 
   // ------------------------------------------------------------------ public reads
 
-  /** The six GPUs (index price, sources, history; the two open months of the market GPUs). */
+  /** The six GPUs (index price, sources, history; the two open months of the market GPUs): from the snapshot when one
+   *  is configured and fresh, else read here. */
   async getMarkets(): Promise<Market[]> {
-    return this.markets(GPUS);
+    const s = await this.snapshot();
+    return s ? s.markets : this.markets(GPUS);
   }
 
   async getMarket(gpu: Gpu): Promise<Market> {
     if (!GPUS.includes(gpu)) throw new ReadError(`unknown GPU ${gpu}`);
-    return (await this.markets([gpu]))[0]!;
+    const hit = (await this.snapshot())?.markets.find((m) => m.gpu === gpu);
+    return hit ?? (await this.markets([gpu]))[0]!;
   }
 
-  private async markets(gpus: Gpu[]): Promise<Market[]> {
+  /** getMarkets read here (never from a snapshot) with the book of every listed month that has a market, keyed
+   *  "GPU YYYY-MM": what agate's server serves as the markets snapshot. */
+  async marketsAndBooks(): Promise<{ markets: Market[]; books: Record<string, Book> }> {
+    const books: Record<string, Book> = {};
+    const markets = await this.markets(GPUS, books);
+    return { markets, books };
+  }
+
+  private async markets(gpus: Gpu[], books?: Record<string, Book>): Promise<Market[]> {
+    // what needs nothing else starts at once: the index state of every GPU (two rounds), the indexer's history, chain
+    // time, the clocks, the current month and the factory's GPUs; the months of the market GPUs follow the current
+    // month, beside the index's sources (four rounds the first time, three after)
+    const viewsP = early(this.gpuViews(gpus));
+    const rowsP = early(this.historyRows(gpus.map((g) => this.panelOf(g).gpuId)));
     const [now, c, cur, mg] = await Promise.all([this.chainTimeCached(), this.clocks(), this.currentMonth(), this.marketGpus()]);
-    const views = await this.gpuViews(gpus);
-    const [src, hist] = await Promise.all([this.sourcesFor(views, c), this.history(views, now)]);
     const tradable = new Set(mg.values());
-    const series = await Promise.all(views.map((v) => (tradable.has(v.gpu) ? this.seriesFor(v.gpu, [cur, cur + 1], now) : Promise.resolve([] as Series[]))));
+    const seriesP = early(Promise.all(gpus.map((g) => (tradable.has(g) ? this.seriesFor(g, [cur, cur + 1], now, books) : Promise.resolve([] as Series[])))));
+    const views = await viewsP;
+    const [src, hist] = await Promise.all([this.sourcesFor(views, c), this.history(views, now, rowsP)]);
+    const series = await seriesP;
     return views.map((v, i) => {
       const nextDay = v.latest ? v.latest.day + 1 : v.firstDay;
       const s = src.get(v.gpu)!;
@@ -785,19 +934,27 @@ export class AgateClient {
   /** A listed series by GPU and "YYYY-MM", or null when the month is not listed (yet) or the GPU has no market (the
    *  price-only GPUs). An unknown GPU is a ReadError, a month not written YYYY-MM an AmountError. */
   async listedAt(gpu: Gpu, month: string): Promise<SeriesLive | null> {
+    const a = await this.listedAddress(gpu, month);
+    if (!a) return null;
+    return (await this.seriesLive([a]))[0] ?? null;
+  }
+
+  /** The series address of a listed month, or null (as listedAt, without its live state). */
+  private async listedAddress(gpu: Gpu, month: string): Promise<Address | null> {
     if (!GPUS.includes(gpu)) throw new ReadError(`unknown GPU ${gpu}`);
     const m = monthOfLabel(month);
     const mg = await this.marketGpus();
     const gpuId = [...mg.entries()].find(([, g]) => g === gpu)?.[0];
     if (!gpuId) return null;
     const [a] = await this.seriesAddresses([{ gpuId, month: m }]);
-    if (!a) return null;
-    return (await this.seriesLive([a]))[0] ?? null;
+    return a ?? null;
   }
 
   /** The Kuru book of one month: the real levels, sizes in GPU-hours. Empty when the month is not listed (an
    *  upcoming month, a price-only GPU) or the series has no market. */
   async book(gpu: Gpu, month: string): Promise<Book> {
+    const hit = (await this.snapshot())?.books[`${gpu} ${month}`];
+    if (hit) return hit;
     const s = await this.listedAt(gpu, month);
     return s?.book ? toBook(s.book) : { asks: [], bids: [], spread: 0 };
   }
@@ -805,9 +962,9 @@ export class AgateClient {
   /** Recent fills of one month, newest first by block and log index (indexer; [] without it, and for a month not
    *  listed). */
   async recentFills(gpu: Gpu, month: string, limit = 50): Promise<Fill[]> {
-    const s = await this.listedAt(gpu, month);
-    if (!s) return [];
-    const series = s.terms.series.toLowerCase();
+    const a = await this.listedAddress(gpu, month);
+    if (!a) return [];
+    const series = a.toLowerCase();
     const r = await this.gql_<{ Trade: TradeRow[] }>(Q.trades, { series, limit, offset: 0, desc: "desc" });
     const rows = r ? await this.exactPage(series, r.Trade, limit, limit, "desc") : null;
     return rows ? rows.map(fillOf) : [];
@@ -817,9 +974,9 @@ export class AgateClient {
    *  last close with volume 0. [] before the first trade, without the indexer, and for a month not listed. The hours
    *  between the listing and the first trade have no candle: no price was traded then (README). */
   async candles(gpu: Gpu, month: string): Promise<Candle[]> {
-    const s = await this.listedAt(gpu, month);
-    if (!s) return [];
-    const trades = await this.allTrades(s.terms.series, 0n);
+    const a = await this.listedAddress(gpu, month);
+    if (!a) return [];
+    const trades = await this.allTrades(a, 0n);
     if (trades === null) return [];
     return hourlyCandles(trades, await this.chainTimeCached());
   }
@@ -899,6 +1056,31 @@ export class AgateClient {
       out.push({ label: `${s.gpu} ${monthShort(monthOfLabel(s.month))}`, price: s.quote!.last, change: b === null || b === undefined ? 0 : pct(s.quote!.last, toNumber6(b)) });
     });
     return out;
+  }
+
+  // ------------------------------------------------------------------ the markets snapshot
+
+  /** The configured markets snapshot while it answers and is fresh, shared by the reads of SNAPSHOT_SHARE_MS; null
+   *  (the reads go to the chain and the indexer) when none is set, it fails, is late, or is of another chain or index.
+   *  A failed snapshot rests SNAPSHOT_REST_MS before it is asked again. */
+  private snapshot(): Promise<MarketsSnapshot | null> {
+    if (!this.snapUrl) return Promise.resolve(null);
+    const t = Date.now();
+    if (this.snap && t < this.snap.until) return this.snap.p;
+    const url = this.snapUrl;
+    const p = (async () => {
+      try {
+        const r = await this.fetchFn(url, { signal: AbortSignal.timeout(SNAPSHOT_TIMEOUT_MS) });
+        return r.ok ? snapshotOf(await r.json(), this.chain.id, this.index) : null;
+      } catch {
+        return null;
+      }
+    })();
+    this.snap = { until: t + SNAPSHOT_SHARE_MS, p };
+    p.then((s) => {
+      if (!s && this.snap?.p === p) this.snap = { until: Date.now() + SNAPSHOT_REST_MS, p };
+    });
+    return p;
   }
 
   // ------------------------------------------------------------------ the wallet
