@@ -14,7 +14,7 @@ bun run build
 ## Pages
 
 - `/` trade screen: index price, the month's price, chart, order ticket. Simple keeps to one month, the next full one (from the 1st, while the current month still pays out, Simple already shows the next), and sizes a trade in dollars or GPUs for the month; Pro adds a tab per month that trades, the book with recent trades, limit orders, size in GPU-hours or dollars, open orders and an account summary. In a month part paid, the most you can lose or make and what pay me daily pays at once follow the days already priced (`bandNow` in `src/lib/data/derive.ts`, as `@agate/client`'s `band()`).
-- `/index` the index for every GPU it prices (H100, H200, B200 and the price-only B300, A100, L40S): today's readings, the history, the prices beside it
+- `/gpu-index` the index for every GPU it prices (H100, H200, B200 and the price-only B300, A100, L40S): today's readings, the history, the prices beside it
 - `/positions` what you hold, by month: how many of the month's days are priced, what each holding is worth and has been paid, and its one action (Sell or Close while the month trades, Collect once it is final)
 - `/connect` let an AI trade for you: name it, set what it may use (pocket size, trade size, trades a day, end date) and fund its pocket. Opened by Agate's server as `/connect?request=<id>` when an AI app asks (the OAuth Allow page), or from the app.
 - `/ai` your connected AIs, and how to add Agate to Claude or Claude Code; `/ai/<id>` one AI: its pocket, activity, Autopilot, add or take back dollars, disconnect

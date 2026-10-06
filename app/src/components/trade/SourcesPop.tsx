@@ -17,13 +17,16 @@ export function SourcesPop({ market, label, ok }: { market: Market; label: strin
   const linkQuery = useLinkQuery();
   const info = useInfoSheet();
   // on a phone or tablet the anchored panel would hang off the screen, so the same contents open as a sheet
+  const foot = (
+    <p className={s.popFoot}>
+      The full method, every day's readings and the history live on the <Link href={`/gpu-index${linkQuery}#today`}>Index page</Link>.
+    </p>
+  );
   const toggle = () => {
     const body = (
       <div className={s.sheetMap}>
         <PriceMap market={market} />
-        <p className={s.popFoot}>
-          The full method, every day's readings and the history live on the <Link href={`/index${linkQuery}#today`}>Index page</Link>.
-        </p>
+        {foot}
       </div>
     );
     if (info(market.priceDate === null ? "Where the index comes from" : `Where ${usd(market.price)} comes from`, body, { wide: true })) return;
@@ -54,9 +57,7 @@ export function SourcesPop({ market, label, ok }: { market: Market; label: strin
       {open && (
         <div id={id} className={s.pop} role="dialog" aria-label="Where the price comes from">
           <PriceMap market={market} />
-          <p className={s.popFoot}>
-            The full method, every day's readings and the history live on the <Link href={`/index${linkQuery}#today`}>Index page</Link>.
-          </p>
+          {foot}
         </div>
       )}
     </span>

@@ -82,17 +82,13 @@
 .link {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   color: var(--ink-2);
   text-decoration: none;
   font-size: 16px;
 }
 .link[aria-current="page"] {
   color: var(--ink);
-}
-.mark {
-  flex: none;
-  display: block;
+  font-weight: 500;
 }
 @media (hover: hover) and (pointer: fine) {
   .link:hover,

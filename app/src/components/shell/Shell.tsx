@@ -1,6 +1,6 @@
 "use client";
-// App chrome: the navbar keeps Ornn's arrangement (logo left, plain links right), a small stone marks the active
-// link, and under it the three markets sit still as tabs, each the way to switch GPU.
+// App chrome: the navbar keeps Ornn's arrangement (logo left, plain links right), the active link in full ink and
+// weight (Oct 6: no stone beside it), and under it the three markets sit still as tabs, each the way to switch GPU.
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Lockup, Stone } from "@/components/brand/Logo";
@@ -170,8 +170,7 @@ export function NavBar({ active = "markets" }: { active?: "markets" | "positions
           </svg>
         </button>
         {links.map(([k, label]) => (
-          <Link key={k} href={`${k === "index" ? "/index" : k === "positions" ? "/positions" : "/"}${linkQuery}`} className={s.link} data-place={k} aria-current={k === active ? "page" : undefined}>
-            {k === active && <Stone size={11} className={s.mark} />}
+          <Link key={k} href={`${k === "index" ? "/gpu-index" : k === "positions" ? "/positions" : "/"}${linkQuery}`} className={s.link} data-place={k} aria-current={k === active ? "page" : undefined}>
             {label}
           </Link>
         ))}

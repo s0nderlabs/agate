@@ -35,7 +35,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   padding: 0 4px;
   border: 0;
   background: none;
@@ -52,10 +51,6 @@
 .tabbar > [data-here] {
   color: var(--ink);
   font-weight: 500;
-}
-.mark {
-  flex: none;
-  display: block;
 }
 .tabbar > a:focus-visible,
 .tabbar > button:focus-visible {

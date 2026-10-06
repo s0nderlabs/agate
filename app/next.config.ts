@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   // @agate/client and @agate/wallet ship TypeScript source (workspace packages); Next compiles them only when listed
   transpilePackages: ["@agate/client", "@agate/wallet"],
+  // the Index page lives at /gpu-index: at /index, Next's client router took "/index" for "/" (Markets showed the Index
+  // page and a Markets click did nothing). Old links still land on it.
+  async redirects() {
+    return [{ source: "/index", destination: "/gpu-index", permanent: false }];
+  },
   turbopack: {
     // Turbopack resolves nothing outside its root, so the root is the repo, which holds app/ and the workspace packages
     // (Next docs: turbopack.root for linked packages). The root install is hoisted (bunfig.toml), so there is one viem.
