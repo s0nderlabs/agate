@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.capture.json",
     "gen:abis": "bun run scripts/gen-abis.ts",
     "gen:config": "bun run scripts/gen-config.ts",
+    "gen:testnet": "bun run scripts/gen-testnet.ts",
     "capture": "bun run scripts/capture-local.ts"
   },
   "dependencies": {

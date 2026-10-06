@@ -191,8 +191,10 @@ GraphQL is served at `http://localhost:8080/v1/graphql` (Hasura; reads need no s
 `envio dev` is `testing`). The app reads it from `NEXT_PUBLIC_AGATE_GRAPHQL_URL` (agreed with the app's work Oct 4),
 default `http://localhost:8080/v1/graphql`. It is a public variable baked in at build time: a hosted build needs it
 set to the hosted Envio endpoint before building. The contract addresses come from
-`contracts/deployments/10143.json`. The hosted service (HyperSync) needs the committed pair regenerated from
-`10143.json` with both `--index-start` blocks first (`indexer/README.md`, testnet deploy checklist).
+`contracts/deployments/10143.json`. The hosted indexer on Envio Cloud (HyperSync) runs its own committed pair,
+`indexer/config.testnet.yaml` and `indexer/src/lib/deployments.testnet.generated.ts`: after any deploy that changes
+`10143.json` or `10143-indexes.json` (a new factory, a demo session's new index), run `cd indexer && bun run
+gen:testnet` and commit, and Envio Cloud redeploys from main (`indexer/README.md`, "The hosted indexer").
 
 ## The market bots' gas limits on Monad
 

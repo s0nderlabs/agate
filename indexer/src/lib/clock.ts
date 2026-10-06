@@ -1,5 +1,5 @@
 // The clock's two steps (BOTS-SPEC 5.6), kept apart from the block handler so tests drive them directly.
-import { FACTORIES } from "./deployments.generated.ts";
+import { FACTORIES } from "./deployments.ts";
 import { refreshForward } from "./market.ts";
 import type { Ctx } from "./store.ts";
 

@@ -77,12 +77,11 @@ fi
 [ -f "$DEP" ] || die "no deployments file $DEP"
 
 STARTS=()
-for n in $(jq -r '.factories | keys[]' "$DEP"); do
-  IXF="$(jq -r ".factories.$n.index" "$DEP" | tr 'A-F' 'a-f')"
-  # the current records first, then demoHistory: a demo factory can still point at an index a later start moved there
-  B="$(jq -r --arg ix "$IXF" '[.production, .demo, (.demoHistory // [])[]] | map(select(. != null and ((.index // "") | ascii_downcase) == $ix)) | .[0].deployBlock // empty' "$REC")"
-  [ -n "$B" ] && STARTS+=(--index-start "$n=$B")
-done
+# each factory's index deploy block: the current records first, then demoHistory (a demo factory can still point at an
+# index a later start moved there). The rule lives in indexer/scripts/index-starts.ts, shared with the hosted indexer's
+# gen:testnet, so both start each index at the same block.
+IXS="$(bun "$INDEXER/scripts/index-starts.ts" "$DEP" "$REC")" || die "could not read the index deploy blocks from $REC"
+for s in $IXS; do STARTS+=(--index-start "$s"); done
 [ "${#STARTS[@]}" -gt 0 ] || die "no factory's index is in $REC: no --index-start to give"
 
 show "copy indexer/ into $WORK (node_modules linked)"

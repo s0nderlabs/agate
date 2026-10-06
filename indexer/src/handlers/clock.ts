@@ -4,7 +4,7 @@
 // block (lib/store.ts), so nothing is marked early; between events the clock waits. finalAt gives the exact second.
 import { indexer } from "envio";
 import { CLOCK_EVERY, clockStep } from "../lib/clock.ts";
-import { CHAIN_ID } from "../lib/deployments.generated.ts";
+import { CHAIN_ID } from "../lib/deployments.ts";
 import { timeAt } from "../lib/store.ts";
 
 indexer.onBlock(

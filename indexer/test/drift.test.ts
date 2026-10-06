@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { CONTRACT_EVENTS, missingIndexStarts, parseArgs, parseDeployments, renderConfig } from "../scripts/config-gen.ts";
+import { indexStarts, TESTNET_CONFIG, TESTNET_TS, testnetPair } from "../scripts/testnet-pair.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
@@ -129,6 +130,42 @@ describe("config drift", () => {
     } catch (e) {
       expect(String(e)).not.toContain("secretvalue");
     }
+  });
+});
+
+describe("the hosted testnet pair (Envio Cloud)", () => {
+  it("gen:testnet reproduces config.testnet.yaml and deployments.testnet.generated.ts byte for byte, on HyperSync", () => {
+    const { yaml, ts, starts } = testnetPair(JSON.parse(read("../contracts/deployments/10143.json")), JSON.parse(read("../contracts/deployments/10143-indexes.json")));
+    expect(read(TESTNET_CONFIG)).toBe(yaml);
+    expect(read(TESTNET_TS)).toBe(ts);
+    expect(yaml).not.toMatch(/rpc:|https?:\/\//);
+    // the config loads only with the variable that makes the handlers read this pair
+    expect(yaml).toContain("\nname: agate-${ENVIO_AGATE_DEPLOYMENTS}\n");
+    // every factory's index starts at its index's deploy block, at or before the factory's own start block
+    const d = parseDeployments(JSON.parse(read("../contracts/deployments/10143.json")));
+    for (const f of d.factories) expect({ f: f.name, start: starts[f.name] !== undefined && starts[f.name]! > 0 && starts[f.name]! <= f.startBlock }).toEqual({ f: f.name, start: true });
+  });
+
+  it("index starts: the first record naming the index wins (production, demo, then demoHistory); no deploy block, no start", () => {
+    const dep = { factories: { real: { index: "0xAA" }, demo: { index: "0xbb" }, old: { index: "0xcc" } } };
+    expect(indexStarts(dep, { production: { index: "0xaa", deployBlock: 10 }, demo: { index: "0xBB", deployBlock: 20 }, demoHistory: [{ index: "0xcc", deployBlock: 5 }, { index: "0xbb", deployBlock: 1 }] })).toEqual({ real: 10, demo: 20, old: 5 });
+    expect(indexStarts(dep, { production: { index: "0xaa", deployBlock: null }, demoHistory: [{ index: "0xaa", deployBlock: 3 }] })).toEqual({});
+  });
+
+  it("the handlers read the testnet pair only with ENVIO_AGATE_DEPLOYMENTS=testnet, and refuse any other value", () => {
+    const probe = (v?: string) =>
+      spawnSync("bun", ["-e", 'const d = await import("./src/lib/deployments.ts"); console.log(Object.values(d.FACTORIES).map((f) => f.index).join(","))'], {
+        cwd: ROOT,
+        env: { ...process.env, ENVIO_AGATE_DEPLOYMENTS: v ?? "" },
+        encoding: "utf8",
+      });
+    const testnetIndexes = Object.values(parseDeployments(JSON.parse(read("../contracts/deployments/10143.json"))).factories).map((f) => f.index.toLowerCase());
+    expect(probe("testnet").stdout.trim().split(",").sort()).toEqual([...testnetIndexes].sort());
+    const fixtureIndexes = parseDeployments(JSON.parse(read("test/fixtures/deployments.test.json"))).factories.map((f) => f.index.toLowerCase());
+    expect(probe().stdout.trim().split(",").sort()).toEqual([...fixtureIndexes].sort());
+    const bad = probe("mainnet");
+    expect(bad.status).not.toBe(0);
+    expect(bad.stderr).toContain('ENVIO_AGATE_DEPLOYMENTS must be unset or "testnet"');
   });
 });
 

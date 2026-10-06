@@ -12,21 +12,29 @@ bun run codegen             # envio codegen: .envio/types.d.ts from config.yaml 
 bun run test                # vitest: every handler, drift, the local replay, the README queries. No Docker.
 bun run gen:abis            # abis/*.json from a forge build (AGATE_FORGE_OUT, else ../contracts/out)
 bun run gen:config <deployments.json> [--rpc] [--index-start demo=<block> --index-start real=<block> | --no-index-start] [--out config.yaml]
+bun run gen:testnet         # the hosted indexer's pair: config.testnet.yaml + src/lib/deployments.testnet.generated.ts
 bun run capture             # rebuild test/fixtures/local-lifecycle.json on a local anvil (anvil-safe), by hand
 ```
 
-`config.yaml` and `src/lib/deployments.generated.ts` are generated, never edited. Until the testnet deploy they come from
-`test/fixtures/deployments.test.json` (the local test world that `capture` deploys); the testnet deploy regenerates them from
-`contracts/deployments/10143.json` with `--index-start` for both indexes, so the price history starts at each index's
-first day. `gen:config` fails closed (audit M-2): for any input but the test world's file it refuses to write unless
+`config.yaml` and `src/lib/deployments.generated.ts` are generated, never edited. The committed pair comes from
+`test/fixtures/deployments.test.json` (the local test world that `capture` deploys); the operator's indexer
+(`ops/testnet/indexer.sh`) renders its own copy from `contracts/deployments/10143.json` with `--index-start` for each
+index (`scripts/index-starts.ts`), so the price history starts at each index's first day, and the hosted indexer has
+its own committed pair (below). `gen:config` fails closed (audit M-2): for any input but the test world's file it refuses to write unless
 every index has an `--index-start` (through a factory over it), or `--no-index-start` says on purpose that the indexes
 start at the factories' start block (losing `GpuRegistered` and every day closed before the market deploy).
 
-**Testnet deploy checklist** (audit L-6, L-7): (1) regenerate the committed pair from `contracts/deployments/10143.json` with
-both `--index-start` blocks (the deploy blocks of the demo and real AgateIndex), (2) run `bun run codegen` and
-`bun run test`, (3) only then connect Envio's GitHub app. The committed pair points chain 10143 at the local test
-world's addresses until step 1. A run with another `--out` (a fork) rewrites `src/lib/deployments.generated.ts` too
-(the handlers read it): regenerate the pair before a commit. If `DeployMarket`'s first broadcast died after it had
+**The hosted indexer (Envio Cloud, since Oct 6 2026)** runs a second committed pair, `config.testnet.yaml` and
+`src/lib/deployments.testnet.generated.ts`, written by `bun run gen:testnet` from `contracts/deployments/10143.json`
+with each index starting at its deploy block from `10143-indexes.json` (`scripts/index-starts.ts`, the rule
+`ops/testnet/indexer.sh` uses too), on HyperSync. The hosted indexer's settings: root directory `indexer`, config file `config.testnet.yaml`, branch `main`,
+and the variable `ENVIO_AGATE_DEPLOYMENTS=testnet`, which makes the handlers read that pair (`src/lib/deployments.ts`;
+any other value stops the indexer, and without it `config.testnet.yaml` does not load: its name is
+`agate-${ENVIO_AGATE_DEPLOYMENTS}`). Envio Cloud installs with pnpm 10.32.0 from `pnpm-lock.yaml`, kept beside
+`bun.lock`. Rerun `gen:testnet` after any deploy that changes either deployments file; `test/drift.test.ts` fails while
+the pair is stale. The default pair (`config.yaml`, `src/lib/deployments.generated.ts`) stays the test world's, and
+`indexer.sh` regenerates its own copy for the operator's indexer. A run with another `--out` (a fork) rewrites
+`src/lib/deployments.generated.ts` too (the handlers read it): regenerate the default pair before a commit. If `DeployMarket`'s first broadcast died after it had
 deployed the dollar and minted the bot float, rerun the deploy from scratch: a rerun reuses the dollar and stamps the
 factories' `startBlock` after that mint, so `DollarBalance` would miss the float.
 

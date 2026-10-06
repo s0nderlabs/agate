@@ -1,6 +1,6 @@
 // Shared entity helpers for the handlers. Every handler first calls `seen` (the clock's notion of chain time, 5.6).
 import type { EvmOnEventContext } from "envio";
-import { FACTORIES, INDEXES } from "./deployments.generated.ts";
+import { FACTORIES, INDEXES } from "./deployments.ts";
 import { isZero, low } from "./ids.ts";
 
 export type Ctx = EvmOnEventContext;
