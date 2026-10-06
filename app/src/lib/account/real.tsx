@@ -1,7 +1,7 @@
 "use client";
-// The real account (wallet spec 2, 3.1, 4): Dynamic's headless email code (or Google) signs the person in, their main
-// embedded wallet owns the main account (Kernel v3.1, index 0) on Monad testnet, and trades are the client's plans
-// sent as one sponsored user operation. The same sign-in machine as the pretend account (machine.ts), so every sheet
+// The real account (wallet spec 2, 3.1, 4): Dynamic's headless email code (or Google, or a passkey added earlier) signs
+// the person in, their main embedded wallet owns the main account (Kernel v3.1, index 0) on Monad testnet, and trades
+// are the client's plans sent as one sponsored user operation. The same sign-in machine as the pretend account (machine.ts), so every sheet
 // reads the same steps. A new person is set up once: the wallet, then the first 10,000 test dollars (their own drip).
 // Inert while the data source is example: no SDK download, no queries.
 import type { AgateClient, Wallet } from "@agate/client";
@@ -11,8 +11,8 @@ import type { UserOperationReceipt } from "viem/account-abstraction";
 import { getAgate } from "@/lib/data/agate";
 import type { Gpu } from "@/lib/mock/types";
 import { getDynamic, googlePending, markGoogle, readHint, REAL_CONFIGURED, writeHint, type Dyn, type Hint } from "./dynamic";
-import { codeProblemOf, sendCodeProblemOf, SIGNIN_COPY } from "./errors";
-import { cleanCode, GETTING_READY_MS, isCode, refreshDue, RESTORE_PATIENCE_MS, SIGNED_OUT, signInReducer, toAccountStep, type SignInState } from "./machine";
+import { codeProblemOf, passkeyProblemOf, sendCodeProblemOf, SIGNIN_COPY } from "./errors";
+import { canStart, cleanCode, GETTING_READY_MS, isCode, refreshDue, RESTORE_PATIENCE_MS, SIGNED_OUT, signInReducer, toAccountStep, type SignInState } from "./machine";
 import { forgetClients, mainAddressOf, sendCalls } from "./main";
 import type { Account, AccountPlan, DoneResult, OnStep, Order, SignInStep, TradeAction } from "./types";
 
@@ -122,6 +122,7 @@ export function useRealAccount(active: boolean): Account {
     qc.removeQueries({ queryKey: ["live", "wallet"] });
     qc.removeQueries({ queryKey: ["live", "pocket"] });
     qc.removeQueries({ queryKey: ["server"] });
+    qc.removeQueries({ queryKey: ["dynamic"] });
   }, [qc]);
 
   /** Signed in with a main wallet: the main account's address, and the hint for the next load. */
@@ -391,6 +392,43 @@ export function useRealAccount(active: boolean): Account {
     })();
   }, [dyn, nextRun]);
 
+  const startPasskey = useCallback(() => {
+    // only where a sign-in may start: a passkey that signed in while the machine was elsewhere (still signing out,
+    // say) would leave Dynamic signed in under a screen that says signed out
+    if (!canStart(live.current.m)) return;
+    const r = nextRun();
+    dispatch({ type: "open" });
+    dispatch({ type: "passkey" });
+    void (async () => {
+      let d: Dyn;
+      try {
+        d = await dyn();
+      } catch {
+        if (r === run.current) dispatch({ type: "passkeyFailed", message: SIGNIN_COPY.init });
+        return;
+      }
+      if (r !== run.current) return;
+      // a session already here (another tab signed in) needs no passkey; otherwise the browser's dialog first
+      if (!(d.client.user && d.lib.sessionToken(d.client))) {
+        try {
+          await d.lib.startPasskeySignIn(d.client);
+        } catch (e) {
+          if (r === run.current) dispatch({ type: "passkeyFailed", message: SIGNIN_COPY[passkeyProblemOf(e)] });
+          return;
+        }
+        if (r !== run.current) return;
+      }
+      try {
+        await signedIn(d, "verified");
+      } catch {
+        // signed in to Dynamic, but the account could not be read: sign that out too, so the screen and Dynamic agree
+        // (a later code would otherwise sign into this account whatever email it was for)
+        await d.lib.signOut(d.client).catch(() => {});
+        if (r === run.current) dispatch({ type: "passkeyFailed", message: SIGNIN_COPY.service });
+      }
+    })();
+  }, [dyn, nextRun, signedIn]);
+
   const retry = useCallback(() => {
     const at = live.current.m;
     if (at.status !== "error") return;
@@ -425,6 +463,49 @@ export function useRealAccount(active: boolean): Account {
     if (live.current.m.status !== "ready" || !h) throw Object.assign(new Error("sign in again"), { name: "UserNotAuthenticatedError" });
     return h;
   }, []);
+
+  // ===== passkeys on the account: how many, and adding one for next time =====
+  const passkeys = useQuery({
+    queryKey: ["dynamic", "passkeys", address ?? ""],
+    queryFn: async () => {
+      const d = await getDynamic();
+      return d.lib.passkeyCount(d.client);
+    },
+    enabled: ready && dynUp,
+    staleTime: Infinity,
+    retry: 1,
+  });
+
+  // the "Confirm it's you" code sent for adding a passkey, until it is used
+  const passkeyOtp = useRef<EmailOtp | null>(null);
+  const addPasskey = useCallback(
+    async (code?: string): Promise<"added" | "code"> => {
+      const h = need();
+      const d = await dyn();
+      if (code !== undefined) {
+        if (!passkeyOtp.current) throw new Error("no code was sent for this");
+        try {
+          await d.lib.confirmStepUp(d.client, passkeyOtp.current, cleanCode(code), ["credential:link"]);
+        } catch (e) {
+          throw Object.assign(new Error("the code did not confirm"), { name: "PasskeyCodeError", cause: e });
+        }
+        passkeyOtp.current = null;
+      } else if (!d.lib.canAddPasskey(d.client)) {
+        // a person who has a passkey confirms with it (Dynamic refuses a code then): its dialog, then the new one's
+        if ((await d.lib.passkeyCount(d.client).catch(() => 0)) > 0) await d.lib.confirmWithPasskey(d.client, ["credential:link"]);
+        else {
+          const email = d.client.user?.email ?? h.email;
+          if (!email) throw new Error("no email to confirm with");
+          passkeyOtp.current = await d.lib.requestStepUp(d.client, email);
+          return "code";
+        }
+      }
+      await d.lib.addPasskey(d.client);
+      await qc.invalidateQueries({ queryKey: ["dynamic", "passkeys"] });
+      return "added";
+    },
+    [need, dyn, qc],
+  );
 
   const drip = useCallback(async () => {
     await dripFrom(need());
@@ -484,6 +565,10 @@ export function useRealAccount(active: boolean): Account {
       resendCode,
       otherEmail,
       startGoogle,
+      startPasskey,
+      // a count that can't be read offers "Add a passkey" (a second one is harmless) rather than a skeleton for good
+      passkeys: passkeys.data ?? (passkeys.isError ? 0 : null),
+      addPasskey,
       retry,
       cancelSignIn,
       signOut,
@@ -491,6 +576,6 @@ export function useRealAccount(active: boolean): Account {
       plan,
       send,
     }),
-    [signIn, ready, email, who, address, w, wallet.isPending, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, retry, cancelSignIn, signOut, drip, plan, send],
+    [signIn, ready, email, who, address, w, wallet.isPending, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, passkeys.data, passkeys.isError, addPasskey, retry, cancelSignIn, signOut, drip, plan, send],
   );
 }

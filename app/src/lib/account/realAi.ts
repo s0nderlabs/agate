@@ -129,9 +129,16 @@ export function realAiBackend(o: { owner: string; address: string; onMoved: () =
         }),
       stepUpSend: async () => {
         const { lib, client } = await assistantOf();
+        // an account with a passkey confirms with it: Dynamic then refuses an email code for any step-up
+        if ((await lib.passkeyCount(client).catch(() => 0)) > 0) return "passkey";
         const email = client.user?.email;
         if (!email) throw new Error("no email on this account");
         otp = await lib.requestStepUp(client, email);
+        return "code";
+      },
+      stepUpPasskey: async () => {
+        const { lib, client } = await assistantOf();
+        await lib.confirmWithPasskey(client, ["wallet:delegate"]);
       },
       stepUpVerify: async (code) => {
         const { lib, client } = await assistantOf();

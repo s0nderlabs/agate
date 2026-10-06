@@ -1,6 +1,7 @@
 "use client";
-// Small browser helpers for the phone and tablet layout. Media queries read through useSyncExternalStore with a
-// server snapshot of false, so the first client render matches the server (no hydration mismatch).
+// Small browser helpers for the phone and tablet layout. Media queries (and passkey support) read through
+// useSyncExternalStore with a server snapshot of false, so the first client render matches the server (no hydration
+// mismatch).
 import { useCallback, useEffect, useRef, useSyncExternalStore, type RefObject } from "react";
 
 /** True while the media query matches; false on the server and during hydration. */
@@ -16,6 +17,17 @@ export function useMedia(query: string): boolean {
   return useSyncExternalStore(
     subscribe,
     () => window.matchMedia(query).matches,
+    () => false,
+  );
+}
+
+const noSubscribe = () => () => {};
+
+/** Whether this browser can use passkeys (WebAuthn); false on the server and during hydration. */
+export function usePasskeySupport(): boolean {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => typeof window.PublicKeyCredential === "function",
     () => false,
   );
 }

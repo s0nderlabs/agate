@@ -14,7 +14,7 @@ import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { finePointer, tapMode, useModalFocus } from "@/lib/ui/hooks";
 import { fmtHours } from "@/lib/size";
 import { int, usd, usd0 } from "@/lib/format";
-import { AccountHead, AccountSheet, AddressRow, AisRow, SECURED, SIGN_OUT_NOTE, useAiSummary } from "@/components/flow/AccountSheet";
+import { AccountHead, AccountSheet, AddressRow, AisRow, SECURED, SIGN_OUT_NOTE, useAiSummary, usePasskeyRow } from "@/components/flow/AccountSheet";
 import { CloseSheet } from "@/components/flow/CloseSheet";
 import { DisconnectSheet } from "@/components/flow/DisconnectSheet";
 import { dripOpen, useDrip } from "@/components/flow/DripButton";
@@ -450,6 +450,7 @@ function More({ onSignIn, onClose }: { onSignIn: () => void; onClose: () => void
   const { config, setConfig } = useMock();
   const account = useAccount();
   const ai = useAiSummary();
+  const passkey = usePasskeyRow();
   return (
     <>
       {account.ready ? (
@@ -468,6 +469,7 @@ function More({ onSignIn, onClose }: { onSignIn: () => void; onClose: () => void
           <>
             <AddressRow />
             <AisRow onGo={onClose} />
+            {passkey.row}
           </>
         )}
         <div>
@@ -495,6 +497,7 @@ function More({ onSignIn, onClose }: { onSignIn: () => void; onClose: () => void
       </div>
       {account.ready && (
         <>
+          {passkey.note}
           <p className="ag-fine">{SECURED}</p>
           {ai.active > 0 && <p className="ag-fine">{SIGN_OUT_NOTE}</p>}
           <button

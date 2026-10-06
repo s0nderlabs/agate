@@ -7,18 +7,22 @@
 //  - Assistant: a second EVM embedded wallet, created and delegated to agate only when the person connects an AI.
 //    It signs nothing but the pockets' session keys (checked onchain), and Transaction Review checks it again.
 import {
+  authenticatePasskeyMFA,
   completeSocialRedirect,
   createDynamicClient,
   detectSocialRedirectUrl,
   type DynamicClient,
   getElevatedAccessToken,
+  getPasskeys,
   getUserSocialAccounts,
   getWalletAccounts,
   initializeClient,
   logout,
   onEvent,
   refreshAuth,
+  registerPasskey,
   sendEmailOTP,
+  signInWithPasskey,
   signInWithSocialRedirect,
   switchActiveNetwork,
   unlinkSocialAccount,
@@ -72,9 +76,11 @@ export function startEmailSignIn(client: DynamicClient, email: string): Promise<
 }
 
 /** Completes the email code. `stepUp: true` also asks for the scope that delegating a wallet needs, so connecting an
- *  AI right after sign-in needs no second code ("Confirm it's you" is this same code). */
+ *  AI right after sign-in needs no second code ("Confirm it's you" is this same code). allowNewMFALinking: a person
+ *  without MFA also gets a credential:link scope for a while, so "Add a passkey" right after needs no code either
+ *  (SDK 1.38 sends requestedScopes only on a signed-in step-up, never on this sign-in call). */
 export function finishEmailSignIn(client: DynamicClient, otp: EmailOtp, code: string, opts: { stepUp?: boolean } = {}) {
-  return verifyOTP({ otpVerification: otp, verificationToken: code, ...(opts.stepUp ? { requestedScopes: ["wallet:delegate" as never] } : {}) }, client);
+  return verifyOTP({ otpVerification: otp, verificationToken: code, allowNewMFALinking: true, ...(opts.stepUp ? { requestedScopes: ["wallet:delegate" as never] } : {}) }, client);
 }
 
 // ------------------------------------------------------------------ sign-in (Google)
@@ -103,6 +109,41 @@ export async function unlinkGoogle(client: DynamicClient): Promise<number> {
   const linked = googleAccounts(client);
   for (const a of linked) await unlinkSocialAccount({ verifiedCredentialId: a.verifiedCredentialId }, client);
   return linked.length;
+}
+
+// ------------------------------------------------------------------ sign-in (passkey)
+
+/** "Sign in with a passkey": the browser offers the passkeys saved for this site, and one added earlier with addPasskey
+ *  signs that person in. A passkey cannot sign up: a new person signs up with an email code or Google first. This
+ *  sign-in carries no delegate scope, so connecting an AI after it asks "Confirm it's you" with the passkey
+ *  (confirmWithPasskey: Dynamic refuses an email code once a person has one). */
+export function startPasskeySignIn(client: DynamicClient) {
+  return signInWithPasskey({}, client);
+}
+
+/** Adds a passkey to the signed-in person (the browser's own dialog), for "Sign in with a passkey" next time. Dynamic
+ *  needs a fresh credential:link scope for it (canAddPasskey): an email-code sign-in carries one for a while (only
+ *  while the person has no passkey yet); otherwise requestStepUp then confirmStepUp(..., ["credential:link"]) gets one,
+ *  or confirmWithPasskey(..., ["credential:link"]) once a passkey exists. Needs the environment's passkey method on
+ *  (security.mfa.methods passkey; MFA enforcement itself stays off). */
+export function addPasskey(client: DynamicClient) {
+  return registerPasskey({}, client);
+}
+
+/** "Confirm it's you" with a passkey (the browser's own dialog) for `scopes`. Once a person has a passkey, Dynamic
+ *  routes every step-up there and refuses an email code ("mfa_required_for_elevated_auth"). */
+export function confirmWithPasskey(client: DynamicClient, scopes: string[]) {
+  return authenticatePasskeyMFA({ requestedScopes: scopes as never }, client);
+}
+
+/** True while the session holds an unexpired credential:link scope, so addPasskey needs no code first. */
+export function canAddPasskey(client: DynamicClient): boolean {
+  return Boolean(getElevatedAccessToken({ scope: "credential:link", consume: false }, client));
+}
+
+/** How many passkeys the signed-in person has. */
+export async function passkeyCount(client: DynamicClient): Promise<number> {
+  return (await getPasskeys(client)).length;
 }
 
 /** The user's Dynamic session JWT, for agate's own API (verified there against Dynamic's JWKS). */

@@ -201,6 +201,27 @@ describe("sign-in", () => {
     expect(go(verifying, { type: "googleFailed", message: "m" })).toBe(verifying);
   });
 
+  const viaPasskey: SignInState = { status: "verifying", email: "", via: "passkey" };
+  test("passkey: the browser's dialog, only from where a sign-in may start", () => {
+    for (const s of [SIGNED_OUT, choosing, { status: "sessionEnded" } as SignInState, sendError]) expect(go(s, { type: "passkey" })).toEqual(viaPasskey);
+    for (const s of [ready, creatingWallet, codeSent, verifying]) expect(go(s, { type: "passkey" })).toBe(s);
+  });
+
+  test("passkey: signs in like a code, a new person is set up", () => {
+    expect(go(viaPasskey, { type: "verified", wallet: true, email: "a@b.co", at: T0 })).toEqual({ status: "ready", email: "a@b.co" });
+    expect(go(viaPasskey, { type: "verified", wallet: false, email: "a@b.co", at: T0 })).toEqual({ status: "creating", email: "a@b.co", part: "wallet", startedAt: T0 });
+  });
+
+  test("passkeyFailed: an error at passkey, back to choosing on retry; the sheet holds while the dialog is up", () => {
+    expect(go(viaPasskey, { type: "passkeyFailed", message: "m" })).toEqual({ status: "error", at: "passkey", message: "m" });
+    expect(go(verifying, { type: "passkeyFailed", message: "m" })).toBe(verifying);
+    expect(go(viaGoogle, { type: "passkeyFailed", message: "m" })).toBe(viaGoogle);
+    expect(go({ status: "error", at: "passkey", message: "m" }, { type: "retry", at: T0 })).toEqual({ status: "choosing", email: undefined });
+    expect(go(viaPasskey, { type: "close" })).toBe(viaPasskey);
+    expect(go(viaPasskey, { type: "codeRejected", problem: "wrong" })).toBe(viaPasskey);
+    expect(toAccountStep(viaPasskey)).toEqual({ status: "verifying", email: "", via: "passkey" });
+  });
+
   test("creating: the wallet, then the first test dollars", () => {
     expect(go(creatingWallet, { type: "walletMade", at: T0 + 9_800 })).toEqual({ ...creatingDollars, startedAt: T0 + 9_800 } as SignInState);
     expect(go(creatingDollars, { type: "walletMade", at: T0 })).toBe(creatingDollars);
@@ -529,6 +550,21 @@ describe("connect an AI", () => {
     expect(go(form, { type: "cancel" })).toBe(form);
     expect(go(running("delegate"), { type: "needStepUp" })).toEqual({ step: "stepUp", lane: "oauth", terms, run: run0, code: "sending" });
     expect(go(running("permission"), { type: "needStepUp" })).toEqual(running("permission"));
+  });
+
+  test("step-up with a passkey: no code, one tap, then on to the key", () => {
+    const up = go(confirming, checked({ canDelegate: false }));
+    const ask = go(up, { type: "passkeyAsk" });
+    expect(ask).toMatchObject({ step: "stepUp", code: "sent", via: "passkey", problem: undefined });
+    expect(go(ask, { type: "passkeyAsk" })).toBe(ask);
+    const checking = go(ask, { type: "verify", code: "" });
+    expect(checking).toMatchObject({ code: "verifying", via: "passkey" });
+    expect(go(checking, { type: "passkeyRejected", message: "m" })).toMatchObject({ code: "sent", via: "passkey", passkeyMessage: "m" });
+    expect(go(checking, { type: "codeRejected", problem: "wrong" })).toBe(checking);
+    expect(go(go(go(checking, { type: "passkeyRejected", message: "m" }), { type: "verify", code: "" }), { type: "codeOk", at: T0 }).step).toBe("running");
+    expect(go(checking, { type: "codeOk", at: T0 + 1 })).toEqual({ ...running("assistant"), startedAt: T0 + 1 });
+    expect(go(ask, { type: "resend" })).toBe(ask);
+    expect(go(ask, { type: "cancel" })).toEqual({ step: "form", lane: "oauth", terms, banner: CONNECT_COPY.stepUpCancelled });
   });
 
   test("the run, step by step, to the redirect (OAuth)", () => {

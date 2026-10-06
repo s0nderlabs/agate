@@ -1,7 +1,8 @@
 "use client";
-// The sign-in sheet (wallet spec 4, screens 1 to 3): an email for a 6-digit code (or Google), the code, then, once per
-// new person, "Setting up your account" with the first 10,000 test dollars. Every step is the account's sign-in
-// machine (machine.ts) as useAccount() reports it; this sheet only shows it and sends the person's taps back.
+// The sign-in sheet (wallet spec 4, screens 1 to 3): an email for a 6-digit code (or Google, or a passkey added from the
+// account), the code, then, once per new person, "Setting up your account" with the first 10,000 test dollars. Every
+// step is the account's sign-in machine (machine.ts) as useAccount() reports it; this sheet only shows it and sends
+// the person's taps back.
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "@/lib/account";
 import { codeProblemText, SIGNIN_COPY } from "@/lib/account/errors";
@@ -9,7 +10,7 @@ import { cleanCode, creatingSlow, isEmail, resendWait } from "@/lib/account/mach
 import { DRIP, type SignInStep } from "@/lib/account/types";
 import { int, usd0 } from "@/lib/format";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
-import { finePointer } from "@/lib/ui/hooks";
+import { finePointer, usePasskeySupport } from "@/lib/ui/hooks";
 import { useNow } from "@/lib/ui/useNow";
 import { DripButton } from "./DripButton";
 import { Check, Steps } from "./Steps";
@@ -66,6 +67,14 @@ export function SignInSheet({ from, ai, onFinished, onClose }: { from: SignInFro
         <p>Back from Google. This takes a moment.</p>
       </div>
     );
+  } else if (step.status === "verifying" && step.via === "passkey") {
+    body = (
+      <div className="grid justify-items-center gap-4 py-6 text-center">
+        <span className="ag-spinner" />
+        <h2 tabIndex={-1}>Use your passkey</h2>
+        <p>Your browser asks for the passkey you saved for Agate.</p>
+      </div>
+    );
   } else if (step.status === "codeSent" || step.status === "verifying" || (step.status === "sendingCode" && step.resend)) {
     // a new code on its way keeps the code step on screen, its resend control busy
     body = <CodeStep step={step} />;
@@ -104,6 +113,7 @@ function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignIn
   const linkQuery = useLinkQuery();
   const account = useAccount();
   const practice = usePractice();
+  const passkeys = usePasskeySupport();
   const kept = "email" in step && step.email ? step.email : "";
   const [email, setEmail] = useState(kept);
   const [bad, setBad] = useState(false);
@@ -164,6 +174,11 @@ function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignIn
       {(account.kind === "pretend" || GOOGLE) && (
         <button className="ag-btn ag-btn--ghost ag-btn--lg" type="button" disabled={sending || !account.configured} onClick={() => account.startGoogle()}>
           Continue with Google
+        </button>
+      )}
+      {passkeys && (
+        <button className="ag-btn ag-btn--ghost ag-btn--lg" type="button" disabled={sending || !account.configured} onClick={() => account.startPasskey()}>
+          Sign in with a passkey
         </button>
       )}
       <button className="ag-btn ag-btn--quiet" type="button" onClick={onClose}>

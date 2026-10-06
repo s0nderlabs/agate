@@ -161,6 +161,13 @@ export const SIGNIN_COPY = {
   init: "Sign in could not start. Check your connection and try again.",
   notSetUp: "Sign in is not set up on this build.",
   google: "Google sign-in didn't finish. Try again, or use your email.",
+  passkey: "Passkey sign-in didn't finish. Try again, or use your email.",
+  passkeyStopped: "No passkey signed you in. New here, or no passkey yet? Sign in with your email, then add one from your account.",
+  passkeyUnknown: "That passkey isn't on an Agate account anymore. Sign in with your email or Google.",
+  passkeyUnsupported: "This browser can't use passkeys. Sign in with your email.",
+  addPasskey: "Couldn't add a passkey. Try again.",
+  addPasskeyStopped: "No passkey was added.",
+  addPasskeyExists: "This device already has a passkey for your account.",
   wrong: "That code doesn't match. Check the newest email from Agate and try again.",
   expired: "That code has expired.",
   tooMany: "Too many tries with this code. Send a new one.",
@@ -397,6 +404,36 @@ export function codeProblemOf(e: unknown): CodeProblem {
 }
 
 export const codeProblemText = (p: CodeProblem) => SIGNIN_COPY[p];
+
+/** The browser's dialog closed, timed out or found no passkey: WebAuthn's own error names and simplewebauthn's codes
+ *  only, so a request that timed out is not read as the person closing the dialog. */
+const DIALOG_STOPPED = /NotAllowedError|AbortError|ERROR_CEREMONY_ABORTED/;
+
+/** Why "Sign in with a passkey" did not sign in. */
+export function passkeyProblemOf(e: unknown): "passkey" | "passkeyStopped" | "passkeyUnknown" | "passkeyUnsupported" | "service" {
+  const h = haystack(e);
+  if (hasName(e, /NoWebAuthNSupport/i)) return "passkeyUnsupported";
+  if (isNetworkError(e)) return "service";
+  if (DIALOG_STOPPED.test(h)) return "passkeyStopped";
+  if (/passkey.*not[_ ]found|credential.*not[_ ]found|not[_ ]found.*(passkey|credential)|unknown[_ ]credential/i.test(h) || statusOf(e) === 404) return "passkeyUnknown";
+  return "passkey";
+}
+
+/** "Confirm it's you" with a passkey (Connect's step-up) did not confirm: why, in the sheet's words. */
+export function passkeyConfirmText(e: unknown): string {
+  const p = passkeyProblemOf(e);
+  if (p === "passkeyUnsupported") return "This browser can't use passkeys. Open Agate in a browser that can, then connect your AI.";
+  if (p === "service") return SIGNIN_COPY.service;
+  return "Your passkey didn't confirm it. Try again, or Cancel.";
+}
+
+/** Why "Add a passkey" did not add one. */
+export function addPasskeyProblemOf(e: unknown): "addPasskey" | "addPasskeyStopped" | "addPasskeyExists" {
+  const h = haystack(e);
+  if (/InvalidStateError|PREVIOUSLY_REGISTERED|already registered/i.test(h)) return "addPasskeyExists";
+  if (DIALOG_STOPPED.test(h)) return "addPasskeyStopped";
+  return "addPasskey";
+}
 
 // ===== Agate's server (server/API.md: errors are { error: "<sentence>" } with a 4xx status) =====
 

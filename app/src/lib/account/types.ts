@@ -17,7 +17,10 @@ export type CodeProblem = "wrong" | "expired" | "tooMany" | "network";
 export type CreatingPart = "wallet" | "dollars";
 
 /** The step that failed, so "Try again" reruns that one. */
-export type SignInErrorAt = "init" | "sendCode" | "verify" | "google" | "wallet";
+export type SignInErrorAt = "init" | "sendCode" | "verify" | "google" | "passkey" | "wallet";
+
+/** How a sign-in is being checked: a code, Google's way back, or a passkey in the browser's own dialog. */
+export type SignInVia = "code" | "google" | "passkey";
 
 /** The sign-in machine's step, with what that step carries (spec 3.1). */
 export type SignInStep =
@@ -28,7 +31,7 @@ export type SignInStep =
   | { status: "sendingCode"; email: string; resend: boolean }
   /** resent: a new code went out, so the one before no longer works */
   | { status: "codeSent"; email: string; sentAt: number; resent: boolean; problem?: CodeProblem }
-  | { status: "verifying"; email: string; via: "code" | "google" }
+  | { status: "verifying"; email: string; via: SignInVia }
   /** once per new person: the wallet, then the first drip */
   | { status: "creating"; email: string; part: CreatingPart; startedAt: number }
   /** firstDripFailed: the account is ready but the first test dollars did not arrive */
@@ -167,6 +170,15 @@ export interface Account {
   otherEmail: () => void;
   /** Google instead of a code. Signing in with Google while signed in links instead, so sign out first */
   startGoogle: () => void;
+  /** a passkey added earlier instead of a code (the browser's own dialog); a passkey never signs up a new person */
+  startPasskey: () => void;
+  /** passkeys on this account once signed in; null while unknown */
+  passkeys: number | null;
+  /** adds a passkey for next time (the browser's own dialog). "code": Dynamic first wants a fresh "Confirm it's you"
+   *  (after Google, or a while after the code), so a code went to the email: call again with it. A person who already
+   *  has a passkey confirms with that one instead (its dialog comes first). Rejects when nothing was added; a refused
+   *  code rejects as a PasskeyCodeError (its cause is Dynamic's error) */
+  addPasskey: (code?: string) => Promise<"added" | "code">;
   /** reruns the step that failed */
   retry: () => void;
   /** the sign-in sheet closed mid-way: back to signed out, the email kept for the field (a late answer changes nothing) */

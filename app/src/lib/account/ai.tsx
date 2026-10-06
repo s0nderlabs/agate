@@ -43,8 +43,11 @@ export interface AiBackend {
     state: () => { hasAssistant: boolean; address: string | null; delegated: boolean; canDelegate: boolean };
     ensureAssistant: () => Promise<string>;
     delegate: () => Promise<void>;
-    stepUpSend: () => Promise<void>;
+    /** "code": a code went to the email. "passkey": the account has a passkey, so Dynamic wants that instead (nothing
+     *  was sent; stepUpPasskey after the person taps) */
+    stepUpSend: () => Promise<"code" | "passkey">;
     stepUpVerify: (code: string) => Promise<void>;
+    stepUpPasskey: () => Promise<void>;
     /** createPocketPermission: the main wallet signs the pocket's onchain limits once (validUntil in unix seconds,
      *  the same one the grant is registered with) */
     signPermission: (index: number, ask: PermissionAsk) => Promise<{ pocket: string; approval: string; pocketBalance: number }>;
@@ -122,6 +125,7 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
         delegate: () => fakeKey.delegate(world()),
         stepUpSend: () => fakeKey.stepUpSend(),
         stepUpVerify: (code) => fakeKey.stepUpVerify(world(), code),
+        stepUpPasskey: () => fakeKey.stepUpPasskey(world()),
         signPermission: (index) => fakeKey.signPermission(world(), index),
         revoke: () => fakeKey.revoke(world()),
       },

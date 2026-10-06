@@ -582,8 +582,14 @@ export const fakeKey = {
     w.wasDelegated = true;
     w.events.push(ev(Date.now(), "wallet.delegation.created", null, {}, "dynamic"));
   },
-  async stepUpSend() {
+  /** example accounts have no real passkey: a code, always */
+  async stepUpSend(): Promise<"code" | "passkey"> {
     await wait(FAKE_MS.code);
+    return "code";
+  },
+  async stepUpPasskey(w: World) {
+    await wait(FAKE_MS.code);
+    w.canDelegate = true;
   },
   /** any 6 digits confirm, as in the example sign-in */
   async stepUpVerify(w: World, code: string) {

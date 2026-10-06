@@ -16,7 +16,7 @@ import { useAccount } from "@/lib/account";
 import { useAiBackend, useAiRefresh } from "@/lib/account/ai";
 import { clock, safeReturn } from "@/lib/account/aiView";
 import { ServerError } from "@/lib/account/api";
-import { CONNECT_COPY, codeProblemOf, codeProblemText, connectFailure, connectProblemOf, sendCodeProblemOf, SIGNIN_COPY } from "@/lib/account/errors";
+import { CONNECT_COPY, codeProblemOf, codeProblemText, connectFailure, connectProblemOf, passkeyConfirmText, sendCodeProblemOf, SIGNIN_COPY } from "@/lib/account/errors";
 import {
   BUDGET_CHIPS,
   checkTerms,
@@ -42,7 +42,7 @@ import { whenText } from "@/lib/data/derive";
 import { int, usd0 } from "@/lib/format";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { parseAmount } from "@/lib/size";
-import { useModalFocus } from "@/lib/ui/hooks";
+import { useModalFocus, usePasskeySupport } from "@/lib/ui/hooks";
 import { useHydrated, useNow } from "@/lib/ui/useNow";
 import c from "./connect.module.css";
 
@@ -145,20 +145,22 @@ export function ConnectScreen({ requestId }: { requestId: string | null }) {
       }
       if (s.step === "stepUp") {
         if (s.code === "sending") {
+          let via: "code" | "passkey";
           try {
-            await backend.tradingKey.stepUpSend();
+            via = await backend.tradingKey.stepUpSend();
           } catch (e) {
             // the code never went out: back to the form with why, so the person can Allow again or leave
             const p = sendCodeProblemOf(e, "send");
             return dispatch({ type: "cancel", banner: `${p === "rateLimited" ? SIGNIN_COPY.rateLimited : SIGNIN_COPY.service} ${CONNECT_COPY.stepUpCancelled}` });
           }
-          dispatch({ type: "codeSent", at: Date.now() });
+          dispatch(via === "passkey" ? { type: "passkeyAsk" } : { type: "codeSent", at: Date.now() });
         } else if (s.code === "verifying") {
           try {
-            await backend.tradingKey.stepUpVerify(code.current);
+            if (s.via === "passkey") await backend.tradingKey.stepUpPasskey();
+            else await backend.tradingKey.stepUpVerify(code.current);
             dispatch({ type: "codeOk", at: Date.now() });
           } catch (e) {
-            dispatch({ type: "codeRejected", problem: codeProblemOf(e) });
+            dispatch(s.via === "passkey" ? { type: "passkeyRejected", message: passkeyConfirmText(e) } : { type: "codeRejected", problem: codeProblemOf(e) });
           }
         }
         return;
@@ -915,12 +917,19 @@ function ExampleRedirect({ example, to }: { example: boolean; to?: string }) {
   return null;
 }
 
-/** "Confirm it's you": a fresh code, only when letting Agate use the trading key needs it again. */
+/** "Confirm it's you": a fresh code, only when letting Agate use the trading key needs it again. An account with a
+ *  passkey confirms with it instead: one tap opens the browser's dialog (a tap, so Safari lets it open). */
 function StepUp(p: { s: Extract<ConnectState, { step: "stepUp" }>; email: string; dark: boolean; phone: string; onVerify: (code: string) => void; onResend: () => void; onCancel: () => void }) {
   const [v, setV] = useState("");
   const box = useRef<HTMLDivElement>(null);
   const checking = p.s.code === "verifying";
   const sending = p.s.code === "sending";
+  const passkey = p.s.via === "passkey";
+  const canPasskey = usePasskeySupport();
+  // the code field leaves when the sheet turns to the passkey: focus goes to its button, not the page
+  useEffect(() => {
+    if (passkey) box.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+  }, [passkey]);
   // like every Flow sheet: Tab stays inside, focus goes back where it was on close
   useModalFocus(box, true);
   useEffect(() => {
@@ -938,6 +947,33 @@ function StepUp(p: { s: Extract<ConnectState, { step: "stepUp" }>; email: string
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [checking, onCancel]);
+  if (passkey)
+    return (
+      <div className={`ag-backdrop ${p.dark ? "tone-dark" : "tone-light"}`} data-phone={p.phone} data-kind="stepup">
+        <div ref={box} className="ag-sheet" role="dialog" aria-modal="true" aria-labelledby="stepup-h" tabIndex={-1}>
+          <div className="grid gap-[18px]">
+            <h2 id="stepup-h">Confirm it's you</h2>
+            <p>Letting an AI trade needs a fresh check. Your account has a passkey, so use it here.</p>
+            <p className="ag-err" aria-live="polite">
+              {!canPasskey ? passkeyConfirmText({ name: "NoWebAuthNSupportError" }) : (p.s.passkeyMessage ?? "")}
+            </p>
+            <button className="ag-btn ag-btn--primary ag-btn--lg" type="button" disabled={checking || !canPasskey} onClick={() => p.onVerify("")}>
+              {checking ? (
+                <>
+                  <span className="ag-spinner" aria-hidden="true" />
+                  Checking
+                </>
+              ) : (
+                "Use your passkey"
+              )}
+            </button>
+            <button className="ag-btn ag-btn--quiet" type="button" disabled={checking} onClick={p.onCancel}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   return (
     <div className={`ag-backdrop ${p.dark ? "tone-dark" : "tone-light"}`} data-phone={p.phone} data-kind="stepup">
       <div ref={box} className="ag-sheet" role="dialog" aria-modal="true" aria-labelledby="stepup-h" tabIndex={-1}>
@@ -949,7 +985,8 @@ function StepUp(p: { s: Extract<ConnectState, { step: "stepUp" }>; email: string
           }}
         >
           <h2 id="stepup-h">Confirm it's you</h2>
-          <p>{sending ? `Sending a code to ${p.email}.` : `Letting an AI trade needs a fresh code. We sent one to ${p.email}.`}</p>
+          {/* while sending, it is not known yet whether a code goes out (an account with a passkey uses that instead) */}
+          <p>{sending ? "Letting an AI trade needs a fresh check. Getting it ready." : `Letting an AI trade needs a fresh code. We sent one to ${p.email}.`}</p>
           <div className="grid gap-2">
             <input
               className="ag-input ag-code"

@@ -5,7 +5,7 @@
 // expect returns that same state object, so a late answer from an earlier step changes nothing.
 import { floorCents, floorHours } from "@/lib/size";
 import { CONNECT_COPY, COPY, type ConnectProblem, type DisconnectAt, type FreshQuote, type Refusal, type RefusalAction } from "./errors";
-import { type AccountPlan, type CodeProblem, type CreatingPart, DRIP, type DoneResult, type Order, type SignInErrorAt, type SignInStep } from "./types";
+import { type AccountPlan, type CodeProblem, type CreatingPart, DRIP, type DoneResult, type Order, type SignInErrorAt, type SignInStep, type SignInVia } from "./types";
 
 const ceilCents = (d: number) => Math.ceil(Math.round(d * 1e6) / 1e4) / 100;
 
@@ -13,7 +13,7 @@ const ceilCents = (d: number) => Math.ceil(Math.round(d * 1e6) / 1e4) / 100;
 export type StepMark = "done" | "current" | "waiting" | "skipped" | "failed";
 
 // =====================================================================================================================
-// SIGN-IN (spec 3.1, 2.5, 4): email code or Google, then a new person's wallet and first test dollars
+// SIGN-IN (spec 3.1, 2.5, 4): email code, Google or a passkey, then a new person's wallet and first test dollars
 // =====================================================================================================================
 
 /** "Send a new code" opens this long after a code went out. */
@@ -37,8 +37,8 @@ export type SignInState =
   | { status: "sendingCode"; email: string; resend: boolean; gettingReady?: boolean }
   /** resent: a new code went out, so the one before no longer works */
   | { status: "codeSent"; email: string; sentAt: number; resent: boolean; problem?: CodeProblem }
-  /** sentAt and resent keep the code step to return to when the code is refused */
-  | { status: "verifying"; email: string; via: "code" | "google"; sentAt?: number; resent?: boolean }
+  /** sentAt and resent keep the code step to return to when the code is refused; via passkey: the browser's dialog */
+  | { status: "verifying"; email: string; via: SignInVia; sentAt?: number; resent?: boolean }
   /** left for Google; signing in with Google while signed in links instead, so it never starts from ready */
   | { status: "googleRedirect" }
   /** once per new person: the wallet, then the first 10,000 test dollars */
@@ -73,6 +73,10 @@ export type SignInEvent =
   /** on load, the URL is Google's way back */
   | { type: "googleReturned" }
   | { type: "googleFailed"; message: string }
+  /** a passkey instead of a code: the browser's dialog is up */
+  | { type: "passkey" }
+  /** the dialog was closed, or no passkey signed in */
+  | { type: "passkeyFailed"; message: string }
   | { type: "walletMade"; at: number }
   | { type: "walletFailed"; message: string }
   | { type: "dripped" }
@@ -91,8 +95,8 @@ export const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim()
 export const cleanCode = (s: string) => s.replace(/[\s-]/g, "");
 export const isCode = (s: string) => /^\d{6}$/.test(cleanCode(s));
 
-/** The sheet may take an email (or Google) now. */
-const canStart = (s: SignInState) => s.status === "signedOut" || s.status === "sessionEnded" || s.status === "choosing" || (s.status === "error" && s.at !== "wallet");
+/** The sheet may take an email (or Google, or a passkey) now. */
+export const canStart = (s: SignInState) => s.status === "signedOut" || s.status === "sessionEnded" || s.status === "choosing" || (s.status === "error" && s.at !== "wallet");
 
 export function canResend(s: SignInState, now: number) {
   return s.status === "codeSent" && (s.problem === "expired" || s.problem === "tooMany" || now - s.sentAt >= RESEND_AFTER_MS);
@@ -168,6 +172,10 @@ export function signInReducer(s: SignInState, e: SignInEvent): SignInState {
       return s.status === "signedOut" || s.status === "restoring" || s.status === "choosing" || s.status === "googleRedirect" || s.status === "sessionEnded" ? { status: "verifying", email: "", via: "google" } : s;
     case "googleFailed":
       return s.status === "googleRedirect" || (s.status === "verifying" && s.via === "google") ? { status: "error", at: "google", message: e.message } : s;
+    case "passkey":
+      return canStart(s) ? { status: "verifying", email: "", via: "passkey" } : s;
+    case "passkeyFailed":
+      return s.status === "verifying" && s.via === "passkey" ? { status: "error", at: "passkey", message: e.message } : s;
     case "walletMade":
       return s.status === "creating" && s.part === "wallet" ? { ...s, part: "dollars", startedAt: e.at } : s;
     case "walletFailed":
@@ -547,8 +555,10 @@ export type ConnectState =
   | { step: "form"; lane: ConnectLane; terms: ConnectTerms; banner?: string }
   /** Allow was tapped: the server's health, /api/me and /api/config are read before anything moves */
   | { step: "confirming"; lane: ConnectLane; terms: ConnectTerms; withDrip: boolean }
-  /** "Confirm it's you": a fresh code, needed only when the key must be delegated and the scope has lapsed */
-  | { step: "stepUp"; lane: ConnectLane; terms: ConnectTerms; run: ConnectRun; code: "sending" | "sent" | "verifying"; sentAt?: number; problem?: CodeProblem }
+  /** "Confirm it's you": a fresh code, needed only when the key must be delegated and the scope has lapsed. via
+   *  passkey: the account has one, so Dynamic wants it instead of a code ("sent": waiting for the person's tap; a
+   *  passkey that did not confirm says why in passkeyMessage) */
+  | { step: "stepUp"; lane: ConnectLane; terms: ConnectTerms; run: ConnectRun; code: "sending" | "sent" | "verifying"; via?: "passkey"; sentAt?: number; problem?: CodeProblem; passkeyMessage?: string }
   /** waitingSince: the first 409 "not delegated yet" of this registering */
   | { step: "running"; lane: ConnectLane; terms: ConnectTerms; run: ConnectRun; at: ConnectStep; startedAt: number; waitingSince?: number }
   | { step: "failed"; lane: ConnectLane; terms: ConnectTerms; run: ConnectRun; at: ConnectStep; problem: ConnectProblem }
@@ -566,8 +576,13 @@ export type ConnectEvent =
   | { type: "offline" }
   | { type: "checked"; delegated: boolean; hasAssistant: boolean; canDelegate: boolean; pocketIndex: number; routers: string[]; at: number }
   | { type: "codeSent"; at: number }
+  /** the account has a passkey: no code went out, the person confirms with the passkey */
+  | { type: "passkeyAsk" }
+  /** a code, or "" for the passkey */
   | { type: "verify"; code: string }
   | { type: "codeRejected"; problem: CodeProblem }
+  /** the passkey's dialog closed or failed: why, in the sheet's words */
+  | { type: "passkeyRejected"; message: string }
   | { type: "codeOk"; at: number }
   | { type: "resend" }
   /** the person left the code step, or the code could not be sent (banner: why) */
@@ -660,15 +675,19 @@ export function connectReducer(s: ConnectState, e: ConnectEvent): ConnectState {
       return s.step === "running" && s.at === "delegate" ? { step: "stepUp", lane: s.lane, terms: s.terms, run: s.run, code: "sending" } : s;
     case "codeSent":
       return s.step === "stepUp" && s.code === "sending" ? { ...s, code: "sent", sentAt: e.at, problem: undefined } : s;
+    case "passkeyAsk":
+      return s.step === "stepUp" && s.code === "sending" ? { ...s, code: "sent", via: "passkey", problem: undefined } : s;
     case "verify":
       if (s.step !== "stepUp" || s.code !== "sent") return s;
-      return isCode(e.code) ? { ...s, code: "verifying", problem: undefined } : { ...s, problem: "wrong" };
+      return s.via === "passkey" || isCode(e.code) ? { ...s, code: "verifying", problem: undefined, passkeyMessage: undefined } : { ...s, problem: "wrong" };
     case "codeRejected":
-      return s.step === "stepUp" && s.code === "verifying" ? { ...s, code: "sent", problem: e.problem } : s;
+      return s.step === "stepUp" && s.code === "verifying" && s.via !== "passkey" ? { ...s, code: "sent", problem: e.problem } : s;
+    case "passkeyRejected":
+      return s.step === "stepUp" && s.code === "verifying" && s.via === "passkey" ? { ...s, code: "sent", passkeyMessage: e.message } : s;
     case "codeOk":
       return s.step === "stepUp" && s.code === "verifying" ? { step: "running", lane: s.lane, terms: s.terms, run: s.run, at: nextConnectStep(s.run, null)!, startedAt: e.at } : s;
     case "resend":
-      return s.step === "stepUp" && s.code === "sent" ? { ...s, code: "sending", problem: undefined } : s;
+      return s.step === "stepUp" && s.code === "sent" && s.via !== "passkey" ? { ...s, code: "sending", problem: undefined } : s;
     case "cancel":
       return s.step === "stepUp" ? { step: "form", lane: s.lane, terms: s.terms, banner: e.banner ?? CONNECT_COPY.stepUpCancelled } : s;
     case "assistantReady":

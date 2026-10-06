@@ -11,7 +11,7 @@ import type { SignInOutcome } from "@/lib/mock/config";
 import type { Position, Wallet } from "@/lib/mock/types";
 import { holderPositions, positionAt } from "@/lib/mock/timeline";
 import { SIGNIN_COPY } from "./errors";
-import { CREATING_SLOW_MS, isCode, SIGNED_OUT, signInReducer, toAccountStep, type SignInEvent, type SignInState } from "./machine";
+import { canStart, CREATING_SLOW_MS, isCode, SIGNED_OUT, signInReducer, toAccountStep, type SignInEvent, type SignInState } from "./machine";
 import { type Account, type AccountPlan, DRIP, type DoneResult, type OnStep, type Order, type SignInStep, type TicketShown, type TradeAction } from "./types";
 
 /** Fake timings (ms), the real ones scaled down so each step can still be seen: the code arrives, the code is
@@ -217,6 +217,33 @@ export function usePretendAccount(): Account {
     });
   }, [later, nextRun, signedIn]);
 
+  // passkeys here are pretended too: the browser's dialog is never opened, and the one added stays for this page
+  const [passkeys, setPasskeys] = useState(0);
+  const startPasskey = useCallback(() => {
+    if (!canStart(live.current.m)) return;
+    const r = nextRun();
+    tries.current = 0;
+    dispatch({ type: "open" });
+    dispatch({ type: "passkey" });
+    // a passkey only signs in someone who has an account: straight in, never the new-person setup
+    later(PRETEND_MS.verify, () => {
+      if (r !== run.current) return;
+      const email = live.current.wallet.email ?? "you@example.com";
+      dispatch({ type: "verified", wallet: true, email, at: Date.now() });
+      live.current.store.signIn(email);
+    });
+  }, [later, nextRun]);
+  const addPasskey = useCallback(
+    () =>
+      new Promise<"added">((resolve) =>
+        later(PRETEND_MS.google, () => {
+          setPasskeys((n) => n + 1);
+          resolve("added");
+        }),
+      ),
+    [later],
+  );
+
   const retry = useCallback(() => {
     const at = live.current.m;
     if (at.status !== "error") return;
@@ -410,6 +437,9 @@ export function usePretendAccount(): Account {
       resendCode,
       otherEmail,
       startGoogle,
+      startPasskey,
+      passkeys: ready ? passkeys : null,
+      addPasskey,
       retry,
       cancelSignIn,
       signOut,
@@ -419,6 +449,6 @@ export function usePretendAccount(): Account {
       signInAtOnce,
       collect,
     }),
-    [signIn, ready, wallet, positions, canDrip, nextDrip, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, retry, cancelSignIn, signOut, drip, plan, send, signInAtOnce, collect],
+    [signIn, ready, wallet, positions, canDrip, nextDrip, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, passkeys, addPasskey, retry, cancelSignIn, signOut, drip, plan, send, signInAtOnce, collect],
   );
 }
