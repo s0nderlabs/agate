@@ -849,6 +849,18 @@ h3 {
   color: var(--mute-text);
   text-wrap: pretty;
 }
+/* a link inside a fine line (the sign-in sheet's Privacy) reads as a link: underlined in the line's own color */
+.ag-fine a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-fine a:hover {
+    color: var(--ink);
+  }
+}
 
 /* buttons: quiet (Not now, Close, Cancel), destructive (Disconnect), text (Send a new code, Copy) */
 .ag-btn--quiet {

@@ -8,7 +8,7 @@ import { codeProblemText, SIGNIN_COPY } from "@/lib/account/errors";
 import { cleanCode, creatingSlow, isEmail, resendWait } from "@/lib/account/machine";
 import { DRIP, type SignInStep } from "@/lib/account/types";
 import { int, usd0 } from "@/lib/format";
-import { useMock } from "@/lib/mock/store";
+import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { finePointer } from "@/lib/ui/hooks";
 import { useNow } from "@/lib/ui/useNow";
 import { DripButton } from "./DripButton";
@@ -101,6 +101,7 @@ function useStepFocus(box: React.RefObject<HTMLDivElement | null>) {
 }
 
 function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignInFrom; ai?: string; onClose: () => void }) {
+  const linkQuery = useLinkQuery();
   const account = useAccount();
   const practice = usePractice();
   const kept = "email" in step && step.email ? step.email : "";
@@ -168,6 +169,13 @@ function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignIn
       <button className="ag-btn ag-btn--quiet" type="button" onClick={onClose}>
         Not now
       </button>
+      {/* Google's consent screen asks for the policy to be reachable where sign-in happens; a new tab keeps this step */}
+      <p className="ag-fine">
+        We use your email only to run your account.{" "}
+        <a href={`/privacy${linkQuery}`} target="_blank" rel="noopener">
+          Privacy
+        </a>
+      </p>
     </form>
   );
 }
