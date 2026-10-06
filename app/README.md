@@ -34,6 +34,7 @@ Phones (under 640 px) get one column with a Long/Short bar over four bottom tabs
 | `NEXT_PUBLIC_AGATE_SERVER` | unset | Agate's server (`../server`), for Connect your AI, the AI pages and approvals on the real account. Unset, every server call reads as offline. |
 | `NEXT_PUBLIC_GOOGLE_SIGNIN` | unset | `on` shows "Continue with Google" on the real sign-in, once the Google client is set up. The practice sign-in always shows it. |
 | `AGATE_WALL_HOME` | `~/.agate-wall` | Server side: where `/api/akash` reads the shared Akash robot's `akash/akash-traded.json` (`../wall/apps/akash`) for the Akash price beside the index. Without the file the dated reading stays. |
+| `AGATE_AKASH_URL` | unset | Server side: a URL serving that same `akash-traded.json`, for a hosted build with no robot folder (Vercel). Set, it replaces the folder read; a good reading is kept ten minutes, and a URL that does not answer within five seconds counts as no reading. |
 
 `NEXT_PUBLIC_*` values are inlined when the app is built, so set them before `bun run build`.
 

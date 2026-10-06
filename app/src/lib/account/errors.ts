@@ -127,7 +127,7 @@ export const COPY = {
   monthNotFinal: (month: string) => `${Cap(month)} settles once every day is final. Nothing was sent.`,
   notHere: "This position can't be closed here.",
   pickPosition: "Pick a position to close.",
-  nothingToClaim: "Nothing to claim yet. Agate pays every morning by itself.",
+  nothingToClaim: "Nothing to claim yet. Agate pays each day by itself, about 07:00 UTC.",
   nothingToSettle: "Nothing to settle yet.",
   salePaysNothing: "At today's bids this sale would pay nothing. Nothing was sent.",
   bookMoved: "The book moved while we checked. Try again.",

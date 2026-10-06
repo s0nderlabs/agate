@@ -21,7 +21,7 @@ import { dripOpen, useDrip } from "@/components/flow/DripButton";
 import { PocketSheet, type PocketTarget } from "@/components/flow/PocketSheet";
 import { SignInSheet, signInLocked, type SignInFrom } from "@/components/flow/SignInSheet";
 import { HowTo } from "@/components/ai/HowTo";
-import { bandNow } from "@/lib/data/derive";
+import { bandNow, dateText, firstPayAt, payTime } from "@/lib/data/derive";
 import { monthName } from "./PriceChart";
 import type { TradeNumbers } from "./useTrade";
 import type { Position } from "@/lib/mock/types";
@@ -316,7 +316,7 @@ function Review({ n, problem, retryLabel, final = false, onConfirm, onBack }: { 
         {n.daily && (
           <div>
             <span>{L || n.backNow > 0 ? "Back right away" : "Paid out"}</span>
-            <span>{L || n.backNow > 0 ? usd0(n.backNow) : "Every morning"}</span>
+            <span>{L || n.backNow > 0 ? usd0(n.backNow) : "Each day"}</span>
           </div>
         )}
         <div>
@@ -332,7 +332,7 @@ function Review({ n, problem, retryLabel, final = false, onConfirm, onBack }: { 
         {L
           ? `You get ${monthName(n.series.month)}'s average ${n.series.gpu} price for every GPU-hour, between ${usd(bandNow(n.series).lo)} and ${usd(bandNow(n.series).hi)}${bandNow(n.series).k > 0 ? ` now that ${bandNow(n.series).k} of its days are priced` : ""}.`
           : `You get ${usd(n.series.cap)} minus ${monthName(n.series.month)}'s average for every GPU-hour, so you gain when the average comes in below ${usd(n.price)}.`}{" "}
-        {n.daily ? "Paid a share every morning. This locks the market rate, not your bill." : `Paid once, after ${monthName(n.series.month)} ends.`}
+        {n.daily ? `Paid a share each day about ${payTime(n.series)}. This locks the market rate, not your bill.` : `Paid once, after ${monthName(n.series.month)} ends.`}
       </p>
       {problem && (
         <p className="ag-err" role="alert">
@@ -405,7 +405,7 @@ function Done({ n, result, onClose }: { n: TradeNumbers; result?: DoneResult; on
       <p>
         {fmtHours(hours)} GPU-hours of {n.series.gpu} at {usd(price)}.{" "}
         {n.daily
-          ? `${L ? `${usd0(backNow)} is back in your balance. ` : ""}Your first daily share arrives the morning after ${monthName(n.series.month).slice(0, 3)} 1.`
+          ? `${L ? `${usd0(backNow)} is back in your balance. ` : ""}${bandNow(n.series).k > 0 ? `Your next daily share arrives about ${payTime(n.series)}.` : `Your first daily share arrives ${dateText(firstPayAt(n.series))}, about ${payTime(n.series)}.`}`
           : "You get paid once, after the month ends."}
       </p>
       {result?.txHash && (

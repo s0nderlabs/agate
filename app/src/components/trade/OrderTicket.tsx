@@ -293,7 +293,7 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
           <input type="checkbox" checked={trade.daily} onChange={(e) => trade.setDaily(e.target.checked)} />
           <span className={s.box} aria-hidden="true" />
           <span>
-            Pay me daily <em>{L ? (mid ? "priced days and floor back now" : "floor back now, then daily") : mid ? "priced days now, then daily" : "a share every morning"}</em>
+            Pay me daily <em>{L ? (mid ? "priced days and floor back now" : "floor back now, then daily") : mid ? "priced days now, then daily" : "a share each day"}</em>
           </span>
         </label>
       ) : (

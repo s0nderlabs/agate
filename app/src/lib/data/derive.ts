@@ -156,6 +156,18 @@ export function sellEndsAt(series: Series) {
   return Number.isFinite(close) ? iso(close - MAKER_STOP_MS) : "";
 }
 
+/** When a month's first daily share pays: its first day turns final, about 07:00 UTC on the 2nd (a day closes at
+ *  midnight and turns final about seven hours later). ISO, "" when the start is not known. */
+export function firstPayAt(series: Series) {
+  const start = Date.parse(series.startsAt);
+  return Number.isFinite(start) ? iso(start + DAY + 7 * HOUR) : "";
+}
+
+/** "07:00 UTC": the time each day of a month pays its daily share. */
+export function payTime(series: Series) {
+  return timeText(firstPayAt(series)) || "07:00 UTC";
+}
+
 /** The month Simple trades and the market row shows: the next month that has not started (listed, else the one
  *  opening next), so the screen always carries one month beside the index. A market with none shows its first. */
 export function frontMonth(market: Pick<Market, "series">, now: number): Series | undefined {

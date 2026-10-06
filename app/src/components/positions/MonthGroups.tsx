@@ -9,7 +9,7 @@ import { useFlow } from "@/components/markets/Flow";
 import { monthName } from "@/components/markets/PriceChart";
 import { Num } from "@/components/num/Num";
 import { useAccount } from "@/lib/account";
-import { bandNow, dateText, monthOpen, monthStage, sellEndsAt, timeText, type MonthStage } from "@/lib/data/derive";
+import { bandNow, dateText, firstPayAt, monthOpen, monthStage, payTime, sellEndsAt, timeText, type MonthStage } from "@/lib/data/derive";
 import { useNow, useSeriesFor } from "@/lib/data/hooks";
 import { usd, usd0 } from "@/lib/format";
 import { fmtHours } from "@/lib/size";
@@ -35,7 +35,7 @@ function stageText(series: Series, st: MonthStage) {
   const closes = `${dateText(sellEndsAt(series))}, ${timeText(sellEndsAt(series))}`;
   switch (st) {
     case "listed":
-      return `Starts ${dateText(series.startsAt)}. Pay me daily pays a share each morning from the day after; the rest pays once ${m} is final. You can sell any time until ${closes}.`;
+      return `Starts ${dateText(series.startsAt)}. Pay me daily pays a share each day from ${dateText(firstPayAt(series))}, about ${payTime(series)}; the rest pays once ${m} is final. You can sell any time until ${closes}.`;
     case "paying":
       return `${b.k} of ${b.n} days priced, averaging ${b.soFar === null ? "nothing yet" : usd(b.soFar)}. You can sell any time until ${closes}.`;
     case "lastDay":
@@ -133,7 +133,7 @@ function Holding({ p, series, last, now, finished = false }: { p: Position; seri
       return <>Paid <Num>{usd0(p.paid)}</Num> in all.</>;
     }
     if (st === "closed") return p.daily ? <>Paid <Num>{usd0(p.paid)}</Num> so far. The last day's share comes once it is final.</> : <>Collect opens once {m}'s last day is final.</>;
-    if (p.daily) return <>Paid <Num>{usd0(p.paid)}</Num> so far, the rest a share each morning.</>;
+    if (p.daily) return <>Paid <Num>{usd0(p.paid)}</Num> so far, the rest a share each day.</>;
     return <>Paid once, after {m} is final.</>;
   };
   return (

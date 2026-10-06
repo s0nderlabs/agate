@@ -4,7 +4,7 @@
 import { useFlow } from "@/components/markets/Flow";
 import { useMemo, useState } from "react";
 import { useBook, useNow } from "@/lib/data/hooks";
-import { bandNow, dateText, topOf } from "@/lib/data/derive";
+import { bandNow, dateText, firstPayAt, payTime, topOf } from "@/lib/data/derive";
 import { emptySideText, HeldNote, MonthSeg, monthSoFarText } from "./States";
 import { DRIP, useAccount } from "@/lib/account";
 import { cleanTyping, dollarsToHours, floorCents, floorGpus, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, maxFor, parseAmount, walkDollars, walkHours } from "@/lib/size";
@@ -209,11 +209,11 @@ export function TradePanel({ market, trade, held = 0, loading: marketLoading = f
           <span>
             {L
               ? mid
-                ? `Get the ${band.k} priced days and the floor for the rest back now, then a share every morning.`
-                : "Get the floor back now, then a share every morning."
+                ? `Get the ${band.k} priced days and the floor for the rest back now, then a share each day.`
+                : "Get the floor back now, then a share each day."
               : mid
-                ? `Get your share of the ${band.k} priced days now, then a share every morning.`
-                : "Get your share every morning, not once at the end."}
+                ? `Get your share of the ${band.k} priced days now, then a share each day.`
+                : "Get a share each day, not once at the end."}
           </span>
         </span>
       </label>
@@ -294,7 +294,7 @@ export function TradePanel({ market, trade, held = 0, loading: marketLoading = f
           ))}
         </button>
         <p className={s.fine}>
-          {gated ? "Free to try: 10,000 test dollars a day. Your order stays as you set it." : <>{n.daily ? (mid || n.series.phase === "paying" ? `Paid a share every morning, ${band.left} ${band.left === 1 ? "day" : "days"} to go.` : `Paid a share every morning from ${m.slice(0, 3)} 2.`) : `Paid once, after ${m} ends.`} Fully backed, no margin calls.</>}
+          {gated ? "Free to try: 10,000 test dollars a day. Your order stays as you set it." : <>{n.daily ? (mid || n.series.phase === "paying" ? `Paid a share each day about ${payTime(n.series)}, ${band.left} ${band.left === 1 ? "day" : "days"} to go.` : `Paid a share each day from ${dateText(firstPayAt(n.series))}, about ${payTime(n.series)}.`) : `Paid once, after ${m} ends.`} Fully backed, no margin calls.</>}
         </p>
       </div>
     </div>
