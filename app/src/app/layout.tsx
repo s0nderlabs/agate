@@ -23,10 +23,33 @@ export const metadata: Metadata = {
 // theme-color follows the in-app theme once a screen mounts (useThemeColor).
 export const viewport: Viewport = { themeColor: "#f6f5f1", viewportFit: "cover", interactiveWidget: "resizes-content" };
 
+// The hosts every page reads first (the indexer, the chain): their connections open while the page loads instead of
+// after the scripts run. The indexer list is read the way @agate/client reads it (its first URL), and the RPC from the
+// same setting; the fallback is a copy of the client's PUBLIC_RPC, kept literal so this server file does not load viem.
+// fetch() asks without cookies, so the connections are opened the same way (crossOrigin). Dynamic's own connection
+// opens when Dynamic starts (getDynamic), since a signed-out visit never loads it.
+const PUBLIC_RPC = "https://testnet-rpc.monad.xyz";
+const firstIndexer = (process.env.NEXT_PUBLIC_AGATE_GRAPHQL_URL ?? "")
+  .split(",")
+  .map((u) => u.trim())
+  .filter(Boolean)[0];
+const origins = [firstIndexer, process.env.NEXT_PUBLIC_AGATE_RPC_URL || PUBLIC_RPC]
+  .map((u) => {
+    try {
+      return u ? new URL(u).origin : null;
+    } catch {
+      return null;
+    }
+  })
+  .filter((o): o is string => !!o && !o.includes("localhost"));
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={apfel.variable}>
       <head>
+        {[...new Set(origins)].map((o) => (
+          <link key={o} rel="preconnect" href={o} crossOrigin="anonymous" />
+        ))}
         <link rel="preconnect" href="https://api.fontshare.com" />
         <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=erode@300,400,500&display=swap" />
       </head>

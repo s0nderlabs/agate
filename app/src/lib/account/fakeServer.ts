@@ -69,7 +69,7 @@ interface World {
   /** it was delegated at some point: /api/me lists only keys Dynamic's webhook recorded (a never-delegated one is
    *  not there at all, a switched-off one shows as revoked) */
   wasDelegated: boolean;
-  /** the sign-in code's step-up scope is still held (about an hour after sign-in) */
+  /** a "Confirm it's you" this session granted the scope to let an AI trade (a sign-in never does) */
   canDelegate: boolean;
   grants: GrantRow[];
   events: ActivityEvent[];
@@ -145,7 +145,9 @@ function seed(scenario: AisScenario, main: string, email: string, connect: Conne
     assistant: scenario === "none" ? null : fakeAddress(`${main}:assistant`),
     delegated: scenario === "one" || scenario === "two",
     wasDelegated: scenario !== "none",
-    canDelegate: connect !== "stepup",
+    // a fresh sign-in never carries the scope to let an AI trade (Dynamic grants it only on a signed-in step-up),
+    // so the first Connect asks "Confirm it's you", as the live app does
+    canDelegate: false,
     grants: [],
     events: [],
     approvals: [],
@@ -322,7 +324,6 @@ export function fakeWorld(o: { source?: string; scenario: AisScenario; main: str
     world.connect = o.connect;
     world.failed.clear();
     world.notYetLeft = NOT_YET_ANSWERS;
-    if (o.connect === "stepup") world.canDelegate = false;
   }
   if (world.disc !== o.disc) {
     world.disc = o.disc;
@@ -562,7 +563,7 @@ export const fakeChain = {
 
 export class StepUpNeeded extends Error {
   constructor() {
-    super("the wallet:delegate scope has lapsed: confirm with a fresh code");
+    super("letting an AI trade needs a fresh \"Confirm it's you\" first");
     this.name = "StepUpNeeded";
   }
 }

@@ -38,6 +38,8 @@ Phones (under 640 px) get one column with a Long/Short bar over four bottom tabs
 
 `NEXT_PUBLIC_*` values are inlined when the app is built, so set them before `bun run build`.
 
+On Vercel, pages render in Singapore (`vercel.json` `regions: ["sin1"]`, next to Agate's server); every page reads its settings from the URL, so pages render per request rather than as static files. The page head opens the connections to the first indexer URL and the RPC while it loads, and Dynamic's connection opens when Dynamic starts.
+
 ## Data
 
 Screens read through `src/lib/data/`: one shape (`@agate/client`'s types) from one of two sources. Mock controls' "Data source" row (or `?source=live`) picks the example data (`src/lib/mock/`, with its states under "Data", the month timeline under "Day": two months live, a month's last hour, the gap before its last day is final, and after, in `timeline.ts`, and an example November holder under "Holds") or the live testnet through `@agate/client` in `../client`; without Mock controls it is always live. TanStack Query merges identical reads, so a page makes one markets read every 30 seconds whatever shows it. The wallet stays a practice wallet in this browser until sign-in, with its own storage for live prices. Trade sizes follow the client's steps: 0.0001 GPU-hour, dollars in cents, limit orders of 1 to 1,000,000 GPU-hours (`src/lib/size.ts`).

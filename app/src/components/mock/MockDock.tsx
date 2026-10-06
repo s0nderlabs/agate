@@ -165,7 +165,6 @@ const WALLET_ROWS: Row[] = [
     label: "Connect outcome",
     options: [
       ["normal", "Normal"],
-      ["stepup", "Needs a fresh code"],
       ["notyet", "Key not there yet"],
       ["fundfail", "Funding fails once"],
       ["refused", "Agate refuses once"],

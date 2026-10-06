@@ -917,7 +917,8 @@ function ExampleRedirect({ example, to }: { example: boolean; to?: string }) {
   return null;
 }
 
-/** "Confirm it's you": a fresh code, only when letting Agate use the trading key needs it again. An account with a
+/** "Confirm it's you": a fresh code, when letting Agate use the trading key needs one (the first Connect after a
+ *  sign-in always does). An account with a
  *  passkey confirms with it instead: one tap opens the browser's dialog (a tap, so Safari lets it open). */
 function StepUp(p: { s: Extract<ConnectState, { step: "stepUp" }>; email: string; dark: boolean; phone: string; onVerify: (code: string) => void; onResend: () => void; onCancel: () => void }) {
   const [v, setV] = useState("");

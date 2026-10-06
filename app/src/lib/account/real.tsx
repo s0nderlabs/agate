@@ -228,7 +228,7 @@ export function useRealAccount(active: boolean): Account {
         dispatch({ type: "googleReturned" });
         let finished = false;
         try {
-          googleFinish ??= d.lib.finishGoogleSignIn(d.client, window.location.href, { stepUp: true });
+          googleFinish ??= d.lib.finishGoogleSignIn(d.client, window.location.href);
           finished = await googleFinish;
           // Dynamic's own query parameters go once read, so a reload never finishes it twice
           const url = new URL(window.location.href);
@@ -350,8 +350,7 @@ export function useRealAccount(active: boolean): Account {
       void (async () => {
         try {
           const d = await dyn();
-          // the same code also allows letting an AI trade later (no second "Confirm it's you" at Connect)
-          await d.lib.finishEmailSignIn(d.client, sent, cleanCode(code), { stepUp: true });
+          await d.lib.finishEmailSignIn(d.client, sent, cleanCode(code));
           if (r !== run.current) return;
           await signedIn(d, "verified");
         } catch (e) {

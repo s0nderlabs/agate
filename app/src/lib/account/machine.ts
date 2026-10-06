@@ -555,7 +555,8 @@ export type ConnectState =
   | { step: "form"; lane: ConnectLane; terms: ConnectTerms; banner?: string }
   /** Allow was tapped: the server's health, /api/me and /api/config are read before anything moves */
   | { step: "confirming"; lane: ConnectLane; terms: ConnectTerms; withDrip: boolean }
-  /** "Confirm it's you": a fresh code, needed only when the key must be delegated and the scope has lapsed. via
+  /** "Confirm it's you": a fresh code, needed when the key must be delegated and no confirm this session holds the
+   *  scope (a sign-in never grants it, so the first Connect always asks). via
    *  passkey: the account has one, so Dynamic wants it instead of a code ("sent": waiting for the person's tap; a
    *  passkey that did not confirm says why in passkeyMessage) */
   | { step: "stepUp"; lane: ConnectLane; terms: ConnectTerms; run: ConnectRun; code: "sending" | "sent" | "verifying"; via?: "passkey"; sentAt?: number; problem?: CodeProblem; passkeyMessage?: string }
@@ -587,7 +588,7 @@ export type ConnectEvent =
   | { type: "resend" }
   /** the person left the code step, or the code could not be sent (banner: why) */
   | { type: "cancel"; banner?: string }
-  /** delegating found the scope lapsed */
+  /** delegating found no scope held (a sign-in never grants it, a "Confirm it's you" does) */
   | { type: "needStepUp" }
   | { type: "assistantReady"; address: string; at: number }
   | { type: "delegated"; at: number }

@@ -3,6 +3,8 @@
 // (Kernel accounts, the pocket, ZeroDev). Both load on first use, so a signed-out visitor with no restore hint
 // downloads neither (~460 KiB gzip). Never import either one at module scope or from a server component: screens and
 // hooks import types only from here. Also the restore hint (spec 2.5) and the Google round trip flag.
+import { preconnect } from "react-dom";
+
 export type DynLib = typeof import("@agate/wallet/dynamic");
 export type WalletLib = typeof import("@agate/wallet");
 export type DynClient = Awaited<ReturnType<DynLib["createAgateDynamic"]>>;
@@ -25,6 +27,9 @@ export const dynNow = () => loaded;
 export function getDynamic(): Promise<Dyn> {
   if (typeof window === "undefined") return Promise.reject(new Error("Dynamic runs in the browser only"));
   if (!dyn) {
+    // the connection to Dynamic's API opens while its code downloads (its settings read alone took 1.5 s); fetch()
+    // asks without cookies, so the connection is opened the same way
+    preconnect("https://app.dynamicauth.com", { crossOrigin: "anonymous" });
     dyn = import("@agate/wallet/dynamic").then(async (lib) => {
       loaded = { lib, client: await lib.createAgateDynamic(process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID || undefined, "Agate") };
       return loaded;
