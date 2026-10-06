@@ -2,7 +2,8 @@
 
 `sandbox.json` is the Dynamic sandbox environment agate runs on (`db2880bd-...`): every settings group, the enabled
 providers (email code, Google, passkey, embedded wallets), the delegation webhook, the Transaction Review config and
-the allowed origins (the app on :3317 and the lab on :5174; social sign-in stays off in Dynamic until one is set). The server's public base is written as `${PUBLIC_BASE}` because it changes with every tunnel. There
+the allowed origins (https://agate.elpabl0.xyz, https://agate-topaz.vercel.app, the app on :3317 and the lab on :5174;
+social sign-in stays off in Dynamic until one is set). The server's public base is written as `${PUBLIC_BASE}`. There
 are no secrets in it: the webhook secret, the review HMAC secret and Ed25519 key, the delegation RSA key and the API
 tokens live in `~/.agate-dynamic/` and are never read back from Dynamic.
 
@@ -11,15 +12,41 @@ From `server/` (needs the admin token in `~/.agate-dynamic/admin.env` and `AGATE
 - `bun run scripts/env.ts export`: write the file from the live environment.
 - `bun run scripts/env.ts diff`: list what differs between the file and the live environment.
 - `bun run scripts/env.ts apply`: point the webhook and Transaction Review at `AGATE_PUBLIC_BASE` with the file's
-  switches (run it after the tunnel or host changes). `--settings` also writes the file's settings (the live providers
+  switches (run it after the server's host changes). `--settings` also writes the file's settings (the live providers
   are sent back unchanged; a masked value in the file stops it).
 
-Google sign-in: the OAuth client lives in Google Cloud project `agate-signin` (consent screen "agate", External,
-Testing: only listed test users can sign in until the app has a public home page and privacy policy to publish
-with). Its id and secret sit in `~/.agate-dynamic/google-oauth.env`; `server/scripts/providers.ts google <file>`
-hands them to Dynamic. Allowed origins: `server/scripts/origins.ts`.
+Google sign-in: the OAuth client lives in Google Cloud project `agate-signin` (consent screen "agate", External, In
+production since Oct 6 2026: anyone can sign in; home https://agate.elpabl0.xyz, privacy /privacy). Its id and secret
+sit in `~/.agate-dynamic/google-oauth.env`; `server/scripts/providers.ts google <file>` hands them to Dynamic.
+Allowed origins: `server/scripts/origins.ts`.
+
+Passkeys (since Oct 6 2026): the passkey method under `security.mfa.methods` is on so people can add one; MFA itself
+stays off (`mfa.enabled` false, nothing required). In SDK 1.38 a passkey counts as the person's MFA: once they have
+one, every "Confirm it's you" (connect an AI, add another passkey, unlink Google) must use it, and Dynamic refuses an
+email code (403 `mfa_required_for_elevated_auth`). The passkey method has no backup codes (`allowBackupCodes` false).
 
 What it records that matters for agate: Monad testnet (10143) and mainnet (143) enabled; embedded wallets created at
 sign-up, several per chain (the main wallet and the Assistant); delegated access on; session JWT 2 hours; no emails
 on signed transactions; no device registration; Transaction Review off with failure policy ALLOW until Dynamic's
 proxy for it works on 10143 (asked them on Oct 4 2026).
+
+## A person lost their passkey
+
+What still works: signing in (email code or Google) and trading, since neither needs a step-up. What is blocked:
+connecting a new AI and adding a passkey. Most passkeys sync (iCloud Keychain, Google Password Manager), so check
+another of their devices first.
+
+There is no reset we can run. Tested Oct 6 2026 on the test account agatepk4 (`35a3b494-...`):
+
+- Dashboard, Users, the person, Reset MFA: clears MFA devices only. The passkey stays (it is a verified credential,
+  not an MFA device) and an email step-up is still refused.
+- Admin API: `DELETE /users/{id}/mfa` answers 401 with our admin token; no admin path deletes a passkey (404).
+- The person deleting it themselves (`DELETE /sdk/{env}/users/passkeys`) needs a credential:unlink step-up, which
+  needs the passkey.
+- Turning the environment's passkey method off (even for 90 s) does not help: the step-up still requires the passkey.
+
+The ways out, in order: (1) ask Dynamic support to remove the passkey credential (give them the user id and the
+credential id from `GET /users/{id}`); (2) if it cannot wait, the person signs up again with another email, moves their
+funds and positions over with ordinary sends from the old account (signing needs no step-up), then the old user can be
+deleted in the dashboard. Prevention for later: turn on backup codes for the passkey method and show them once in the
+app when a passkey is added.

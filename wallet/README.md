@@ -31,7 +31,7 @@ import { kernelAccount, accountClient, zerodev, sendCalls, createPocketPermissio
 
 const client = await createAgateDynamic();                     // headless, no Dynamic UI
 const otp = await startEmailSignIn(client, email);
-await finishEmailSignIn(client, otp, code, { stepUp: true });  // stepUp: the same code also allows delegating later
+await finishEmailSignIn(client, otp, code);                    // delegating needs its own step-up later (confirmStepUp)
 const main = await ensureMainWallet(client);
 const signer = await walletSigner(client, main);               // viem account backed by the embedded wallet
 const account = await kernelAccount(publicClient, signer);     // the main account (Kernel v3.1)

@@ -1514,6 +1514,7 @@
       }
     },
     "security": {
+      "addressScreening": {},
       "auth": {
         "allowMultipleCredentialsForSignIn": false,
         "storage": [
@@ -1575,7 +1576,7 @@
           },
           {
             "allowBackupCodes": false,
-            "enabled": false,
+            "enabled": true,
             "type": "passkey"
           }
         ],
@@ -1641,6 +1642,20 @@
       "origin": "http://127.0.0.1:5174",
       "projectEnvironmentId": "db2880bd-e52a-4f00-aa83-2c3ec77281cb",
       "updatedAt": "2026-10-04T15:48:20.094Z"
+    },
+    {
+      "createdAt": "2026-10-06T06:23:30.140Z",
+      "id": "fc8d0170-a93e-437d-82f7-3b4d1e91b761",
+      "origin": "https://agate-topaz.vercel.app",
+      "projectEnvironmentId": "db2880bd-e52a-4f00-aa83-2c3ec77281cb",
+      "updatedAt": "2026-10-06T06:23:30.140Z"
+    },
+    {
+      "createdAt": "2026-10-06T06:56:31.428Z",
+      "id": "ee57477f-9f86-4bab-a2b9-6bf94ff77653",
+      "origin": "https://agate.elpabl0.xyz",
+      "projectEnvironmentId": "db2880bd-e52a-4f00-aa83-2c3ec77281cb",
+      "updatedAt": "2026-10-06T06:56:31.428Z"
     }
   ]
 }

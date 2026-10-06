@@ -1,7 +1,7 @@
 // agate's Dynamic environment as code. The file ops/dynamic/sandbox.json holds the environment's settings, providers,
 // webhook, Transaction Review config and allowed origins, with the server's public base written as ${PUBLIC_BASE}
-// (it changes with every tunnel). Nothing secret is in the file: the webhook and review secrets stay in
-// AGATE_DYNAMIC_HOME and are never read back from Dynamic.
+// (agate-1's Tailscale Funnel host since Oct 6; it changed with every tunnel before). Nothing secret is in the file:
+// the webhook and review secrets stay in AGATE_DYNAMIC_HOME and are never read back from Dynamic.
 //
 //   bun run scripts/env.ts export           write the file from the live environment
 //   bun run scripts/env.ts diff             what differs between the file and the live environment

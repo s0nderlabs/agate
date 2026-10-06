@@ -78,7 +78,7 @@ step("send", async () => {
 });
 step("verify", async () => {
   if (!otp) throw new Error("send a code first");
-  await finishEmailSignIn(client, otp, $("code").value.trim(), { stepUp: $("stepup").checked });
+  await finishEmailSignIn(client, otp, $("code").value.trim());
   return "signed in";
 });
 step("logout", () => signOut(client));
@@ -195,10 +195,10 @@ step("t-takeback", async () => {
 step("t-transfer", () => labTrade([{ to: AGATE.dollar, value: 0n, data: "0xa9059cbb000000000000000000000000000000000000000000000000000000000000dead0000000000000000000000000000000000000000000000000000000000000001" }]));
 
 {
-  // back from Google: finish the sign-in (asking for the delegate scope, like the email code with the box ticked)
+  // back from Google: finish the sign-in
   const t0 = performance.now();
   try {
-    if (await finishGoogleSignIn(client, location.href, { stepUp: $("stepup").checked })) log("google", "signed in with Google", t0);
+    if (await finishGoogleSignIn(client, location.href)) log("google", "signed in with Google", t0);
   } catch (e) {
     log("google FAILED", (e as Error).message, t0);
   }

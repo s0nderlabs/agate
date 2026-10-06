@@ -76,8 +76,10 @@ the same path as the AI's own `roll_long`. Each roll is a trade: it counts again
 The session JWT lives 2 h (project setting). The SDK never refreshes it by itself: at `sessionExpiresAt(client)` it
 signs out with reason `token-expired`. `refreshSession(client)` resets it to the full 2 h (measured 1.7 s; it fires
 `token-changed` and `user-changed`, not `session-expiry-changed`, so re-read `sessionExpiresAt` after it). Listen with
-`onSessionEvent(client, cb)` -> unsubscribe; `signOut(client)` signs out. The `wallet:delegate` scope from a sign-in
-code with `stepUp` is short-lived (gone ~1 h after sign-in); `canDelegate(client)` says whether it is still held.
+`onSessionEvent(client, cb)` -> unsubscribe; `signOut(client)` signs out. A sign-in never carries the `wallet:delegate`
+scope (SDK 1.38 drops requestedScopes on sign-in), so the first delegation always asks "Confirm it's you"
+(`requestStepUp` + `confirmStepUp`, or `confirmWithPasskey` once the person has a passkey); the scope is short-lived
+and `canDelegate(client)` says whether it is still held.
 
 ## Approval card (a trade an AI asked for above its cap)
 

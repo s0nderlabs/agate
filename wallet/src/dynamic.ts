@@ -75,10 +75,10 @@ export function startEmailSignIn(client: DynamicClient, email: string): Promise<
   return sendEmailOTP({ email }, client);
 }
 
-/** Completes the email code. `stepUp: true` also asks for the scope that delegating a wallet needs, so connecting an
- *  AI right after sign-in needs no second code ("Confirm it's you" is this same code). allowNewMFALinking: a person
- *  without MFA also gets a credential:link scope for a while, so "Add a passkey" right after needs no code either
- *  (SDK 1.38 sends requestedScopes only on a signed-in step-up, never on this sign-in call). */
+/** Completes the email code. `stepUp: true` asks for the scope that delegating a wallet needs, but SDK 1.38 sends
+ *  requestedScopes only on a signed-in step-up, never on this sign-in call, so Dynamic never grants it here and
+ *  connecting an AI still asks its own "Confirm it's you" (canDelegate is false). allowNewMFALinking: a person
+ *  without MFA gets a credential:link scope for a while, so "Add a passkey" right after needs no code. */
 export function finishEmailSignIn(client: DynamicClient, otp: EmailOtp, code: string, opts: { stepUp?: boolean } = {}) {
   return verifyOTP({ otpVerification: otp, verificationToken: code, allowNewMFALinking: true, ...(opts.stepUp ? { requestedScopes: ["wallet:delegate" as never] } : {}) }, client);
 }
@@ -90,8 +90,9 @@ export function startGoogleSignIn(client: DynamicClient, redirectUrl: string = g
   return signInWithSocialRedirect({ provider: "google", redirectUrl }, client);
 }
 
-/** Call once on page load: when the URL is Google's return, completes the sign-in (with the delegate scope when
- *  `stepUp`, like finishEmailSignIn) and returns true; otherwise does nothing and returns false. */
+/** Call once on page load: when the URL is Google's return, completes the sign-in and returns true; otherwise does
+ *  nothing and returns false. `stepUp` is dropped like finishEmailSignIn's: SDK 1.38 sends requestedScopes only when
+ *  linking Google to someone already signed in (oauthVerify), not on this sign-in (oauthSignIn). */
 export async function finishGoogleSignIn(client: DynamicClient, url: string = globalThis.location?.href ?? "", opts: { stepUp?: boolean } = {}): Promise<boolean> {
   const u = new URL(url);
   if (!(await detectSocialRedirectUrl({ url: u }, client))) return false;
@@ -192,8 +193,9 @@ export function canDelegate(client: DynamicClient): boolean {
   return Boolean(getElevatedAccessToken({ scope: "wallet:delegate", consume: false }, client));
 }
 
-/** "Confirm it's you" for a person already signed in (only needed again after Revoke Assistant): send a code to the
- *  person's email, then confirmStepUp with it. */
+/** "Confirm it's you" for a person already signed in (before the first delegation, and again after Revoke Assistant;
+ *  a sign-in never carries the delegate scope): send a code to the person's email, then confirmStepUp with it. A
+ *  person with a passkey must use confirmWithPasskey instead. */
 export function requestStepUp(client: DynamicClient, email: string): Promise<EmailOtp> {
   return sendEmailOTP({ email }, client);
 }
