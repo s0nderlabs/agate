@@ -13,7 +13,6 @@ export interface IndexInfo {
   readonly names: readonly string[];
 }
 export const CHAIN_ID = 10143;
-export const DOLLAR = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
 export const FACTORIES: Readonly<Record<string, FactoryInfo>> = {
   "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707": { name: "demo", tag: "demo", index: "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0", dollar: "0x5fbdb2315678afecb367f032d93f642f64180aa3", router: "0x61c36a8d610163660e21a8b7359e1cac0c9133e1", tPend: 210, startBlock: 7 },
   "0x0165878a594ca255338adfa4d48449f69242eb8f": { name: "real", tag: "", index: "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9", dollar: "0x5fbdb2315678afecb367f032d93f642f64180aa3", router: "0x3b02ff1e626ed7a8fd6ec5299e2c54e1421b626b", tPend: 21600, startBlock: 8 },

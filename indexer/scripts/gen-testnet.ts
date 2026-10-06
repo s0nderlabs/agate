@@ -1,8 +1,8 @@
 // bun run gen:testnet
 // Writes the committed testnet pair for the hosted indexer (Envio Cloud): config.testnet.yaml and
 // src/lib/deployments.testnet.generated.ts, from contracts/deployments/10143.json, each index starting at its deploy
-// block from 10143-indexes.json (found the way ops/testnet/indexer.sh finds it: production, demo, then demoHistory).
-// HyperSync, no RPC list. The hosted indexer sets ENVIO_AGATE_DEPLOYMENTS=testnet so the handlers read this pair.
+// block from 10143-indexes.json (scripts/index-starts.ts, the rule ops/testnet/indexer.sh uses too).
+// HyperSync, no RPC list. The handlers find these addresses through src/lib/deployments.ts, which merges this pair in.
 // Rerun after a deploy changes either file; test/drift.test.ts fails while the pair is stale.
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

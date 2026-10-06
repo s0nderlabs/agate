@@ -27,11 +27,13 @@ start at the factories' start block (losing `GpuRegistered` and every day closed
 **The hosted indexer (Envio Cloud, since Oct 6 2026)** runs a second committed pair, `config.testnet.yaml` and
 `src/lib/deployments.testnet.generated.ts`, written by `bun run gen:testnet` from `contracts/deployments/10143.json`
 with each index starting at its deploy block from `10143-indexes.json` (`scripts/index-starts.ts`, the rule
-`ops/testnet/indexer.sh` uses too), on HyperSync. The hosted indexer's settings: root directory `indexer`, config file `config.testnet.yaml`, branch `main`,
-and the variable `ENVIO_AGATE_DEPLOYMENTS=testnet`, which makes the handlers read that pair (`src/lib/deployments.ts`;
-any other value stops the indexer, and without it `config.testnet.yaml` does not load: its name is
-`agate-${ENVIO_AGATE_DEPLOYMENTS}`). Envio Cloud installs with pnpm 10.32.0 from `pnpm-lock.yaml`, kept beside
-`bun.lock`. Rerun `gen:testnet` after any deploy that changes either deployments file; `test/drift.test.ts` fails while
+`ops/testnet/indexer.sh` uses too), on HyperSync. The hosted indexer's settings (Envio Cloud project
+s0nderlabs/agate, Development plan): root directory `indexer`, config file `config.testnet.yaml`, branch `main`; every
+push to main redeploys it. The free plan has no environment variables, so nothing selects a pair:
+`src/lib/deployments.ts` merges both: handlers look a factory or index up by the address an event came from, and an
+event only comes from a contract of the running config (the clock enumerates every factory and finds market rows only
+for the running config's; the default pair wins on an address in both). Envio Cloud installs with pnpm 10.32.0 from
+`pnpm-lock.yaml`, kept beside `bun.lock`. Rerun `gen:testnet` after any deploy that changes either deployments file; `test/drift.test.ts` fails while
 the pair is stale. The default pair (`config.yaml`, `src/lib/deployments.generated.ts`) stays the test world's, and
 `indexer.sh` regenerates its own copy for the operator's indexer. A run with another `--out` (a fork) rewrites
 `src/lib/deployments.generated.ts` too (the handlers read it): regenerate the default pair before a commit. If `DeployMarket`'s first broadcast died after it had

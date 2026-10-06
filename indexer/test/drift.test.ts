@@ -139,8 +139,7 @@ describe("the hosted testnet pair (Envio Cloud)", () => {
     expect(read(TESTNET_CONFIG)).toBe(yaml);
     expect(read(TESTNET_TS)).toBe(ts);
     expect(yaml).not.toMatch(/rpc:|https?:\/\//);
-    // the config loads only with the variable that makes the handlers read this pair
-    expect(yaml).toContain("\nname: agate-${ENVIO_AGATE_DEPLOYMENTS}\n");
+    expect(yaml).toContain("\nname: agate\n");
     // every factory's index starts at its index's deploy block, at or before the factory's own start block
     const d = parseDeployments(JSON.parse(read("../contracts/deployments/10143.json")));
     for (const f of d.factories) expect({ f: f.name, start: starts[f.name] !== undefined && starts[f.name]! > 0 && starts[f.name]! <= f.startBlock }).toEqual({ f: f.name, start: true });
@@ -152,20 +151,15 @@ describe("the hosted testnet pair (Envio Cloud)", () => {
     expect(indexStarts(dep, { production: { index: "0xaa", deployBlock: null }, demoHistory: [{ index: "0xaa", deployBlock: 3 }] })).toEqual({});
   });
 
-  it("the handlers read the testnet pair only with ENVIO_AGATE_DEPLOYMENTS=testnet, and refuse any other value", () => {
-    const probe = (v?: string) =>
-      spawnSync("bun", ["-e", 'const d = await import("./src/lib/deployments.ts"); console.log(Object.values(d.FACTORIES).map((f) => f.index).join(","))'], {
-        cwd: ROOT,
-        env: { ...process.env, ENVIO_AGATE_DEPLOYMENTS: v ?? "" },
-        encoding: "utf8",
-      });
-    const testnetIndexes = Object.values(parseDeployments(JSON.parse(read("../contracts/deployments/10143.json"))).factories).map((f) => f.index.toLowerCase());
-    expect(probe("testnet").stdout.trim().split(",").sort()).toEqual([...testnetIndexes].sort());
-    const fixtureIndexes = parseDeployments(JSON.parse(read("test/fixtures/deployments.test.json"))).factories.map((f) => f.index.toLowerCase());
-    expect(probe().stdout.trim().split(",").sort()).toEqual([...fixtureIndexes].sort());
-    const bad = probe("mainnet");
-    expect(bad.status).not.toBe(0);
-    expect(bad.stderr).toContain('ENVIO_AGATE_DEPLOYMENTS must be unset or "testnet"');
+  it("the handlers find both pairs' addresses, the default pair winning on a shared one", async () => {
+    const d = await import("../src/lib/deployments.ts");
+    const g = await import("../src/lib/deployments.generated.ts");
+    const tn = await import("../src/lib/deployments.testnet.generated.ts");
+    expect(d.FACTORIES).toEqual({ ...tn.FACTORIES, ...g.FACTORIES });
+    expect(d.INDEXES).toEqual({ ...tn.INDEXES, ...g.INDEXES });
+    // every factory and index of the testnet deployments resolves
+    const live = parseDeployments(JSON.parse(read("../contracts/deployments/10143.json")));
+    for (const f of live.factories) expect({ f: f.name, factory: !!d.FACTORIES[f.factory.toLowerCase()], index: !!d.INDEXES[f.index.toLowerCase()] }).toEqual({ f: f.name, factory: true, index: true });
   });
 });
 
