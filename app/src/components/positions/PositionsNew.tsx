@@ -29,7 +29,7 @@ import { useLinkQuery, useMock } from "@/lib/mock/store";
 import type { Day, Position, Series } from "@/lib/mock/types";
 import { useThemeColor } from "@/lib/ui/hooks";
 import { usd, usd0 } from "@/lib/format";
-import { fmtHours } from "@/lib/size";
+import { showHours } from "@/lib/size";
 import { changeText, changeTone, dailyShares, holdingView, monthLine, paysText, shareLine, sharesByDay, sideText, stageRank, type HoldingView } from "./view";
 import s from "./new.module.css";
 
@@ -431,7 +431,7 @@ function HoldingCard({ h, now }: { h: Holding; now: number }) {
             )}
             {canClose && (
               <button type="button" className="ag-btn ag-btn--ghost" onClick={() => openClose(p)}>
-                {v.long ? "Close" : "Buy back"}
+                Close
               </button>
             )}
           </div>
@@ -439,7 +439,7 @@ function HoldingCard({ h, now }: { h: Holding; now: number }) {
       </div>
       <div className={s.cardBody}>
         <span className={s.what}>
-          {sideText(p)} · <Num>{fmtHours(p.q)}</Num> GPU-hours
+          {sideText(p)} · <Num>{showHours(p.q)}</Num> GPU-hours
         </span>
         <span className={s.worth}>
           <span>

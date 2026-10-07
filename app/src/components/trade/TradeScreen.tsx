@@ -166,7 +166,7 @@ export function TradeScreen() {
   // On phones the ticket is a bottom sheet opened from the trade bar; Pro's book, trades, positions and orders sit
   // behind tabs. Tablets put the ticket beside the chart. Desktop (1100 px and up) is unchanged.
   const { setConfig } = useMock();
-  const { positions } = useAccount();
+  const { positions, ready } = useAccount();
   const flow = useFlow();
   const isPhone = useMedia("(max-width: 639.98px)");
   const phoneNew = config.phone === "new";
@@ -205,7 +205,7 @@ export function TradeScreen() {
   const ptabs: [typeof ptab, string][] = [
     ["book", "Book"],
     ["trades", "Trades"],
-    ["positions", `Positions${positions.length ? ` (${positions.length})` : ""}`],
+    ["positions", `Positions${ready && positions.length ? ` (${positions.length})` : ""}`],
     ["orders", `Orders${orders.length ? ` (${orders.length})` : ""}`],
   ];
   const onPtabKey = (e: React.KeyboardEvent<HTMLDivElement>) => {

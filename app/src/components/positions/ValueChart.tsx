@@ -170,11 +170,10 @@ function signedInt(v: number) {
   return r === 0 ? "0" : `${r > 0 ? "+" : "−"}${int(Math.abs(r))}`;
 }
 
-/** The faded example line for an empty page (an illustration, hidden from screen readers): a value line that rises
- *  above a flat dashed "what you paid". The one drawn-up curve on the page, and it says nothing. */
+/** The faded example for an empty page (an illustration, hidden from screen readers): a calm gain line that dips
+ *  under a dashed break-even line and rises above it. The one drawn-up curve on the page, and it says nothing. */
 export function ExampleLine() {
-  const ys = [262, 270, 248, 256, 236, 242, 224, 230, 212, 218, 196, 204, 188, 176, 182, 164, 170, 152, 158, 140];
-  const d = ys.map((y, i) => `${i ? "L" : "M"}${((i / (ys.length - 1)) * 1000).toFixed(1)},${y}`).join(" ");
+  const d = "M0,262 C70,268 120,292 190,284 S300,250 370,258 S480,286 560,262 S700,214 780,222 S900,186 1000,170";
   return (
     <svg className={m.example} viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true">
       {[80, 160, 240, 320].map((y) => (

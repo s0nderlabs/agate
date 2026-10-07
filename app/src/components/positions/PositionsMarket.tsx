@@ -30,7 +30,7 @@ import { useLinkQuery, useMock } from "@/lib/mock/store";
 import type { Candle, Day, Position, Series } from "@/lib/mock/types";
 import { reducedMotion, useThemeColor } from "@/lib/ui/hooks";
 import { usd, usd0 } from "@/lib/format";
-import { fmtHours } from "@/lib/size";
+import { showHours } from "@/lib/size";
 import { changeText, changeTone, dailyShares, holdingView, monthLine, shareLine, sharesByDay, sideText, stageRank, type DayPaid } from "./view";
 import { barText, clipRange, closesStat, closeWhy, countText, dayBars, frontHeld, nextShareStat, paidLine, paysCell, payOutStat, spanHours, steps, valueLine, type Stat, type ValueInput } from "./frame";
 import { marketHref, sideRank, useNextMonth, usePocketHoldings, type Holding, type PocketRead } from "./PositionsNew";
@@ -156,13 +156,13 @@ function Held() {
           ai.pending ? (
             <WaitingGrid />
           ) : (
-            <EmptyPanels label={`Held by ${ai.grant.label}`} words="Not read yet" sub={`Can't read ${ai.grant.label}'s pocket right now. Trying again.`} />
+            <EmptyPanels label={`Held by ${ai.grant.label}`} title="Not read yet" text={`Can't read ${ai.grant.label}'s pocket right now. Trying again.`} />
           )
         ) : (
           <EmptyPanels
-            label={ai ? `Held by ${ai.grant.label}` : "Yours"}
-            words="Nothing held yet"
-            sub={ai ? `${ai.grant.label} hasn't opened any positions yet.` : "You hold nothing yourself yet. A position shows here with what it's worth and what it pays."}
+            label={ai ? `Held by ${ai.grant.label}` : "Yours, worth now"}
+            title="Nothing held yet"
+            text={ai ? `${ai.grant.label} hasn't opened any positions yet.` : "You hold nothing yourself yet. Your first trade shows up here, with what it's worth and what it pays you."}
             acts={ai ? <PocketLink grant={ai.grant} /> : <TradeActs />}
           />
         )}
@@ -742,7 +742,7 @@ function Row({ h, sel, now, onSelect, onClose }: { h: Holding; sel: boolean; now
           {by && <span className={m.by}>Held by {by.label}</span>}
         </span>
         <span>
-          {sideText(p)} · <Num>{fmtHours(p.q)}</Num> GPU-hours
+          {sideText(p)} · <Num>{showHours(p.q)}</Num> GPU-hours
         </span>
       </span>
       <span role="gridcell" className={m.num}>
@@ -776,7 +776,7 @@ function Row({ h, sel, now, onSelect, onClose }: { h: Holding; sel: boolean; now
         </span>
         <span className={m.cardBody}>
           <span className={m.what}>
-            {sideText(p)} · <Num>{fmtHours(p.q)}</Num> GPU-hours
+            {sideText(p)} · <Num>{showHours(p.q)}</Num> GPU-hours
           </span>
           <span className={m.worth}>
             <span className="ag-skel">{worth}</span>
@@ -854,7 +854,7 @@ function Picked({ h, now, loading }: { h: Holding; now: number; loading: boolean
             {p.daily ? ", paid daily" : ""}
           </b>
           <span>
-            <Num>{fmtHours(p.q)}</Num> GPU-hours
+            <Num>{showHours(p.q)}</Num> GPU-hours
             {p.entry > 0 && (
               <>
                 , {L ? "bought" : "opened"} at <Num>{usd(p.entry)}</Num>
@@ -954,33 +954,59 @@ function TradeActs() {
   );
 }
 
-/** The frame with nothing in it: the header in words, a faded example of the value line with the way in over it, and
- *  the rail with your AIs. No list. */
-function EmptyPanels({ label = "Your positions", words, sub, notes, acts }: { label?: string; words: string; sub: string; notes?: ReactNode; acts?: ReactNode }) {
+/** The frame with nothing in it, as a quiet preview of what it becomes: the header's labels over soft blank figures,
+ *  a faded gain line, the rail's shapes, and one card in the middle that says what is here and the way in (Lighter's
+ *  ghost preview, made calm). The figures are an illustration, hidden from screen readers; the card carries the words. */
+function EmptyPanels({ label = "Worth now", title, text, notes, acts }: { label?: string; title: string; text: string; notes?: ReactNode; acts?: ReactNode }) {
+  const blank = (cls: string) => <span className={`${m.ghost} ${cls}`} />;
   return (
     <div className={m.grid} data-empty>
-      <section className={`${t.panel} ${t.headPanel}`} aria-label="What you hold">
+      <section className={`${t.panel} ${t.headPanel}`} aria-hidden="true">
         <div className={t.hsRow}>
           <div className={t.priceBlock}>
             <span className={t.pLabel}>{label}</span>
-            <span className={`${t.bigPrice} font-display`} data-words>
-              {words}
-            </span>
-            <span className={t.pSub}>
-              <span>{sub}</span>
-              {notes}
-            </span>
+            {blank(m.ghostBig)}
+            {blank(m.ghostSub)}
           </div>
+          <div className={t.priceBlock}>
+            <span className={t.pLabel}>Paid to you</span>
+            {blank(m.ghostBig)}
+            {blank(m.ghostSub)}
+          </div>
+          <dl className={`${t.hsGrid} ${m.stats}`}>
+            {["Next share", "Trading closes"].map((x) => (
+              <div key={x}>
+                <dt>{x}</dt>
+                <dd>{blank(m.ghostStat)}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </section>
-      <section className={`${t.panel} ${t.chartPanel}`} aria-label="Value over time">
+      <section className={`${t.panel} ${t.chartPanel}`} aria-labelledby="pos-empty-title">
         <div className={`${t.chartBody} ${m.chartBox} ${m.exampleBox}`}>
           <ExampleLine />
-          {acts && <div className={m.exampleActs}>{acts}</div>}
+          <div className={m.exampleActs}>
+            <div className={m.invite}>
+              <h2 id="pos-empty-title" className={`${m.inviteTitle} font-display`}>
+                {title}
+              </h2>
+              <p className={m.inviteText}>{text}</p>
+              {notes}
+              {acts}
+            </div>
+          </div>
         </div>
       </section>
       <aside className={`${t.panel} ${m.rail}`} aria-label="Your AIs">
         <div className={m.railInner}>
+          <div className={m.ghostRail} aria-hidden="true">
+            {blank(m.ghostTitle)}
+            {blank(m.ghostCard)}
+            {blank(m.ghostLine)}
+            {blank(m.ghostLine)}
+            {blank(m.ghostLine)}
+          </div>
           <YourAis className={m.ais} titleClass={m.h2} />
         </div>
       </aside>
@@ -992,19 +1018,27 @@ function EmptyPanels({ label = "Your positions", words, sub, notes, acts }: { la
  *  may hold something. */
 function Empty({ out = false, unread = [] }: { out?: boolean; unread?: PocketRead[] }) {
   const { openSignIn } = useFlow();
+  const q = useLinkQuery();
   return (
     <main className={t.main}>
       <EmptyPanels
-        words={out ? "Not signed in" : "Nothing held yet"}
-        sub={out ? "Sign in to see what you hold." : "A position shows here with what it's worth and what it pays."}
+        title={out ? "See what you hold" : "Nothing held yet"}
+        text={out ? "Sign in to see your positions, what they're worth now and what they've paid you." : "Your first trade shows up here, with what it's worth and what it pays you."}
         notes={unread.map((x) => (
-          <span key={x.grant.id}>Can't read {x.grant.label}'s pocket right now. Trying again.</span>
+          <p key={x.grant.id} className={m.inviteNote}>
+            Can't read {x.grant.label}'s pocket right now. Trying again.
+          </p>
         ))}
         acts={
           out ? (
-            <button type="button" className="ag-btn ag-btn--primary" onClick={openSignIn}>
-              Sign in
-            </button>
+            <span className={m.actRow}>
+              <button type="button" className="ag-btn ag-btn--primary" onClick={openSignIn}>
+                Sign in
+              </button>
+              <Link className="ag-btn ag-btn--soft" href={`/${q}`}>
+                Explore markets
+              </Link>
+            </span>
           ) : (
             <TradeActs />
           )

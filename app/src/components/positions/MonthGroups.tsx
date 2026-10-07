@@ -12,7 +12,7 @@ import { useAccount } from "@/lib/account";
 import { bandNow, dateText, firstPayAt, monthOpen, monthStage, payTime, sellEndsAt, timeText, type MonthStage } from "@/lib/data/derive";
 import { useNow, useSeriesFor } from "@/lib/data/hooks";
 import { usd, usd0 } from "@/lib/format";
-import { fmtHours } from "@/lib/size";
+import { showHours } from "@/lib/size";
 import type { Position, Series } from "@/lib/mock/types";
 import s from "./positions.module.css";
 
@@ -145,14 +145,14 @@ function Holding({ p, series, last, now, finished = false }: { p: Position; seri
         </span>
       </div>
       <p className={s.hLine}>
-        <Num>{fmtHours(p.q)}</Num> GPU-hours at <Num>{usd(p.entry)}</Num>
+        <Num>{showHours(p.q)}</Num> GPU-hours at <Num>{usd(p.entry)}</Num>
         {worth === null ? ", waiting for a price" : final ? <>, final <Num>{usd(worth)}</Num></> : st === "closed" ? <>, last traded <Num>{usd(worth)}</Num></> : <>, now <Num>{usd(worth)}</Num></>}
       </p>
       <div className={s.hFoot}>
         <p className={s.hQuiet}>{paidLine()}</p>
         {canSell && (
           <button type="button" className="ag-btn ag-btn--ghost" onClick={() => openClose(p)}>
-            {L ? "Sell" : "Close"}
+            Close
           </button>
         )}
         {canCollect && (

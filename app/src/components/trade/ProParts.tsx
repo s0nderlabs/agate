@@ -12,7 +12,7 @@ import { DRIP, useAccount } from "@/lib/account";
 import { useMock } from "@/lib/mock/store";
 import type { Gpu, Market, Position, Series } from "@/lib/mock/types";
 import { int, usd, usd0 } from "@/lib/format";
-import { fmtHours } from "@/lib/size";
+import { showHours } from "@/lib/size";
 import type { OpenOrder } from "./OrderTicket";
 import { bookText } from "./States";
 import s from "./trade.module.css";
@@ -156,7 +156,10 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
     onTab?.(t);
   };
   const { config } = useMock();
-  const { positions } = useAccount();
+  const { positions: held, ready } = useAccount();
+  // signed out there is nothing to list (the practice wallet keeps its holdings, but they are not shown until sign-in)
+  const positions = ready ? held : [];
+  const { openClose } = useFlow();
   const cards = config.phone === "new";
   // each position is valued at its own market's last price, not the market on screen (null: no price to read)
   const lastFor = useLastFor();
@@ -197,6 +200,9 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
                   <th className={s.r}>Now</th>
                   <th className={s.r}>Gain or loss</th>
                   <th className={s.r}>Paid so far</th>
+                  <th>
+                    <span className="sr-only">Close</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -211,7 +217,7 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
                       </td>
                       <td>{p.side === "long" ? "Long" : "Short"}</td>
                       <td className={s.r}>
-                        <Num>{fmtHours(p.q)}</Num>
+                        <Num>{showHours(p.q)}</Num>
                       </td>
                       <td className={s.r}>
                         <Num>{usd(p.entry)}</Num>
@@ -221,6 +227,14 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
                       <td className={s.r}>
                         <Num>{usd0(p.paid)}</Num>
                       </td>
+                      {/* close from the row, as pro venues whose sides never net do (the phone cards and Positions too) */}
+                      <td className={s.r}>
+                        {closeOrder(p) && (
+                          <button type="button" className={s.cancel} onClick={() => openClose(p)}>
+                            Close
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -228,7 +242,7 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
             </table>
           </div>
         ) : (
-          <p className={s.empty}>No positions yet. When you go Long or Short, it shows up here with what it's worth and what's been paid.</p>
+          <p className={s.empty}>{ready ? "No positions yet. When you go Long or Short, it shows up here with what it's worth and what's been paid." : "Sign in to see your positions here, with what each is worth and a Close for each."}</p>
         ))}
       {tab === "orders" &&
         (orders.length ? (
@@ -256,7 +270,7 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
                       <Num>{usd(o.price)}</Num>
                     </td>
                     <td className={s.r}>
-                      <Num>{fmtHours(o.q)}</Num>
+                      <Num>{showHours(o.q)}</Num>
                     </td>
                     <td>Good till canceled</td>
                     <td className={s.r}>
@@ -339,32 +353,39 @@ export function AccountBox({ orders }: { orders: OpenOrder[] }) {
   const { positions } = account;
   // the same valuation as the positions table and cards, so the two never disagree on one screen
   const lastFor = useLastFor();
+  const drip = useDrip();
+  // signed out it says so once: nothing to count or value
+  if (!account.ready)
+    return (
+      <section className={s.account} aria-label="Account">
+        <div className={s.panelHead}>
+          <b>Account</b>
+        </div>
+        <p className={s.accountOut}>Sign in to see your test dollars, positions and what they've paid you.</p>
+      </section>
+    );
   const inOrders = orders.reduce((a, o) => a + o.hold, 0);
   // a position with no price to read (an empty book, nothing read yet) adds nothing, rather than a guessed value
   const priced = positions.map((p) => pnlOf(p, lastFor(p))).filter((x): x is number => x !== null);
   const pnl = priced.reduce((a, x) => a + x, 0);
   const valued = priced.length > 0 || !positions.length;
   const paid = positions.reduce((a, p) => a + p.paid, 0);
-  const on = account.ready;
-  const drip = useDrip();
   const rows: [string, React.ReactNode, string?][] = [
-    ["Test dollars", on ? <Num>{usd0(account.balance)}</Num> : "Sign in to see"],
-    ["In open orders", on ? <Num>{usd0(inOrders)}</Num> : "None"],
-    ["Positions", on ? <Num>{String(positions.length)}</Num> : "None"],
-    ["Gain or loss", !on ? "None" : !valued ? "No price yet" : <Num>{Math.abs(pnl) < 0.5 ? "$0" : pnlText(pnl)}</Num>, on && valued && Math.abs(pnl) >= 0.5 ? (pnl > 0 ? s.up : s.down) : undefined],
-    ["Paid out so far", on ? <Num>{usd0(paid)}</Num> : "None"],
+    ["Test dollars", <Num>{usd0(account.balance)}</Num>],
+    ["In open orders", <Num>{usd0(inOrders)}</Num>],
+    ["Positions", <Num>{String(positions.length)}</Num>],
+    ["Gain or loss", !valued ? "No price yet" : <Num>{Math.abs(pnl) < 0.5 ? "$0" : pnlText(pnl)}</Num>, valued && Math.abs(pnl) >= 0.5 ? (pnl > 0 ? s.up : s.down) : undefined],
+    ["Paid out so far", <Num>{usd0(paid)}</Num>],
   ];
   return (
     <section className={s.account} aria-label="Account">
       <div className={s.panelHead}>
         <b>Account</b>
-        {on && (
-          <button type="button" className={s.textBtn} disabled={drip.busy} onClick={() => void drip.run()}>
-            {drip.busy ? "Getting test dollars" : `Get ${int(DRIP)} test dollars`}
-          </button>
-        )}
+        <button type="button" className={s.textBtn} disabled={drip.busy} onClick={() => void drip.run()}>
+          {drip.busy ? "Getting test dollars" : `Get ${int(DRIP)} test dollars`}
+        </button>
       </div>
-      {on && drip.error && (
+      {drip.error && (
         <p className="ag-err" role="status">
           {drip.error}
         </p>
@@ -410,7 +431,7 @@ export function PositionCards({ positions, lastFor, closable = true }: { positio
               )}
             </div>
             <p className={s.cardLine}>
-              <Num>{fmtHours(p.q)}</Num> GPU-hours at <Num>{usd(p.entry)}</Num>
+              <Num>{showHours(p.q)}</Num> GPU-hours at <Num>{usd(p.entry)}</Num>
               {now === null ? ", waiting for a price" : <>, now <Num>{usd(now)}</Num></>}
             </p>
             <p className={s.cardQuiet}>
@@ -445,7 +466,7 @@ export function OrderCards({ orders, onCancel }: { orders: OpenOrder[]; onCancel
             </button>
           </div>
           <p className={s.cardLine}>
-            <Num>{fmtHours(o.q)}</Num> GPU-hours, good till canceled
+            <Num>{showHours(o.q)}</Num> GPU-hours, good till canceled
           </p>
         </li>
       ))}

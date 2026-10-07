@@ -17,7 +17,7 @@ import { emptySideText, MonthSeg, monthSoFarText } from "./States";
 import { numbersFor } from "@/components/markets/useTrade";
 import { useAccount } from "@/lib/account";
 import { useMock } from "@/lib/mock/store";
-import { cleanTyping, dollarsToHours, floorCents, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, LIMIT_MAX, LIMIT_MIN, maxFor, parseAmount, walkDollars, walkHours } from "@/lib/size";
+import { cleanTyping, dollarsToHours, floorCents, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, LIMIT_MAX, LIMIT_MIN, maxFor, parseAmount, showHours, walkDollars, walkHours } from "@/lib/size";
 import { SideToggle } from "./SideToggle";
 import { TicketTabs } from "./ClosePanel";
 import type { Market } from "@/lib/mock/types";
@@ -161,7 +161,7 @@ function OpenTicket({ market, trade, picked, held, onPlace, loading: marketLoadi
     if (realAccount) return setPlaced(`Orders that wait in the book aren't open yet. Set a price that fills now (${L ? `the best ask, ${usd(q.ask)}, or above` : `the best bid, ${usd(q.bid)}, or below`}), or use Market.`);
     if (n.outlay > balance + 0.005) return setPlaced(`Not enough test dollars: this order needs ${usd0(n.outlay)} and ${usd0(balance)} is free${held > 0 ? ` (${usd0(held)} is held by your open orders)` : ""}.`);
     onPlace({ id: Math.random().toString(36).slice(2, 10), gpu: market.gpu, month: series.month, side: trade.side, price, q: size, hold: n.outlay, daily: false, placedAt: new Date().toISOString() });
-    setPlaced(`${L ? "Long" : "Short"} ${fmtHours(size)} GPU-hours at ${usd(price)} is waiting in the book.`);
+    setPlaced(`${L ? "Long" : "Short"} ${showHours(size)} GPU-hours at ${usd(price)} is waiting in the book.`);
   };
 
   return (
@@ -190,10 +190,12 @@ function OpenTicket({ market, trade, picked, held, onPlace, loading: marketLoadi
           <dt>Available to trade</dt>
           <dd>{signedIn ? <><Num>{int(balance)}</Num> test dollars</> : "Sign in to see"}</dd>
         </div>
-        <div>
-          <dt>Current position</dt>
-          <dd>{position === 0 ? "None" : <>{position > 0 ? "Long" : "Short"} <Num>{fmtHours(Math.abs(position))}</Num> GPU-hours</>}</dd>
-        </div>
+        {signedIn && (
+          <div>
+            <dt>Current position</dt>
+            <dd>{position === 0 ? "None" : <>{position > 0 ? "Long" : "Short"} <Num>{showHours(Math.abs(position))}</Num> GPU-hours</>}</dd>
+          </div>
+        )}
       </dl>
 
       {type === "limit" && (
@@ -294,7 +296,7 @@ function OpenTicket({ market, trade, picked, held, onPlace, loading: marketLoadi
         ) : (
           <p className={`${s.help} ${s.sizeMsg}`}>
             {size > 0
-              ? `${unit === "usd" ? `${fmtHours(size)} GPU-hours. ` : ""}${
+              ? `${unit === "usd" ? `${showHours(size)} GPU-hours. ` : ""}${
                   gpusAllMonth >= 0.01 ? `About ${fmtGpus(Math.round(gpusAllMonth * 100) / 100)} ${gpuWord(gpusAllMonth)} for all of ${m}.` : `About ${fmtGpus(Math.round((size / 24) * 100) / 100 || 0.01)} GPU for a day.`
                 }`
               : type === "limit"
@@ -366,7 +368,7 @@ function OpenTicket({ market, trade, picked, held, onPlace, loading: marketLoadi
             L ? "No sellers right now" : "No buyers right now"
           ) : (
             <>
-              {L ? "Long" : "Short"} <Num>{fmtHours(size)}</Num> GPU-hours {crosses ? (walk && Math.abs(walk.avg - top) >= 0.0005 ? "at avg" : "at") : "limit"} <Num>{usd(crosses ? fillPrice : price)}</Num>
+              {L ? "Long" : "Short"} <Num>{showHours(size)}</Num> GPU-hours {crosses ? (walk && Math.abs(walk.avg - top) >= 0.0005 ? "at avg" : "at") : "limit"} <Num>{usd(crosses ? fillPrice : price)}</Num>
             </>
           ))}
         </button>

@@ -982,6 +982,11 @@ button.bookRow:focus-visible {
 .account dd {
   margin: 0;
 }
+.accountOut {
+  margin: 0;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
 .textBtn {
   all: unset;
   cursor: pointer;

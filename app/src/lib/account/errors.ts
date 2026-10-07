@@ -4,7 +4,7 @@
 // throws, fetches or touches React. Every line says whether anything moved.
 import { monthLong, whenText } from "@/lib/data/derive";
 import { usd, usd0 } from "@/lib/format";
-import { fmtHours } from "@/lib/size";
+import { showHours } from "@/lib/size";
 import { type CodeProblem, DRIP, type Order } from "./types";
 
 /** A trade's quote now, as a refused plan found it (@agate/client's WriteError.quote, FreshQuote). */
@@ -180,10 +180,10 @@ export const SIGNIN_COPY = {
 } as const;
 
 export const thinText = (month: string | undefined, q: FreshQuote) =>
-  `At prices ${M(month)} can still pay, the book holds ${usd(q.dollars)} (${fmtHours(q.gpuHours)} GPU-hours). The rest would buy above that.`;
+  `At prices ${M(month)} can still pay, the book holds ${usd(q.dollars)} (${showHours(q.gpuHours)} GPU-hours). The rest would buy above that.`;
 
 export function movedText(kind: TradeKind, q: FreshQuote) {
-  if (kind === "buy") return `It now fills ${fmtHours(q.gpuHours)} GPU-hours at ${usd(q.avgPrice)} on average for ${usd(q.dollars)}.`;
+  if (kind === "buy") return `It now fills ${showHours(q.gpuHours)} GPU-hours at ${usd(q.avgPrice)} on average for ${usd(q.dollars)}.`;
   if (kind === "closeShort") return `Buying back now costs ${usd(q.dollars)}.`;
   return `It now sells for ${usd(q.dollars)}, ${usd(q.avgPrice)} each.`;
 }
@@ -715,7 +715,7 @@ export type AutopilotResult =
 
 export function autopilotText(r: AutopilotResult | null | undefined): string {
   if (!r) return "Not run yet.";
-  if ("rolled" in r) return `Moved ${fmtHours(r.rolled.gpuHours)} GPU-hours from ${M(r.rolled.from)} into ${M(r.rolled.to)}.`;
+  if ("rolled" in r) return `Moved ${showHours(r.rolled.gpuHours)} GPU-hours from ${M(r.rolled.from)} into ${M(r.rolled.to)}.`;
   if ("refused" in r) return `Didn't roll: ${ruleText(r.refused)}.`;
   if ("skip" in r) {
     const why = knownRule(r.skip);

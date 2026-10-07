@@ -33,7 +33,7 @@ import { useSeriesFor } from "@/lib/data/hooks";
 import { bandNow, monthLong, timeText } from "@/lib/data/derive";
 import { usd, usd0 } from "@/lib/format";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
-import { fmtHours } from "@/lib/size";
+import { showHours } from "@/lib/size";
 import { useNow } from "@/lib/ui/useNow";
 import { useScreenTheme } from "./AisScreen";
 import c from "@/components/connect/connect.module.css";
@@ -302,7 +302,7 @@ export function ApproveScreen({ id }: { id: string }) {
                   <div>
                     <span>About</span>
                     <span>
-                      <Num>{fmtHours(aboutHours)}</Num> GPU-hours of {String(ap2.params.gpu)} {monthLong(String(ap2.params.month))}
+                      <Num>{showHours(aboutHours)}</Num> GPU-hours of {String(ap2.params.gpu)} {monthLong(String(ap2.params.month))}
                     </span>
                   </div>
                 ) : null}

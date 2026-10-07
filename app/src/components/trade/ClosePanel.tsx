@@ -15,7 +15,7 @@ import { useAccount, type Order, type TicketShown } from "@/lib/account";
 import { isOld, useBook, useDataStatus, useMarkets, useNow, useSeriesFor } from "@/lib/data/hooks";
 import { staleState } from "@/lib/data/derive";
 import { usd, usd0 } from "@/lib/format";
-import { cleanTyping, floorHours, fmtGpus, fmtHours, gpuWord, parseAmount, walkHours } from "@/lib/size";
+import { cleanTyping, floorHours, fmtGpus, fmtHours, gpuWord, parseAmount, showHours, walkHours } from "@/lib/size";
 import type { Book, Market, Position, Series, Side } from "@/lib/mock/types";
 import { emptySideText, MonthSeg, monthSoFarText } from "./States";
 import s from "./trade.module.css";
@@ -108,10 +108,10 @@ function OpenGuard({ side, against, onClose }: { side: Side; against: Position[]
   const target = against.find((p) => closable(p) > 0) ?? against[0];
   return (
     <p className={c.guard}>
-      This opens a separate {L ? "Long" : "Short"}. It does not {L ? "buy back" : "sell"} your {other}
+      This opens a separate {L ? "Long" : "Short"}. It does not close your {other}
       {many ? "s" : ""}.{" "}
       <button type="button" className={c.textBtn} onClick={() => onClose(target.id)}>
-        {L ? "Buy back" : "Sell"} {many ? "a" : "your"} {other} instead
+        Close {many ? "a" : "your"} {other} instead
       </button>
     </p>
   );
@@ -234,7 +234,7 @@ function ClosePanel({ market, trade, holdings, pick, onPick, dense, loading, sta
 function HoldingMeta({ p }: { p: Position }) {
   return (
     <span>
-      <Num>{fmtHours(p.q)}</Num> GPU-hours
+      <Num>{showHours(p.q)}</Num> GPU-hours
       {p.entry > 0 && (
         <>
           {" "}
@@ -308,7 +308,7 @@ function CloseBody({ p, series, dense, loading: marketLoading = false, stale = "
   const [text, setText] = useState<string | null>(() => (part && initial !== undefined && initial > 0 && initial < max ? fmtHours(initial) : null));
   const typed = part && text !== null ? (parseAmount(text) ?? 0) : max;
   const asked = floorHours(typed);
-  const over = part && asked > max;
+  const over = part && asked > max && showHours(asked) !== showHours(max);
   const hours = Math.min(asked, max);
   const est = estimate(p, hours, book, series.cap);
   const levels = L ? book.bids : book.asks;
@@ -348,7 +348,7 @@ function CloseBody({ p, series, dense, loading: marketLoading = false, stale = "
     <p className={warnCls} key="over">
       You hold {fmtHours(max)} GPU-hours to sell.{" "}
       <button type="button" className={dense ? o.linkBtn : s.textBtn} onClick={() => setText(null)}>
-        Sell all
+        Close all
       </button>
     </p>
   ) : thin && part ? (
@@ -360,7 +360,7 @@ function CloseBody({ p, series, dense, loading: marketLoading = false, stale = "
     </p>
   ) : thin ? (
     <p className={warnCls} key="thinWhole">
-      The book takes {fmtHours(est.filled)} GPU-hours right now, and this closes whole.
+      The book takes {showHours(est.filled)} GPU-hours right now, and this closes whole.
     </p>
   ) : null;
 
@@ -439,7 +439,7 @@ function CloseBody({ p, series, dense, loading: marketLoading = false, stale = "
   ) : (
     <>
       <p className={s.tCopy}>
-        {L ? "Pay me daily" : "A Short"} closes whole: all <Num>{fmtHours(p.q)}</Num> GPU-hours.
+        {L ? "Pay me daily" : "A Short"} closes whole: all <Num>{showHours(p.q)}</Num> GPU-hours.
       </p>
       {msg}
     </>
@@ -450,16 +450,16 @@ function CloseBody({ p, series, dense, loading: marketLoading = false, stale = "
     (none ? (
       L ? "No buyers right now" : "No sellers right now"
     ) : !L ? (
-      "Buy back your Short"
+      "Close your Short"
     ) : !part || chip === 100 ? (
-      "Sell your Long"
+      "Close your Long"
     ) : hours <= 0 ? (
       "Enter an amount"
     ) : chip ? (
-      `Sell ${chip}% of your Long`
+      `Close ${chip}% of your Long`
     ) : (
       <>
-        Sell <Num>{fmtHours(hours)}</Num> GPU-hours of your Long
+        Close <Num>{showHours(hours)}</Num> GPU-hours of your Long
       </>
     ));
   // the other way out, in one quiet line under the button: hold, and the month pays
@@ -470,7 +470,7 @@ function CloseBody({ p, series, dense, loading: marketLoading = false, stale = "
       {amount}
       {p.kind === "tokens" && p.inMargin > 0 && (
         <p className={s.tCopy}>
-          <Num>{fmtHours(p.inMargin)}</Num> more GPU-hours rest in an order at Kuru and settle at the month's end.
+          <Num>{showHours(p.inMargin)}</Num> more GPU-hours rest in an order at Kuru and settle at the month's end.
         </p>
       )}
 
@@ -507,13 +507,15 @@ function CloseBody({ p, series, dense, loading: marketLoading = false, stale = "
             </dd>
           </div>
           <div>
-            <dt>Gain or loss</dt>
+            <dt>
+              Gain or loss <span className={dense ? undefined : s.hint}>if you close now</span>
+            </dt>
             <dd className={[skel, gain.tone].filter(Boolean).join(" ") || undefined}>{est.gain === null ? gain.text : <Num>{gain.text}</Num>}</dd>
           </div>
           <div>
             <dt>Your {side}</dt>
             <dd>
-              <Num>{fmtHours(p.q)}</Num> → <Num>{fmtHours(Math.max(0, floorHours(p.q - est.sold)))}</Num> <span className={c.unit}>GPU-hours</span>
+              <Num>{showHours(p.q)}</Num> → <Num>{showHours(Math.max(0, floorHours(p.q - est.sold)))}</Num> <span className={c.unit}>GPU-hours</span>
             </dd>
           </div>
           {dense && (

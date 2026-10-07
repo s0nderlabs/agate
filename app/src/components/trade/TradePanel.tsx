@@ -9,7 +9,7 @@ import { useBook, useNow } from "@/lib/data/hooks";
 import { bandNow, dateText, firstPayAt, payTime, topOf } from "@/lib/data/derive";
 import { emptySideText, HeldNote, MonthSeg, monthSoFarText } from "./States";
 import { DRIP, useAccount } from "@/lib/account";
-import { cleanTyping, dollarsToHours, floorCents, floorGpus, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, maxFor, parseAmount, walkDollars, walkHours } from "@/lib/size";
+import { cleanTyping, dollarsToHours, floorCents, floorGpus, floorHours, fmtDollars, fmtGpus, gpuWord, hoursToDollars, maxFor, parseAmount, showHours, walkDollars, walkHours } from "@/lib/size";
 import { SideToggle } from "./SideToggle";
 import { monthName } from "@/components/markets/PriceChart";
 import { numbersFor, type Trade } from "@/components/markets/useTrade";
@@ -195,7 +195,7 @@ function OpenPanel({ market, trade, held = 0, loading: marketLoading = false, st
               {fill.filled > 0 ? (
                 unit === "usd" ? (
                   <>
-                    = <Num>{fmtHours(fill.filled)}</Num> GPU-hours
+                    = <Num>{showHours(fill.filled)}</Num> GPU-hours
                     {fill.filled >= 0.01 * 24 * days && (
                       <>
                         , about <Num>{fmtGpus(Math.round((fill.filled / (24 * days)) * 100) / 100)}</Num> {gpuWord(fill.filled / (24 * days))} for all of {m}
@@ -204,7 +204,7 @@ function OpenPanel({ market, trade, held = 0, loading: marketLoading = false, st
                   </>
                 ) : (
                   <>
-                    = <Num>{fmtHours(fill.filled)}</Num> GPU-hours, <Num>{usd(n.outlay)}</Num>
+                    = <Num>{showHours(fill.filled)}</Num> GPU-hours, <Num>{usd(n.outlay)}</Num>
                   </>
                 )
               ) : unit === "usd" ? (

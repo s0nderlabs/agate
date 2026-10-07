@@ -2,7 +2,7 @@
 // shapes (api.ts). Pure, so the live server's answers read exactly like the pretend one's. Times in UTC.
 import { monthLong, whenText } from "@/lib/data/derive";
 import { usd0 } from "@/lib/format";
-import { fmtHours } from "@/lib/size";
+import { showHours } from "@/lib/size";
 import { fromU, summaryDollars, type ActivityEvent, type Grant } from "./api";
 import { autopilotText, refusedText, type AutopilotResult } from "./errors";
 import { APPROVAL_ENDED_BY, type ApprovalView } from "./machine";
@@ -212,7 +212,7 @@ export function approvalWhat(a: ApprovalView): { what: string; dollars: number |
   const dollars = approvalDollars(a);
   if (a.action === "open_short") {
     const hours = typeof p.gpu_hours === "number" ? p.gpu_hours : typeof s.gpuHours === "number" ? s.gpuHours : null;
-    return { what: `${words("Short", gpu, month(p.month))}, ${hours !== null ? `${fmtHours(hours)} GPU-hours` : "some GPU-hours"}${dollars ? ` (${usd0(dollars)} up front)` : ""}`, dollars, gpuHours: hours };
+    return { what: `${words("Short", gpu, month(p.month))}, ${hours !== null ? `${showHours(hours)} GPU-hours` : "some GPU-hours"}${dollars ? ` (${usd0(dollars)} up front)` : ""}`, dollars, gpuHours: hours };
   }
   if (a.action === "close_short") return { what: `${words("Close its", gpu, month(p.month))} Short`, dollars, gpuHours: null };
   const hours = typeof s.gpuHours === "number" ? s.gpuHours : null;

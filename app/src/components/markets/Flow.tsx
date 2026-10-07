@@ -12,7 +12,7 @@ import { guardFromQuote } from "@/lib/account/machine";
 import { ticketOrder, ticketShown } from "@/lib/account/ticket";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { finePointer, tapMode, useModalFocus } from "@/lib/ui/hooks";
-import { fmtHours } from "@/lib/size";
+import { showHours } from "@/lib/size";
 import { int, usd, usd0 } from "@/lib/format";
 import { AccountHead, AccountSheet, AddressRow, AisRow, SECURED, SIGN_OUT_NOTE, useAiSummary, usePasskeyRow } from "@/components/flow/AccountSheet";
 import { CloseSheet } from "@/components/flow/CloseSheet";
@@ -314,7 +314,7 @@ function Review({ n, problem, retryLabel, final = false, onConfirm, onBack }: { 
         <div>
           <span>Size</span>
           <span>
-            {fmtHours(n.hours)} GPU-hours at {usd(n.price)}
+            {showHours(n.hours)} GPU-hours at {usd(n.price)}
           </span>
         </div>
         <div>
@@ -361,7 +361,7 @@ function Review({ n, problem, retryLabel, final = false, onConfirm, onBack }: { 
 
 /** Placing, step by step: the price checked against the chain, the wallet signing, then Monad. */
 function Placing({ n, step }: { n: TradeNumbers; step: SendStep }) {
-  const what = `${n.side === "long" ? "Buying" : "Selling"} ${fmtHours(n.hours)} GPU-hours of ${n.series.gpu} ${monthName(n.series.month)}`;
+  const what = `${n.side === "long" ? "Buying" : "Selling"} ${showHours(n.hours)} GPU-hours of ${n.series.gpu} ${monthName(n.series.month)}`;
   return (
     <div className="grid justify-items-center gap-4 py-6 text-center" aria-live="polite">
       <span className="ag-spinner" />
@@ -411,7 +411,7 @@ function Done({ n, result, onClose }: { n: TradeNumbers; result?: DoneResult; on
       </svg>
       <h2>You're {L ? "long" : "short"} {monthName(n.series.month)}</h2>
       <p>
-        {fmtHours(hours)} GPU-hours of {n.series.gpu} at {usd(price)}.{" "}
+        {showHours(hours)} GPU-hours of {n.series.gpu} at {usd(price)}.{" "}
         {n.daily
           ? `${L ? `${usd0(backNow)} is back in your balance. ` : ""}${bandNow(n.series).k > 0 ? `Your next daily share arrives about ${payTime(n.series)}.` : `Your first daily share arrives ${dateText(firstPayAt(n.series))}, about ${payTime(n.series)}.`}`
           : "You get paid once, after the month ends."}

@@ -13,7 +13,7 @@ import { explorerTx } from "@/lib/account/aiView";
 import { refusalOfOrder, sendRefusal } from "@/lib/account/errors";
 import { REPLAN_AFTER_MS } from "@/lib/account/machine";
 import { usd } from "@/lib/format";
-import { floorHours, fmtHours } from "@/lib/size";
+import { floorHours, showHours } from "@/lib/size";
 import { monthName } from "@/components/markets/PriceChart";
 import { Check } from "./Steps";
 
@@ -55,7 +55,7 @@ export function CloseSheet({ p, order: given, shown: givenShown, onClose, onBack
   const L = p.side === "long";
   // from the form, the title names the act (part of held tokens says so); before, "Close H100 November Long"
   const part = given?.kind === "sellLong" && Number(given.gpuHours) < floorHours(p.q - p.inMargin);
-  const title = given ? `${L ? (part ? "Sell part of your" : "Sell your") : "Buy back your"} ${p.gpu} ${monthName(p.month)} ${L ? "Long" : "Short"}` : `Close ${p.gpu} ${monthName(p.month)} ${L ? "Long" : "Short"}`;
+  const title = given ? `Close ${part ? "part of " : ""}your ${p.gpu} ${monthName(p.month)} ${L ? "Long" : "Short"}` : `Close ${p.gpu} ${monthName(p.month)} ${L ? "Long" : "Short"}`;
   const back = onBack ?? onClose;
 
   const plan = useCallback(async () => {
@@ -117,7 +117,7 @@ export function CloseSheet({ p, order: given, shown: givenShown, onClose, onBack
     const shortBack = r.net ?? (r.received ?? 0) - (r.spent ?? 0);
     const line =
       r.action === "closeLong"
-        ? `${fmtHours(r.gpuHours ?? 0)} GPU-hours sold for ${usd(r.received ?? 0)}, now in your balance.`
+        ? `${showHours(r.gpuHours ?? 0)} GPU-hours sold for ${usd(r.received ?? 0)}, now in your balance.`
         : r.action === "closeShort"
           ? `Bought back for ${usd(r.spent ?? 0)}. ${usd(shortBack)} came back to your balance.`
           : // a pay me daily Long: what it sold for less what it had been paid (the dollars put up front came back in the same step)
@@ -170,14 +170,14 @@ export function CloseSheet({ p, order: given, shown: givenShown, onClose, onBack
           <div>
             <span>Buy back</span>
             <span>
-              {fmtHours(hours)} GPU-hours for at most {usd(s.bound.value)}
+              {showHours(hours)} GPU-hours for at most {usd(s.bound.value)}
             </span>
           </div>
         ) : (
           <>
             <div>
               <span>GPU-hours</span>
-              <span>{fmtHours(hours)}</span>
+              <span>{showHours(hours)}</span>
             </div>
             <div>
               <span>You get at least</span>
@@ -206,7 +206,7 @@ export function CloseSheet({ p, order: given, shown: givenShown, onClose, onBack
       )}
       <p style={{ fontSize: 15 }}>{s.action === "closeShort" ? "The price is checked again when it sends: it never pays more than this." : "The price is checked again when it sends: it never pays less than this."}</p>
       <button className="ag-btn ag-btn--primary ag-btn--lg" type="button" onClick={() => void confirm(run.plan)}>
-        {given ? (L ? "Confirm sale" : "Confirm buy-back") : `Close ${L ? "Long" : "Short"}`}
+        {given ? "Confirm close" : `Close ${L ? "Long" : "Short"}`}
       </button>
       <button className="ag-btn ag-btn--ghost" type="button" onClick={back}>
         Back

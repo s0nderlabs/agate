@@ -30,6 +30,9 @@ export const floorCents = (d: number) => Math.floor(Math.round(d * 1e6) / 1e4) /
 
 /** GPU-hours as people read them: up to 4 decimals, trailing zeros dropped ("122.549", "1,440"). */
 export const fmtHours = (h: number) => h.toLocaleString("en-US", { maximumFractionDigits: 4 });
+/** GPU-hours to read on screen: up to 2 decimals ("799.57", "1,440"), 4 under 0.01 so a small amount never reads 0.
+ * Input boxes, and anything that fills one, keep fmtHours' 4 so a sale never asks for more than is held. */
+export const showHours = (h: number) => h.toLocaleString("en-US", { maximumFractionDigits: h !== 0 && Math.abs(h) < 0.01 ? 4 : 2 });
 /** Dollars for an input box: up to 2 decimals, no symbol ("1,000", "12.5"). */
 export const fmtDollars = (d: number) => d.toLocaleString("en-US", { maximumFractionDigits: 2 });
 /** GPUs for an input box: up to 2 decimals, 4 under one GPU so a small amount never reads 0. */
