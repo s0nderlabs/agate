@@ -177,7 +177,8 @@ export function getMarket(gpu: Gpu, state: DataState = "normal"): Market {
     gpu,
     price: before ? 0 : price,
     prevPrice: hist.length > 1 ? hist[hist.length - 2].price : before ? 0 : price,
-    updatedAt: before ? "" : AS_OF,
+    // when the newest day turned final: about 07:00 UTC the day after it (as the method says)
+    updatedAt: before ? "" : hist.length ? new Date(Date.parse(`${hist[hist.length - 1].date}T07:00:00Z`) + 86_400_000).toISOString().replace(".000Z", "Z") : AS_OF,
     sources: before ? [] : sources,
     history: hist,
     series,

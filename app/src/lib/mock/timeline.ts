@@ -262,7 +262,9 @@ export function holderPositions(m: Moment): Position[] {
     { ...base, id: "example-nov-long", side: "long", q: 720, entry: ask, daily: false, kind: "tokens", positionId: null },
     { ...base, id: "example-nov-short", side: "short", q: 720, entry: bid, daily: false, kind: "position", positionId: "2" },
   ];
-  return held.map((p) => positionAt(p, m));
+  // on today's morning the pay me daily Long has already had November's floor back, as the router pays it at once
+  const floor = build("H100", m).market.series.find((x) => x.month === base.month)?.floor ?? 0;
+  return held.map((p) => (m === "oct" && p.daily && p.side === "long" ? { ...p, paid: Math.round(p.q * floor * 100) / 100 } : positionAt(p, m)));
 }
 
 /** A position as it stands on a Day, opened before its month started: pay me daily has been paid the priced days plus

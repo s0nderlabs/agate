@@ -13,6 +13,40 @@ type Row = { key: keyof MockConfig; label: string; options: [string, string][] }
 /** Options being judged right now: the proposal first (the default), the state before it marked "(before)". */
 const DESIGN_ROWS: Row[] = [
   {
+    key: "closeUi",
+    label: "Close from the panel",
+    options: [
+      ["tabs", "Open | Close tabs"],
+      ["before", "Only opens (before)"],
+    ],
+  },
+  {
+    key: "candles",
+    label: "Candle size",
+    options: [
+      ["auto", "Follows the range"],
+      ["before", "Always hourly (before)"],
+    ],
+  },
+  {
+    key: "positionsUi",
+    label: "Positions page",
+    options: [
+      ["market", "Market frame (round 2)"],
+      ["new", "Reworked (round 1)"],
+      ["before", "Before"],
+    ],
+  },
+  {
+    key: "indexUi",
+    label: "Index page",
+    options: [
+      ["market", "Market frame (round 2)"],
+      ["new", "Reworked (round 1)"],
+      ["before", "Before"],
+    ],
+  },
+  {
     key: "months",
     label: "Simple's months",
     options: [

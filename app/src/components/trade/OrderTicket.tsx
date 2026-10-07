@@ -4,6 +4,8 @@
 // trade, Current position, a summary under the button). One deliberate difference: where Hyperliquid shows a
 // liquidation price and margin, this says "none, fully backed", because a Long or Short here can never be
 // liquidated. Pro speaks trader (Order value, Max loss); Simple keeps the plain plan in GPUs x days.
+// Mock controls "Close from the trade panel" (closeUi): tabs puts Open | Close over it (ClosePanel.tsx), Close always
+// there in Pro; before renders this ticket alone, as it was.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFlow } from "@/components/markets/Flow";
 import { monthName } from "@/components/markets/PriceChart";
@@ -17,6 +19,7 @@ import { useAccount } from "@/lib/account";
 import { useMock } from "@/lib/mock/store";
 import { cleanTyping, dollarsToHours, floorCents, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, LIMIT_MAX, LIMIT_MIN, maxFor, parseAmount, walkDollars, walkHours } from "@/lib/size";
 import { SideToggle } from "./SideToggle";
+import { TicketTabs } from "./ClosePanel";
 import type { Market } from "@/lib/mock/types";
 import { int, usd, usd0 } from "@/lib/format";
 import s from "./order.module.css";
@@ -34,9 +37,21 @@ export interface OpenOrder {
   placedAt: string;
 }
 
+type TicketProps = { market: Market; trade: Trade; picked: { price: number; n: number } | null; held: number; onPlace: (o: OpenOrder) => void; loading?: boolean; stale?: "none" | "stale" | "nodata" };
+
 /** held: test dollars already promised to resting orders; they are not free to trade again. loading: the first read
  * is on its way (prices under skeletons, the button waits). stale: no fresh prices for two minutes (the button waits). */
-export function OrderTicket({ market, trade, picked, held, onPlace, loading: marketLoading = false, stale = "none" }: { market: Market; trade: Trade; picked: { price: number; n: number } | null; held: number; onPlace: (o: OpenOrder) => void; loading?: boolean; stale?: "none" | "stale" | "nodata" }) {
+export function OrderTicket(props: TicketProps) {
+  const { config } = useMock();
+  if (config.closeUi === "before") return <OpenTicket {...props} />;
+  return (
+    <TicketTabs market={props.market} trade={props.trade} always dense loading={props.loading} stale={props.stale} pickSignal={props.picked?.n ?? 0} renderOpen={(guard) => <OpenTicket {...props} guard={guard} />} />
+  );
+}
+
+/** guard: Open's line under Long / Short when the side picked opens beside a holding of the other side (closeUi
+ * "tabs" only; absent, the ticket renders as it always has). */
+function OpenTicket({ market, trade, picked, held, onPlace, loading: marketLoading = false, stale = "none", guard }: TicketProps & { guard?: React.ReactNode }) {
   const { submit, openSignIn } = useFlow();
   const { config } = useMock();
   const account = useAccount();
@@ -152,6 +167,7 @@ export function OrderTicket({ market, trade, picked, held, onPlace, loading: mar
   return (
     <div className={s.ticket}>
       <SideToggle side={trade.side} onSide={trade.setSide} ask={noAsk ? null : q.ask} bid={noBid ? null : q.bid} skel={loading} />
+      {guard}
 
       <div className={s.typeTabs} role="tablist" aria-label="Order type">
         {(["market", "limit"] as const).map((t) => (

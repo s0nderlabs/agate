@@ -1,0 +1,919 @@
+/* The Index page, reworked: one centered column of flat sections split by hairlines, the trade screen's tokens and
+   type. From 1100 px the chart and the onchain facts sit side by side, and the last 14 days beside how to use the
+   price and how it is made. Color only for a move up or down. */
+.screen {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+}
+.main {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: clamp(20px, 2.6vw, 32px) clamp(16px, 2.4vw, 32px) 72px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.up {
+  color: var(--up);
+}
+.down {
+  color: var(--down);
+}
+.flat {
+  color: var(--mute-text);
+}
+.r {
+  text-align: right;
+}
+.lead {
+  font-size: 15px;
+  color: var(--ink-2);
+  max-width: 64ch;
+  text-wrap: pretty;
+}
+
+/* ---------- the GPU switch: six cards, the picked one on the card surface with an ink edge ---------- */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  padding-bottom: clamp(24px, 3vw, 36px);
+}
+.card {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px 12px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+.card[aria-selected="true"] {
+  background: var(--card);
+  box-shadow:
+    inset 0 0 0 1px var(--ink),
+    var(--lift);
+  color: var(--ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .card:not([aria-selected="true"]):hover {
+    box-shadow: inset 0 0 0 1px var(--line-2);
+  }
+}
+.cardTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 8px;
+  font-size: 15px;
+}
+.cardTop > b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.cardTop > span {
+  font-size: 14px;
+  color: var(--mute-text);
+  white-space: nowrap;
+}
+.cardPrice {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+  justify-self: start;
+}
+.card:not([aria-selected="true"]) .cardPrice {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.cardFirst {
+  font-size: 14px;
+  line-height: 1.3;
+  color: var(--mute-text);
+  min-height: 26px;
+  align-self: center;
+}
+.spark {
+  display: block;
+  width: 100%;
+  height: 24px;
+  margin-top: 4px;
+  overflow: visible;
+}
+.spark path {
+  fill: none;
+  stroke: var(--mute);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: miter;
+}
+.card[aria-selected="true"] .spark path {
+  stroke: var(--ink);
+}
+
+/* ---------- hero: the GPU, the price and one line of when and how; the three changes at its right ---------- */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px 56px;
+  padding-bottom: 32px;
+}
+@media (min-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+}
+.heroMain {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+.title {
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.priceRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  margin-top: 12px;
+}
+.price {
+  font-size: clamp(56px, 7vw, 84px);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.unit {
+  font-size: 17px;
+  color: var(--ink-2);
+}
+/* every part carries its separator in front; the line hangs 20px left and clips that gutter, so a part that wraps
+   to a new row never starts with a stray "·" */
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
+  margin-top: 16px;
+  margin-left: -20px;
+  clip-path: inset(-8px -8px -8px 20px);
+  font-size: 15px;
+  color: var(--ink-2);
+  justify-self: start;
+}
+.line > span::before {
+  content: "·";
+  display: inline-block;
+  width: 20px;
+  text-align: center;
+  color: var(--mute);
+}
+.line a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .line a:hover {
+    text-decoration-color: currentColor;
+  }
+}
+/* 1 day / 7 days / 30 days: the label, the move, and what it is measured from */
+.trio {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 0 32px;
+  margin: 0;
+}
+.trio > div {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  min-width: 0;
+}
+.trio dt {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.trio dd {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+  justify-self: start;
+}
+.trio dd.trioSub {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--mute-text);
+  line-height: 1.35;
+}
+
+/* ---------- sections: flat, a hairline on top, the heading at 17 px ---------- */
+.section {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-width: 0;
+  padding: 28px 0 32px;
+  box-shadow: inset 0 1px 0 var(--line);
+  /* clears the sticky top bar: 68 + 12 = 80 on desktop, 56 + 12 on phones */
+  scroll-margin-top: calc(var(--nav-h, 68px) + 12px);
+}
+.section h2 {
+  font-size: 17px;
+  font-weight: 500;
+}
+.secHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 18px;
+}
+.skelBlock {
+  height: 96px;
+}
+.skelTall {
+  height: 280px;
+}
+
+/* the body: one column, and from 1100 px chart | facts, then 14 days | use and method, then the two wide tables */
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1100px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    column-gap: 56px;
+    grid-template-areas:
+      "chart facts"
+      "days side"
+      "all all"
+      "beside beside";
+  }
+  /* nothing read: only the method is left, across the width */
+  .body[data-nodata] {
+    grid-template-areas: "side side";
+  }
+  .chartSec {
+    grid-area: chart;
+  }
+  .factsSec {
+    grid-area: facts;
+  }
+  .daysSec {
+    grid-area: days;
+  }
+  .side {
+    grid-area: side;
+    display: grid;
+    align-content: start;
+  }
+  .allSec {
+    grid-area: all;
+  }
+  .besideSec {
+    grid-area: beside;
+  }
+}
+/* narrower: use and method join the one column, the method last */
+@media (max-width: 1099.98px) {
+  .side {
+    display: contents;
+  }
+  .methodSec {
+    order: 1;
+  }
+}
+
+/* ---------- the signature: dots on one price line, a row per cloud ---------- */
+.sig {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.pl {
+  position: relative;
+  margin: 0 8px;
+}
+.plRule {
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: 44px;
+  height: 1px;
+  background: var(--line-2);
+}
+.plCallout {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.plCallout[data-edge="start"] {
+  transform: translateX(-8px);
+}
+.plCallout[data-edge="end"] {
+  transform: translateX(calc(-100% + 8px));
+}
+.plStem {
+  position: absolute;
+  top: 24px;
+  height: 14px;
+  width: 1.5px;
+  background: var(--ink);
+  transform: translateX(-50%);
+}
+/* with an even count the middle falls between two clouds: the stem reaches the line itself */
+.plStem[data-cloud="false"] {
+  height: 30px;
+  top: 29px;
+}
+/* a counted cloud: a filled dot, a ring of the ground keeping close neighbours apart */
+.plDot {
+  position: absolute;
+  top: 44px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--ink-2);
+  box-shadow: 0 0 0 2px var(--bg);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+  cursor: default;
+}
+/* a 28 px pointer target around each dot */
+.plDot::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+.plDot[data-kind="index"] {
+  width: 15px;
+  height: 15px;
+  background: var(--ink);
+  box-shadow: 0 0 0 3px var(--bg);
+}
+/* not counted today: hollow and faint */
+.plDot[data-kind="out"] {
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1.5px var(--mute);
+}
+.plDot[data-on] {
+  transform: translate(-50%, -50%) scale(1.35);
+  background: var(--ink);
+}
+.plDot[data-kind="index"][data-on] {
+  box-shadow:
+    0 0 0 3px var(--bg),
+    0 0 0 4.5px var(--ink);
+}
+.plDot[data-kind="out"][data-on] {
+  background: var(--bg);
+  box-shadow:
+    inset 0 0 0 1.5px var(--ink-2),
+    0 0 0 4px var(--bg);
+}
+.plLabel {
+  position: absolute;
+  display: grid;
+  gap: 0;
+  justify-items: center;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: color 0.15s ease;
+}
+.plLabel[data-align="start"] {
+  justify-items: start;
+  text-align: left;
+}
+.plLabel[data-align="end"] {
+  justify-items: end;
+  text-align: right;
+}
+.plLabel > span {
+  color: var(--ink-2);
+}
+.plLabel > b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.plLabel[data-kind="index"] > span,
+.plLabel[data-kind="index"] > b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.plLabel[data-kind="out"] > span,
+.plLabel[data-kind="out"] > b {
+  color: var(--mute-text);
+  font-weight: 400;
+}
+.plLabel[data-on] > span {
+  color: var(--ink);
+}
+/* a label that had no room, shown while its cloud is pointed at: over its neighbours, on the ground */
+.plLabel[data-float] {
+  z-index: 2;
+  background: var(--bg);
+  box-shadow: 0 0 0 6px var(--bg);
+}
+
+/* the rows under the line: mark, cloud, price, the page it is read from, when */
+.clouds {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  font-size: 15px;
+}
+.clouds > li {
+  display: grid;
+  grid-template-columns: 14px minmax(120px, 1.1fr) minmax(72px, 0.5fr) minmax(0, 1.6fr) minmax(0, 1.3fr);
+  align-items: baseline;
+  gap: 2px 16px;
+  padding: 10px 8px;
+  margin: 0 -8px;
+  box-shadow: inset 0 -1px 0 var(--line);
+  border-radius: var(--r-1);
+  color: var(--ink-2);
+  transition: background 0.15s ease;
+}
+.clouds > li[data-on] {
+  background: var(--well);
+}
+.clouds > li.cloudsHead {
+  padding-top: 0;
+  font-size: 14px;
+  color: var(--mute-text);
+}
+/* each row's mark is its dot on the line: filled when counted, the index's in ink, hollow when not counted */
+.clouds > li > i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  align-self: center;
+  background: var(--ink-2);
+}
+.clouds > li[data-kind="index"] > i {
+  background: var(--ink);
+}
+.clouds > li[data-kind="out"] > i {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--mute);
+}
+.cName {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 10px;
+  color: var(--ink);
+  min-width: 0;
+}
+.cName > em {
+  font-style: normal;
+  color: var(--mute-text);
+}
+.clouds > li[data-kind="index"] .cName {
+  font-weight: 600;
+}
+.clouds > li[data-kind="index"] .cName > em {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.cPrice {
+  font-weight: 500;
+  color: var(--ink);
+  text-align: right;
+  white-space: nowrap;
+}
+.clouds > li[data-kind="out"] .cName,
+.clouds > li[data-kind="out"] .cPrice {
+  color: var(--mute-text);
+  font-weight: 400;
+}
+.cPage {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cPage a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cPage a:hover {
+    color: var(--ink);
+    text-decoration-color: currentColor;
+  }
+}
+.cRead {
+  color: var(--mute-text);
+}
+
+/* ---------- chart ---------- */
+.ranges {
+  display: inline-flex;
+  gap: 2px;
+}
+.ranges button {
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  padding: 6px 14px;
+  font-size: 15px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.ranges button[aria-pressed="true"] {
+  background: var(--seg-on);
+  color: var(--ink);
+  box-shadow: var(--lift);
+}
+.plot {
+  height: 320px;
+  min-width: 0;
+  border-radius: 0;
+}
+.plotState {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--ink-2);
+}
+.plotState > p {
+  max-width: 46ch;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 20px;
+  font-size: 15px;
+  color: var(--mute-text);
+}
+.legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.lgLine {
+  width: 18px;
+  height: 2px;
+  background: var(--ink);
+}
+.lgLight {
+  opacity: 0.42;
+}
+.lgDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--mute);
+}
+
+/* ---------- onchain proof: label over value, a hairline between, then the check ---------- */
+.facts {
+  display: grid;
+  gap: 0;
+}
+.factList {
+  margin: 0;
+  display: grid;
+}
+.factList > div {
+  display: grid;
+  gap: 3px;
+  padding: 12px 0 13px;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.factList > div:first-child {
+  padding-top: 0;
+}
+.factList dt {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.factList dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  font-size: 17px;
+  font-weight: 500;
+}
+.factList dd > b {
+  font-weight: 500;
+}
+.factBig {
+  font-size: 24px;
+  line-height: 1.15;
+}
+.factSub {
+  flex-basis: 100%;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--mute-text);
+  text-wrap: pretty;
+}
+.factAddr {
+  gap: 4px 14px;
+}
+.factAddr :global(.ag-textbtn) {
+  font-weight: 400;
+}
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 14px;
+  font-size: 15px;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.check > svg {
+  flex: none;
+  margin-top: 3px;
+}
+.check[data-same="false"] {
+  color: var(--ink-2);
+}
+
+/* ---------- tables: the last 14 days, every GPU ---------- */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+.daysSec .table {
+  max-width: 720px;
+}
+.table th {
+  text-align: left;
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--mute-text);
+  padding: 0 0 8px;
+  white-space: nowrap;
+}
+.table td {
+  padding: 10px 0;
+  vertical-align: baseline;
+}
+.table th + th,
+.table td + td {
+  padding-left: 16px;
+}
+.table th.r,
+.table td.r {
+  text-align: right;
+}
+.table tbody tr {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.table tr[data-light] td:first-child,
+.table tr[data-light] td:nth-child(2) {
+  color: var(--ink-2);
+}
+/* which of the days are not onchain, once, under the table */
+.tableNote {
+  max-width: 64ch;
+  font-size: 14px;
+  color: var(--mute-text);
+  text-wrap: pretty;
+}
+.dayNote {
+  display: block;
+  font-size: 14px;
+  color: var(--mute-text);
+}
+.pct {
+  display: inline-block;
+  min-width: 4.6em;
+  margin-left: 12px;
+  text-align: right;
+}
+.gpuName {
+  font-weight: 600;
+}
+.gpuBtn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .gpuBtn:hover {
+    text-decoration-color: currentColor;
+  }
+}
+.gpuNote,
+.here {
+  margin-left: 12px;
+  font-size: 14px;
+  color: var(--mute-text);
+  white-space: nowrap;
+}
+.here {
+  color: var(--ink-2);
+}
+.table tr[data-here] {
+  background: var(--well);
+}
+/* every GPU: the rows keep a little inset, so the picked one's ground does not touch its text */
+.allSec .table th:first-child,
+.allSec .table td:first-child {
+  padding-left: 12px;
+}
+.allSec .table th:last-child,
+.allSec .table td:last-child {
+  padding-right: 12px;
+}
+
+/* ---------- use this price: one plain line each ---------- */
+.uses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.uses > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 16px;
+  padding: 12px 0;
+  box-shadow: inset 0 -1px 0 var(--line);
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.uses > li:first-child {
+  padding-top: 0;
+}
+.uses > li > span {
+  flex: 1 1 18em;
+  min-width: 0;
+  text-wrap: pretty;
+}
+.uses b {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* ---------- how it works: four numbered steps ---------- */
+.steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.steps > li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 0 10px;
+  font-size: 15px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.steps > li::before {
+  content: counter(step);
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+/* ---------- tablets: three cards a row below 760 px ---------- */
+@media (max-width: 759.98px) {
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ---------- phones: one column, the 16 px gutter, the page ends above the bottom tabs ---------- */
+@media (max-width: 639.98px) {
+  .screen[data-phone="new"] {
+    padding-bottom: calc(var(--dock-h, 0px) + env(safe-area-inset-bottom));
+  }
+  .main {
+    padding: 16px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+  }
+  .cards {
+    gap: 6px;
+    padding-bottom: 24px;
+  }
+  .card {
+    padding: 10px 10px 10px;
+  }
+  .cardPrice {
+    font-size: 17px;
+  }
+  .title {
+    font-size: 20px;
+  }
+  .trio {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0 12px;
+  }
+  .trio dd {
+    font-size: 20px;
+  }
+  .section {
+    padding: 24px 0 28px;
+  }
+  /* a row per cloud: the name and price on top, the page and when it was read under them */
+  .clouds > li.cloudsHead {
+    display: none;
+  }
+  .clouds > li {
+    grid-template-columns: 14px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "mark name price"
+      ". page page"
+      ". read read";
+    gap: 2px 12px;
+  }
+  .clouds > li > i {
+    grid-area: mark;
+  }
+  .cName {
+    grid-area: name;
+  }
+  .cPrice {
+    grid-area: price;
+  }
+  .cPage {
+    grid-area: page;
+  }
+  .cRead {
+    grid-area: read;
+  }
+  .plot {
+    height: 240px;
+  }
+  .pct {
+    display: none;
+  }
+}
+
+/* touch: small text links and the table's GPU names keep their look and get an invisible 44 px hit area */
+@media (pointer: coarse) {
+  .line a,
+  .cPage a,
+  .gpuBtn {
+    position: relative;
+  }
+  .line a::after,
+  .cPage a::after,
+  .gpuBtn::after {
+    content: "";
+    position: absolute;
+    inset: -12px -6px;
+  }
+  .card {
+    min-height: 44px;
+  }
+}

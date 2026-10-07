@@ -17,28 +17,52 @@ const hourLabel = (iso: string) => {
   const day = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   return `${day}, ${String(d.getUTCHours()).padStart(2, "0")}:00`;
 };
+const dayLabel = (iso: string) => new Date(Date.parse(iso)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 const HOUR = 3_600_000;
 
-/** startAt: when the month listed. The axis then runs one slot per hour from the listing (or `hours` back from the
- * last candle, whichever is later) to the last candle, so the hours before its first trade, and any quiet hour, stay
- * empty. Without it, the last `hours` candles side by side. */
-export function CandleChart({ candles: all, hours, kind = "candles", height = 360, startAt }: { candles: Candle[]; hours: number; kind?: "candles" | "line"; height?: number | string; startAt?: string }) {
+/** The hourly candles merged into candles of `size` hours (UTC-aligned): open of the first, close of the last, the
+ * highest high, lowest low and summed volume. size 1 returns them as they are. */
+function merged(all: Candle[], size: number): Candle[] {
+  if (size <= 1) return all;
+  const B = size * HOUR;
+  const out: Candle[] = [];
+  for (const c of all) {
+    const at = Math.floor(Date.parse(c.t) / B) * B;
+    const prev = out[out.length - 1];
+    if (prev && Date.parse(prev.t) === at) {
+      prev.h = Math.max(prev.h, c.h);
+      prev.l = Math.min(prev.l, c.l);
+      prev.c = c.c;
+      prev.v += c.v;
+    } else out.push({ t: new Date(at).toISOString(), o: c.o, h: c.h, l: c.l, c: c.c, v: c.v });
+  }
+  return out;
+}
+
+/** startAt: when the month listed. The axis then runs one slot per candle from the listing (or `hours` back from the
+ * last candle, whichever is later) to the last candle, so the time before its first trade, and any quiet slot, stays
+ * empty. Without it, the last candles that fit `hours` side by side. size: hours per candle (1, 4 or 24). */
+export function CandleChart({ candles: hourly, hours, size = 1, kind = "candles", height = 360, startAt }: { candles: Candle[]; hours: number; size?: number; kind?: "candles" | "line"; height?: number | string; startAt?: string }) {
   const { candles, slots } = useMemo(() => {
+    const all = merged(hourly, size);
+    const B = size * HOUR;
     const start = startAt ? Date.parse(startAt) : NaN;
-    const span = Math.max(1, Math.round(hours));
+    const span = Math.max(1, Math.ceil(hours / size));
     if (!Number.isFinite(start) || !all.length) {
       const c = all.slice(-span);
       return { candles: c as (Candle | null)[], slots: c.map((x) => Date.parse(x.t)) };
     }
-    const hourOf = (iso: string) => Math.floor(Date.parse(iso) / HOUR) * HOUR;
-    const end = hourOf(all[all.length - 1].t);
-    const from = Math.min(end, Math.max(Math.floor(start / HOUR) * HOUR, end - (span - 1) * HOUR));
-    const byHour = new Map(all.map((c) => [hourOf(c.t), c]));
+    const slotOf = (iso: string) => Math.floor(Date.parse(iso) / B) * B;
+    const end = slotOf(all[all.length - 1].t);
+    const from = Math.min(end, Math.max(Math.floor(start / B) * B, end - (span - 1) * B));
+    const bySlot = new Map(all.map((c) => [slotOf(c.t), c]));
     const slots: number[] = [];
-    for (let t = from; t <= end; t += HOUR) slots.push(t);
-    return { candles: slots.map((t) => byHour.get(t) ?? null), slots };
-  }, [all, hours, startAt]);
+    for (let t = from; t <= end; t += B) slots.push(t);
+    return { candles: slots.map((t) => bySlot.get(t) ?? null), slots };
+  }, [hourly, hours, size, startAt]);
+  // a daily candle is a UTC day; shorter ones carry their hour
+  const label = (iso: string) => (size >= 24 ? dayLabel(iso) : hourLabel(iso));
   // the candles actually drawn (an empty hour has none)
   const drawn = useMemo(() => candles.filter((c): c is Candle => c !== null), [candles]);
   const n = candles.length;
@@ -134,7 +158,7 @@ export function CandleChart({ candles: all, hours, kind = "candles", height = 36
               <b>
                 <Num>{usd(h.c)}</Num>
               </b>
-              <span>{hourLabel(h.t)} UTC</span>
+              <span>{label(h.t)} UTC</span>
               <span className={s.ohlc}>
                 <Num>{`O ${h.o.toFixed(3)}  H ${h.h.toFixed(3)}`}</Num>
               </span>
@@ -163,7 +187,7 @@ export function CandleChart({ candles: all, hours, kind = "candles", height = 36
       <div className={s.xaxis} aria-hidden="true">
         {xTicks.map((i, k) => (
           <span key={k} style={{ left: pct(X(i), 1000) }} data-edge={k === 0 ? "start" : k === xTicks.length - 1 ? "end" : undefined}>
-            {hourLabel(new Date(slots[i]).toISOString())}
+            {label(new Date(slots[i]).toISOString())}
           </span>
         ))}
       </div>

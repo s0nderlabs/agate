@@ -107,6 +107,9 @@ export function useRealAccount(active: boolean): Account {
    *  just told what changed: a read this early can still be a block behind), and again as the indexer catches up. */
   const afterReceipt = useCallback(
     (now = true) => {
+      // markets and books skip Agate's snapshot for 20 s (and never take one read before this), so they show the
+      // trade at once instead of the book from before it; the wallet's own sends cannot tell the client themselves
+      void getAgate().then((a) => a.freshReads(), () => {});
       const again = () => void qc.invalidateQueries({ queryKey: ["live"] });
       if (now) again();
       window.setTimeout(again, 4_000);

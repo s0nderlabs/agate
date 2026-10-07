@@ -1,0 +1,480 @@
+/* Positions, reworked (Oct 6 mock): one hero number on the page ground, the months as sections of cards (the ticket's
+   --card surface with a hairline ring), "Paid to you" and the AIs in a second column from 1100 px. Tokens only, so
+   light and dark follow the screen's tone. Below 1100 px one column in the order the page is read and tabbed (filter,
+   hero, months, paid to you, AIs); below 640 px a phone's gutters, full-width actions and the bottom dock's clearance. */
+.screen {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+}
+.main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px max(32px, env(safe-area-inset-right)) 56px max(32px, env(safe-area-inset-left));
+}
+
+/* ---------- layout: two columns from 1100 px; below, the second column follows the first ---------- */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+.col {
+  display: grid;
+  gap: 32px;
+  align-content: start;
+  min-width: 0;
+}
+@media (min-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    column-gap: 56px;
+  }
+}
+
+/* ---------- the You / AI filter ---------- */
+.filterRow {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.filter {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.filter > button {
+  min-height: 40px;
+  font-size: 15px;
+}
+.quiet {
+  font-size: 15px;
+  color: var(--mute-text);
+}
+
+/* ---------- the hero ---------- */
+.hero {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  min-width: 0;
+}
+.heroLabel {
+  font-size: 16px;
+  color: var(--ink-2);
+}
+.heroNum {
+  font-size: clamp(52px, 7vw, 80px);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.015em;
+}
+.heroNone {
+  font-size: clamp(36px, 4.5vw, 48px);
+  color: var(--ink-2);
+}
+.heroChange {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  font-size: 17px;
+  color: var(--ink-2);
+}
+.heroQuiet {
+  font-size: 15px;
+  color: var(--mute-text);
+}
+.changeWords {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.readyPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  margin-top: 2px;
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--well);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.readyDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--up);
+}
+.heroActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+.heroActs > :global(.ag-btn) {
+  min-height: 48px;
+  min-width: 140px;
+  padding: 0 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 16px;
+  text-decoration: none;
+}
+
+/* the change, with its arrow: color only for direction */
+.change {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.change[data-tone="up"] {
+  color: var(--up);
+}
+.change[data-tone="down"] {
+  color: var(--down);
+}
+.arrow {
+  align-self: center;
+  flex: none;
+}
+
+/* ---------- months ---------- */
+.months {
+  display: grid;
+  gap: 40px;
+}
+.month {
+  display: grid;
+  gap: 14px;
+}
+.monthHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+.monthTitle {
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.monthLine {
+  font-size: 15px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.monthLine[data-stage="final"] {
+  color: var(--ink);
+}
+.days {
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+  overflow: hidden;
+}
+.days > span {
+  display: block;
+  height: 100%;
+  background: var(--ink-2);
+}
+
+/* ---------- a holding: a card, its head (the GPU and its one action), then two lines ---------- */
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.card {
+  display: grid;
+  padding: 0 18px 16px;
+  background: var(--card);
+  border-radius: var(--r-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  margin-bottom: 14px;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.cardWho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+  min-width: 0;
+}
+.gpu {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+}
+.gpu > svg {
+  color: var(--mute);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  a.gpu:hover > svg {
+    color: var(--ink);
+    transform: translateX(2px);
+  }
+}
+.by {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.cardActs {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.cardActs > :global(.ag-btn) {
+  min-height: 40px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+.cardActs > :global(.ag-btn) > :global(.ag-spinner) {
+  width: 16px;
+  height: 16px;
+}
+/* the right column (worth over what it pays) takes at most half, so a longer pays line wraps there instead of
+   squeezing the side and size on a phone */
+.cardBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) fit-content(50%);
+  align-items: baseline;
+  gap: 4px 16px;
+}
+.what {
+  font-size: 16px;
+  font-weight: 500;
+  min-width: 0;
+}
+.worth {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 2px 10px;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+.cost,
+.pays {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.pays {
+  text-align: right;
+}
+.card[data-done] .what,
+.card[data-done] .worth > span:first-child {
+  color: var(--ink-2);
+}
+
+/* ---------- Paid to you ---------- */
+.paid {
+  display: grid;
+  gap: 12px;
+  padding: 20px 20px 10px;
+  background: var(--card);
+  border-radius: var(--r-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  min-width: 0;
+}
+.paidTitle {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.paidNum {
+  font-size: 44px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  margin-top: -4px;
+}
+.paidLine {
+  font-size: 15px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+/* the month's days as bars: paid (as tall as its share), paid at once with the purchase, still to come */
+.strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 56px;
+  margin-top: 4px;
+}
+.strip > span {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 1px;
+  background: var(--line-2);
+}
+.strip > span[data-k="paid"] {
+  background: var(--up);
+}
+.strip > span[data-k="atOnce"] {
+  background: color-mix(in oklch, var(--up) 35%, transparent);
+}
+.dayRows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.dayRows > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  font-size: 15px;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.dayRows > li:last-child {
+  box-shadow: none;
+}
+.dayPrice {
+  color: var(--mute-text);
+}
+.dayAmt {
+  font-weight: 500;
+  color: var(--up);
+  white-space: nowrap;
+}
+
+/* ---------- the AIs, empty and signed out ---------- */
+.h2 {
+  font-size: 17px;
+  font-weight: 500;
+}
+.ais {
+  display: grid;
+  gap: 4px;
+}
+.lineCopy {
+  font-size: 16px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+  max-width: 56ch;
+}
+.outsideWrap {
+  display: grid;
+  gap: 40px;
+  max-width: 600px;
+}
+.outside {
+  display: grid;
+  gap: 18px;
+}
+.outside .heroActs {
+  margin-top: 0;
+}
+.title {
+  font-size: 34px;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+/* the example: faded, and fading out toward the line under it (Lighter's signed-out preview) */
+.preview {
+  display: grid;
+  gap: 14px;
+  opacity: 0.55;
+  pointer-events: none;
+  user-select: none;
+  -webkit-mask-image: linear-gradient(to bottom, var(--ink) 60%, transparent);
+  mask-image: linear-gradient(to bottom, var(--ink) 60%, transparent);
+}
+.skelCard {
+  height: 128px;
+}
+
+/* ---------- phones ---------- */
+@media (max-width: 639.98px) {
+  .main {
+    padding: 20px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+  }
+  .layout,
+  .col {
+    gap: 28px;
+  }
+  .filterRow {
+    justify-items: stretch;
+  }
+  .filter {
+    display: flex;
+  }
+  .filter > button {
+    flex: 1 1 0;
+    min-height: 44px;
+  }
+  .heroActs {
+    width: 100%;
+  }
+  .heroActs > :global(.ag-btn) {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 52px;
+    padding: 0 16px;
+  }
+  .card {
+    padding: 0 14px 14px;
+  }
+  .cardActs > :global(.ag-btn) {
+    min-height: 44px;
+  }
+  .monthTitle {
+    font-size: 24px;
+  }
+  .monthHead {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .paid {
+    padding: 18px 16px 8px;
+  }
+  .title {
+    font-size: 30px;
+  }
+  /* the page ends above the phone's bottom tabs */
+  .screen[data-phone="new"] {
+    padding-bottom: calc(var(--dock-h, 0px) + env(safe-area-inset-bottom));
+  }
+}
+@media (pointer: coarse) {
+  .cardActs > :global(.ag-btn),
+  .filter > button {
+    min-height: 44px;
+  }
+}

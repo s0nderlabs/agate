@@ -36,10 +36,18 @@ export interface DataSource {
 
 export const EMPTY_BOOK: Book = { asks: [], bids: [], spread: 0 };
 
+/** When the live markets on screen were read (ms, this browser's clock). A read from Agate's snapshot can be up to a
+ *  minute older than the request that brought it, so freshness counts from this, not from when the page asked. */
+export const marketsReadAt = { at: 0 };
+
 export const liveSource: DataSource = {
   key: "live",
   kind: "live",
-  markets: async () => (await getAgate()).getMarkets(),
+  markets: async () => {
+    const r = await (await getAgate()).getMarketsAt();
+    marketsReadAt.at = r.readAt;
+    return r.markets;
+  },
   book: async (gpu, month) => (await getAgate()).book(gpu, month),
   fills: async (gpu, month, limit) => (await getAgate()).recentFills(gpu, month, limit),
   candles: async (gpu, month) => (await getAgate()).candles(gpu, month),

@@ -288,7 +288,7 @@ export function usePretendAccount(): Account {
   // a practice plan keeps the trade it will record beside it, out of the shared plan shape
   const practice = useRef(new WeakMap<AccountPlan, OpenArgs>());
   // a practice close keeps the position and what comes back
-  const closes = useRef(new WeakMap<AccountPlan, { id: string; back: number; result: Omit<DoneResult, "txHash" | "userOpHash"> }>());
+  const closes = useRef(new WeakMap<AccountPlan, { id: string; back: number; left: number; result: Omit<DoneResult, "txHash" | "userOpHash"> }>());
 
   const plan = useCallback(async (order: Order, shown?: TicketShown): Promise<AccountPlan> => {
     const account = live.current.wallet.address || PRETEND_ADDRESS;
@@ -300,7 +300,8 @@ export function usePretendAccount(): Account {
       // what it was paid; a Short buys back at the ask and gets the ceiling less what it was paid
       const pos = shown.close;
       if (!pos || !(shown.price > 0)) throw new Error("Can't read the market's price right now. Nothing was sent. Try again in a moment.");
-      const q = pos.q;
+      // held tokens can sell a part (the ticket's GPU-hours); a pay me daily Long or a Short closes whole
+      const q = action === "closeLong" && shown.gpuHours > 0 ? Math.min(pos.q, shown.gpuHours) : pos.q;
       const cents = (x: number) => Math.round(x * 100) / 100;
       const spent = action === "closeShort" ? cents(shown.price * q) : 0;
       const received = cents(action === "closeShort" ? q * shown.cap - pos.paid : shown.price * q - (action === "closeLongDaily" ? pos.paid : 0));
@@ -318,7 +319,9 @@ export function usePretendAccount(): Account {
         },
         plannedAt: Date.now(),
       };
-      closes.current.set(p, { id: pos.id, back: received - spent, result: { action, gpuHours: q, spent, received } });
+      // a part of held tokens leaves the rest held; a whole close (or anything else) ends the holding
+      const left = action === "closeLong" ? Math.max(0, Math.round((pos.q - q) * 1e4) / 1e4) : 0;
+      closes.current.set(p, { id: pos.id, back: received - spent, left, result: { action, gpuHours: q, spent, received } });
       return p;
     }
     const L = shown.side === "long";
@@ -356,7 +359,8 @@ export function usePretendAccount(): Account {
           later(PRETEND_MS.signing, () => {
             onStep?.("sending");
             later(PRETEND_MS.landing, () => {
-              live.current.store.finish(c.id, "closed", c.back);
+              if (c.left > 0) live.current.store.finish(c.id, "partial", c.back, c.left);
+              else live.current.store.finish(c.id, "closed", c.back);
               resolve({ ...c.result, txHash: null, userOpHash: null });
             });
           });
@@ -399,7 +403,15 @@ export function usePretendAccount(): Account {
     const held = example && config.holds === "nov" ? holderPositions(config.when) : [];
     // practice trades follow the Day too (paid so far, what a collect pays), as if made on the example's own morning
     const own = example ? wallet.positions.map((p) => positionAt(p, config.when)) : wallet.positions;
-    return [...held.filter((p) => finished[p.id]?.how !== "closed"), ...own].map((p) => (finished[p.id]?.how === "collected" ? { ...p, paid: p.paid + p.claimable, claimable: 0 } : p));
+    // a partly sold example holding keeps what is left (what it pays scales with it)
+    const sold = (p: Position) => {
+      const f = finished[p.id];
+      // a partial sale's size stays through a later collect (store.tsx keeps `left`)
+      if (f?.how === "closed" || f?.left === undefined || !(p.q > 0)) return p;
+      const r = f.left / p.q;
+      return { ...p, q: f.left, paid: Math.round(p.paid * r * 100) / 100, claimable: Math.round(p.claimable * r * 100) / 100 };
+    };
+    return [...held.filter((p) => finished[p.id]?.how !== "closed").map(sold), ...own].map((p) => (finished[p.id]?.how === "collected" ? { ...p, paid: p.paid + p.claimable, claimable: 0 } : p));
   }, [config.source, config.holds, config.when, finished, wallet.positions]);
   const collect = useCallback(
     (p: Position) =>

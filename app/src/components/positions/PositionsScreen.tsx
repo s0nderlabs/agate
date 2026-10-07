@@ -17,9 +17,18 @@ import { DRIP, useAccount } from "@/lib/account";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { useThemeColor } from "@/lib/ui/hooks";
 import { int, usd0 } from "@/lib/format";
+import { PositionsNew } from "./PositionsNew";
+import { PositionsMarket } from "./PositionsMarket";
 import s from "./positions.module.css";
 
+/** Mock controls "Positions page": the market-frame page (Oct 7, round 2), round 1's rework (Oct 6), or the one
+ *  before exactly. */
 export function PositionsScreen() {
+  const { config } = useMock();
+  return config.positionsUi === "before" ? <PositionsBefore /> : config.positionsUi === "new" ? <PositionsNew /> : <PositionsMarket />;
+}
+
+function PositionsBefore() {
   const { config } = useMock();
   const account = useAccount();
   const { openSignIn } = useFlow();

@@ -1,0 +1,585 @@
+/* Positions in the market page's frame (Oct 7, round 2). The panels, the header, the chart bar, the legend and the
+   strip are the market page's own classes (trade.module.css, shell.module.css); this file adds only the page's areas,
+   the holdings list, the rail's pieces and the paid days. One flat surface: the grid's own color shows through 1 px
+   gaps as hairlines. Tokens only, so light and dark follow the screen's tone. */
+
+/* ---------- the page grid: head, chart and list on the left, the rail the full height on the right ---------- */
+.grid {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  box-shadow: 0 -1px 0 var(--line);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "head" "chart" "list" "ticket";
+}
+.grid[data-empty] {
+  grid-template-areas: "head" "chart" "ticket";
+}
+@media (min-width: 1100px) {
+  .grid {
+    flex: 1 1 0;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "head ticket" "chart ticket" "list ticket";
+  }
+  .grid[data-empty] {
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "head ticket" "chart ticket";
+  }
+}
+/* phones (new layout): the header's four figures in their own panel under it, as the market page does */
+@media (max-width: 639.98px) {
+  :global([data-phone="new"]) .grid {
+    grid-template-areas: "head" "stats" "chart" "list" "ticket";
+  }
+  :global([data-phone="new"]) .grid[data-empty] {
+    grid-template-areas: "head" "chart" "ticket";
+  }
+}
+
+/* the chart keeps a fixed, comfortable height, so the holdings list is on the first screen; empty, it takes the spare
+   height like the market's chart */
+.grid .chartBox {
+  flex: none;
+  height: clamp(220px, 26vh, 300px);
+  min-height: 0;
+}
+.grid[data-empty] .chartBox {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: clamp(240px, 30vh, 340px);
+}
+
+/* the list and the rail scroll inside themselves on desktop, like the market's ticket column */
+.listPanel {
+  grid-area: list;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+.rail {
+  grid-area: ticket;
+  scroll-margin-top: var(--nav-h, 68px);
+}
+@media (min-width: 1100px) {
+  .listPanel,
+  .rail {
+    position: relative;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-2) transparent;
+  }
+}
+.railInner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100%;
+}
+
+/* titles inside a panel: the ticket's size */
+.h2 {
+  font-size: 17px;
+  font-weight: 500;
+}
+.h2:focus-visible {
+  outline: 1px solid var(--line-2);
+  outline-offset: 3px;
+}
+.quiet {
+  font-size: 15px;
+  color: var(--mute-text);
+  text-wrap: pretty;
+}
+
+/* ---------- the strip: one tab per scope; phones split the row evenly between however many there are ---------- */
+@media (max-width: 639.98px) {
+  :global([data-phone="new"]) .scopes.scopes {
+    grid-template-columns: repeat(var(--tabs, 1), minmax(0, 1fr));
+  }
+}
+
+/* ---------- the chart's marks: what you paid as a dashed mute line ---------- */
+.costLine {
+  fill: none;
+  stroke: var(--mute);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+i.lgDash {
+  background: repeating-linear-gradient(90deg, var(--mute) 0 5px, transparent 5px 8px);
+}
+
+/* the empty page's faded example, the way in centered over it */
+.exampleBox {
+  position: relative;
+}
+.example {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.35;
+  pointer-events: none;
+}
+.exampleActs {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+}
+.actRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.exampleActs :global(.ag-btn) {
+  min-height: 48px;
+  min-width: 160px;
+  padding: 0 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 16px;
+  text-decoration: none;
+}
+
+/* ---------- Paid to you: the month's days as bars ---------- */
+.paid {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+.paidLine {
+  font-size: 15px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.paidRead {
+  min-height: 1.45em;
+  font-size: 16px;
+  font-weight: 500;
+}
+.paidRead em {
+  font-style: normal;
+  color: var(--up);
+}
+.bars {
+  flex: 1 1 auto;
+  min-height: 72px;
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  margin-top: 10px;
+}
+.bar {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.bar > span {
+  width: 100%;
+  border-radius: 1px;
+  background: color-mix(in oklch, var(--up) 55%, transparent);
+  transition: background-color 120ms ease;
+}
+/* days paid with what was paid at once, and days still to come: small flat marks */
+.bar[data-k="atOnce"] > span {
+  height: 6px;
+  background: var(--line-2);
+}
+.bar[data-k="ahead"] > span {
+  height: 6px;
+  background: var(--line);
+}
+.bar[aria-pressed="true"] > span {
+  background: var(--up);
+}
+.bar[data-k="atOnce"][aria-pressed="true"] > span,
+.bar[data-k="ahead"][aria-pressed="true"] > span {
+  background: var(--mute);
+}
+.bar:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.barAxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--mute);
+}
+
+/* ---------- the holdings: one aligned grid; each month opens with its line ---------- */
+.table {
+  display: grid;
+  grid-template-columns: minmax(220px, 2.2fr) repeat(3, minmax(min-content, 1fr)) minmax(132px, 1.2fr) auto;
+  column-gap: 28px;
+}
+.headRow,
+.group,
+.row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+.headRow {
+  padding: 0 12px 10px;
+  font-size: 15px;
+  color: var(--ink-2);
+  line-height: 1.25;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.groupRow {
+  grid-column: 1 / -1;
+  padding: 18px 12px 8px;
+}
+.groupRow > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 14px;
+}
+.groupRow b {
+  font-size: 16px;
+  font-weight: 500;
+}
+.groupRow b + span {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.row {
+  min-height: 60px;
+  padding: 0 12px;
+  font-size: 16px;
+  border-radius: var(--r-1);
+  cursor: pointer;
+  outline: none;
+}
+.row + .row {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.row[aria-selected="true"] {
+  background: var(--seg-on);
+  box-shadow: var(--lift);
+}
+.row[aria-selected="true"] + .row {
+  box-shadow: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .row:not([aria-selected="true"]):hover {
+    background: var(--well);
+  }
+}
+.row:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+.num {
+  text-align: right;
+  white-space: nowrap;
+}
+.num[data-tone="up"],
+.worth [data-tone="up"] {
+  color: var(--up);
+}
+.num[data-tone="down"],
+.worth [data-tone="down"] {
+  color: var(--down);
+}
+.cHold {
+  display: grid;
+  gap: 1px;
+  padding: 8px 0;
+  min-width: 0;
+}
+.cHold > span {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+/* the name, and whose pocket holds it, on one line */
+.cHold > .cTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  font-size: 16px;
+  color: var(--ink);
+}
+.cTop > b {
+  font-weight: 500;
+}
+/* bought, then now: the old price quiet, the arrow quieter */
+.then {
+  color: var(--ink-2);
+}
+.arrow {
+  color: var(--mute);
+}
+.cHold > .by,
+.by {
+  color: var(--mute-text);
+}
+.pays {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.row[data-done] .num,
+.row[data-done] .cTop > b {
+  color: var(--ink-2);
+}
+.act {
+  display: flex;
+  justify-content: flex-end;
+}
+.closeBtn.closeBtn {
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 15px;
+}
+
+/* phones: each holding as round 1's two-line card (side and size over cost, worth and change over what it pays) */
+.card {
+  display: none;
+}
+@media (max-width: 759.98px) {
+  .table {
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 0;
+  }
+  .headRow {
+    display: none;
+  }
+  .row {
+    display: block;
+    padding: 12px;
+  }
+  .row > :not(.card) {
+    display: none;
+  }
+  .card {
+    display: grid;
+    gap: 8px;
+  }
+  .groupRow > span {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+}
+.cardWho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 12px;
+  min-width: 0;
+}
+.cardWho > b {
+  font-weight: 500;
+}
+.cardWho > .by {
+  font-size: 15px;
+}
+.cardBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) fit-content(50%);
+  align-items: baseline;
+  gap: 4px 16px;
+}
+.what {
+  font-weight: 500;
+  min-width: 0;
+}
+.worth {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.cost,
+.cardPays {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.cardPays {
+  text-align: right;
+}
+@media (pointer: coarse) {
+  .closeBtn.closeBtn {
+    min-height: 44px;
+  }
+}
+
+/* loading: the list's and the rail's shapes */
+.skelRow {
+  height: 60px;
+}
+.skelHold {
+  height: 64px;
+}
+
+/* ---------- the rail ---------- */
+.go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.go > svg {
+  color: var(--mute);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .go:hover {
+    color: var(--ink);
+  }
+  .go:hover > svg {
+    color: var(--ink);
+    transform: translateX(2px);
+  }
+}
+.go:focus-visible {
+  outline: 1px solid var(--line-2);
+  outline-offset: 3px;
+}
+
+/* the timeline: a 1 px line joining 9 px dots; past filled in ink, still to come a ring */
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.steps > li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-items: start;
+  padding: 6px 0;
+  font-size: 15px;
+}
+.steps > li:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 17px;
+  bottom: -17px;
+  width: 1px;
+  background: var(--line-2);
+}
+.dot {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin-top: 6.5px;
+  border-radius: 50%;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1.5px var(--mute);
+}
+.steps > li[data-done] .dot {
+  background: var(--ink);
+  box-shadow: none;
+}
+.stepText {
+  display: grid;
+  min-width: 0;
+}
+.stepSub {
+  color: var(--mute-text);
+}
+.stepWhen {
+  color: var(--ink-2);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* a full-width action in the rail (Collect, an AI's pocket) */
+.wide.wide {
+  width: 100%;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 16px;
+  text-decoration: none;
+}
+
+/* the close: the trade panel's own form under one title, after a hairline (its title, holding line and "Not now"
+   belong to its sheet form, so they stay out of the rail) */
+.closeSec {
+  display: grid;
+  gap: 14px;
+  margin-top: 6px;
+  padding-top: 20px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.closeForm {
+  display: grid;
+  gap: 14px;
+}
+.closeForm > h2,
+.closeForm > h2 + div,
+.closeForm > :global(.ag-btn--quiet) {
+  display: none;
+}
+
+/* your AIs at the foot of the rail (pushed down when the rail is taller than what it holds) */
+.ais {
+  display: grid;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 20px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.railInner > .ais:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  box-shadow: none;
+}
+
+/* the header's figures in one row, a hairline before each (two or three of them: two rows would leave a hole);
+   phones keep the market's two columns */
+@media (min-width: 601px) {
+  dl.stats {
+    grid-template-rows: auto;
+  }
+  dl.stats > div:nth-child(2) {
+    padding-left: 22px;
+    box-shadow: inset 1px 0 0 var(--line);
+  }
+  dl.stats > div:nth-child(2):not(:last-child) {
+    padding-right: 22px;
+  }
+}

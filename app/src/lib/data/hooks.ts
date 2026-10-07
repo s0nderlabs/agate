@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Gpu, Market, Position, Series } from "@/lib/mock/types";
 import { useSource } from "./context";
 import { placeholderMarket } from "./derive";
-import { EMPTY_BOOK, type DataSource } from "./source";
+import { EMPTY_BOOK, marketsReadAt, type DataSource } from "./source";
 
 /** Two more tries, 5 s then 10 s apart: the client already retries a failed multicall and viem its requests, so more
  *  would hammer a rate-limited RPC. The example source answers at once (or deliberately not at all). */
@@ -64,17 +64,19 @@ function marketsQuery(source: DataSource) {
   };
 }
 
-function statusOf(q: { isPending: boolean; isError: boolean; data: unknown; dataUpdatedAt: number }) {
+/** readAt: when the data itself was read, when that is older than the fetch (a live read from Agate's snapshot) */
+function statusOf(q: { isPending: boolean; isError: boolean; data: unknown; dataUpdatedAt: number }, readAt = 0) {
   const has = q.data !== undefined;
+  const at = readAt > 0 && readAt < q.dataUpdatedAt ? readAt : q.dataUpdatedAt;
   return {
     /** nothing to show yet (the first read is on its way) */
     loading: q.isPending,
     /** the last read failed (after its retries) */
     error: q.isError,
     /** showing data that is no longer fresh: the last read failed, or nothing new for two minutes in view */
-    stale: has && (q.isError || isOld(q.dataUpdatedAt)),
+    stale: has && (q.isError || isOld(at)),
     /** when the data shown was read (ms), 0 before the first read */
-    updatedAt: has ? q.dataUpdatedAt : 0,
+    updatedAt: has ? at : 0,
   };
 }
 
@@ -82,14 +84,14 @@ function statusOf(q: { isPending: boolean; isError: boolean; data: unknown; data
 export function useMarkets() {
   const source = useSource();
   const q = useQuery(marketsQuery(source));
-  return { markets: q.data, ...statusOf(q) };
+  return { markets: q.data, ...statusOf(q, source.kind === "live" ? marketsReadAt.at : 0) };
 }
 
 /** One GPU from the same read (a GPU switch is instant: no new request). */
 export function useMarket(gpu: Gpu) {
   const source = useSource();
   const q = useQuery({ ...marketsQuery(source), select: (ms: Market[]) => ms.find((m) => m.gpu === gpu) });
-  return { market: q.data, ...statusOf(q) };
+  return { market: q.data, ...statusOf(q, source.kind === "live" ? marketsReadAt.at : 0) };
 }
 
 /** One GPU for a screen: the market, or a neutral stand-in while nothing has loaded (or the read failed), so the

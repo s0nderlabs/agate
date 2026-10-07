@@ -36,6 +36,15 @@ export interface MockConfig {
   holds: "none" | "nov";
   /** Simple's months, being judged: one (the next full month beside the index) or every open month (before) */
   months: "one" | "both";
+  /** being judged (Oct 6 rework study): the trade panel closes what you hold (Open | Close tabs) or only opens (before) */
+  closeUi: "tabs" | "before";
+  /** being judged: the month chart's candle size follows its range (1D hourly, 1W 4-hourly, Since listing daily; Pro
+   *  can override) or is always hourly (before) */
+  candles: "auto" | "before";
+  /** being judged: Positions in the market page's frame (round 2, Oct 7), the Oct 6 rework, or the page before */
+  positionsUi: "market" | "new" | "before";
+  /** being judged: Index in the market page's frame (round 2, Oct 7), the Oct 6 rework, or the page before */
+  indexUi: "market" | "new" | "before";
 }
 
 export const MOMENTS = ["oct", "nov3", "nov13", "nov30", "dec1gap", "dec1final"] as const;
@@ -58,7 +67,7 @@ export const MOCK_CONTROLS = flag === "on" || (flag !== "off" && process.env.NOD
 // source: example data by default while the live empty states are reviewed (flip to "live" once November lists);
 // a build without Mock controls is always live, so its links never carry ?source. pbar: filled, the research
 // pick (Oct 4: every persistent trade bar measured is filled; tint keeps meaning "picked side" inside the ticket)
-export const DEFAULT_CONFIG: MockConfig = { dfill: "deep", mode: "simple", theme: "light", auth: "out", data: "normal", gpu: "H100", source: MOCK_CONTROLS ? "example" : "live", dock: "closed", phone: "new", pbar: "fill", signin: "auto", ais: "none", connect: "normal", disc: "normal", when: "oct", holds: "none", months: "one" };
+export const DEFAULT_CONFIG: MockConfig = { dfill: "deep", mode: "simple", theme: "light", auth: "out", data: "normal", gpu: "H100", source: MOCK_CONTROLS ? "example" : "live", dock: "closed", phone: "new", pbar: "fill", signin: "auto", ais: "none", connect: "normal", disc: "normal", when: "oct", holds: "none", months: "one", closeUi: MOCK_CONTROLS ? "tabs" : "before", candles: MOCK_CONTROLS ? "auto" : "before", positionsUi: MOCK_CONTROLS ? "market" : "before", indexUi: MOCK_CONTROLS ? "market" : "before" };
 
 export function parseConfig(sp: Record<string, string | string[] | undefined>): MockConfig {
   const pick = <T extends string>(k: string, allowed: readonly T[], d: T): T => {
@@ -84,13 +93,20 @@ export function parseConfig(sp: Record<string, string | string[] | undefined>): 
     when: pick("when", MOMENTS, DEFAULT_CONFIG.when),
     holds: pick("holds", ["none", "nov"] as const, DEFAULT_CONFIG.holds),
     months: pick("months", ["one", "both"] as const, DEFAULT_CONFIG.months),
+    closeUi: pick("closeUi", ["tabs", "before"] as const, DEFAULT_CONFIG.closeUi),
+    candles: pick("candles", ["auto", "before"] as const, DEFAULT_CONFIG.candles),
+    positionsUi: pick("positionsUi", ["market", "new", "before"] as const, DEFAULT_CONFIG.positionsUi),
+    indexUi: pick("indexUi", ["market", "new", "before"] as const, DEFAULT_CONFIG.indexUi),
   };
   // a build without the controls (a hosted one) shows live data only: example numbers can never reach it from a link
   if (!MOCK_CONTROLS) all.source = "live";
   // without the controls, options being judged stay at their default and the made-up data states and the panel
   // cannot be opened from a link
   const D = DEFAULT_CONFIG;
-  return MOCK_CONTROLS ? all : { ...all, dfill: D.dfill, data: D.data, dock: D.dock, phone: D.phone, pbar: D.pbar, signin: D.signin, ais: D.ais, connect: D.connect, disc: D.disc, when: D.when, holds: D.holds, months: D.months };
+  // the Oct 6 rework mocks stay "before" in a hosted build until they are judged (other commits ship meanwhile)
+  return MOCK_CONTROLS
+    ? all
+    : { ...all, dfill: D.dfill, data: D.data, dock: D.dock, phone: D.phone, pbar: D.pbar, signin: D.signin, ais: D.ais, connect: D.connect, disc: D.disc, when: D.when, holds: D.holds, months: D.months, closeUi: "before", candles: "before", positionsUi: "before", indexUi: "before" };
 }
 
 /** A render-check tab (opened with ?agentcheck=1): it keeps its own wallets and pocket dollars, so it never touches a person's own. */

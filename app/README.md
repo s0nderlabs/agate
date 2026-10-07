@@ -22,6 +22,8 @@ bun run build
 
 Phones (under 640 px) get one column with a Long/Short bar over four bottom tabs (Markets, Positions, Index, More); the ticket opens as a bottom sheet with Simple | Pro in its head. From 640 px the chart and the ticket sit side by side under a compact top bar; from 1100 px the trade screen is the full app shell. While a design is being judged, Mock controls keeps the previous phone layout as "Stacked (before)".
 
+Being judged in Mock controls (a hosted build keeps each one's "before" until it is decided): "Close from the panel" (Open | Close tabs over the ticket, a part of held tokens sold from the panel), "Candle size" (the range picks hourly, 4-hour or daily candles; Pro can pick its own), and "Positions page" / "Index page" in the market page's frame (`PositionsMarket.tsx`, `IndexMarket.tsx`: a strip, a header of figures, a chart panel and a right-hand panel, as on the trade screen), beside their Oct 6 rework and the page before.
+
 ## Settings
 
 | Variable | Default | What it does |

@@ -36,7 +36,8 @@ const first = (list: string | undefined) =>
     .split(",")
     .map((u) => u.trim())
     .filter(Boolean)[0];
-const origins = [process.env.NEXT_PUBLIC_AGATE_SNAPSHOT_URL?.trim(), first(process.env.NEXT_PUBLIC_AGATE_GRAPHQL_URL), first(process.env.NEXT_PUBLIC_AGATE_RPC_URL) ?? PUBLIC_RPC]
+const SNAPSHOT = process.env.NEXT_PUBLIC_AGATE_SNAPSHOT_URL?.trim() || null;
+const origins = [SNAPSHOT, first(process.env.NEXT_PUBLIC_AGATE_GRAPHQL_URL), first(process.env.NEXT_PUBLIC_AGATE_RPC_URL) ?? PUBLIC_RPC]
   .map((u) => {
     try {
       const url = u ? new URL(u) : null;
@@ -54,6 +55,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {[...new Set(origins)].map((o) => (
           <link key={o} rel="preconnect" href={o} crossOrigin="anonymous" />
         ))}
+        {/* the markets snapshot is the page's first read: fetched while the scripts load, so a first visit does not
+            wait for @agate/client's chunk before asking (the client's own fetch, same URL and mode, takes it) */}
+        {SNAPSHOT && <link rel="preload" as="fetch" href={SNAPSHOT} crossOrigin="anonymous" />}
         <link rel="preconnect" href="https://api.fontshare.com" />
         <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=erode@300,400,500&display=swap" />
       </head>

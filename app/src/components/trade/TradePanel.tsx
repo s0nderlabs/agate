@@ -1,6 +1,8 @@
 "use client";
 // The right-hand panel (round 4): which month, Long or Short, the price and what it means, size, pay me daily,
 // what it costs and risks (tied to the floor and ceiling), one button. Sized so the button sits above the fold.
+// Mock controls "Close from the trade panel" (closeUi): tabs puts Open | Close over it (ClosePanel.tsx) while the
+// account holds something in the month; before renders this panel alone, as it was.
 import { useFlow } from "@/components/markets/Flow";
 import { useMemo, useState } from "react";
 import { useBook, useNow } from "@/lib/data/hooks";
@@ -12,14 +14,26 @@ import { SideToggle } from "./SideToggle";
 import { monthName } from "@/components/markets/PriceChart";
 import { numbersFor, type Trade } from "@/components/markets/useTrade";
 import { Num } from "@/components/num/Num";
+import { useMock } from "@/lib/mock/store";
 import type { Market } from "@/lib/mock/types";
+import { TicketTabs } from "./ClosePanel";
 import { int, usd, usd0 } from "@/lib/format";
 import s from "./trade.module.css";
+
+type PanelProps = { market: Market; trade: Trade; held?: number; loading?: boolean; stale?: "none" | "stale" | "nodata" };
 
 /** held: test dollars already promised to resting limit orders (placed in Pro), so they cannot be spent twice.
  * loading: the first read is on its way (prices under skeletons, the button waits). stale: the prices are old (no
  * fresh read for two minutes), so the button waits for fresh ones. */
-export function TradePanel({ market, trade, held = 0, loading: marketLoading = false, stale = "none" }: { market: Market; trade: Trade; held?: number; loading?: boolean; stale?: "none" | "stale" | "nodata" }) {
+export function TradePanel(props: PanelProps) {
+  const { config } = useMock();
+  if (config.closeUi === "before") return <OpenPanel {...props} />;
+  return <TicketTabs market={props.market} trade={props.trade} always={false} loading={props.loading} stale={props.stale} renderOpen={(guard) => <OpenPanel {...props} guard={guard} />} />;
+}
+
+/** guard: Open's line under Long / Short when the side picked opens beside a holding of the other side (closeUi
+ * "tabs" only; absent, the panel renders as it always has). */
+function OpenPanel({ market, trade, held = 0, loading: marketLoading = false, stale = "none", guard }: PanelProps & { guard?: React.ReactNode }) {
   const { submit, openSignIn } = useFlow();
   const account = useAccount();
   const gated = !account.ready;
@@ -101,6 +115,7 @@ export function TradePanel({ market, trade, held = 0, loading: marketLoading = f
       <HeldNote month={n.series.month} />
 
       <SideToggle side={trade.side} onSide={trade.setSide} ask={noAsk ? null : top.ask} bid={noBid ? null : top.bid} skel={loading} />
+      {guard}
 
       {/* with nobody on this side there is no price to gain against: the line under the amount says so instead */}
       {!none && (

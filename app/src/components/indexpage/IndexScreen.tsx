@@ -16,8 +16,17 @@ import { NoData } from "@/components/trade/States";
 import s from "./index.module.css";
 import { BottomDock } from "@/components/shell/Dock";
 import { useThemeColor } from "@/lib/ui/hooks";
+import { IndexNew } from "./IndexNew";
+import { IndexMarket } from "./IndexMarket";
 
+/** Mock controls "Index page": the page in the market page's frame (Oct 7, IndexMarket.tsx), the first rework (Oct 6,
+ *  IndexNew.tsx), or this one as it was (before). */
 export function IndexScreen() {
+  const { config } = useMock();
+  return config.indexUi === "before" ? <IndexBefore /> : config.indexUi === "new" ? <IndexNew /> : <IndexMarket />;
+}
+
+function IndexBefore() {
   const { config } = useMock();
   // the shared markets read (a neutral stand-in until it answers)
   const read = useScreenMarket(config.gpu);

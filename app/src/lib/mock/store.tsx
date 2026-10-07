@@ -34,10 +34,12 @@ export interface OpenArgs {
   backNow?: number;
 }
 
-/** An example position collected or closed in this tab, and what came back. */
+/** An example position collected, closed or partly sold in this tab, and what came back. left: GPU-hours still held
+ *  after a partial sale. */
 export interface Finished {
-  how: "collected" | "closed";
+  how: "collected" | "closed" | "partial";
   dollars: number;
+  left?: number;
 }
 
 interface Ctx {
@@ -52,7 +54,7 @@ interface Ctx {
   shift: (dollars: number) => void;
   /** a position collected or closed: its dollars come in, a closed one leaves the wallet (the Day's example positions
    *  are kept here, by id, since they are made from the Day rather than saved) */
-  finish: (id: string, how: Finished["how"], dollars: number) => void;
+  finish: (id: string, how: Finished["how"], dollars: number, left?: number) => void;
   finished: Record<string, Finished>;
   /** the data source whose wallet is loaded in state (null between a source switch and its load) */
   loadedFor: MockConfig["source"] | null;
@@ -175,9 +177,14 @@ export function MockProvider({ initial, children }: { initial: MockConfig; child
       localStorage.setItem(`${key}-finished`, JSON.stringify(finished));
     } catch {}
   }, [finished, loadedKey, key]);
-  const finish = useCallback((id: string, how: Finished["how"], dollars: number) => {
-    setFinished((f) => ({ ...f, [id]: { how, dollars } }));
-    setWallet((w) => ({ ...w, balance: Math.max(0, Math.round((w.balance + dollars) * 100) / 100), positions: how === "closed" ? w.positions.filter((p) => p.id !== id) : w.positions }));
+  const finish = useCallback((id: string, how: Finished["how"], dollars: number, left?: number) => {
+    // a later collect keeps what a partial sale left (the holding stays that size)
+    setFinished((f) => ({ ...f, [id]: { how, dollars, left: left ?? (how === "collected" ? f[id]?.left : undefined) } }));
+    setWallet((w) => ({
+      ...w,
+      balance: Math.max(0, Math.round((w.balance + dollars) * 100) / 100),
+      positions: how === "closed" ? w.positions.filter((p) => p.id !== id) : how === "partial" ? w.positions.map((p) => (p.id === id ? { ...p, q: left ?? p.q } : p)) : w.positions,
+    }));
   }, []);
 
   const [resets, setResets] = useState(0);

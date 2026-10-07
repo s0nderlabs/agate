@@ -5,7 +5,7 @@
 // cannot be closed until it finishes.
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { DRIP, useAccount, type DoneResult, type Order, type SendStep } from "@/lib/account";
+import { DRIP, useAccount, type DoneResult, type Order, type SendStep, type TicketShown } from "@/lib/account";
 import { explorerTx } from "@/lib/account/aiView";
 import { COPY, refusalOfOrder, sendRefusal, type Refusal } from "@/lib/account/errors";
 import { guardFromQuote } from "@/lib/account/machine";
@@ -16,6 +16,7 @@ import { fmtHours } from "@/lib/size";
 import { int, usd, usd0 } from "@/lib/format";
 import { AccountHead, AccountSheet, AddressRow, AisRow, SECURED, SIGN_OUT_NOTE, useAiSummary, usePasskeyRow } from "@/components/flow/AccountSheet";
 import { CloseSheet } from "@/components/flow/CloseSheet";
+import { CloseForm } from "@/components/trade/ClosePanel";
 import { DisconnectSheet } from "@/components/flow/DisconnectSheet";
 import { dripOpen, useDrip } from "@/components/flow/DripButton";
 import { PocketSheet, type PocketTarget } from "@/components/flow/PocketSheet";
@@ -44,8 +45,12 @@ type Sheet =
   /** onMoved: the page that opened it hears when the dollars moved (a stopped connect run, after a take back) */
   | { kind: "pocket"; target: PocketTarget; mode: "add" | "takeBack"; onMoved?: (dollars: number) => void }
   | { kind: "disconnect"; grantId: string }
-  /** close a position (sell held tokens, or close a pay me daily Long or a Short) */
-  | { kind: "close"; p: Position }
+  /** close a position (sell held tokens, or close a pay me daily Long or a Short). order / shown: set on the close form
+   *  (mock option closeUi "tabs"), its amount and prices; back: Back returns to that form */
+  | { kind: "close"; p: Position; order?: Order; shown?: TicketShown; back?: boolean }
+  /** the close form for one holding (closeUi "tabs"): the trade panel's Close, as a sheet (the Positions page's Close).
+   *  hours: the amount it had, when Back from its review returns to it */
+  | { kind: "closeForm"; p: Position; hours?: number }
   | { kind: "howto" };
 
 interface FlowCtx {
@@ -64,8 +69,9 @@ interface FlowCtx {
   openPocket: (target: PocketTarget, mode: "add" | "takeBack", onMoved?: (dollars: number) => void) => void;
   /** disconnect a connected AI */
   openDisconnect: (grantId: string) => void;
-  /** close a position (the real account) */
-  openClose: (p: Position) => void;
+  /** close a position: with an order (the close form's), its review; without, the close form for it (closeUi "tabs")
+   *  or the whole position's review (before) */
+  openClose: (p: Position, set?: { order: Order; shown?: TicketShown }) => void;
   /** how to let an AI trade: add Agate's link to the AI app */
   openHowTo: () => void;
 }
@@ -178,7 +184,8 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
         signInFor: (opts) => setSheet({ kind: "signin", ...opts }),
         openPocket: (target, mode, onMoved) => setSheet({ kind: "pocket", target, mode, onMoved }),
         openDisconnect: (grantId) => setSheet({ kind: "disconnect", grantId }),
-        openClose: (p) => setSheet({ kind: "close", p }),
+        openClose: (p, set) =>
+          setSheet((at) => (set ? { kind: "close", p, ...set, back: at?.kind === "closeForm" } : config.closeUi === "tabs" ? { kind: "closeForm", p } : { kind: "close", p })),
         openHowTo: () => setSheet({ kind: "howto" }),
       }}
     >
@@ -207,7 +214,8 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
             {sheet.kind === "account" && <AccountSheet onClose={close} />}
             {sheet.kind === "pocket" && <PocketSheet target={sheet.target} mode={sheet.mode} onMoved={sheet.onMoved} onClose={close} onLock={setHeld} />}
             {sheet.kind === "disconnect" && <DisconnectSheet grantId={sheet.grantId} onClose={close} onLock={setHeld} />}
-            {sheet.kind === "close" && <CloseSheet p={sheet.p} onClose={close} onLock={setHeld} />}
+            {sheet.kind === "close" && <CloseSheet p={sheet.p} order={sheet.order} shown={sheet.shown} onBack={sheet.back ? () => setSheet({ kind: "closeForm", p: sheet.p, hours: sheet.shown?.gpuHours }) : undefined} onClose={close} onLock={setHeld} />}
+            {sheet.kind === "closeForm" && <CloseForm p={sheet.p} hours={sheet.hours} onClose={close} />}
             {sheet.kind === "howto" && (
               <>
                 <HowTo onGo={close} />

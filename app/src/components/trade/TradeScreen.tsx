@@ -61,8 +61,10 @@ export function TradeScreen() {
   // what the chart shows: the daily index (one fix a day, a step line) or the traded month (hourly, line or candles)
   const [series, setSeries] = useState<"index" | "month">("index");
   const [kind, setKind] = useState<"candles" | "line">("candles");
-  // the month chart's range: the last day, or everything since the month listed
-  const [span, setSpan] = useState<"day" | "all">("all");
+  // the month chart's range: the last day, the last week (the new candle sizes only), or everything since it listed
+  const [span, setSpan] = useState<"day" | "week" | "all">("all");
+  // Pro's own candle size; null follows the range (Mock controls "Candle size": follows the range, or always hourly)
+  const [sizePick, setSizePick] = useState<1 | 4 | 24 | null>(null);
   const cq = useCandles(trade.n.series);
   const candles = cq.candles;
   // the candles' own read: on its way (skeletons where their numbers go) or failed with nothing read (said so)
@@ -138,6 +140,20 @@ export function TradeScreen() {
   // trades yet"); none while they are on their way (the plot is a skeleton then)
   const monthLine = !loading && !nodata && !candlesWait && !monthDraw ? monthChartText(nov, st.indexerUp && !candlesFailed) : null;
   const sinceListing = hoursSinceListing(nov, now) || candles.length;
+  // the range picks the candle size (1D hourly, 1W 4-hourly, Since listing the largest size that still draws about
+  // 24 candles: daily from 24 days listed, 4-hourly from 4 days, else hourly), the way Robinhood and Coinbase's simple
+  // view pair them; Pro can override it while drawing candles. Before: hourly, with 1D or Since listing.
+  const autoSize = config.candles === "auto";
+  const spanNow = autoSize ? span : span === "week" ? "all" : span;
+  const spanHours = spanNow === "day" ? 24 : spanNow === "week" ? 168 : sinceListing;
+  const allSize = sinceListing >= 24 * 24 ? 24 : sinceListing >= 4 * 24 ? 4 : 1;
+  const candleSize = !autoSize ? 1 : (pro && kind === "candles" && sizePick) || (spanNow === "day" ? 1 : spanNow === "week" ? 4 : allSize);
+  // the last hour anything traded (the client repeats the close through quiet hours with no volume)
+  const lastTradeAt = useMemo(() => {
+    for (let i = candles.length - 1; i >= 0; i--) if (candles[i].v > 0) return Date.parse(candles[i].t) + 3_600_000;
+    return null;
+  }, [candles]);
+  const quietFor = lastTradeAt === null ? null : Math.floor((now - lastTradeAt) / 3_600_000);
   const srcPop = loading ? (
     <span className="ag-skel" aria-hidden="true">
       5 of 5 clouds
@@ -357,6 +373,22 @@ export function TradeScreen() {
                     </button>
                   </div>
                 )}
+                {/* Pro: the candle size beside the chart type (Lighter, Coinbase Advanced); a range tap resets it */}
+                {view === "month" && monthDraw && autoSize && pro && kind === "candles" && (
+                  <div className={s.ranges} role="group" aria-label="Candle size">
+                    {(
+                      [
+                        [1, "Hourly"],
+                        [4, "4-hour"],
+                        [24, "Daily"],
+                      ] as const
+                    ).map(([k, label]) => (
+                      <button key={k} aria-pressed={candleSize === k} onClick={() => setSizePick(k)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {view === "index"
                 ? !loading &&
@@ -381,17 +413,31 @@ export function TradeScreen() {
                     </div>
                   )
                 : monthDraw && (
-                    <div className={s.ranges} role="group" aria-label="Range">
-                      {(
-                        [
-                          ["day", "1D"],
-                          ["all", "Since listing"],
-                        ] as const
-                      ).map(([k, label]) => (
-                        <button key={k} aria-pressed={span === k} onClick={() => setSpan(k)}>
-                          {label}
-                        </button>
-                      ))}
+                    <div className={s.barRight}>
+                      <div className={s.ranges} role="group" aria-label="Range">
+                        {(autoSize
+                          ? ([
+                              ["day", "1D"],
+                              ["week", "1W"],
+                              ["all", "Since listing"],
+                            ] as const)
+                          : ([
+                              ["day", "1D"],
+                              ["all", "Since listing"],
+                            ] as const)
+                        ).map(([k, label]) => (
+                          <button
+                            key={k}
+                            aria-pressed={spanNow === k}
+                            onClick={() => {
+                              setSpan(k);
+                              setSizePick(null);
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
             </div>
@@ -411,7 +457,7 @@ export function TradeScreen() {
                 </StateBox>
               ) : (
                 // the axis runs from the listing, so the hours before the first trade stay empty
-                <CandleChart candles={candles} hours={span === "day" ? 24 : sinceListing} kind={kind} height="100%" startAt={nov.listedAt} />
+                <CandleChart candles={candles} hours={spanHours} size={candleSize} kind={kind} height="100%" startAt={nov.listedAt} />
               )}
             </div>
             {view === "index"
@@ -448,7 +494,13 @@ export function TradeScreen() {
                 )
               : monthDraw && (
                   <div className={s.legend}>
-                    <span>Hourly on Kuru since {monthName(nov.month)} listed{listedOn ? ` ${listedOn}` : ""}, mostly quoted by our market-maker bot on testnet.</span>
+                    <span>
+                      {autoSize ? `${candleSize === 1 ? "Hourly" : candleSize === 4 ? "4-hour" : "Daily"} ${kind === "line" ? "prices" : "candles"}` : "Hourly"} on Kuru since {monthName(nov.month)} listed{listedOn ? ` ${listedOn}` : ""}, mostly quoted by our market-maker bot on testnet.
+                    </span>
+                    {/* a thin market: a flat stretch is a quiet book, said in words */}
+                    {autoSize && quietFor !== null && quietFor >= 2 && (
+                      <span>Last trade {quietFor >= 48 ? `${Math.floor(quietFor / 24)} days` : `${quietFor} hours`} ago.</span>
+                    )}
                   </div>
                 )}
           </section>
