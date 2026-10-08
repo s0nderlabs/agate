@@ -5,7 +5,8 @@
 // liquidation price and margin, this says "none, fully backed", because a Long or Short here can never be
 // liquidated. Pro speaks trader (Order value, Max loss); Simple keeps the plain plan in GPUs x days.
 // Mock controls "Close from the trade panel" (closeUi): tabs puts Open | Close over it (ClosePanel.tsx), Close always
-// there in Pro; before renders this ticket alone, as it was.
+// there in Pro; before renders this ticket alone, as it was. A limit away from the book rests there: a practice order
+// in the example wallet (onPlace), or for the real account a post-only order on Kuru, planned and sent from the button.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFlow } from "@/components/markets/Flow";
 import { monthName } from "@/components/markets/PriceChart";
@@ -16,10 +17,13 @@ import { bandNow, topOf } from "@/lib/data/derive";
 import { emptySideText, MonthSeg, monthSoFarText } from "./States";
 import { numbersFor } from "@/components/markets/useTrade";
 import { useAccount } from "@/lib/account";
+import { COPY } from "@/lib/account/errors";
+import { limitTicketOrder, onCents } from "@/lib/account/ticket";
 import { useMock } from "@/lib/mock/store";
 import { cleanTyping, dollarsToHours, floorCents, floorHours, fmtDollars, fmtGpus, fmtHours, gpuWord, hoursToDollars, LIMIT_MAX, LIMIT_MIN, maxFor, parseAmount, showHours, walkDollars, walkHours } from "@/lib/size";
 import { SideToggle } from "./SideToggle";
 import { TicketTabs } from "./ClosePanel";
+import { useLimitRun } from "./useLimitRun";
 import type { Market } from "@/lib/mock/types";
 import { int, usd, usd0 } from "@/lib/format";
 import s from "./order.module.css";
@@ -31,7 +35,8 @@ export interface OpenOrder {
   side: "long" | "short";
   price: number;
   q: number;
-  /** test dollars the order holds while it rests (the price for a Long, ceiling - price for a Short, per GPU-hour) */
+  /** test dollars the order holds while it rests, per GPU-hour: the price for a Long; for a Short ceiling - price in
+   *  practice, the ceiling for the real account (it mints the pairs it sells; ticket.ts restingOpenOrder) */
   hold: number;
   daily: boolean;
   placedAt: string;
@@ -56,8 +61,9 @@ function OpenTicket({ market, trade, picked, held, onPlace, loading: marketLoadi
   const { config } = useMock();
   const account = useAccount();
   const signedIn = account.ready;
-  // the real account (live): an order that would wait in the book is not open yet; it fills now or not at all
+  // the real account (live): an order that waits in the book goes to Kuru from the button (useLimitRun)
   const realAccount = account.kind === "real";
+  const limitRun = useLimitRun();
   const series = trade.n.series;
   // the month's book (empty while it is not listed); its top is the quote, so the walk and the labels agree
   const bq = useBook(series);
@@ -114,20 +120,25 @@ function OpenTicket({ market, trade, picked, held, onPlace, loading: marketLoadi
     return limitOk ? side.filter((l) => (L ? l.price <= limit : l.price >= limit)) : side;
   }, [bk, L, limitOk, limit]);
   const typed = parseAmount(sizeStr) ?? 0;
-  const restPer = L ? price : series.cap - price;
+  // what a resting order takes from the balance per GPU-hour: a Long its price, a Short the ceiling less its price;
+  // the real account's Short mints the pairs it sells at the ceiling (its price comes back at Kuru when it fills)
+  const restPer = L ? price : realAccount ? series.cap : series.cap - price;
+  const mintsNow = realAccount && !L && type === "limit" && !crosses;
   const walk = crosses ? (unit === "usd" ? walkDollars(levels, trade.side, typed, series.cap) : walkHours(levels, trade.side, floorHours(typed), series.cap)) : null;
   const size = walk ? walk.filled : unit === "usd" ? (restPer > 0 ? floorHours(typed / restPer) : 0) : floorHours(typed);
   const fillPrice = walk ? walk.avg : price;
   // more than the book holds right now: say so, never fill less without asking (agate's ThinBook rule)
   const thin = !loading && !none && !!walk && (unit === "usd" ? typed - walk.outlay > 0.01 : walk.short);
   const depth = levels.reduce((a, l) => a + l.size, 0);
-  const balance = signedIn ? Math.max(0, account.balance - held) : 0;
+  // a real resting Long spends the test dollars already waiting at Kuru first (planPlaceLimit), so they count here too
+  const atKuru = realAccount && L && type === "limit" && !crosses ? account.marginBalance : 0;
+  const balance = signedIn ? Math.max(0, account.balance - held) + atKuru : 0;
   const max = crosses ? maxFor(levels, trade.side, balance, series.cap) : { hours: restPer > 0 ? Math.min(LIMIT_MAX, floorHours(balance / restPer)) : 0, dollars: balance, bookBound: false };
   const maxSize = max.hours;
   // Kuru takes resting limits of 1 to 1,000,000 GPU-hours
   const belowLimitMin = type === "limit" && !crosses && size > 0 && size < LIMIT_MIN;
   const aboveLimitMax = type === "limit" && !crosses && size > LIMIT_MAX;
-  const over = signedIn && size > 0 && (L ? fillPrice : series.cap - fillPrice) * size > balance + 0.005;
+  const over = signedIn && size > 0 && (crosses ? (L ? fillPrice : series.cap - fillPrice) : restPer) * size > balance + 0.005;
   const pct = maxSize > 0 ? Math.min(100, Math.round((size / maxSize) * 100)) : 0;
   // the slider and the % box set the size as a share of what the balance (and the book) allow
   const setShare = (p: number) => {
@@ -152,13 +163,26 @@ function OpenTicket({ market, trade, picked, held, onPlace, loading: marketLoadi
   const inputs = `${trade.side}|${type}|${limitStr}|${sizeStr}`;
   const placed = note?.at === inputs ? note.msg : null;
   const setPlaced = (msg: string) => setNote({ msg, at: inputs });
+  // the real account: a post-only order on Kuru, planned and sent as one operation; the line under the button says
+  // what happened (the Open orders list shows it at once)
+  const placeReal = () => {
+    if (limitRun.busy) return;
+    if (!onCents(price)) return setPlaced(COPY.priceStep);
+    if (over) return setPlaced(`Not enough test dollars: this order needs ${usd0(restPer * size)} and ${usd0(balance)} is free.`);
+    const at = inputs;
+    const what = `${L ? "Long" : "Short"} ${showHours(size)} GPU-hours at ${usd(price)}`;
+    void limitRun.run(limitTicketOrder({ gpu: market.gpu, month: series.month, side: trade.side, price, gpuHours: size })).then((r) => {
+      const msg = r.ok ? `${what} is waiting in the book.` : r.message;
+      if (msg) setNote({ msg, at });
+    });
+  };
   const go = () => {
     if (size <= 0) return;
     if (gated && !crosses) return openSignIn();
     // an order that fills now goes through the review sheets, unless open orders hold the dollars it needs
     if (crosses && !(over && held > 0)) return submit(n);
     if (!signedIn) return openSignIn();
-    if (realAccount) return setPlaced(`Orders that wait in the book aren't open yet. Set a price that fills now (${L ? `the best ask, ${usd(q.ask)}, or above` : `the best bid, ${usd(q.bid)}, or below`}), or use Market.`);
+    if (realAccount) return placeReal();
     if (n.outlay > balance + 0.005) return setPlaced(`Not enough test dollars: this order needs ${usd0(n.outlay)} and ${usd0(balance)} is free${held > 0 ? ` (${usd0(held)} is held by your open orders)` : ""}.`);
     onPlace({ id: Math.random().toString(36).slice(2, 10), gpu: market.gpu, month: series.month, side: trade.side, price, q: size, hold: n.outlay, daily: false, placedAt: new Date().toISOString() });
     setPlaced(`${L ? "Long" : "Short"} ${showHours(size)} GPU-hours at ${usd(price)} is waiting in the book.`);
@@ -322,10 +346,19 @@ function OpenTicket({ market, trade, picked, held, onPlace, loading: marketLoadi
         <div>
           <dt>{L ? "Order value" : "Collateral"}</dt>
           <dd className={skel}>
-            <Num>{usd0(n.outlay)}</Num>
+            {/* a real resting Short mints its pairs: the whole ceiling leaves the balance while it waits */}
+            <Num>{usd0(mintsNow ? restPer * size : n.outlay)}</Num>
           </dd>
         </div>
-        {n.backNow > 0 && (
+        {mintsNow && size > 0 && (
+          <div>
+            <dt>Back when it fills</dt>
+            <dd className={skel}>
+              <Num>{usd0(price * size)}</Num>
+            </dd>
+          </div>
+        )}
+        {!mintsNow && n.backNow > 0 && (
           <div>
             <dt>Back right away</dt>
             <dd>
@@ -361,9 +394,14 @@ function OpenTicket({ market, trade, picked, held, onPlace, loading: marketLoadi
 
       {/* the button and its line stay pinned at the bottom of the ticket on phones and tablets (no box on desktop) */}
       <div className={s.ctaBar}>
-        <button className={s.cta} data-side={trade.side} data-gate={gated} disabled={wait !== null || none || size <= 0 || (type === "limit" && !limitOk) || thin || belowLimitMin || aboveLimitMax} onClick={go}>
+        <button className={s.cta} data-side={trade.side} data-gate={gated} disabled={wait !== null || none || size <= 0 || (type === "limit" && !limitOk) || thin || belowLimitMin || aboveLimitMax || limitRun.busy} onClick={go}>
           {wait ?? (gated ? (
             "Sign in to trade"
+          ) : limitRun.busy ? (
+            <>
+              <span className="ag-spinner" aria-hidden="true" />
+              {limitRun.stepText}
+            </>
           ) : none ? (
             L ? "No sellers right now" : "No buyers right now"
           ) : (
@@ -373,7 +411,21 @@ function OpenTicket({ market, trade, picked, held, onPlace, loading: marketLoadi
           ))}
         </button>
         {gated && <p className={s.note}>Free to try: 10,000 test dollars a day.</p>}
-        {!gated && (placed ? <p className={s.note}>{placed}</p> : type === "limit" && limitOk && !crosses && <p className={s.note}>Rests in the book until it fills or you cancel it.</p>)}
+        {!gated &&
+          (placed ? (
+            <p className={realAccount ? `${s.note} ${s.noteLive}` : s.note} aria-live="polite">
+              {placed}
+            </p>
+          ) : (
+            type === "limit" &&
+            limitOk &&
+            !crosses && (
+              <p className={realAccount ? `${s.note} ${s.noteLive}` : s.note}>
+                Rests in the book until it fills or you cancel it.
+                {realAccount && !L && ` A Short puts up the ceiling, ${usd(series.cap)} a GPU-hour, while it waits; ${usd(price)} a GPU-hour comes back when it fills.`}
+              </p>
+            )
+          ))}
       </div>
     </div>
   );

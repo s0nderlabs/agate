@@ -453,3 +453,8 @@
     inset: -12px -6px;
   }
 }
+
+/* the real account's line under the button: what its resting order did on Kuru, or why not, at body size */
+.noteLive {
+  font-size: 15px;
+}

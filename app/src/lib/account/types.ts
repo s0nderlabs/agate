@@ -62,6 +62,79 @@ export type Order =
 /** The client's TradeSummary actions (plan.ts). */
 export type TradeAction = "openLong" | "openLongDaily" | "closeLong" | "openShort" | "closeShort" | "closeLongDaily" | "drip";
 
+/** Pro's resting limit orders on Kuru, one kind per plan builder (plan.ts planPlaceLimit, planCancelLimit,
+ * planWithdrawMargin); the real account's only, the pretend account keeps practice orders in the example wallet
+ * (mock/store.tsx useOpenOrders). A bid deposits its dollars; an ask mints the pairs it sells, so it opens a Short and
+ * never sells a Long held beside it. A cancel takes what it frees back to the account in the same batch; a filled
+ * order leaves its proceeds in Kuru's margin account until withdrawMargin moves them ("dollar", or a month's GPU-hours). */
+export type LimitOrder =
+  | ({ kind: "placeLimit"; side: Side; price: Decimal; gpuHours: Decimal } & OnMarket)
+  | ({ kind: "cancelLimit"; orderIds: string[] } & OnMarket)
+  | { kind: "withdrawMargin"; asset: "dollar" | OnMarket };
+
+/** The client's LimitSummary actions (plan.ts). */
+export type LimitAction = LimitOrder["kind"];
+
+/** A planned limit batch, shaped like @agate/client's Plan<LimitSummary> (plan.ts) so the real account hands it
+ * through as is. Nothing here is a bound: a resting order fills at its own price or not at all. */
+export interface LimitPlan {
+  account: string;
+  calls: PlanCall[];
+  summary: {
+    action: LimitAction;
+    gpu?: Gpu;
+    month?: string;
+    side?: Side;
+    price?: number;
+    gpuHours?: number;
+    /** moved into Kuru's margin account by the batch (dollars for a bid, GPU-hours for an ask) */
+    deposited?: number;
+    /** pairs minted by the batch for an ask */
+    minted?: number;
+    /** cancelLimit: the ids cancelled, and those left out (already filled or cancelled, or not the account's) */
+    cancelled?: string[];
+    skipped?: string[];
+    /** taken back from Kuru's margin account by the batch */
+    withdrawn?: { dollars: number; gpuHours: number };
+  };
+  /** ms since epoch */
+  plannedAt: number;
+}
+
+/** What a limit batch did, read from its own receipt. */
+export interface LimitDone {
+  action: LimitAction;
+  txHash: string;
+  userOpHash: string | null;
+  /** placeLimit: Kuru's id of the order now resting ("" when the receipt did not say) */
+  orderId?: string;
+  /** cancelLimit: the ids cancelled */
+  cancelled?: string[];
+  /** cancelLimit and withdrawMargin: what came back to the account */
+  withdrawn?: { dollars: number; gpuHours: number };
+}
+
+/** One of the real account's resting Kuru orders (@agate/client openOrders). */
+export interface RestingOrder {
+  /** the app's key for the order (machine.ts restingKey): Kuru counts order ids per book, so the id alone repeats
+   *  across markets */
+  id: string;
+  /** Kuru's order id within its own book (what a cancel names) */
+  orderId: string;
+  gpu: Gpu;
+  /** "2026-11" */
+  month: string;
+  /** long: a bid; short: an ask */
+  side: Side;
+  price: number;
+  /** GPU-hours still resting */
+  q: number;
+  /** ISO; "" when not known */
+  placedAt: string;
+  /** GPU-hours already filled */
+  filled: number;
+}
+
 /** One call of the batch. */
 export interface PlanCall {
   to: string;
@@ -193,6 +266,14 @@ export interface Account {
   collect?: (p: Position) => Promise<number>;
   /** sends a plan as one operation and resolves with what it did */
   send: (plan: AccountPlan, onStep?: OnStep) => Promise<DoneResult>;
+
+  /** the real account's resting orders on Kuru (Pro), newest first; absent for the pretend account, whose practice
+   *  orders stay in the example wallet (mock/store.tsx useOpenOrders) */
+  orders?: RestingOrder[];
+  /** plans a limit batch (nothing is sent); the real account's only. Rejects with the client's refusal */
+  planLimit?: (order: LimitOrder) => Promise<LimitPlan>;
+  /** sends a limit plan as one operation and resolves with what it did */
+  sendLimit?: (plan: LimitPlan, onStep?: OnStep) => Promise<LimitDone>;
 
   /** TEMPORARY bridge (build step 3): today's one-step sign-in sheet signs in at once. It goes when the sign-in sheet
    * walks email, code and creating (build step 5); the real account never has it. */

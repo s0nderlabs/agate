@@ -19,6 +19,8 @@ import {
   dripRevertedRefusal,
   type FreshQuote,
   isNetworkError,
+  limitRefusal,
+  limitSendRefusal,
   mcpStatusText,
   movedText,
   plainServerSentence,
@@ -40,7 +42,7 @@ import {
   type TradeKind,
   WRITE_REASONS,
 } from "./errors";
-import type { Order } from "./types";
+import type { LimitOrder, Order } from "./types";
 
 /** @agate/client's WriteError, duck-typed the way the app sees it (its class may be another copy). */
 const writeError = (message: string, stage = "check", reason?: string, quote?: FreshQuote) => Object.assign(new Error(message), { name: "WriteError", stage, reason, quote, txs: [] });
@@ -242,6 +244,38 @@ describe("sendRefusal: sending (spec 6.9)", () => {
     expect(isNetworkError(named("TimeoutError", "took too long"))).toBe(true);
     expect(isNetworkError(new Error("NetworkError when attempting to fetch resource."))).toBe(true);
     expect(isNetworkError(new Error("execution reverted"))).toBe(false);
+  });
+});
+
+describe("limit orders (Pro, the real account)", () => {
+  const bid: LimitOrder = { kind: "placeLimit", gpu: "H100", month: "2026-11", side: "long", price: "3.90", gpuHours: "10.0000" };
+  const ask: LimitOrder = { ...bid, side: "short", price: "4.10" };
+  const cancel: LimitOrder = { kind: "cancelLimit", gpu: "H100", month: "2026-11", orderIds: ["41"] };
+  const withdraw: LimitOrder = { kind: "withdrawMargin", asset: "dollar" };
+
+  test("planning: each builder's refusal in the order's words, nothing sent", () => {
+    expect(limitRefusal(writeError("needs $39", "check", "InsufficientBalance"), bid)).toMatchObject({ message: COPY.limitFunds, nothingSent: true, reason: "InsufficientBalance" });
+    expect(limitRefusal(writeError("an ask that mints 10 pairs: needs $80", "check", "InsufficientBalance"), ask).message).toBe(COPY.limitFunds);
+    expect(limitRefusal(writeError("none of these orders is resting and yours"), cancel)).toMatchObject({ message: COPY.orderGone, refresh: true, nothingSent: true });
+    expect(limitRefusal(writeError("the margin account holds 0"), withdraw)).toMatchObject({ message: COPY.nothingAtKuru, refresh: true });
+    expect(limitRefusal(writeError("a post-only bid at 4.03 would cross the best ask 4.03", "check", "PostOnlyError"), bid)).toMatchObject({ sheet: "ticket", message: COPY.postOnly });
+    expect(limitRefusal(writeError("the book could not be read, so a post-only order cannot be checked; nothing was sent"), bid)).toMatchObject({ message: COPY.network, action: "retry" });
+  });
+
+  test("planning: the price and the size, with the order's month", () => {
+    expect(limitRefusal(named("AmountError", "price must lie in the band 1.95 to 8 (what a H100-NOV26 token can still pay at the month's end)"), ask).message).toBe("That price is outside what November can still pay.");
+    expect(limitRefusal(named("AmountError", "a limit order is 1 to 1,000,000 GPU-hours (Kuru's sizes), not 0.5"), bid).message).toBe(COPY.limitSize);
+    expect(limitRefusal(writeError("H100 2027-01 has no Kuru market yet"), { kind: "withdrawMargin", asset: { gpu: "H100", month: "2027-01" } }).message).toBe("January isn't open for trading yet.");
+  });
+
+  test("sending: a landed revert in the order's own words; anything else as a trade's send", () => {
+    const rev = writeError("the operation landed and reverted", "receipt", "reverted");
+    expect(limitSendRefusal(rev, bid)).toMatchObject({ message: COPY.limitLanded, nothingSent: false });
+    expect(limitSendRefusal(rev, cancel).message).toBe(COPY.cancelLanded);
+    expect(limitSendRefusal(rev, withdraw).message).toBe(COPY.withdrawLanded);
+    expect(limitSendRefusal(named("UserNotAuthenticatedError", "sign in again"), bid)).toMatchObject({ message: COPY.sessionTrade, nothingSent: true });
+    expect(limitSendRefusal(new TypeError("Failed to fetch"), cancel)).toMatchObject({ message: COPY.sendNetwork, nothingSent: true });
+    expect(limitSendRefusal(named("WaitForUserOperationReceiptTimeoutError", "timed out"), ask)).toMatchObject({ message: COPY.pending, nothingSent: false });
   });
 });
 

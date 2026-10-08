@@ -19,7 +19,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   // the real one stays inert (no SDK, no reads) while the source is example
   const live = config.source === "live";
   const pretend = usePretendAccount();
-  const real = useRealAccount(live);
+  // the real account reads its resting orders on Kuru only while Pro is on (Simple never shows them)
+  const real = useRealAccount(live, config.mode === "pro");
   const account = live ? real : pretend;
   return <AccountCtx.Provider value={account}>{children}</AccountCtx.Provider>;
 }

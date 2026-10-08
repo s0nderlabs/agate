@@ -18,6 +18,7 @@ import { usd, usd0 } from "@/lib/format";
 import { cleanTyping, floorHours, fmtGpus, fmtHours, gpuWord, parseAmount, showHours, walkHours } from "@/lib/size";
 import type { Book, Market, Position, Series, Side } from "@/lib/mock/types";
 import { emptySideText, MonthSeg, monthSoFarText } from "./States";
+import { KuruLine } from "./ProParts";
 import s from "./trade.module.css";
 import o from "./order.module.css";
 import c from "./close.module.css";
@@ -336,7 +337,7 @@ function CloseBody({ p, series, dense, loading: marketLoading = false, stale = "
   };
 
   if (!whole) {
-    return <p className={s.tCopy}>{p.kind === "tokens" ? "These GPU-hours rest in an order at Kuru, so they settle at the month's end." : "This one can't be closed from here: it settles at the month's end."}</p>;
+    return p.kind === "tokens" ? <AtKuru p={p} all /> : <p className={s.tCopy}>This one can't be closed from here: it settles at the month's end.</p>;
   }
 
   // what the line under the amount says: the book's limits first, then what the amount comes to
@@ -468,11 +469,7 @@ function CloseBody({ p, series, dense, loading: marketLoading = false, stale = "
   return (
     <>
       {amount}
-      {p.kind === "tokens" && p.inMargin > 0 && (
-        <p className={s.tCopy}>
-          <Num>{showHours(p.inMargin)}</Num> more GPU-hours rest in an order at Kuru and settle at the month's end.
-        </p>
-      )}
+      {p.kind === "tokens" && p.inMargin > 0 && <AtKuru p={p} all={false} />}
 
       {/* with nobody on the side a close needs nothing fills, and a whole close the book can't take can't happen, so
           there is nothing to sum up */}
@@ -534,6 +531,37 @@ function CloseBody({ p, series, dense, loading: marketLoading = false, stale = "
         </button>
         <p className={sheet ? `ag-fine ${c.center}` : dense ? o.note : s.fine}>{hold}</p>
       </div>
+    </>
+  );
+}
+
+/** Held tokens waiting in Kuru's margin account (a filled bid lands there). The real account moves them to the account
+ *  (planWithdrawMargin), where they sell from here; the pretend account never has any, and says they settle at the
+ *  month's end. all: every GPU-hour of the holding waits there. */
+function AtKuru({ p, all }: { p: Position; all: boolean }) {
+  const account = useAccount();
+  const [moved, setMoved] = useState<{ line: string; ok: boolean } | null>(null);
+  const some = all ? "These" : <><Num>{showHours(p.inMargin)}</Num> more</>;
+  if (!account.planLimit) return <p className={s.tCopy}>{some} GPU-hours rest in an order at Kuru{all ? ", so they settle" : " and settle"} at the month&apos;s end.</p>;
+  if (moved?.ok) return <p className={s.tCopy} role="status">{moved.line}</p>;
+  return (
+    <>
+      <KuruLine
+        order={{ kind: "withdrawMargin", asset: { gpu: p.gpu, month: p.month } }}
+        back={(r) => `${showHours(r.withdrawn?.gpuHours ?? p.inMargin)} GPU-hours are in your account now.`}
+        onMoved={(line, ok) => setMoved({ line, ok })}
+        label="Move them"
+        className={s.tCopy}
+        btnClass={c.textBtn}
+      >
+        {some} GPU-hours wait at Kuru, where a limit order left them. Move them to your account to sell them here.
+      </KuruLine>
+      {/* why it did not go, with the button still there for another try */}
+      {moved && (
+        <p className={s.tCopy} role="status">
+          {moved.line}
+        </p>
+      )}
     </>
   );
 }

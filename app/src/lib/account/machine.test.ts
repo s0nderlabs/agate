@@ -32,7 +32,15 @@ import {
   guardFromQuote,
   isCode,
   isEmail,
+  LIMIT_IDLE,
+  limitBusy,
+  limitReducer,
+  type LimitState,
+  limitStepText,
   nextConnectStep,
+  ordersAfter,
+  restingKey,
+  withoutResting,
   NOT_YET_PATIENCE_MS,
   placingMarks,
   placingSlow,
@@ -57,7 +65,8 @@ import {
   validUntilOf,
   writesAllowed,
 } from "./machine";
-import type { AccountPlan, DoneResult, Order } from "./types";
+import type { Position } from "@/lib/mock/types";
+import type { AccountPlan, DoneResult, LimitDone, LimitOrder, LimitPlan, Order, RestingOrder } from "./types";
 
 const T0 = 1_760_000_000_000;
 
@@ -487,6 +496,104 @@ describe("trade", () => {
     expect(placingSlow(sending, T0 + PLACING_SLOW_MS)).toBe(false);
     expect(placingSlow(sending, T0 + PLACING_SLOW_MS + 1)).toBe(true);
     expect(placingSlow(signing, T0 + 99_999)).toBe(false);
+  });
+});
+
+// ===================================================================================================================
+describe("limit orders", () => {
+  const go = limitReducer;
+  const bid: LimitOrder = { kind: "placeLimit", gpu: "H100", month: "2026-11", side: "long", price: "3.90", gpuHours: "10.0000" };
+  const cancel: LimitOrder = { kind: "cancelLimit", gpu: "H100", month: "2026-11", orderIds: ["41"] };
+  const plan: LimitPlan = { account: "0xA", calls: [], summary: { action: "placeLimit", gpu: "H100", month: "2026-11", side: "long", price: 3.9, gpuHours: 10, deposited: 39, minted: 0 }, plannedAt: T0 };
+  const result: LimitDone = { action: "placeLimit", txHash: "0xT", userOpHash: "0xU", orderId: "42" };
+  const checking: LimitState = { step: "checking", order: bid };
+  const signing: LimitState = { step: "signing", order: bid, plan };
+  const sending: LimitState = { step: "sending", order: bid, plan, userOpHash: "0xU" };
+  const done: LimitState = { step: "done", order: bid, result };
+  const failed: LimitState = { step: "failed", order: bid, message: "m", sent: false };
+  const all: LimitState[] = [LIMIT_IDLE, checking, signing, sending, done, failed];
+  const others = (keep: LimitState[]) => all.filter((s) => !keep.includes(s));
+
+  test("a placed order: checked, signed, sent, landed", () => {
+    expect(go(LIMIT_IDLE, { type: "start", order: bid })).toEqual(checking);
+    expect(go(checking, { type: "planned", plan })).toEqual(signing);
+    expect(go(signing, { type: "step", step: "signing" })).toBe(signing);
+    expect(go(signing, { type: "step", step: "sending", userOpHash: "0xU" })).toEqual(sending);
+    expect(go(sending, { type: "landed", result })).toEqual(done);
+    expect(go(signing, { type: "landed", result })).toEqual(done);
+  });
+
+  test("one run at a time: a start while one is on its way does nothing; a finished one starts again", () => {
+    for (const s of [checking, signing, sending]) expect(go(s, { type: "start", order: cancel })).toBe(s);
+    expect(go(done, { type: "start", order: cancel })).toEqual({ step: "checking", order: cancel });
+    expect(go(failed, { type: "start", order: cancel })).toEqual({ step: "checking", order: cancel });
+  });
+
+  test("refused while checking: failed, nothing sent; a send that failed says whether it went out", () => {
+    expect(go(checking, { type: "refused", message: COPY.postOnly })).toEqual({ step: "failed", order: bid, message: COPY.postOnly, sent: false });
+    expect(go(signing, { type: "sendFailed", message: COPY.cantSign, nothingSent: true })).toEqual({ step: "failed", order: bid, message: COPY.cantSign, sent: false });
+    expect(go(sending, { type: "sendFailed", message: COPY.pending, nothingSent: false })).toEqual({ step: "failed", order: bid, message: COPY.pending, sent: true });
+  });
+
+  test("a late answer from an earlier step changes nothing", () => {
+    for (const s of others([checking])) {
+      expect(go(s, { type: "planned", plan })).toBe(s);
+      expect(go(s, { type: "refused", message: "m" })).toBe(s);
+    }
+    for (const s of others([signing, sending])) {
+      expect(go(s, { type: "landed", result })).toBe(s);
+      expect(go(s, { type: "sendFailed", message: "m", nothingSent: true })).toBe(s);
+      expect(go(s, { type: "step", step: "sending" })).toBe(s);
+    }
+  });
+
+  test("busy and the button's words", () => {
+    expect(all.map(limitBusy)).toEqual([false, true, true, true, false, false]);
+    expect(limitStepText(checking)).toBe("Checking the book");
+    expect(limitStepText({ step: "checking", order: cancel })).toBe("Checking the order");
+    expect(limitStepText(signing)).toBe("Your wallet is signing");
+    expect(limitStepText(sending)).toBe("Sending to Monad");
+    for (const s of [LIMIT_IDLE, done, failed]) expect(limitStepText(s)).toBeNull();
+  });
+
+  test("ordersAfter: a placed order first, a canceled one gone, before the next read", () => {
+    const old: RestingOrder = { id: "H100-2026-11-7", orderId: "7", gpu: "H100", month: "2026-11", side: "short", price: 4.1, q: 10, placedAt: "2026-11-02T01:00:00Z", filled: 0 };
+    const placed = ordersAfter([old], plan, result, T0);
+    expect(placed).toEqual([{ id: "H100-2026-11-42", orderId: "42", gpu: "H100", month: "2026-11", side: "long", price: 3.9, q: 10, placedAt: new Date(T0).toISOString(), filled: 0 }, old]);
+    // already read, or no id in the receipt: the list as it is
+    expect(ordersAfter(placed, plan, result, T0)).toBe(placed);
+    const noId = ordersAfter([old], plan, { ...result, orderId: "" }, T0);
+    expect(noId).toEqual([old]);
+    const cancelPlan: LimitPlan = { account: "0xA", calls: [], summary: { action: "cancelLimit", gpu: "H100", month: "2026-11", cancelled: ["7"], skipped: [], withdrawn: { dollars: 0, gpuHours: 10 } }, plannedAt: T0 };
+    expect(ordersAfter(placed, cancelPlan, { action: "cancelLimit", txHash: "0xT", userOpHash: null, cancelled: ["7"] }, T0)).toEqual([placed[0]]);
+    // the receipt's ids win; without them, the plan's
+    expect(ordersAfter(placed, cancelPlan, { action: "cancelLimit", txHash: "0xT", userOpHash: null }, T0)).toEqual([placed[0]]);
+    const withdrawPlan: LimitPlan = { account: "0xA", calls: [], summary: { action: "withdrawMargin", withdrawn: { dollars: 41, gpuHours: 0 } }, plannedAt: T0 };
+    expect(ordersAfter(placed, withdrawPlan, { action: "withdrawMargin", txHash: "0xT", userOpHash: null }, T0)).toBe(placed);
+  });
+
+  test("withoutResting: a resting Short's unsold half is no position yet; only what sold is a Short", () => {
+    const short = { id: "s", gpu: "H100", month: "2026-11", side: "short", q: 10, entry: 0, kind: "shortBalance" } as unknown as Position;
+    const long = { id: "l", gpu: "H100", month: "2026-11", side: "long", q: 5, entry: 3.9, kind: "tokens" } as unknown as Position;
+    const ask: RestingOrder = { id: restingKey("H100", "2026-11", "9"), orderId: "9", gpu: "H100", month: "2026-11", side: "short", price: 4.1, q: 10, placedAt: "", filled: 0 };
+    // all of it still rests: flat, so no Short shows; the Long beside it is untouched
+    expect(withoutResting([short, long], [ask])).toEqual([long]);
+    // 4 of 10 sold: a Short of 4
+    expect(withoutResting([short], [{ ...ask, q: 6, filled: 4 }]).map((p) => p.q)).toEqual([4]);
+    // no resting asks, or another month's: as read
+    const list = [short];
+    expect(withoutResting(list, [])).toBe(list);
+    expect(withoutResting(list, [{ ...ask, month: "2026-12" }])).toEqual(list);
+  });
+
+  test("ordersAfter: Kuru counts ids per book, so the same id in another market is another order", () => {
+    const h100: RestingOrder = { id: restingKey("H100", "2026-11", "7"), orderId: "7", gpu: "H100", month: "2026-11", side: "long", price: 3.9, q: 10, placedAt: "", filled: 0 };
+    const h200: RestingOrder = { ...h100, id: restingKey("H200", "2026-11", "7"), gpu: "H200", price: 5.1 };
+    const cancelH200: LimitPlan = { account: "0xA", calls: [], summary: { action: "cancelLimit", gpu: "H200", month: "2026-11", cancelled: ["7"] }, plannedAt: T0 };
+    expect(ordersAfter([h100, h200], cancelH200, { action: "cancelLimit", txHash: "0xT", userOpHash: null, cancelled: ["7"] }, T0)).toEqual([h100]);
+    // a new H200 order with the id an H100 order already has still goes in
+    const placeH200: LimitPlan = { ...plan, summary: { ...plan.summary, gpu: "H200" } };
+    expect(ordersAfter([h100], placeH200, { ...result, orderId: "7" }, T0).map((o) => o.id)).toEqual([restingKey("H200", "2026-11", "7"), h100.id]);
   });
 });
 

@@ -4,11 +4,13 @@
 // your positions and open orders, and an order ticket with limits.
 import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "@/lib/account";
+import { restingOpenOrder } from "@/lib/account/ticket";
 import { useMock, useOpenOrders } from "@/lib/mock/store";
 import { groundFor } from "@/lib/mock/config";
-import { isOld, useBook, useCandles, useDataStatus, useMarkets, useNow, useScreenMarket } from "@/lib/data/hooks";
+import { isOld, useBook, useCandles, useDataStatus, useMarkets, useNow, useScreenMarket, useSeriesFor } from "@/lib/data/hooks";
 import { cloudsText, dateText, headline, hoursSinceListing, monthChange, monthStateOf, NO_DAY, panelCount, staleState, statusLine, topOf } from "@/lib/data/derive";
 import { usd } from "@/lib/format";
+import { showHours } from "@/lib/size";
 import { useTrade } from "@/components/markets/useTrade";
 import { monthName } from "@/components/markets/PriceChart";
 import { MarketStrip, NavBar, Notice } from "@/components/shell/Shell";
@@ -28,6 +30,7 @@ import type { Side } from "@/lib/mock/types";
 import { Note } from "./Note";
 import { TradeBar } from "./TradeBar";
 import { indexStartsText, monthChartText, NoData, PriceOnlyTicket, StateBox, TicketWait } from "./States";
+import { useLimitRun } from "./useLimitRun";
 
 /** Simple | Pro at the head of the ticket, in the new phone and tablet layout. Switching swaps the ticket in place,
  * so the phone sheet stays open. The top bar keeps its own switch from 1024 px, and More keeps one at every width. */
@@ -75,8 +78,32 @@ export function TradeScreen() {
   // are kept per data source, like the practice wallets (an example order never shows, or holds dollars, under live),
   // and outlive this screen, so a trip to Positions and back keeps them and the dollars they hold
   const [picked, setPicked] = useState<{ price: number; n: number } | null>(null);
-  const { orders, setOrders } = useOpenOrders();
-  const held = orders.reduce((a, o) => a + o.hold, 0);
+  const practice = useOpenOrders();
+  // the real account's orders rest on Kuru: read from there, and canceled there (planCancelLimit, which takes what the
+  // cancel frees back to the account in the same batch). Their dollars already left the balance, so nothing is held
+  // against it here, unlike a practice order's
+  const account = useAccount();
+  const real = account.kind === "real";
+  const seriesFor = useSeriesFor();
+  const orders = real ? (account.orders ?? []).map((o) => restingOpenOrder(o, seriesFor(o.gpu, o.month)?.cap ?? 0)) : practice.orders;
+  const held = real ? 0 : orders.reduce((a, o) => a + o.hold, 0);
+  const cancelRun = useLimitRun();
+  const [canceling, setCanceling] = useState<string | null>(null);
+  const [ordersNote, setOrdersNote] = useState<string | null>(null);
+  const cancelOrder = (id: string) => {
+    if (!real) return practice.setOrders((list) => list.filter((o) => o.id !== id));
+    // (the list's id is the app's key; a cancel names Kuru's own id within that order's book)
+    const o = (account.orders ?? []).find((x) => x.id === id);
+    if (!o || cancelRun.busy) return;
+    setCanceling(id);
+    setOrdersNote(null);
+    void cancelRun.run({ kind: "cancelLimit", gpu: o.gpu, month: o.month, orderIds: [o.orderId] }).then((r) => {
+      setCanceling(null);
+      const back = r.ok ? r.result.withdrawn : undefined;
+      const parts = back ? [back.dollars > 0 ? usd(back.dollars) : "", back.gpuHours > 0 ? `${showHours(back.gpuHours)} GPU-hours` : ""].filter(Boolean) : [];
+      setOrdersNote(r.ok ? `Canceled.${parts.length ? ` ${parts.join(" and ")} came back to your account.` : ""}` : r.message);
+    });
+  };
   const pro = config.mode === "pro";
   const dark = config.theme === "dark";
   const loading = read.loading;
@@ -570,7 +597,7 @@ export function TradeScreen() {
               ) : !loading && (mstate === "upcoming" || mstate === "emptyBook") ? (
                 <TicketWait market={market} trade={trade} kind={mstate} />
               ) : pro ? (
-                <OrderTicket key={market.gpu} market={market} trade={trade} picked={picked} held={held} onPlace={(o) => setOrders((list) => [o, ...list])} loading={loading} stale={stale} />
+                <OrderTicket key={market.gpu} market={market} trade={trade} picked={picked} held={held} onPlace={(o) => practice.setOrders((list) => [o, ...list])} loading={loading} stale={stale} />
               ) : (
                 <TradePanel market={market} trade={trade} held={held} loading={loading} stale={stale} />
               )}
@@ -588,7 +615,9 @@ export function TradeScreen() {
               )}
               <ProBottom
                 orders={orders}
-                onCancel={(id) => setOrders((list) => list.filter((o) => o.id !== id))}
+                onCancel={cancelOrder}
+                canceling={canceling}
+                note={real ? ordersNote : null}
                 tab={sheet ? (ptab === "orders" ? "orders" : "positions") : undefined}
                 onTab={sheet ? setPtab : undefined}
               />

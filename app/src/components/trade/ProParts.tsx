@@ -8,13 +8,14 @@ import { monthName } from "@/components/markets/PriceChart";
 import { Num } from "@/components/num/Num";
 import { useBook, useFills, useIndexer, useLastFor } from "@/lib/data/hooks";
 import { monthStateOf, placeholderSeries } from "@/lib/data/derive";
-import { DRIP, useAccount } from "@/lib/account";
+import { DRIP, useAccount, type LimitDone, type LimitOrder } from "@/lib/account";
 import { useMock } from "@/lib/mock/store";
 import type { Gpu, Market, Position, Series } from "@/lib/mock/types";
 import { int, usd, usd0 } from "@/lib/format";
 import { showHours } from "@/lib/size";
 import type { OpenOrder } from "./OrderTicket";
 import { bookText } from "./States";
+import { useLimitRun } from "./useLimitRun";
 import s from "./trade.module.css";
 
 /** Skeleton rows while a read is on its way (the screen's, or the book's or the trades' own after the screen has
@@ -131,7 +132,8 @@ type Tab = "positions" | "orders";
 
 /** A position's gain or loss at a price, or null when there is no price to value it at. */
 function pnlOf(p: Position, now: number | null) {
-  return now === null ? null : (p.side === "long" ? now - p.entry : p.entry - now) * p.q;
+  // an entry of $0 is no price (minted pairs nothing has sold yet): no gain or loss to show
+  return now === null || p.entry <= 0 ? null : (p.side === "long" ? now - p.entry : p.entry - now) * p.q;
 }
 /** "+$12", "−$3", or "$0" when it rounds to nothing (never a signed zero). */
 function pnlText(pnl: number) {
@@ -147,8 +149,9 @@ function pnlTone(pnl: number | null) {
 
 /** Positions and resting limit orders (cancel each); the month's recent trades sit under the book. tab and onTab
  * let the phone's Pro tabs drive it; without them it keeps its own tab as before. On phones (new layout) the tables
- * give way to cards. */
-export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: OpenOrder[]; onCancel: (id: string) => void; tab?: Tab; onTab?: (t: Tab) => void }) {
+ * give way to cards. canceling: the order whose cancel is on its way (the real account's go to Monad); note: how the
+ * last cancel went, over the orders. */
+export function ProBottom({ orders, onCancel, canceling = null, note = null, tab: tabProp, onTab }: { orders: OpenOrder[]; onCancel: (id: string) => void; canceling?: string | null; note?: string | null; tab?: Tab; onTab?: (t: Tab) => void }) {
   const [tabState, setTabState] = useState<Tab>("positions");
   const tab = tabProp ?? tabState;
   const setTab = (t: Tab) => {
@@ -182,9 +185,14 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
           <PositionCards positions={positions} lastFor={lastFor} />
         </div>
       )}
+      {tab === "orders" && note && (
+        <p className={s.empty} role="status">
+          {note}
+        </p>
+      )}
       {tab === "orders" && cards && orders.length > 0 && (
         <div className={s.cardsWrap}>
-          <OrderCards orders={orders} onCancel={onCancel} />
+          <OrderCards orders={orders} onCancel={onCancel} canceling={canceling} />
         </div>
       )}
       {tab === "positions" &&
@@ -274,8 +282,8 @@ export function ProBottom({ orders, onCancel, tab: tabProp, onTab }: { orders: O
                     </td>
                     <td>Good till canceled</td>
                     <td className={s.r}>
-                      <button className={s.cancel} onClick={() => onCancel?.(o.id)}>
-                        Cancel
+                      <button className={s.cancel} disabled={canceling !== null} onClick={() => onCancel?.(o.id)}>
+                        {canceling === o.id ? "Canceling" : "Cancel"}
                       </button>
                     </td>
                   </tr>
@@ -347,13 +355,18 @@ export function RecentTrades({ market, series, loading = false, idle = false }: 
 }
 
 /** Under Pro's ticket (Hyperliquid's account panel, Lighter's overview, Binance's assets): what you have to trade with
- * and what is at work, each position valued at its own market's last price. */
+ * and what is at work, each position valued at its own market's last price. The real account's filled orders leave
+ * their dollars at Kuru: said under the figures, with the move back to the balance (planWithdrawMargin). */
 export function AccountBox({ orders }: { orders: OpenOrder[] }) {
   const account = useAccount();
   const { positions } = account;
   // the same valuation as the positions table and cards, so the two never disagree on one screen
   const lastFor = useLastFor();
   const drip = useDrip();
+  const [moved, setMoved] = useState<string | null>(null);
+  // what limit orders left at Kuru (the real account's only): dollars from a filled ask, GPU-hours from a filled bid
+  const atKuru = account.planLimit && account.marginBalance >= 0.01 ? account.marginBalance : 0;
+  const tokensAtKuru = account.planLimit ? positions.filter((p) => p.kind === "tokens" && p.inMargin >= 0.0001) : [];
   // signed out it says so once: nothing to count or value
   if (!account.ready)
     return (
@@ -398,7 +411,37 @@ export function AccountBox({ orders }: { orders: OpenOrder[] }) {
           </div>
         ))}
       </dl>
+      {atKuru > 0 && (
+        <KuruLine order={{ kind: "withdrawMargin", asset: "dollar" }} onMoved={setMoved} back={(r) => `${usd(r.withdrawn?.dollars ?? atKuru)} is back in your balance.`}>
+          <Num>{usd(atKuru)}</Num> waits at Kuru, where a limit order left it.
+        </KuruLine>
+      )}
+      {tokensAtKuru.map((p) => (
+        <KuruLine key={p.id} order={{ kind: "withdrawMargin", asset: { gpu: p.gpu, month: p.month } }} onMoved={setMoved} back={(r) => `${showHours(r.withdrawn?.gpuHours ?? p.inMargin)} GPU-hours of ${p.gpu} ${monthName(p.month)} are in your account now.`}>
+          <Num>{showHours(p.inMargin)}</Num> GPU-hours of {p.gpu} {monthName(p.month)} wait at Kuru, where a limit order left them.
+        </KuruLine>
+      ))}
+      {moved && (
+        <p className={s.accountOut} role="status">
+          {moved}
+        </p>
+      )}
     </section>
+  );
+}
+
+/** One thing limit orders left at Kuru, in a sentence, and its move back to the account (planWithdrawMargin). back:
+ *  the line once it landed; onMoved hands the outcome up (ok false: why not, and the button stays for another try), so
+ *  it stays after this line goes with the next wallet read. Pro's account box and the close form both use it. */
+export function KuruLine({ order, back, onMoved, label = "Move to your account", className = s.accountOut, btnClass = s.textBtn, children }: { order: LimitOrder; back: (r: LimitDone) => string; onMoved: (line: string, ok: boolean) => void; label?: string; className?: string; btnClass?: string; children: React.ReactNode }) {
+  const move = useLimitRun();
+  return (
+    <p className={className}>
+      {children}{" "}
+      <button type="button" className={btnClass} disabled={move.busy} onClick={() => void move.run(order).then((r) => (r.ok ? onMoved(back(r.result), true) : r.message && onMoved(r.message, false)))}>
+        {move.busy ? move.stepText : label}
+      </button>
+    </p>
   );
 }
 
@@ -450,8 +493,8 @@ export function PositionCards({ positions, lastFor, closable = true }: { positio
   );
 }
 
-/** Resting limit orders as cards (phones): the order in one line, a 44 px Cancel on the right. */
-export function OrderCards({ orders, onCancel }: { orders: OpenOrder[]; onCancel: (id: string) => void }) {
+/** Resting limit orders as cards (phones): the order in one line, a 44 px Cancel on the right. canceling: as ProBottom. */
+export function OrderCards({ orders, onCancel, canceling = null }: { orders: OpenOrder[]; onCancel: (id: string) => void; canceling?: string | null }) {
   if (!orders.length) return <p className={s.empty}>No open orders. A limit away from the book waits here until it fills or you cancel it.</p>;
   return (
     <ul className={s.cards}>
@@ -461,8 +504,8 @@ export function OrderCards({ orders, onCancel }: { orders: OpenOrder[]; onCancel
             <b>
               {o.gpu} {monthName(o.month).slice(0, 3)}, {o.side === "long" ? "Long" : "Short"} limit <Num>{usd(o.price)}</Num>
             </b>
-            <button type="button" className={s.cardCancel} onClick={() => onCancel(o.id)}>
-              Cancel
+            <button type="button" className={s.cardCancel} disabled={canceling !== null} onClick={() => onCancel(o.id)}>
+              {canceling === o.id ? "Canceling" : "Cancel"}
             </button>
           </div>
           <p className={s.cardLine}>

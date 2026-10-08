@@ -5,7 +5,7 @@
 import { monthLong, whenText } from "@/lib/data/derive";
 import { usd, usd0 } from "@/lib/format";
 import { showHours } from "@/lib/size";
-import { type CodeProblem, DRIP, type Order } from "./types";
+import { type CodeProblem, DRIP, type LimitOrder, type Order } from "./types";
 
 /** A trade's quote now, as a refused plan found it (@agate/client's WriteError.quote, FreshQuote). */
 export interface FreshQuote {
@@ -110,8 +110,17 @@ export const COPY = {
   partsTooSmall: "This amount is too small for daily payouts. Try a larger amount.",
   tooSmallToBuy: "This amount is too small to buy any GPU-hours. Try a larger amount.",
   limitSize: "A limit order is 1 to 1,000,000 GPU-hours.",
+  priceStep: "Use a price in whole cents, like $3.95.",
   outsideBand: (month: string) => `That price is outside what ${month} can still pay.`,
   postOnly: "This price would fill right away. Set it past the best price, or use Market.",
+  // limit orders (Pro, the real account): the line under the button
+  limitFunds: "This order needs more test dollars than your account holds. Nothing was sent.",
+  orderGone: "This order already filled or was canceled. Nothing was sent.",
+  nothingAtKuru: "Nothing is waiting at Kuru to move. Nothing was sent.",
+  limitLanded: "The book moved before your order landed, so it wasn't placed. Nothing changed.",
+  cancelLanded: "This order changed before the cancel landed. Nothing changed.",
+  withdrawLanded: "It didn't go through on Monad. Nothing moved. Try again.",
+  limitBusy: "Another order is on its way. Try this again once it lands.",
   otherMonth: "Pick a different month to move into.",
   // planning: sheets
   funds: "This trade needs more test dollars than your account holds. Nothing was sent.",
@@ -363,6 +372,30 @@ export function sendRefusal(e: unknown, ctx: { resent?: boolean; replanned?: boo
 
 /** The operation landed but reverted: the onchain bound was hit, so nothing changed. "Check the new price" re-plans. */
 export const revertedRefusal = (): Refusal => ({ sheet: "failed", message: COPY.landedMoved, action: "recheck", nothingSent: false, reason: "reverted" });
+
+// ===== limit orders (Pro, the real account): one line under the button that started it =====
+
+/** A limit batch that could not be planned. Nothing was sent in any of these. */
+export function limitRefusal(e: unknown, order: LimitOrder): Refusal {
+  const x = chain(e)[0] ?? {};
+  const msg = str(x.message);
+  if (str(x.name) === "WriteError") {
+    if (str(x.reason) === "InsufficientBalance") return { sheet: "funds", message: COPY.limitFunds, action: "funds", nothingSent: true, reason: "InsufficientBalance" };
+    if (/none of these orders is resting/i.test(msg)) return fail("orderGone", COPY.orderGone, "back", { refresh: true });
+    if (/margin account holds/i.test(msg)) return fail("nothingAtKuru", COPY.nothingAtKuru, "back", { refresh: true });
+  }
+  // the band, Kuru's sizes, post-only and the reads read as they do for a trade (the cent is caught by the ticket)
+  const kind: TradeKind = order.kind === "placeLimit" && order.side === "long" ? "buy" : order.kind === "placeLimit" ? "short" : "sale";
+  return refusalOf(e, { kind, month: "month" in order ? order.month : order.asset !== "dollar" ? order.asset.month : undefined });
+}
+
+/** A limit batch whose send failed, or that landed and reverted (a placed order crossed the book on its way, a cancel
+ *  met an order that filled first): sendRefusal, with the order's own words for a revert. */
+export function limitSendRefusal(e: unknown, order: LimitOrder): Refusal {
+  const r = sendRefusal(e);
+  if (r.reason !== "reverted") return r;
+  return { ...r, message: order.kind === "placeLimit" ? COPY.limitLanded : order.kind === "cancelLimit" ? COPY.cancelLanded : COPY.withdrawLanded };
+}
 
 // ===== test dollars (spec 5.4) =====
 

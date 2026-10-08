@@ -12,9 +12,9 @@ import { getAgate } from "@/lib/data/agate";
 import type { Gpu } from "@/lib/mock/types";
 import { getDynamic, googlePending, markGoogle, readHint, REAL_CONFIGURED, writeHint, type Dyn, type Hint } from "./dynamic";
 import { codeProblemOf, passkeyProblemOf, sendCodeProblemOf, SIGNIN_COPY } from "./errors";
-import { canStart, cleanCode, GETTING_READY_MS, isCode, refreshDue, RESTORE_PATIENCE_MS, SIGNED_OUT, signInReducer, toAccountStep, type SignInState } from "./machine";
+import { canStart, cleanCode, GETTING_READY_MS, isCode, ordersAfter, refreshDue, restingKey, RESTORE_PATIENCE_MS, SIGNED_OUT, signInReducer, toAccountStep, withoutResting, type SignInState } from "./machine";
 import { forgetClients, mainAddressOf, sendCalls } from "./main";
-import type { Account, AccountPlan, DoneResult, OnStep, Order, SignInStep, TradeAction } from "./types";
+import type { Account, AccountPlan, DoneResult, LimitDone, LimitOrder, LimitPlan, OnStep, Order, RestingOrder, SignInStep, TradeAction } from "./types";
 
 type EmailOtp = Awaited<ReturnType<Dyn["lib"]["startEmailSignIn"]>>;
 
@@ -69,7 +69,34 @@ async function planOf(agate: AgateClient, me: `0x${string}`, order: Order) {
   }
 }
 
-export function useRealAccount(active: boolean): Account {
+/** The client's three limit builders (a test hands in its own). */
+export type LimitBuilders = Pick<typeof import("@agate/client"), "planPlaceLimit" | "planCancelLimit" | "planWithdrawMargin">;
+
+/** The client's limit batch for a limit order, from the main account. A bid or an ask is post-only (it rests, never
+ *  takes: the ticket sends an order that fills now through Review instead); an ask mints the pairs it sells, so it
+ *  opens a Short and never sells a Long held beside it; a cancel takes what it frees back in the same batch. */
+export async function limitPlanOf(agate: AgateClient, me: `0x${string}`, order: LimitOrder, c: LimitBuilders | null = null): Promise<LimitPlan> {
+  const b = c ?? (await import("@agate/client"));
+  const p =
+    order.kind === "placeLimit"
+      ? await b.planPlaceLimit(agate, me, { gpu: order.gpu as Gpu, month: order.month, side: order.side, price: order.price, gpuHours: order.gpuHours, postOnly: true, mint: order.side === "short" })
+      : order.kind === "cancelLimit"
+        ? await b.planCancelLimit(agate, me, { gpu: order.gpu as Gpu, month: order.month, orderIds: order.orderIds, withdraw: true })
+        : await b.planWithdrawMargin(agate, me, { asset: order.asset === "dollar" ? "dollar" : { gpu: order.asset.gpu as Gpu, month: order.asset.month } });
+  return { account: p.account, calls: p.calls.map((x) => ({ to: x.to, value: x.value, data: x.data, label: x.label })), summary: { ...p.summary, action: p.summary.action as LimitOrder["kind"] }, plannedAt: Date.now() };
+}
+
+/** What a landed limit batch did, from its own logs (readResult) and its plan (what a cancel or withdraw took back). */
+function limitDoneOf(p: LimitPlan, x: Record<string, unknown>, r: UserOperationReceipt): LimitDone {
+  const base = { action: p.summary.action, txHash: r.receipt.transactionHash, userOpHash: r.userOpHash };
+  if (p.summary.action === "placeLimit") return { ...base, orderId: typeof x.orderId === "string" ? x.orderId : "" };
+  const cancelled = Array.isArray(x.cancelled) ? (x.cancelled as string[]) : p.summary.cancelled;
+  return p.summary.action === "cancelLimit" ? { ...base, cancelled, withdrawn: p.summary.withdrawn } : { ...base, withdrawn: p.summary.withdrawn };
+}
+
+/** withOrders: Pro is on, the only place resting orders show, so only then are they read (without the indexer the
+ *  client scans each book's newest order ids on chain). */
+export function useRealAccount(active: boolean, withOrders = false): Account {
   const qc = useQueryClient();
   // the server cannot see the restore hint, so the server's render and the first one here start as restoring (the
   // nav's skeleton): a returning person never sees "Sign in" flash; without a hint it drops to signed out on mount
@@ -103,6 +130,16 @@ export function useRealAccount(active: boolean): Account {
     retry: 2,
   });
 
+  // ===== the resting orders on Kuru (Pro's Open orders), every 30 s while visible and Pro is on =====
+  const orders = useQuery({
+    queryKey: ["live", "orders", address ?? ""],
+    queryFn: async (): Promise<RestingOrder[]> => (await (await getAgate()).openOrders(address!)).map((o) => ({ id: restingKey(o.gpu, o.month, o.id), orderId: o.id, gpu: o.gpu as Gpu, month: o.month, side: o.side, price: o.price, q: o.q, placedAt: o.placedAt, filled: o.filled })),
+    enabled: active && withOrders && !!address,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+    retry: 2,
+  });
+
   /** Every receipt changes what the account holds and what the market shows: read again now (unless the screen was
    *  just told what changed: a read this early can still be a block behind), and again as the indexer catches up. */
   const afterReceipt = useCallback(
@@ -123,6 +160,7 @@ export function useRealAccount(active: boolean): Account {
     setWho(null);
     forgetClients();
     qc.removeQueries({ queryKey: ["live", "wallet"] });
+    qc.removeQueries({ queryKey: ["live", "orders"] });
     qc.removeQueries({ queryKey: ["live", "pocket"] });
     qc.removeQueries({ queryKey: ["server"] });
     qc.removeQueries({ queryKey: ["dynamic"] });
@@ -542,6 +580,37 @@ export function useRealAccount(active: boolean): Account {
     [need, afterReceipt],
   );
 
+  // ===== Pro's limit orders: planned and sent like a trade, without a Review sheet (machine.ts limitReducer) =====
+
+  const planLimit = useCallback(
+    async (order: LimitOrder): Promise<LimitPlan> => {
+      const h = need();
+      return limitPlanOf(await getAgate(), h.address as `0x${string}`, order);
+    },
+    [need],
+  );
+
+  const sendLimit = useCallback(
+    async (p: LimitPlan, onStep?: OnStep): Promise<LimitDone> => {
+      const h = need();
+      if (p.account.toLowerCase() !== h.address.toLowerCase()) throw new Error("This plan was not made by this account.");
+      const r = await sendCalls(h.owner, 0, h.address, p.calls, onStep);
+      if (!r.success) {
+        afterReceipt();
+        throw reverted();
+      }
+      const [agate, { readResult }] = await Promise.all([getAgate(), import("@agate/client")]);
+      const done = limitDoneOf(p, readResult(agate, p.summary.action, r.logs), r);
+      // the open orders show the change at once (a read this early can still be a block behind and drop a new order);
+      // the wallet reads again now, everything again as the indexer catches up
+      qc.setQueryData<RestingOrder[]>(["live", "orders", h.address], (list) => (list ? ordersAfter(list, p, done, Date.now()) : list));
+      void qc.invalidateQueries({ queryKey: ["live", "wallet"] });
+      afterReceipt(false);
+      return done;
+    },
+    [need, afterReceipt, qc],
+  );
+
   const signIn = useMemo<SignInStep>(() => toAccountStep(m), [m]);
   const w = wallet.data;
   const email = who?.email ?? ("email" in m && m.email ? m.email : null);
@@ -557,7 +626,8 @@ export function useRealAccount(active: boolean): Account {
       address,
       balance: w?.balance ?? 0,
       walletLoading: !!address && wallet.isPending,
-      positions: w?.positions ?? [],
+      // a resting Short's unsold half is not a position yet (machine.ts withoutResting; orders are read in Pro only)
+      positions: withoutResting(w?.positions ?? [], orders.data ?? []),
       canDrip: w?.canDrip ?? false,
       nextDrip: w?.nextDrip ?? null,
       marginBalance: w?.marginBalance ?? 0,
@@ -577,7 +647,10 @@ export function useRealAccount(active: boolean): Account {
       drip,
       plan,
       send,
+      orders: ready ? (orders.data ?? []) : [],
+      planLimit,
+      sendLimit,
     }),
-    [signIn, ready, email, who, address, w, wallet.isPending, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, passkeys.data, passkeys.isError, addPasskey, retry, cancelSignIn, signOut, drip, plan, send],
+    [signIn, ready, email, who, address, w, wallet.isPending, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, passkeys.data, passkeys.isError, addPasskey, retry, cancelSignIn, signOut, drip, plan, send, orders.data, planLimit, sendLimit],
   );
 }

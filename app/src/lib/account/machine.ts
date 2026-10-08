@@ -3,9 +3,10 @@
 // runs each step and dispatches what happened, the pretend account walks the same states with fake timings, and bun
 // tests cover every transition. Times come in on the events, so the reducers stay pure. An event a state does not
 // expect returns that same state object, so a late answer from an earlier step changes nothing.
+import type { Position } from "@/lib/mock/types";
 import { floorCents, floorHours } from "@/lib/size";
 import { CONNECT_COPY, COPY, type ConnectProblem, type DisconnectAt, type FreshQuote, type Refusal, type RefusalAction } from "./errors";
-import { type AccountPlan, type CodeProblem, type CreatingPart, DRIP, type DoneResult, type Order, type SignInErrorAt, type SignInStep, type SignInVia } from "./types";
+import { type AccountPlan, type CodeProblem, type CreatingPart, DRIP, type DoneResult, type LimitDone, type LimitOrder, type LimitPlan, type Order, type RestingOrder, type SendStep, type SignInErrorAt, type SignInStep, type SignInVia } from "./types";
 
 const ceilCents = (d: number) => Math.ceil(Math.round(d * 1e6) / 1e4) / 100;
 
@@ -453,6 +454,98 @@ export function tradeReducer<N>(s: TradeState<N>, e: TradeEvent<N>): TradeState<
       }
       return s;
   }
+}
+
+// =====================================================================================================================
+// LIMIT ORDERS (Pro, the real account): a resting order placed, cancelled, or what Kuru holds moved back, each planned
+// and sent as one operation. No Review sheet: the button names the act, so its tap is the consent, as Confirm's is.
+// =====================================================================================================================
+
+export type LimitState =
+  | { step: "idle" }
+  | { step: "checking"; order: LimitOrder }
+  | { step: "signing"; order: LimitOrder; plan: LimitPlan }
+  | { step: "sending"; order: LimitOrder; plan: LimitPlan; userOpHash?: string }
+  | { step: "done"; order: LimitOrder; result: LimitDone }
+  /** sent: it went to Monad (not seen landing, or it landed and reverted), so it is never sent again from here */
+  | { step: "failed"; order: LimitOrder; message: string; sent: boolean };
+
+export type LimitEvent =
+  | { type: "start"; order: LimitOrder }
+  | { type: "planned"; plan: LimitPlan }
+  /** planning refused: errors.ts limitRefusal */
+  | { type: "refused"; message: string }
+  /** the send's own steps (the wallet signing, then waiting for Monad) */
+  | { type: "step"; step: SendStep; userOpHash?: string }
+  | { type: "landed"; result: LimitDone }
+  /** signing or sending failed: errors.ts limitSendRefusal */
+  | { type: "sendFailed"; message: string; nothingSent: boolean };
+
+export const LIMIT_IDLE: LimitState = { step: "idle" };
+
+/** This button's run is on its way: its words, and no second start from it (useLimitRun keeps one run at a time
+ *  across the whole account). */
+export const limitBusy = (s: LimitState) => s.step === "checking" || s.step === "signing" || s.step === "sending";
+
+export function limitReducer(s: LimitState, e: LimitEvent): LimitState {
+  switch (e.type) {
+    case "start":
+      return limitBusy(s) ? s : { step: "checking", order: e.order };
+    case "planned":
+      return s.step === "checking" ? { step: "signing", order: s.order, plan: e.plan } : s;
+    case "refused":
+      return s.step === "checking" ? { step: "failed", order: s.order, message: e.message, sent: false } : s;
+    case "step":
+      if (s.step !== "signing" && s.step !== "sending") return s;
+      return e.step === "sending" ? { step: "sending", order: s.order, plan: s.plan, userOpHash: e.userOpHash } : s;
+    case "landed":
+      return s.step === "signing" || s.step === "sending" ? { step: "done", order: s.order, result: e.result } : s;
+    case "sendFailed":
+      return s.step === "signing" || s.step === "sending" ? { step: "failed", order: s.order, message: e.message, sent: !e.nothingSent } : s;
+  }
+}
+
+/** The run's words while it is on its way, for the button it was started from. */
+export function limitStepText(s: LimitState): string | null {
+  if (s.step === "checking") return s.order.kind === "placeLimit" ? "Checking the book" : "Checking the order";
+  if (s.step === "signing") return "Your wallet is signing";
+  if (s.step === "sending") return "Sending to Monad";
+  return null;
+}
+
+/** What the real account holds, less what still rests: an ask mints its pairs and keeps the short half in the wallet
+ *  (a "shortBalance" at entry $0) before anything sells. On the part still resting the person holds both halves, so is
+ *  flat; only the part that sold is a Short (agate, Oct 8: resting = min(short balance, the month's resting asks)). */
+export function withoutResting(positions: Position[], orders: RestingOrder[]): Position[] {
+  const left = new Map<string, number>();
+  for (const o of orders) if (o.side === "short") left.set(`${o.gpu}-${o.month}`, (left.get(`${o.gpu}-${o.month}`) ?? 0) + o.q);
+  if (left.size === 0) return positions;
+  return positions.flatMap((p) => {
+    const k = `${p.gpu}-${p.month}`;
+    const r = p.kind === "shortBalance" ? Math.min(p.q, left.get(k) ?? 0) : 0;
+    if (r <= 0) return [p];
+    left.set(k, (left.get(k) ?? 0) - r);
+    const q = p.q - r;
+    return q > 1e-6 ? [{ ...p, q }] : [];
+  });
+}
+
+/** A resting order's key in the app: Kuru counts order ids per book, so its id is only unique with the market. */
+export const restingKey = (gpu: string, month: string, orderId: string) => `${gpu}-${month}-${orderId}`;
+
+/** The resting orders as they stand once a batch landed, before the next read: a placed order first (when the receipt
+ *  named its id), cancelled ones gone. A read this early can still be a block behind, so the list is told instead. */
+export function ordersAfter(list: RestingOrder[], plan: LimitPlan, done: LimitDone, now: number): RestingOrder[] {
+  const s = plan.summary;
+  if (!s.gpu || !s.month) return list;
+  if (done.action === "cancelLimit") {
+    const gone = new Set((done.cancelled ?? s.cancelled ?? []).map((id) => restingKey(s.gpu!, s.month!, id)));
+    return list.filter((o) => !gone.has(o.id));
+  }
+  if (done.action !== "placeLimit" || !done.orderId) return list;
+  const id = restingKey(s.gpu, s.month, done.orderId);
+  if (list.some((o) => o.id === id) || !s.side || s.price === undefined || s.gpuHours === undefined) return list;
+  return [{ id, orderId: done.orderId, gpu: s.gpu, month: s.month, side: s.side, price: s.price, q: s.gpuHours, placedAt: new Date(now).toISOString(), filled: 0 }, ...list];
 }
 
 // =====================================================================================================================
