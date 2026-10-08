@@ -5,12 +5,26 @@ can trade, hedge or build on. It runs on Monad testnet with test dollars.
 
 ## Connect
 
-agate is a remote MCP server (Streamable HTTP).
-- **OAuth 2.1** (Claude.ai, ChatGPT, Cursor, Claude Code): add `<agate host>/mcp`. Discovery is at
-  `/.well-known/oauth-authorization-server`. The person signs in to agate (Dynamic) and sets a budget, a per-trade
-  cap, a daily trade count and an end date on the Allow page.
-- **Connector URL**: the person copies a private URL from agate's "Connect your AI" screen,
-  `claude mcp add --transport http agate <url>`.
+agate is a remote MCP server (Streamable HTTP). Any AI app that can add a remote MCP server can connect, in one of
+two ways:
+- **OAuth 2.1**: add `<agate host>/mcp`. The app registers itself (DCR), opens agate's Allow page, and the person
+  signs in to agate (Dynamic) and sets a budget, a per-trade cap, a daily trade count and an end date. Discovery is
+  at `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server`.
+- **Connector URL**: the person connects on agate's "Connect your AI" screen and copies the private URL it shows
+  once (treat it like a password). The app adds that URL as a remote MCP server with no further sign-in.
+
+Per app (Codex, Hermes and OpenClaw checked against the live server on Oct 8 2026; Claude in use since Oct 4):
+
+| App | OAuth | Connector URL |
+| --- | --- | --- |
+| Claude Code | `claude mcp add --transport http agate <agate host>/mcp`, then `/mcp` to sign in | `claude mcp add --transport http agate <url>` |
+| Claude.ai | Settings, Connectors, Add custom connector: `<agate host>/mcp` | same field, the URL |
+| Codex CLI | `codex mcp add agate --url <agate host>/mcp`, then `codex mcp login agate` (reaches the Allow page) | `codex mcp add agate --url <url>` (connects; lists the tools) |
+| Hermes Agent | not yet: Hermes v0.8.0 hands only the host to the MCP SDK, which then refuses agate's `/mcp` resource (as it would Linear's or Notion's) | in `~/.hermes/config.yaml`, `mcp_servers: agate: url: <url>`; `hermes mcp test agate` lists 17 tools (tool calls checked) |
+| OpenClaw | no OAuth for MCP servers | `openclaw mcp set agate '{"url":"<url>","transport":"streamable-http"}'` (set `transport`: without it OpenClaw uses SSE; tool calls checked) |
+| opencode | `"mcp": {"agate": {"type": "remote", "url": "<agate host>/mcp"}}` in `opencode.json` (not checked yet) | same with the URL (not checked yet) |
+| Cursor, ChatGPT, VS Code | add `<agate host>/mcp` as a remote MCP server (not checked yet) | the URL as a remote server |
+
 - **Claude Code plugin**: `agents/claude-plugin` (set `AGATE_MCP_URL`).
 
 ## What a connection can do

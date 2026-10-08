@@ -34,7 +34,8 @@ sends `Authorization: Bearer <Dynamic session JWT>` (`sessionToken(client)` from
    after a revoke) and `delegateAssistant`, so Dynamic sends the share once more. If the revoke fails, stop there and
    show it: the wallet still counts as delegated, so the delegate step would do nothing.
 3. Give the AI app a way in, one of:
-   - **Connector URL** (Claude Code, Claude.ai custom connector, Cursor): `POST /api/grants/:id/connector` ->
+   - **Connector URL** (any app that adds a remote MCP server: Claude Code, Claude.ai, Codex, Hermes, OpenClaw,
+     Cursor; per-app steps in `agents/AGENTS.md`): `POST /api/grants/:id/connector` ->
      `{ url, claudeCode, note }`. Shown once; asking again replaces it. Treat it like a password.
    - **OAuth** (the AI app starts it): the app gets a browser at `/connect?request=<id>` (the Allow page). Call
      `GET /api/oauth/requests/:id` -> `{ clientName, redirectHost, expiresAt }`; after the person allows and the
