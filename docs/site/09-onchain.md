@@ -1,8 +1,17 @@
-# Reading the agate price onchain
+---
+slug: onchain
+title: Onchain feeds
+description: Read the GPU price from any contract on Monad, through a Chainlink-style feed or the index itself.
+group: Reference
+order: 9
+source: 'contracts/src/examples/AgatePriceFeed.sol'
+---
+
+# Any contract on Monad can read the price of a GPU-hour.
 
 Any contract on Monad can read what it costs to rent a GPU for an hour. Two ways: a Chainlink-style feed per GPU
 (easiest, and drop-in for code that already reads Chainlink), or the index contract itself (every detail of every
-day). Both are on Monad testnet (chain 10143). How the price is made: [method.md](method.md).
+day). Both are on Monad testnet (chain 10143). How the price is made: [How the price is made](04-the-price.md).
 
 ## The feeds (Chainlink AggregatorV3 views)
 

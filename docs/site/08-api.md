@@ -1,6 +1,15 @@
-# agate developer API (v1)
+---
+slug: api
+title: Developer API
+description: Read-only JSON for prices, sources, history, months, books, trades and candles. No key.
+group: Reference
+order: 8
+source: 'server/src/developer.ts'
+---
 
-Read-only market data for agate: the open onchain price of renting a GPU for an hour, and the monthly markets that
+# Every number on the screen, as JSON.
+
+The developer API (v1) serves read-only market data for agate: the open onchain price of renting a GPU for an hour, and the monthly markets that
 settle on it. No key, no sign-up. JSON over HTTPS.
 
 - **Base URL:** `https://agate.elpabl0.xyz/api` (the same API also answers at `https://agate-1.tailf06dd7.ts.net`,
@@ -112,8 +121,7 @@ Long buys the token; going Short locks the ceiling and sells it. `GET /v1/market
 
 ## Other ways in
 
-- **Onchain:** the index is a contract on Monad testnet (`/v1/status` gives its address); other contracts can read
-  each GPU's daily price from it.
-- **TypeScript:** `@agate/client` in this repo reads all of this, and builds every trade, straight from the chain and
-  the indexer.
-- **AI agents:** agate's MCP server (see `agents/AGENTS.md`).
+- **Onchain:** the index contract and a Chainlink-style feed per GPU ([Onchain](09-onchain.md)).
+- **TypeScript:** the SDK reads all of this, and builds every trade, straight from the chain and the indexer
+  ([SDK](10-sdk.md)).
+- **AI agents:** agate's MCP server ([Connect an AI](03-connect-an-ai.md), [MCP tools](11-mcp-tools.md)).

@@ -1,5 +1,5 @@
 // The developer API's OpenAPI 3.1 description (GET /v1/openapi.json). Keep it in step with developer.ts and
-// docs/api.md; developer.test.ts checks every route here answers.
+// docs/site/08-api.md; developer.test.ts checks every route here answers.
 
 /** requests per IP per minute, over every /v1 route (developer.ts enforces it) */
 export const V1_LIMIT_PER_MIN = 120;

@@ -1,40 +1,111 @@
-# agate
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/agate-lockup-dark.svg">
+    <img src="docs/assets/agate-lockup-light.svg" alt="agate" width="220">
+  </picture>
+</p>
 
-agate makes the price of compute tradable.
+<p align="center"><b>agate makes the price of compute tradable.</b><br>
+An open onchain price for GPU-hours that anyone, whether a person, an app or an agent, can trade, hedge or build on.</p>
 
-It turns GPU compute into a financial asset: an open onchain price for GPU-hours that anyone, whether a person, an app or an agent, can trade, hedge or build on.
+<p align="center">
+  <a href="https://agate.elpabl0.xyz">App</a> ·
+  <a href="docs/site/">Docs</a> ·
+  <a href="https://agate.elpabl0.xyz/api/v1/prices">API</a> ·
+  <a href="https://testnet.monadexplorer.com/address/0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36">Index on Monad</a> ·
+  <a href="docs/judge.md">Claims a judge can check</a> ·
+  <a href="LICENSE">MIT</a>
+</p>
 
-## Why
+GPU rental prices move fast, and there is no open way to lock one in. Renters cannot hedge a rising compute bill,
+GPU owners cannot protect their income, and there is no open, multi-source price for compute onchain. agate reads the
+clouds' own price pages every hour, writes one checked price per GPU per day on Monad, and lists a monthly market on
+each price: a Long that pays the month's average price, and a Short that locks it in, both fully backed, traded on
+Kuru's order book. People sign in with an email and trade with no wallet and no gas; an AI trades from its own pocket
+inside limits the person sets; developers read the same price from an API, an SDK or a contract.
 
-GPU rental prices move fast, and there is no open way to lock one in. Renters cannot hedge a rising compute bill, GPU owners cannot protect their income, and there is no open, multi-source price for compute onchain.
+<details>
+<summary><b>For hackathon judges</b> · a three-minute tour, a 30-second onchain check, and where to look</summary>
+
+<br>
+
+**Try it (three minutes).** Open https://agate.elpabl0.xyz, sign in with an email code or Google (the first sign-in
+adds 10,000 test dollars), go Long $100 on H100 November 2026, go Short with **Pay me daily**, close either, then open
+the Index page to see every cloud's price beside the median. The full walk-through, with an AI connection:
+[`JUDGES.md`](JUDGES.md).
+
+**Check it onchain (30 seconds).** `curl https://agate.elpabl0.xyz/api/v1/prices` returns today's price per GPU
+with each source beside it. The same numbers are written in the index contract
+[`0x4193...5Da36`](https://testnet.monadexplorer.com/address/0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36), and any
+contract can read it through a Chainlink-style feed, H100 at
+[`0xC686...3D98`](https://testnet.monadexplorer.com/address/0xC68687dd7d7b40281FB07E9006538aa45fAF3D98)
+(`latestRoundData()`, 6 decimals).
+
+**Where to look.**
+- The price: `contracts/src/AgateIndex.sol` and its libraries; the readers in `wall/packages/sources`; the Chainlink
+  CRE workflow in `wall/apps/writer-cre`. Method: [How the price is made](docs/site/04-the-price.md).
+- The market: `contracts/src/market/` (series, router, factory); the market maker and payer in `wall/apps/`.
+- The AI door: `server/src/mcp/server.ts` (17 tools), `wallet/src/allowed.ts` (the pocket's onchain limits).
+- Every claim with its file and line: [`docs/judge.md`](docs/judge.md). What is not built yet:
+  [Limits, stated](docs/site/16-limits.md).
+
+</details>
 
 ## How it works
 
 1. **A standard unit.** One GPU-hour of a defined GPU model, rented on demand.
-2. **An open price.** For each GPU model, the clouds' own public price pages are read every hour and combined into a median of companies. A second, independent reader checks the same pages and must countersign every change, so no single key can move the price. Every source is shown beside the median and the method is public. A Chainlink CRE workflow carries the index onchain on Monad.
-3. **A cash-settled claim.** One token per GPU model per month that pays the month's average index price, clamped between a floor and a ceiling (half and twice the reference price). Going short means locking the ceiling and selling the token, so every token is fully backed. Holders are paid after the month, or daily if they choose. No GPUs change hands.
+2. **An open price.** For each GPU model, the clouds' public price pages are read every hour and combined into a
+   median of companies. A Chainlink CRE workflow and a standby writer post the readings to Monad; a second,
+   independent reader checks the same pages and must countersign every change, so no single key can move the price.
+   Every source is shown beside the median, and the method is public: [How the price is made](docs/site/04-the-price.md).
+3. **A cash-settled claim.** One token per GPU model per month pays the month's average index price, kept between a
+   floor and a ceiling (half and twice the reference price). Holders are paid after the month, or daily if they
+   choose. No GPUs change hands: [The monthly market](docs/site/05-the-market.md).
 
-**What backs a token (it is not created out of thin air).** A token is not a GPU-hour stored somewhere: like power futures, it is a cash-settled claim on a price, and no GPU changes hands. But a token only comes into existence when someone locks the month's ceiling in dollars ($8.00 a GPU-hour for H100 in November 2026). That one deposit makes two sides: the token, worth the month's average price (between the floor, $1.95, and the ceiling), and a short position, worth the ceiling minus that average. Together they always pay exactly the $8.00 that was locked, so every dollar any holder can be paid is already in the contract. Power futures rest on the same idea (an agreement settled in cash on an index, such as the month's average day-ahead power price) but are backed by margin and a clearinghouse that can ask for more money; agate locks the whole worst case up front instead, which the floor and ceiling make possible: no margin calls, no liquidations, and no one can owe more than they put in.
+**What backs a token.** A token only comes into existence when someone locks the month's ceiling in dollars ($8.00 a
+GPU-hour for H100 in November 2026). That deposit makes two sides: the token, worth the month's average price, and a
+short unit, worth the ceiling minus that average. Together they always pay exactly the $8.00 that was locked, so every
+dollar any holder can be paid is already in the contract: no margin calls, no liquidations, and no one can owe more
+than they put in.
 
-Six GPU models have a daily index price: H100, H200, B200, B300, A100 and L40S. The first three also have monthly markets; the other three are price only for now.
+Six GPU models have a daily price: H100, H200, B200, B300, A100 and L40S. H100, H200 and B200 also have monthly
+markets.
 
 ## Ways in
 
-- **Web app** (live on Monad testnet, https://agate.elpabl0.xyz): see the price, trade it, hedge with it. Sign in with an email code, Google or a passkey; trades use free test dollars and gas is sponsored.
-- **Agent connector (MCP, live):** any AI app that can add a remote MCP server (Claude, Codex, Hermes, OpenClaw and others) reads prices and trades from its own pocket within limits the person sets. Steps per app: `agents/AGENTS.md`.
-- **Onchain feed (live):** the index is a contract on Monad testnet that other contracts can read, plus a Chainlink-style feed per GPU (`latestRoundData()`, 6 decimals) for code that already reads Chainlink: [`docs/onchain.md`](docs/onchain.md). How the price is made: [`docs/method.md`](docs/method.md). Judges: [`JUDGES.md`](JUDGES.md).
-- **Developer API (live, read-only):** prices with every source, daily history, the months on sale with their books, trades, candles and a status line, as JSON with no key: https://agate.elpabl0.xyz/api/v1 (docs: [`docs/api.md`](docs/api.md), OpenAPI at `/v1/openapi.json`).
+| Door | What it is | Docs |
+|---|---|---|
+| Web app | trade and hedge from a phone or desktop; email or Google sign-in, sponsored gas, test dollars | [Quickstart](docs/site/02-quickstart.md) |
+| AI apps | a hosted MCP server: Claude, Codex, Hermes, OpenClaw and others read prices and trade from a pocket | [Connect an AI](docs/site/03-connect-an-ai.md) |
+| Developer API | read-only JSON, no key: prices with sources, history, months, books, trades, candles | [Developer API](docs/site/08-api.md) |
+| SDK | the TypeScript library the app runs on: reads, trades, call batches for smart accounts | [SDK](docs/site/10-sdk.md) |
+| Contracts | the index itself, or a Chainlink-style feed per GPU | [Onchain feeds](docs/site/09-onchain.md) |
+
+## Live on Monad testnet
+
+| | Address |
+|---|---|
+| AgateIndex | [`0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36`](https://testnet.monadexplorer.com/address/0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36) |
+| AgateFactory | [`0xEdBE3e696944443bBCe7eb3CD04E626e9396a0b5`](https://testnet.monadexplorer.com/address/0xEdBE3e696944443bBCe7eb3CD04E626e9396a0b5) |
+| AgateRouter | [`0x4F4C14E7421dA83C398e04e4b5CeA2543f903c9c`](https://testnet.monadexplorer.com/address/0x4F4C14E7421dA83C398e04e4b5CeA2543f903c9c) |
+| Test dollar (tUSD) | [`0x3A0513b2A19EE92eb3f73Dd06EefEe4D477CbF38`](https://testnet.monadexplorer.com/address/0x3A0513b2A19EE92eb3f73Dd06EefEe4D477CbF38) |
+
+Every month's series, token and Kuru book: [Contracts and addresses](docs/site/12-contracts.md). The six price feeds:
+[Onchain feeds](docs/site/09-onchain.md).
+The index has run on the real calendar since Oct 4 2026. On Oct 8 a full pass passed: every package's tests, the live
+services, a fork journey through a month's end, and a signed-in run on a real account, with Hermes and OpenClaw
+calling agate's tools through a connector URL.
 
 ## Why Monad
 
-- **An order book needs fast, cheap blocks.** Each month trades on Kuru's onchain order book; Monad's sub-second
-  blocks and finality let a person or an AI place, fill and close in seconds, and let our market maker requote cheaply.
-- **The price is written every day, by two writers, with a countersign.** Hourly readings, daily closes and the
-  attester's checks are many small transactions; on Monad they cost little and land fast.
-- **No wallet for the user.** Every person and every AI pocket is a smart account (ZeroDev Kernel) with sponsored gas,
+- **An order book needs fast, cheap blocks.** Each month trades on Kuru's onchain order book; sub-second blocks let a
+  person or an AI place, fill and close in seconds, and let the market maker requote cheaply.
+- **The price is many small transactions.** Hourly readings from two writers, daily closes and countersigns cost
+  little and land fast.
+- **No wallet for the user.** Every person and every AI pocket is a ZeroDev Kernel smart account with sponsored gas,
   signed in through Dynamic, so a trade is one tap.
-- **The ecosystem's stack:** Chainlink CRE writes the price through Monad's forwarder, Envio indexes the index, the
-  markets and Kuru's books over HyperSync, Alchemy carries our services' transactions.
+- **The ecosystem's stack:** Chainlink CRE writes the price, Kuru runs the books, Envio indexes everything over
+  HyperSync, Alchemy carries the services' transactions. Where each sits in the code: [Built on](docs/site/15-built-on.md).
 
 ## Architecture
 
@@ -48,31 +119,41 @@ Six GPU models have a daily index price: H100, H200, B200, B300, A100 and L40S. 
                                                   Envio HyperIndex (GraphQL) <-- every contract's events
 ```
 
-**Stack:** Solidity 0.8.30 with Foundry (contracts); TypeScript on Bun (price readers, writers, watcher, bots, server,
-client); Chainlink CRE (TypeScript SDK); Next.js 16, React 19 and TanStack Query (app, on Vercel); viem; Dynamic and
-ZeroDev (accounts, delegated AI wallets, sponsored gas); Kuru V1 (order books); Envio HyperIndex (indexer); Hono and the
-MCP SDK (server); one Linux server for the always-on processes.
+Which process runs where, and how keys are held: [Architecture](docs/site/13-architecture.md).
+
+**Stack:** Solidity 0.8.30 with Foundry; TypeScript on Bun (readers, writers, watcher, bots, server, SDK); Chainlink
+CRE (TypeScript SDK); Next.js 16, React 19 and TanStack Query on Vercel; viem; Dynamic and ZeroDev; Kuru V1; Envio
+HyperIndex; Hono and the MCP SDK; one Linux server for the always-on processes.
 
 ## Repository
 
-`app/`, `client/`, `wallet/` and `server/` are one bun workspace: `bun install` at the repo root installs all four
-(hoisted, see `bunfig.toml`). `wall/` and `indexer/` install on their own.
+| Folder | What it is |
+|---|---|
+| [`contracts/`](contracts/) | `AgateIndex`, the market (`src/market/`), the example feeds (`src/examples/`) |
+| [`wall/`](wall/) | the price readers, both writers, the watcher, attester and keeper, guardian CLI, page check, repair agent, market maker, payer and lister |
+| [`client/`](client/) | `@agate/client`, the SDK |
+| [`wallet/`](wallet/) | `@agate/wallet`: Dynamic sign-in, smart accounts, the pocket's session key |
+| [`server/`](server/) | MCP, OAuth 2.1, approvals, autopilot, the markets snapshot, the developer API |
+| [`app/`](app/) | the web app |
+| [`indexer/`](indexer/) | the Envio HyperIndex indexer |
+| [`agents/`](agents/) | what an AI reads: `AGENTS.md`, `llms.txt`, a Claude plugin skill |
+| [`ops/`](ops/) | the testnet operator kit and runbook, the server split, Dynamic's environment as code |
+| [`docs/`](docs/) | the documentation ([`docs/site/`](docs/site/)) and the judge's claims |
 
-- `contracts/`: the index contract `AgateIndex` and the market contracts in `src/market/` (Foundry). `forge install --no-git foundry-rs/forge-std@v1.17.0 && forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.4.0 && forge test`
-- `wall/`: the price readers, the two writers (Chainlink CRE and a standby), the watcher and attester, the guardian CLI, a page check that compares each price with public price trackers, a repair agent that drafts a fix when a cloud changes its page (a person approves every change, which then takes effect after a 48-hour notice), a reader of traded GPU prices on the Akash chain (shown for comparison only), the market bots (a market maker that keeps buy and sell orders on Kuru for every open month, a lister that opens each new month's market, and a payer that pays out daily positions, which can sign with a Dynamic server wallet instead of a key), and end-to-end and chaos tests on a local chain and on a fork of Monad testnet. `cd wall && bun install && bun test`
-- `client/`: `@agate/client`, the app's live data layer: every screen's data (index prices and their sources, months, the Kuru book, fills, candles, wallets, open orders) read from the chain and the indexer, and every user action (test dollars, long, short, pay me daily, claims, limit orders) with price and depth guards, plus end-to-end runs of every flow: on a fork of Monad testnet, and a guarded real-user journey on a live demo market (`bun run e2e/run.ts testnet`). It also plans the same actions as call batches without sending them (`plan.ts`), for smart accounts and for agate's server. `cd client && bun test`
-- `ops/testnet/`: the operator kit for Monad testnet: deploy scripts for the index and the market, the processes' start and stop scripts, demo sessions (a fast-clock index whose month lasts five hours), a status check and the runbook (`ops/testnet/RUNBOOK.md`). The processes send their own transactions through Alchemy, with the attester's live feed and a daily compute-unit budget, and read through free public RPCs.
-- `app/`: the web app (Next.js): the trade screen with Simple and Pro modes (index price, the month's market price, chart, Kuru book, order ticket, positions and open orders), the index page, a positions page and test-dollar sign-in, laid out for phones, tablets and desktop, plus the "Connect your AI" screens (the Allow page for AI apps, connected AIs with their pockets, Autopilot and disconnect, and approvals for trades over the limit). It reads the live testnet through `@agate/client` (or example data, switchable in development). Signed in through Dynamic, a person trades from their own smart account with sponsored gas and the AI screens talk to agate's server; signed out, a practice account stands in. A Mock controls panel for comparing design options is on in development and off in production builds (`NEXT_PUBLIC_MOCK_CONTROLS`). `cd app && bun dev`
-- `wallet/`: `@agate/wallet`, accounts on Dynamic and ZeroDev, shared by the app and the server: Dynamic sign-in (email code, Google, a passkey added after sign-up, step-up by code or passkey), the main wallet and a separate Assistant wallet for AIs, the main account and each AI's pocket as Kernel smart accounts with sponsored gas, the pocket's onchain session key (only agate's router, a per-trade cap, a daily trade count and an end date; profits pay out to the main account only), the take-back, and a lab page for live tests. `cd wallet && bun test` (`FORK=1` adds the pocket's limits on a fork of Monad testnet)
-- `server/`: agate's always-on service behind "Connect your AI": Dynamic's delegation webhooks and Transaction Review, each AI connection's limits (checked again before every signature), the MCP server for AI apps (a connector URL or OAuth 2.1), approvals for trades above the cap, the autopilot that keeps a hedge rolling into the next month, an AI company's own agent on a Dynamic server wallet, and the markets snapshot the app loads in one request (`GET /api/markets`). The app's contract is `server/API.md`. `cd server && bun test`
-- `agents/`: what an AI app reads to use agate: `AGENTS.md`, `llms.txt` and a Claude plugin skill.
-- `ops/server/`: the same kit split across a Linux server and a second machine: a systemd unit and start script that run every process except the standby writer on the server at boot, a stand-in for the macOS key store that reads owner-only files, a read-only public door to the indexer, and a forwarder that shows the server's alerts as notifications on the local machine. The setup is in the runbook ("Split across a local machine and a server").
-- `ops/dynamic/`: the Dynamic environment as code (`sandbox.json`, no secrets) and the scripts that export, compare and apply it.
-- `indexer/`: an Envio HyperIndex indexer of the market, the index and the Kuru order books, serving balances, positions, payouts, daily prices and each month's market price over GraphQL. `cd indexer && bun install && bun run test`
+```sh
+bun install                                   # app, client, wallet and server (one bun workspace)
+cd client && bun test                         # likewise in server/, wallet/, wall/ (bun install first)
+cd contracts && forge test                    # after the two forge installs in contracts/README.md
+```
 
-## Status
+Every package, its tests and the end-to-end runs: [Build and test](docs/site/14-develop.md).
 
-Early. The index, its checking system, the market contracts, the bots and the indexer are built and tested on local chains and on forks of Monad testnet. Since Oct 4 2026 the real-calendar index and the market run on Monad testnet (addresses in `contracts/deployments/10143.json` and `10143-indexes.json`). On Oct 5 a real-user journey passed every check on a live demo month: test dollars, long, short, pay me daily, a limit order, the daily claim, the month end and the settle. The app reads the live testnet through `@agate/client`. The Dynamic layer (sign-in, the main account and each AI's pocket, the MCP server, approvals and the autopilot) was exercised live on Oct 4, including real trades by an AI from its pocket, and is wired into the app. Since Oct 6 the robots and the AI server run on a rented server and the app on Vercel. On Oct 8 a full pass passed: every package's tests, the live services, a fork journey through the month end, and a signed-in run on a real account (test dollars, a Long with pay me daily and its close, a Short and its close, connecting an AI and disconnecting it), with Hermes and OpenClaw calling agate's tools through a connector URL.
+## Limits
+
+Testnet only, with test dollars. The index is the clouds' posted list prices, so it moves rarely and in steps. On
+testnet it closes a day with one fresh source, and the CRE workflow runs in Chainlink's simulator (one node). The
+books' depth comes from agate's own market maker. The contracts have had no outside audit. The full list:
+[Limits, stated](docs/site/16-limits.md).
 
 ## Attribution
 

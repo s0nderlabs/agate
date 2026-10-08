@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/index", destination: "/gpu-index", permanent: false }];
   },
-  // the developer API (docs/api.md) at the app's own address: /api/v1/... is agate's server's /v1/..., proxied
+  // the developer API (docs/site/08-api.md) at the app's own address: /api/v1/... is agate's server's /v1/..., proxied
   async rewrites() {
     const server = process.env.NEXT_PUBLIC_AGATE_SERVER || "https://agate-1.tailf06dd7.ts.net";
     return [

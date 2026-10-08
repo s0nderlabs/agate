@@ -6,7 +6,7 @@ signs as the AI's Assistant. The browser half (sign-in, wallets, the pocket perm
 (`../wallet`). The app's contract is [API.md](API.md).
 
 Run: `scripts/run.sh` (or `scripts/restart.sh` into tmux). Secrets live in `~/.agate-dynamic/` (mode 700), never in
-the repo. Tests: `bun test` (69). The public developer API (`/v1`, read-only, no key) is `src/developer.ts`, documented in [`../docs/api.md`](../docs/api.md). `MONAD_RPC_URL` takes one RPC URL or a comma list (tried in order). The environment itself is code: [`../ops/dynamic`](../ops/dynamic/README.md).
+the repo. Tests: `bun test` (70). The public developer API (`/v1`, read-only, no key) is `src/developer.ts`, documented in [`../docs/site/08-api.md`](../docs/site/08-api.md). `MONAD_RPC_URL` takes one RPC URL or a comma list (tried in order). The environment itself is code: [`../ops/dynamic`](../ops/dynamic/README.md).
 
 ## Code usage per Dynamic primitive
 
