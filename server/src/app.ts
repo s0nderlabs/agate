@@ -20,6 +20,7 @@ import { ed25519Signer } from "./dynamic/hmac.ts";
 import { checkHmac } from "./dynamic/hmac.ts";
 import { decide, type ReviewRequest } from "./dynamic/review.ts";
 import { type SnapshotCache, snapshotCache } from "./snapshot.ts";
+import { developerApi } from "./developer.ts";
 import { handleWebhook } from "./dynamic/webhook.ts";
 import type { PocketLimits } from "@agate/wallet/allowed";
 import type { GrantRow, Store } from "./store.ts";
@@ -106,6 +107,8 @@ export function publicApp(deps: AppDeps): Hono {
   /** The markets snapshot (snapshot.ts): every market and listed book in one answer, so a visitor's browser does not
    *  read the chain itself; 503 when it cannot be read (the app then reads the chain). */
   const snapshots = deps.snapshots ?? snapshotCache(agate, { log });
+  // the developer API (developer.ts): the same snapshot as stable, read-only JSON for anyone, under /v1
+  app.route("/", developerApi({ snapshots, client: agate, log }));
   app.get("/api/markets", async (c) => {
     const s = await snapshots.get();
     if (!s) return c.json({ error: "the markets could not be read; read them from the chain" }, 503, { "cache-control": "no-store" });

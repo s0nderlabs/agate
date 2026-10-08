@@ -23,7 +23,7 @@ Six GPU models have a daily index price: H100, H200, B200, B300, A100 and L40S. 
 - **Web app** (live on Monad testnet, https://agate.elpabl0.xyz): see the price, trade it, hedge with it. Sign in with an email code, Google or a passkey; trades use free test dollars and gas is sponsored.
 - **Agent connector (MCP, live):** any AI app that can add a remote MCP server (Claude, Codex, Hermes, OpenClaw and others) reads prices and trades from its own pocket within limits the person sets. Steps per app: `agents/AGENTS.md`.
 - **Onchain feed:** the index is a contract on Monad testnet that other contracts can read; a documented feed is planned.
-- **API:** for developers (planned).
+- **Developer API (live, read-only):** prices with every source, daily history, the months on sale with their books, trades, candles and a status line, as JSON with no key: https://agate-1.tailf06dd7.ts.net/v1 (docs: [`docs/api.md`](docs/api.md), OpenAPI at `/v1/openapi.json`).
 
 ## Repository
 
