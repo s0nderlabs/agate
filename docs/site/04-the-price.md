@@ -9,7 +9,7 @@ source: 'wall/packages/sources, contracts/src/AgateIndex.sol'
 
 # One number per GPU per day, made in the open.
 
-The agate index is one number per GPU per day: what it costs to rent that GPU for an hour on demand, taken from the
+The Agate index is one number per GPU per day: what it costs to rent that GPU for an hour on demand, taken from the
 clouds' own public price pages, combined in the open and written onchain on Monad. This page is the method in full:
 what is read, how a day's price is computed, who checks it, and what happens when something goes wrong. The
 contracts enforce every rule below; nothing here depends on trusting a person to type a number.

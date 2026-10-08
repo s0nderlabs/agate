@@ -1,7 +1,7 @@
 ---
 slug: contracts
 title: Contracts and addresses
-description: Every agate contract on Monad testnet, what it does, and where its source is.
+description: Every Agate contract on Monad testnet, what it does, and where its source is.
 group: Reference
 order: 12
 source: 'contracts/src, contracts/deployments/10143.json'
@@ -45,10 +45,10 @@ The live list, including months opened later: `GET https://agate.elpabl0.xyz/api
 
 ## Kuru (the order book)
 
-agate trades on Kuru V1 on Monad testnet: Router `0x7EFbE105Ca7415dE98F96622173458ac1c054630`, MarginAccount
+Agate trades on Kuru V1 on Monad testnet: Router `0x7EFbE105Ca7415dE98F96622173458ac1c054630`, MarginAccount
 `0xd029C2D98ff85D8F64799017fE00a59B1159CE02`. Books use a price precision of 10^6 with a $0.01 tick, and sizes in
 lots of 0.0001 GPU-hour (10^4 per token) with a 1 GPU-hour minimum order (`contracts/src/market/MarketTypes.sol`).
-agate calls Kuru through interfaces that declare only the functions it uses.
+Agate calls Kuru through interfaces that declare only the functions it uses.
 
 ## Build and test
 

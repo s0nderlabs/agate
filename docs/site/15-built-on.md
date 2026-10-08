@@ -7,7 +7,7 @@ order: 15
 source: 'README.md'
 ---
 
-# What agate stands on, and where to find it in the code.
+# What Agate stands on, and where to find it in the code.
 
 ## Monad
 
@@ -21,7 +21,7 @@ source: 'README.md'
 
 A CRE workflow fetches every cloud's page through CRE's HTTP capability, the nodes agree on each parsed number, and the
 report reaches `AgateIndex` through Chainlink's forwarder (`onReport`). Today it runs in CRE's simulator with
-`--broadcast` on agate's server; a deployment on Chainlink's network makes the agreement step decentralized.
+`--broadcast` on Agate's server; a deployment on Chainlink's network makes the agreement step decentralized.
 Code: `wall/apps/writer-cre` (the workflow in `workflow/handler.ts`), `contracts/src/interfaces/IReceiver.sol`.
 
 ## Kuru: the order books
@@ -34,13 +34,13 @@ the book level by level. Code: `contracts/src/market/interfaces/IKuruRouter.sol`
 ## Envio: the indexer
 
 An Envio HyperIndex indexer follows the index, every series and the Kuru books over HyperSync, and serves balances,
-positions, payouts, daily prices, trades and candles over GraphQL. It runs on Envio Cloud and on agate's server; the
+positions, payouts, daily prices, trades and candles over GraphQL. It runs on Envio Cloud and on Agate's server; the
 app asks Envio Cloud first. Code: `indexer/` (`config.yaml`, `schema.graphql`).
 
 ## Dynamic: sign-in and wallets
 
 Email codes, Google and passkeys; an embedded TSS-MPC wallet per person; step-up before sensitive actions; a second
-wallet (the Assistant) delegated to agate only when a person connects an AI; server wallets for the payer and for an
+wallet (the Assistant) delegated to Agate only when a person connects an AI; server wallets for the payer and for an
 AI company's own agent; delegation webhooks; and a Transaction Review endpoint, built and waiting for Dynamic to turn
 it on for Monad testnet. Code: `wallet/src/dynamic.ts`, `server/src/dynamic/`, `wall/packages/market/src/dynamic-signer.ts`,
 `server/src/company/agent.ts`, the environment as code in `ops/dynamic/`.
@@ -48,15 +48,15 @@ it on for Monad testnet. Code: `wallet/src/dynamic.ts`, `server/src/dynamic/`, `
 ## ZeroDev: smart accounts and gas
 
 Every person's main account and every AI pocket is a Kernel v3.1 smart account (ERC-4337, EntryPoint 0.7) with
-sponsored gas. A pocket's limits are a session key enforced by the account: a call policy (only agate's router, a cap
+sponsored gas. A pocket's limits are a session key enforced by the account: a call policy (only Agate's router, a cap
 per trade, the main account as payee), a rate limit (trades a day) and a timestamp (the end date). Code:
 `wallet/src/kernel.ts`, `pocket.ts`, `allowed.ts`, `sponsor.ts`.
 
 ## Alchemy: transactions and the app's reads
 
-agate's processes send their transactions through Alchemy, and the attester and keeper follow the chain over its
+Agate's processes send their transactions through Alchemy, and the attester and keeper follow the chain over its
 websocket; every process meters its compute units per method against a daily budget. The hosted app reads through an
-Alchemy key locked to agate's own domains, with the public RPC after it. Code: `wall/packages/report/src/meter.ts`,
+Alchemy key locked to Agate's own domains, with the public RPC after it. Code: `wall/packages/report/src/meter.ts`,
 `ops/testnet/`.
 
 ## Code and data we build on

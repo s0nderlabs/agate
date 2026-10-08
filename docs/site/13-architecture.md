@@ -14,7 +14,7 @@ source: 'ops/testnet/RUNBOOK.md, ops/server'
                                   watcher -> attester (countersign) / guardian (veto)  ^
                                                                                        | final daily prices
  web app (Next.js, Dynamic, ZeroDev) --+                                               |
- AI apps (MCP, OAuth 2.1) --> agate server (Hono) --+--> router --> monthly series (one token per GPU per month)
+ AI apps (MCP, OAuth 2.1) --> Agate server (Hono) --+--> router --> monthly series (one token per GPU per month)
  developers --> /api/v1 (read-only) ---------------+          \--> Kuru order books   <-- market maker, lister, payer
                                                   Envio HyperIndex (GraphQL) <-- every contract's events
 ```
@@ -41,12 +41,12 @@ source: 'ops/testnet/RUNBOOK.md, ops/server'
 | payer and lister | server, signing with a Dynamic server wallet | `wall/apps/payer` |
 | Akash traded-price reader (comparison only) | server | `wall/apps/akash` |
 | indexer (Envio HyperIndex) and its read-only public door | server, and Envio Cloud | `indexer/`, `ops/server/graphql-proxy.ts` |
-| agate server: MCP, OAuth, approvals, autopilot, markets snapshot, `/v1` | server | `server/` |
+| Agate server: MCP, OAuth, approvals, autopilot, markets snapshot, `/v1` | server | `server/` |
 | web app | Vercel | `app/` |
 | guardian | a person's command line | `wall/apps/guardian` |
 
 The server is one Linux machine (Ubuntu 24.04) that starts the whole stack at boot in one tmux session
-(`ops/server/stack.sh`, a systemd unit); Tailscale Funnel publishes the agate server (443) and the indexer's door
+(`ops/server/stack.sh`, a systemd unit); Tailscale Funnel publishes the Agate server (443) and the indexer's door
 (8443). The local half runs the roles that should not share a machine with the primary. A role never runs on both:
 each machine lists the roles the other one owns. Operating it: `ops/testnet/RUNBOOK.md`.
 

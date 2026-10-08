@@ -16,7 +16,7 @@ trade, then shows the same data from a terminal and from code.
 
 Tap **Sign in** and use your email (a code arrives) or Google; you can add a passkey after. There is no wallet to
 install and no gas to pay: an account is created for you (a smart account, see [Accounts](06-accounts.md)) and network
-fees are paid by agate. The first sign-in adds **10,000 test dollars** in about 6 seconds; you can take 10,000 more
+fees are paid by Agate. The first sign-in adds **10,000 test dollars** in about 6 seconds; you can take 10,000 more
 each day.
 
 ## 2. Go Long

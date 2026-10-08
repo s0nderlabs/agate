@@ -1,16 +1,16 @@
 ---
 slug: introduction
 title: Introduction
-description: agate makes the price of compute tradable. An open onchain price for renting a GPU, and fully backed monthly markets on it.
+description: Agate makes the price of compute tradable. An open onchain price for renting a GPU, and fully backed monthly markets on it.
 group: Get started
 order: 1
 source: 'README.md'
 ---
 
-# agate makes the price of compute tradable.
+# Agate makes the price of compute tradable.
 
 Renting a GPU for an hour has a price, and that price moves. An AI company that sells at a fixed price while its GPU
-bill floats is exposed to it; so is a cloud that bought GPUs and needs next month's rental income. agate turns that
+bill floats is exposed to it; so is a cloud that bought GPUs and needs next month's rental income. Agate turns that
 price into something anyone, a person, an app or an AI agent, can see, check, lock in or trade. No GPU changes hands:
 you trade the price, settled in dollars.
 
@@ -51,5 +51,5 @@ Test dollars and tokens have no monetary value. What a real-money version needs 
 
 Five groups. **Get started**: this page, a three-minute tour of the app, and connecting an AI. **Concepts**: how the
 price is made, how the monthly market works, accounts, and AI pockets. **Reference**: the API, onchain reading, the
-SDK, the MCP tools and the contracts. **Operate**: the architecture and how to run and test agate yourself.
-**Background**: what agate is built on, and its limits.
+SDK, the MCP tools and the contracts. **Operate**: the architecture and how to run and test Agate yourself.
+**Background**: what Agate is built on, and its limits.

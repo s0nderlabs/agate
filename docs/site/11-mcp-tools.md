@@ -1,7 +1,7 @@
 ---
 slug: mcp-tools
 title: MCP tools
-description: Every tool an AI app gets from agate's MCP server, and the rules an agent follows.
+description: Every tool an AI app gets from Agate's MCP server, and the rules an agent follows.
 group: Reference
 order: 11
 source: 'server/src/mcp/server.ts'

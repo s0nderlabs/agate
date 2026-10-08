@@ -1,16 +1,16 @@
 ---
 slug: sdk
 title: SDK
-description: The TypeScript library agate's own app runs on. Every read in plain numbers, every trade as a write or a call batch.
+description: The TypeScript library Agate's own app runs on. Every read in plain numbers, every trade as a write or a call batch.
 group: Reference
 order: 10
 source: 'client/src'
 ---
 
-# The library agate's own app runs on.
+# The library Agate's own app runs on.
 
-`@agate/client` (packaged for npm as `agate-sdk`, not yet published) is agate's data and trading layer: every screen
-of the app reads through it, and agate's server builds every AI trade with it. One dependency,
+`@agate/client` (packaged for npm as `agate-sdk`, not yet published) is Agate's data and trading layer: every screen
+of the app reads through it, and Agate's server builds every AI trade with it. One dependency,
 [viem](https://viem.sh). It works in Node 18+, browsers (any bundler) and Bun, and returns plain numbers: dollars per
 GPU-hour and GPU-hours, never raw units.
 
@@ -32,8 +32,8 @@ const agate = createAgateClient({
 | Option | Default | Meaning |
 |---|---|---|
 | `rpcUrl` | the public Monad testnet RPC | one URL, or a comma list tried in order (a URL that fails or is rate limited passes the call on) |
-| `graphqlUrl` | `NEXT_PUBLIC_AGATE_GRAPHQL_URL` | agate's indexer; `null` reads the chain only |
-| `snapshotUrl` | none | agate's server markets snapshot, one request for every market and book |
+| `graphqlUrl` | `NEXT_PUBLIC_AGATE_GRAPHQL_URL` | Agate's indexer; `null` reads the chain only |
+| `snapshotUrl` | none | Agate's server markets snapshot, one request for every market and book |
 | `deployments`, `factory` | Monad testnet, `"real"` | which contracts (the `"demo"` factory runs a fast-clock month) |
 | `publicClient` | made from `rpcUrl` | an existing viem client |
 

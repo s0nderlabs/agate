@@ -10,7 +10,7 @@ source: 'wallet/src, wallet/README.md'
 # No wallet to install, no gas to pay.
 
 People sign in with an email code or Google (and can add a passkey after). Behind that sits a real onchain account,
-a smart account on Monad, whose transactions agate pays for. The account layer is Dynamic for sign-in and embedded
+a smart account on Monad, whose transactions Agate pays for. The account layer is Dynamic for sign-in and embedded
 wallets, and ZeroDev for the smart accounts and gas sponsorship.
 
 ## Who holds what
@@ -19,7 +19,7 @@ wallets, and ZeroDev for the smart accounts and gas sponsorship.
 |---|---|---|
 | main | the person's first Dynamic embedded wallet (TSS-MPC, made at sign-in) | everything the person does in the app |
 | main account | a Kernel smart account (index 0) owned by main | holds the money and the positions |
-| Assistant | a second embedded wallet, created and delegated to agate only when the person connects an AI | nothing but an AI pocket's session key |
+| Assistant | a second embedded wallet, created and delegated to Agate only when the person connects an AI | nothing but an AI pocket's session key |
 | pocket | a Kernel smart account (index 1, 2, ... one per AI) owned by main | holds only that AI's budget |
 
 The main wallet is never delegated. Smart accounts are Kernel v3.1 on EntryPoint 0.7 (ERC-4337).

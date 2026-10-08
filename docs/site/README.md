@@ -1,7 +1,7 @@
-# agate documentation
+# Agate documentation
 
-The chapters of agate's documentation, one markdown file each, written to become the web app's docs pages (being
-built); there, links of the form `NN-slug.md` between them become `/docs/<slug>`. They read as they are on GitHub.
+The chapters of Agate's documentation, one markdown file each. They are also the web app's docs pages, where links of
+the form `NN-slug.md` between them become `/docs/<slug>`; on GitHub they read as they are.
 Start with the Quickstart to try it, with Connect an AI to hand it to an agent, or with the Developer API to build on
 the price.
 
