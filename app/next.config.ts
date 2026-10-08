@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/index", destination: "/gpu-index", permanent: false }];
   },
+  // the developer API (docs/api.md) at the app's own address: /api/v1/... is agate's server's /v1/..., proxied
+  async rewrites() {
+    const server = process.env.NEXT_PUBLIC_AGATE_SERVER || "https://agate-1.tailf06dd7.ts.net";
+    return [
+      { source: "/api/v1", destination: `${server}/v1` },
+      { source: "/api/v1/:path*", destination: `${server}/v1/:path*` },
+    ];
+  },
   turbopack: {
     // Turbopack resolves nothing outside its root, so the root is the repo, which holds app/ and the workspace packages
     // (Next docs: turbopack.root for linked packages). The root install is hoisted (bunfig.toml), so there is one viem.

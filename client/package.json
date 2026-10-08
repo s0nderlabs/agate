@@ -18,7 +18,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "gen": "bun run scripts/gen-static.ts",
     "e2e:fork": "bun run e2e/run.ts fork",
-    "e2e:live": "bun run e2e/run.ts live"
+    "e2e:live": "bun run e2e/run.ts live",
+    "pack:npm": "bun run scripts/pack.ts"
   },
   "dependencies": {
     "viem": "2.57.2"

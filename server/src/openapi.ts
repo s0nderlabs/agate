@@ -25,7 +25,10 @@ export const openapi = {
       `${V1_LIMIT_PER_MIN} requests a minute per IP (429 with retry-after past it). Prices are US dollars per GPU-hour, sizes GPU-hours, times ISO 8601 UTC. ` +
       "Every token is a test asset with no monetary value.",
   },
-  servers: [{ url: "https://agate-1.tailf06dd7.ts.net" }],
+  servers: [
+    { url: "https://agate.elpabl0.xyz/api", description: "the app's address" },
+    { url: "https://agate-1.tailf06dd7.ts.net", description: "agate's server" },
+  ],
   paths: {
     "/v1/prices": { get: { summary: "Today's index price of every GPU, with every source", responses: { 200: ok("Prices"), 503: err, ...limited } } },
     "/v1/prices/{gpu}": { get: { summary: "One GPU's price, sources and daily history", parameters: [gpuParam], responses: { 200: ok("PriceWithHistory"), 400: err, 404: err, 503: err, ...limited } } },

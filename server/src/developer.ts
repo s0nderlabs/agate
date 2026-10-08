@@ -11,6 +11,8 @@ import { clientIp, RateLimiter } from "./ratelimit.ts";
 import type { SnapshotCache } from "./snapshot.ts";
 
 export { V1_LIMIT_PER_MIN };
+/** the app's address shares one bucket per Vercel egress address among its callers: this many times the limit */
+export const V1_APP_FACTOR = 10;
 export const TRADES_TTL_MS = 15_000;
 export const CANDLES_TTL_MS = 60_000;
 export const TRADES_MAX = 200;
@@ -69,6 +71,12 @@ export function monthView(s: Series, book?: Book) {
 const fillView = (f: Fill) => ({ at: f.at, side: f.side, price: f.price, size: f.size, txHash: f.txHash });
 const candleView = (k: Candle) => ({ t: k.t, open: k.o, high: k.h, low: k.l, close: k.c, volume: k.v });
 
+/** Through the app's address (agate.elpabl0.xyz/api/v1, a Vercel rewrite) a request reaches us from Vercel's egress,
+ *  so its bucket is that egress address, shared by every caller behind it: it gets the larger limit. The bucket is
+ *  always the address the proxy saw (clientIp), never a header a caller can set, so forging Vercel's header buys at
+ *  most the larger limit on the caller's own address, not a new bucket per request. */
+export const viaApp = (c: Context): boolean => c.req.header("x-vercel-forwarded-for") !== undefined;
+
 /** "h100" -> "H100"; null when not a GPU of the index */
 export function gpuOf(raw: string | undefined): Gpu | null {
   const g = (raw ?? "").toUpperCase();
@@ -102,13 +110,16 @@ export type DeveloperDeps = {
 export function developerApi(deps: DeveloperDeps): Hono {
   const now = deps.now ?? Date.now;
   const app = new Hono();
-  const limiter = new RateLimiter(deps.limitPerMin ?? V1_LIMIT_PER_MIN, 60_000);
+  const perMin = deps.limitPerMin ?? V1_LIMIT_PER_MIN;
+  const limiter = new RateLimiter(perMin, 60_000);
+  const appLimiter = new RateLimiter(perMin * V1_APP_FACTOR, 60_000);
   const trades = ttlCache<Fill[]>(TRADES_TTL_MS, now);
   const candles = ttlCache<Candle[]>(CANDLES_TTL_MS, now);
 
   app.use("/v1/*", cors({ origin: "*", allowMethods: ["GET"], maxAge: 86_400 }));
   app.use("/v1/*", async (c, next) => {
-    if (!limiter.allow(clientIp(c), now())) return c.json({ error: `over ${deps.limitPerMin ?? V1_LIMIT_PER_MIN} requests a minute; wait a minute` }, 429, { "retry-after": "60" });
+    const fromApp = viaApp(c);
+    if (!(fromApp ? appLimiter : limiter).allow(clientIp(c), now())) return c.json({ error: `over ${fromApp ? perMin * V1_APP_FACTOR : perMin} requests a minute; wait a minute` }, 429, { "retry-after": "60" });
     await next();
   });
 

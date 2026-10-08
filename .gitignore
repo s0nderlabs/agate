@@ -53,3 +53,6 @@ docs/private/
 spikes/
 .vercel
 .env*.local
+
+# the npm package build (client/scripts/pack.ts)
+client/dist/

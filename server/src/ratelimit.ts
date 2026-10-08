@@ -23,6 +23,7 @@ export const clientIp = (c: Context): string => {
  * client IP for unauthenticated attempts, and by AI connection for authed load. */
 export class RateLimiter {
   private hits = new Map<string, number[]>();
+  private lastSweep = 0;
   constructor(private readonly limit: number, private readonly windowMs: number) {}
   /** returns true if ALLOWED, false if the key is over its limit for the window */
   allow(key: string, nowMs: number): boolean {
@@ -34,8 +35,12 @@ export class RateLimiter {
     }
     arr.push(nowMs);
     this.hits.set(key, arr);
-    // opportunistic GC so the map can't grow unbounded
-    if (this.hits.size > 5000) for (const [k, v] of this.hits) if (v.every((t) => t <= cutoff)) this.hits.delete(k);
+    // opportunistic GC so the map can't grow unbounded, at most once per window: a sweep on every call would cost
+    // a full scan per request while many keys are live
+    if (this.hits.size > 5000 && nowMs - this.lastSweep >= this.windowMs) {
+      this.lastSweep = nowMs;
+      for (const [k, v] of this.hits) if (v.every((t) => t <= cutoff)) this.hits.delete(k);
+    }
     return true;
   }
 }

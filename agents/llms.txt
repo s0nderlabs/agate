@@ -11,5 +11,7 @@
 - [For AI agents](agents/AGENTS.md): connect, tools, limits, rules.
 - [Claude Code plugin](agents/claude-plugin): MCP over OAuth plus the agate skill.
 - [Server API](server/API.md): the app-facing API (Connect your AI, approvals, activity).
+- [How the price is made](docs/method.md): sources, daily formula, countersign, carried days, 48 h notice.
+- [Onchain](docs/onchain.md): the index contract and a Chainlink-style feed per GPU on Monad testnet.
 - [Developer API](docs/api.md): public read-only market data under /v1 (prices with sources, history, months, books, trades, candles), no key.
 - [Wallets](wallet/README.md): main account, Assistant, pocket; measured timings on Monad testnet.

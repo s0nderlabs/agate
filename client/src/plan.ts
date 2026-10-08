@@ -233,16 +233,22 @@ export async function planClaimAll(c: AgateClient, me: Address): Promise<Plan<Cl
   return { account: me, calls, summary: { action: "claimAll", series, claimable: Number(claimable.toFixed(6)) } };
 }
 
+/** The account's two sides of one month in its wallet: tokens (not those at Kuru) and its short balance. A failed
+ *  read throws: a plan never guesses a balance. */
+async function walletSides(c: AgateClient, terms: { token: Address; series: Address; symbol: string }, me: Address): Promise<{ tokens: bigint; shorts: bigint }> {
+  const [t, sh] = await c.mc([
+    { address: terms.token, abi: agateTokenAbi as Abi, functionName: "balanceOf", args: [me] },
+    { address: terms.series, abi: agateSeriesAbi as Abi, functionName: "shortOf", args: [me] },
+  ]);
+  if (!t!.ok || !sh!.ok) throw new WriteError(`could not read ${terms.symbol}'s balances`, "check");
+  return { tokens: BigInt(t!.value as bigint), shorts: BigInt(sh!.value as bigint) };
+}
+
 /** After the month (every day applied): settles held tokens and the short balance, like settle. */
 export async function planSettle(c: AgateClient, me: Address, p: { gpu: Gpu; month: string; side?: "long" | "short" | "both" }): Promise<Plan<ClaimSummary>> {
   const s = await c.seriesAt(p.gpu, p.month);
   if (s.k < s.terms.n) throw new WriteError(`${s.terms.symbol} has applied ${s.k} of ${s.terms.n} days: it settles once every day is final`, "check", "MonthNotFinal");
-  const [t, sh] = await c.mc([
-    { address: s.terms.token, abi: agateTokenAbi as Abi, functionName: "balanceOf", args: [me] },
-    { address: s.terms.series, abi: agateSeriesAbi as Abi, functionName: "shortOf", args: [me] },
-  ]);
-  const tokens = t!.ok ? BigInt(t!.value as bigint) : 0n;
-  const shorts = sh!.ok ? BigInt(sh!.value as bigint) : 0n;
+  const { tokens, shorts } = await walletSides(c, s.terms, me);
   const side = p.side ?? "both";
   const wantLong = (side === "long" || side === "both") && tokens > 0n;
   const wantShort = (side === "short" || side === "both") && shorts > 0n;
@@ -256,7 +262,7 @@ export async function planSettle(c: AgateClient, me: Address, p: { gpu: Gpu; mon
 // ------------------------------------------------------------------ pro: limit orders on Kuru (main account)
 
 export interface LimitSummary {
-  action: "placeLimit" | "cancelLimit" | "withdrawMargin";
+  action: "placeLimit" | "cancelLimit" | "withdrawMargin" | "redeem";
   gpu?: Gpu;
   month?: string;
   side?: "long" | "short";
@@ -272,6 +278,8 @@ export interface LimitSummary {
   skipped?: string[];
   /** withdrawn from Kuru's margin account by this batch */
   withdrawn?: { dollars: number; gpuHours: number };
+  /** redeem: dollars the pairs return (the ceiling each) */
+  paid?: number;
 }
 
 async function marginBalance(c: AgateClient, me: Address, token: Address): Promise<bigint> {
@@ -396,6 +404,27 @@ export async function planWithdrawMargin(c: AgateClient, me: Address, p: { asset
   };
 }
 
+/** Redeems pairs, like redeem: a token plus a unit of short balance return the month's ceiling each, any time
+ *  (series.redeem). A cancelled minted ask leaves exactly such a pair (planCancelLimit with withdraw brings its tokens
+ *  back to the wallet first), and this closes it. gpuHours defaults to every pair the wallet holds: the smaller of its
+ *  tokens in the wallet (not at Kuru) and its short balance. */
+export async function planRedeem(c: AgateClient, me: Address, p: { gpu: Gpu; month: string; gpuHours?: Amount }): Promise<Plan<LimitSummary>> {
+  const s = await c.seriesAt(p.gpu, p.month);
+  const { tokens, shorts } = await walletSides(c, s.terms, me);
+  // series.redeem takes whole lots only (q % LOT == 0): a token balance can hold dust from a plain transfer
+  const both = tokens < shorts ? tokens : shorts;
+  const pairs = both - (both % LOT);
+  const q = p.gpuHours === undefined ? pairs : parseHours(p.gpuHours);
+  if (pairs === 0n) throw new WriteError(`the wallet holds no ${s.terms.symbol} pair (a token and a short unit)`, "check", "InsufficientBalance");
+  if (q === 0n) throw new AmountError("GPU-hours must be above 0");
+  if (q > pairs) throw new WriteError(`the wallet holds ${toNumber6(pairs)} ${s.terms.symbol} pairs (${toNumber6(tokens)} tokens, ${toNumber6(shorts)} short)`, "check", "InsufficientBalance");
+  return {
+    account: me,
+    calls: [seriesCall(s.terms.series, "redeem", [q, me], `redeem ${toNumber6(q)} ${s.terms.symbol} pairs`)],
+    summary: { action: "redeem", gpu: p.gpu, month: p.month, gpuHours: toNumber6(q), paid: toNumber6((q * s.terms.cap) / U) },
+  };
+}
+
 // ------------------------------------------------------------------ reading what a sent batch did
 
 export type PlanAction = TradeSummary["action"] | ClaimSummary["action"] | LimitSummary["action"];
@@ -471,5 +500,7 @@ export function readResult(c: AgateClient, action: PlanAction, logs: readonly Lo
       return { cancelled: of("OrdersCanceled").flatMap((e) => (e.args.orderId as readonly (number | bigint)[]).map(String)) };
     case "withdrawMargin":
       return {};
+    case "redeem":
+      return { paid: toNumber6(sum("Redeemed", "paid")) };
   }
 }

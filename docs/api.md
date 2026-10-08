@@ -3,20 +3,24 @@
 Read-only market data for agate: the open onchain price of renting a GPU for an hour, and the monthly markets that
 settle on it. No key, no sign-up. JSON over HTTPS.
 
-- **Base URL:** `https://agate-1.tailf06dd7.ts.net`
-- **Spec:** [`/v1/openapi.json`](https://agate-1.tailf06dd7.ts.net/v1/openapi.json) (OpenAPI 3.1)
+- **Base URL:** `https://agate.elpabl0.xyz/api` (the same API also answers at `https://agate-1.tailf06dd7.ts.net`,
+  agate's server, without the `/api`)
+- **Spec:** [`/v1/openapi.json`](https://agate.elpabl0.xyz/api/v1/openapi.json) (OpenAPI 3.1)
 - **Units:** prices are US dollars per GPU-hour, sizes are GPU-hours, times are ISO 8601 in UTC.
 - **Network:** Monad testnet (chain 10143). Every token is a test asset with no monetary value.
-- **Limits:** 120 requests a minute per IP. Over it: `429` with `retry-after: 60`.
+- **Limits:** 120 requests a minute per IP. Through `agate.elpabl0.xyz/api` callers share Vercel's edge addresses,
+  so the limit there is 1,200 a minute per edge address. Over it: `429` with `retry-after: 60`.
 - **Freshness:** prices, months and books come from one server read every few seconds (`readAt`, `ageMs` on each
   answer); trades are cached 15 s, candles 60 s. Answers carry a short `cache-control`.
 - **Stability:** v1 only ever adds fields. A rename or removal would be v2.
 
 ```sh
-curl https://agate-1.tailf06dd7.ts.net/v1/prices
+curl https://agate.elpabl0.xyz/api/v1/prices
 ```
 
 ## Endpoints
+
+Paths below are relative to the base URL.
 
 | Endpoint | What you get |
 |---|---|

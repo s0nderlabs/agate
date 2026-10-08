@@ -34,6 +34,7 @@ contract MockIndex is IAgateIndex {
     mapping(bytes32 => uint32) internal first;
     mapping(bytes32 => uint64) internal revertFromPlus1; // 0 = off; else finalFix reverts for days >= value - 1
     uint256 public burn; // gas finalFix burns first
+    mapping(bytes32 => uint32) internal headPlus1; // 0 = unset: head() reverts NotImplemented, as before
 
     constructor(uint32 day, uint64 epochTs, uint32 epochDay) {
         if (day == 0) revert BadInit();
@@ -237,7 +238,13 @@ contract MockIndex is IAgateIndex {
         revert NotImplemented();
     }
 
-    function head(bytes32) external pure override returns (uint32) {
+    /// Sets head (the next day to close) for tests that read it.
+    function setHead(bytes32 gpuId, uint32 h) external {
+        headPlus1[gpuId] = h + 1;
+    }
+
+    function head(bytes32 gpuId) external view override returns (uint32) {
+        if (headPlus1[gpuId] != 0) return headPlus1[gpuId] - 1;
         revert NotImplemented();
     }
 

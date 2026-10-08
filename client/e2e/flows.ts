@@ -23,6 +23,7 @@ import {
   type Plan,
   planCancelLimit,
   planPlaceLimit,
+  planRedeem,
   planWithdrawMargin,
   readResult,
   redeem,
@@ -372,8 +373,12 @@ export async function journey(o: JourneyOptions): Promise<{ client: AgateClient;
   const wwP = await c.getWallet(user);
   const tokP = (wx: typeof wwP) => wx.positions.find((p) => p.kind === "tokens");
   S.check(st, "withdrawn: margin 0 for both; the wallet is down exactly the 10 minted pairs ($80), now 10 extra tokens and a short balance of 10", wwP.marginBalance === 0 && tokP(wwP)?.inMargin === 0 && near(w0p.balance - wwP.balance, 80) && near((tokP(wwP)?.q ?? 0) - (tokP(w0p)?.q ?? 0), 10) && wwP.positions.some((p) => p.kind === "shortBalance" && near(p.q, 10)), { before: w0p.balance, after: wwP.balance, short: wwP.positions.find((p) => p.kind === "shortBalance") });
-  const rdP = record(st, await redeem(c, w, { gpu: GPU, month: "2026-11", gpuHours: "10" }));
-  S.check(st, "the 10 pairs redeem for $80: the wallet is back where it started", rdP.result.paid === 80 && near((await c.getWallet(user)).balance, w0p.balance), { paid: rdP.result.paid });
+  // a cancelled minted ask leaves 10 pairs in the wallet: one batch redeems them (every pair by default)
+  const prd = await planRedeem(c, user, { gpu: GPU, month: "2026-11" });
+  S.check(st, "the redeem batch takes every pair the wallet holds: 10, for 10 x $8.00", prd.calls.length === 1 && prd.summary.gpuHours === 10 && prd.summary.paid === 80, prd.summary);
+  const rdP = await runPlan(prd);
+  const wrP = await c.getWallet(user);
+  S.check(st, "the 10 pairs redeem for $80: the wallet is back where it started, no short balance left", rdP.paid === 80 && near(wrP.balance, w0p.balance) && !wrP.positions.some((p) => p.kind === "shortBalance"), { paid: rdP.paid });
 
   // ---------------------------------------------------------------- a day of November final: the daily claim
   st = "Nov 1 final (time travel), the daily claim";

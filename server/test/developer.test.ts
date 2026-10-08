@@ -223,6 +223,14 @@ describe("developer API v1", () => {
     expect((await get(app, "/v1/status", "5.6.7.8")).r.status).toBe(200);
   });
 
+  test("a forged Vercel header gets no new bucket: the proxy's address is counted, with the app's larger limit", async () => {
+    const { app } = api({ limitPerMin: 1 });
+    const via = (who: string) => app.request("/v1/status", { headers: { "x-forwarded-for": "9.9.9.9", "x-vercel-forwarded-for": who } });
+    for (let i = 0; i < 10; i++) expect((await via(`1.1.1.${i}`)).status).toBe(200); // 10 x the limit for the app's address
+    expect((await via("2.2.2.2")).status).toBe(429); // another header value is still the same bucket
+    expect((await app.request("/v1/status", { headers: { "x-forwarded-for": "8.8.8.8" } })).status).toBe(200);
+  });
+
   test("every path in the OpenAPI spec answers on the real server app, and the index lists them", async () => {
     const app = publicApp({ store: new Store(":memory:"), log: () => {}, agateClient: counting().client, snapshots: snaps() });
     const spec = (await get(app, "/v1/openapi.json")).j;
