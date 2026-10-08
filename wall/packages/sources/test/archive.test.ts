@@ -105,20 +105,30 @@ describe("parsers on every archived hour", () => {
     console.log(`archive parse rate over ${values.length} hours: ${table.join(", ")}`);
   });
 
-  test.skipIf(!present)("values are stable or step plausibly (at most 3 steps per series, each within 35%)", () => {
+  // A parser that flaps would step many times a day. Real pages step at most once a UTC day: Verda reprices every GPU
+  // about once a day (H100 3.63 to 3.85 from Oct 1 to Oct 7), and the EUR pages (Seeweb, Gcore) move with the ECB rate
+  // published once a day. The archive keeps growing, so the bound is per day, not per archive.
+  test.skipIf(!present)("values are stable or step plausibly (at most one step per series a UTC day, each within 35%)", () => {
     for (const def of SOURCES) {
       for (const g of GPUS.filter((x) => def.rules[x])) {
-        const series = values.map((h) => h.sources[def.id]?.rows[g]).filter((r): r is { s: ReadState; v: number } => r?.s === "VALID");
-        let steps = 0;
+        const series = values.map((h) => ({ hour: h.hour, r: h.sources[def.id]?.rows[g] })).filter((x): x is { hour: string; r: { s: ReadState; v: number } } => x.r?.s === "VALID");
+        const stepsOn = new Map<string, number>();
+        // a USD page's value never goes back to the one before its last step (A to B to A); a EUR page's can, with the rate
+        const flips: string[] = [];
+        let prior: number | null = null;
         for (let i = 1; i < series.length; i++) {
-          const a = series[i - 1]!.v;
-          const b = series[i]!.v;
+          const a = series[i - 1]!.r.v;
+          const b = series[i]!.r.v;
           if (a === b) continue;
-          steps++;
+          const day = series[i]!.hour.slice(0, 10);
+          stepsOn.set(day, (stepsOn.get(day) ?? 0) + 1);
           expect(Math.abs(b - a) / a).toBeLessThanOrEqual(0.35);
+          if (def.currency !== "EUR" && prior === b) flips.push(`${series[i]!.hour} back to ${b}`);
+          prior = a;
         }
-        expect(steps).toBeLessThanOrEqual(3);
-        for (const r of series) expect(r.v % 10_000).toBe(0);
+        for (const [day, n] of stepsOn) expect(`${def.id} ${g} ${day}: ${n} steps`).toBe(`${def.id} ${g} ${day}: 1 steps`);
+        expect(`${def.id} ${g}: ${flips.join(", ")}`).toBe(`${def.id} ${g}: `);
+        for (const x of series) expect(x.r.v % 10_000).toBe(0);
       }
     }
   });

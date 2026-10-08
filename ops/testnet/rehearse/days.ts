@@ -81,8 +81,26 @@ async function at(t: bigint): Promise<void> {
   if (t > (await now())) await call("evm_setNextBlockTimestamp", [Number(t)]);
 }
 
+/** the attester's countersign of a closed record that waits for one (a changed day is never final by itself) */
+async function attestIfNeeded(g: { gpu: string; gpuId: Hex }, d: number): Promise<boolean> {
+  const [exists, isFinal, rec] = await read<readonly [boolean, boolean, { needsSign: boolean; finalAt: bigint; source: Address; digest: Hex }]>("record", [g.gpuId, d]);
+  if (!exists || isFinal || !rec.needsSign || rec.finalAt !== 0n) return false;
+  await tx(attester, encodeFunctionData({ abi, functionName: "attest", args: [g.gpuId, d, rec.source, rec.digest] }), `attest ${g.gpu} ${d}`);
+  return true;
+}
+
 const h0 = await read<number>("head", [panel.deploy[0]!.gpuId]);
 console.log(JSON.stringify({ index, primary, attester, from: h0, to: toDay, day: ck.day, slices: ck.slices }));
+// a fork of the live index mid-life: each GPU's day before its own head may be closed and still wait for the
+// attester's countersign, and its next close is refused until it has it (the live writer closes the GPUs one
+// transaction at a time, so a fork block can fall between them). Logged without a "day" key: the caller reads the
+// last {"day" line as the last day this script finished.
+const pending: string[] = [];
+for (const g of panel.deploy) {
+  const h = await read<number>("head", [g.gpuId]);
+  if (await attestIfNeeded(g, h - 1)) pending.push(`${g.gpu} ${h - 1}`);
+}
+if (pending.length) console.log(JSON.stringify({ countersignedBeforeStart: pending }));
 for (let d = h0; d <= toDay; d++) {
   const start = await read<bigint>("dayStart", [d]);
   for (let h = 0; h < ck.slices; h++) {
@@ -105,11 +123,7 @@ for (let d = h0; d <= toDay; d++) {
   let attested = 0;
   for (const g of panel.deploy) {
     await tx(primary, encodeFunctionData({ abi, functionName: "closeDay", args: [g.gpuId] }), `closeDay ${g.gpu} ${d}`);
-    const [, isFinal, rec] = await read<readonly [boolean, boolean, { needsSign: boolean; finalAt: bigint; source: Address; digest: Hex }]>("record", [g.gpuId, d]);
-    if (!isFinal && rec.needsSign && rec.finalAt === 0n) {
-      await tx(attester, encodeFunctionData({ abi, functionName: "attest", args: [g.gpuId, d, rec.source, rec.digest] }), `attest ${g.gpu} ${d}`);
-      attested++;
-    }
+    if (await attestIfNeeded(g, d)) attested++;
   }
   console.log(JSON.stringify({ day: d, date: new Date(d * 86_400_000).toISOString().slice(0, 10), reports: ck.slices, closed: panel.deploy.length, attested }));
 }

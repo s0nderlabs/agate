@@ -86,15 +86,12 @@ async function fork(): Promise<number> {
     const gql = w.indexer ? w.indexer.url : null;
     report.forkBlock = w.fork.forkBlock;
 
-    // the early state, on the fork, before any index day is final
-    log("\n== reads before the first final day (the fork as testnet is today)");
-    const early = createAgateClient({ rpcUrl: w.fork.rpc, graphqlUrl: gql });
-    const em = await early.getMarkets();
-    const eh = em.find((m) => m.gpu === "H100")!;
-    steps.check("reads before the first final day", "no final day: price 0, priceDate null, no history; November upcoming with its expected listing time", em.every((m) => m.priceDate === null && m.price === 0 && m.history.length === 0) && eh.series.length === 1 && eh.series[0]!.phase === "upcoming" && eh.series[0]!.opensOn === "2026-10-05T07:00:00Z", { h100: eh });
-
-    log("\n== the world: Oct 4 written, closed, countersigned and final on the fork; the lister and the maker start");
+    // The fork is always the latest testnet block, which has had final days since Oct 4 2026 07:00 UTC, so the state
+    // before the first final day (no price, November upcoming) can no longer be read here; the journey checks the reads
+    // of the index as it is (its newest final day, November trading).
+    log("\n== the world: the live index's days as they are (any day still waiting for its countersign signed); the lister and the maker start");
     const idx = (await Bun.file(DEPLOYMENTS_FILE).json()) as { factories: { real: { index: string } } };
+    // days.ts writes no day here (the head is past Oct 4); it countersigns a pending day so the journey's days can close
     const d1 = await w.days(20730, idx.factories.real.index);
     log(`days.ts: ${d1.transactions} transactions, chain time ${d1.chainTime}`);
     w.startBots();

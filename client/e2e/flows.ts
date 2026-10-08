@@ -128,21 +128,36 @@ export async function journey(o: JourneyOptions): Promise<{ client: AgateClient;
   const ms = await c.getMarkets();
   const h100 = ms.find((m) => m.gpu === GPU)!;
   S.check(st, "six GPUs returned; B300, A100, L40S are price only (no series, not tradable)", ms.length === 6 && ms.filter((m) => !m.tradable).map((m) => m.gpu).join() === "B300,A100,L40S" && ms.filter((m) => !m.tradable).every((m) => m.series.length === 0));
-  S.check(st, "every GPU has a final price for 2026-10-04 with its sources and n of N clouds", ms.every((m) => m.priceDate === "2026-10-04" && m.price > 0 && m.liveCount > 0 && m.liveCount <= m.panelSize && m.sources.length > 0), ms.map((m) => ({ gpu: m.gpu, price: m.price, date: m.priceDate, live: m.liveCount, of: m.panelSize, sources: m.sources.length })));
-  S.check(st, "H100: $3.99 from five live clouds of six (the reserve is not counted)", h100.price === 3.99 && h100.liveCount === 5 && h100.panelSize === 6 && h100.sources.filter((s) => s.live).length === 5, { price: h100.price, live: h100.liveCount, sources: h100.sources });
+  // the newest final day: 2026-10-04 on a fork written from the start, a later day on a fork of the live index
+  const newest = h100.priceDate ?? "";
+  S.check(st, "every GPU has a final price for the same newest day (2026-10-04 or later) with its sources and n of N clouds", newest >= "2026-10-04" && ms.every((m) => m.priceDate === newest && m.price > 0 && m.liveCount > 0 && m.liveCount <= m.panelSize && m.sources.length > 0), ms.map((m) => ({ gpu: m.gpu, price: m.price, date: m.priceDate, live: m.liveCount, of: m.panelSize, sources: m.sources.length })));
+  // the price itself is whatever the newest final day says ($3.99 on a fork written from the start; the live median
+  // on a later fork, Verda's daily rises can move it): the panel check below ties it to the five live clouds
+  S.check(st, `H100: $${h100.price} from five live clouds of six (the reserve is not counted)`, h100.price > 0 && h100.liveCount === 5 && h100.panelSize === 6 && h100.sources.filter((s) => s.live).length === 5, { price: h100.price, live: h100.liveCount, sources: h100.sources });
   // the five live clouds' day values (the fork's own readings, plus whatever slices the live writers had posted before
   // the fork block): their median is the index price
   const livePrices = h100.panel.filter((p) => p.live).map((p) => p.price ?? 0).sort((a, b) => a - b);
   S.check(st, "H100's panel: six slots in index order, Hyperstack the reserve with no reading, the median of the five live clouds is the price", h100.panel.length === 6 && h100.panel.map((p) => p.family).join() === "Verda,Nebius,Lambda,CoreWeave,Civo,Hyperstack" && h100.panel[5]!.reserve && h100.panel[5]!.price === null && !h100.panel[5]!.live && livePrices.length === 5 && livePrices[2] === h100.price && h100.panel.slice(0, 5).every((p) => !p.reserve), h100.panel);
-  S.check(st, "history is the real days only (no example days), the newest being 2026-10-04", h100.history.length >= 1 && h100.history.every((d) => !d.example && d.date >= "2026-10-04") && h100.history.at(-1)!.date === "2026-10-04", h100.history);
+  S.check(st, `history is the real days only (no example days), from 2026-10-04 to the newest final day (${newest})`, h100.history.length >= 1 && h100.history.every((d) => !d.example && d.date >= "2026-10-04") && h100.history.at(-1)!.date === newest, h100.history);
   const nov = h100.series.find((s) => s.month === "2026-11");
   S.check(st, "October never lists (the index started Oct 4); November is listed and trading, band 0.5x/2x of $3.99 on the $0.05 grid: $1.95 to $8.00", !h100.series.some((s) => s.month === "2026-10") && !!nov && nov.phase === "trading" && nov.floor === 1.95 && nov.cap === 8 && nov.symbol === "H100-NOV26" && nov.name === "agate H100 Nov 2026", nov);
   S.check(st, "November closes at the month's end; listedAt from the indexer", nov?.closesAt === "2026-12-01T00:00:00Z" && nov?.startsAt === "2026-11-01T00:00:00Z" && (idx ? nov.listedAt !== "" : true), { closesAt: nov?.closesAt, listedAt: nov?.listedAt });
   const book0 = await c.book(GPU, "2026-11");
-  S.check(st, "the book is the maker's real ladder: 3 levels a tick apart each side, 1,000 / 2,000 / 4,000 GPU-hours, 1% around fair 3.99", big(book0.bids) === big([{ price: 3.95, size: 1000 }, { price: 3.94, size: 2000 }, { price: 3.93, size: 4000 }]) && big(book0.asks) === big([{ price: 4.03, size: 1000 }, { price: 4.04, size: 2000 }, { price: 4.05, size: 4000 }]) && near(book0.spread, 0.08), book0);
-  S.check(st, "the quote is the top of book; before any trade `last` is the mid and lastAt is null", nov?.quote?.bid === 3.95 && nov?.quote?.ask === 4.03 && nov?.quote?.last === 3.99 && nov?.quote?.lastAt === null, nov?.quote);
+  // the maker quotes about 1% around its fair (the index price before the month): 3.95 / 4.03 around 3.99
+  const fair = h100.price;
+  const ladder = (lv: { price: number; size: number }[], dir: 1 | -1) => lv.length === 3 && lv.map((l) => l.size).join() === "1000,2000,4000" && lv.every((l, i) => i === 0 || near(l.price - lv[i - 1]!.price, dir * 0.01, 0.0001));
+  const [bid0, ask0] = [book0.bids[0]?.price ?? 0, book0.asks[0]?.price ?? 0];
+  S.check(st, `the book is the maker's real ladder: 3 levels a tick apart each side, 1,000 / 2,000 / 4,000 GPU-hours, about 1% around fair ${fair}`, ladder(book0.bids, -1) && ladder(book0.asks, 1) && bid0 < fair && fair < ask0 && Math.abs((bid0 + ask0) / 2 - fair) <= 0.01 && near(book0.spread, ask0 - bid0) && ask0 - bid0 <= fair * 0.025, book0);
+  // before any trade `last` is the mid; a fork of the live market read with its indexer may already hold trades
+  const q0 = nov?.quote;
+  S.check(st, "the quote is the top of book; before any trade `last` is the mid and lastAt is null", q0?.bid === bid0 && q0?.ask === ask0 && (q0?.lastAt === null ? near(q0.last, (bid0 + ask0) / 2, 0.005) : (q0?.last ?? 0) > 0), q0);
   const c0 = await c.chainTime();
-  S.check(st, "nextUpdateAt is the next day's close plus T_PEND (07:00 UTC); nextCloseAt its close (01:00 UTC)", h100.nextUpdateAt.endsWith("T07:00:00Z") && h100.nextCloseAt.endsWith("T01:00:00Z") && Date.parse(h100.nextUpdateAt) > Number(c0) * 1000, { nextUpdateAt: h100.nextUpdateAt, nextCloseAt: h100.nextCloseAt, chainTime: new Date(Number(c0) * 1000).toISOString() });
+  // the next day (newest + 1) closes after its end (about 01:00 UTC the day after; once posted, when it was posted, late
+  // if the writer was) and turns final T_PEND (6 h) later at the earliest
+  const closeAt = Date.parse(h100.nextCloseAt);
+  const finalAt = Date.parse(h100.nextUpdateAt);
+  const nextDayEnds = Date.parse(`${newest}T00:00:00Z`) + 2 * 86_400_000;
+  S.check(st, "nextCloseAt is the next day's close (after its end, about 01:00 UTC); nextUpdateAt is T_PEND (6 h) after it at the earliest, still ahead", closeAt >= nextDayEnds && finalAt - closeAt >= 6 * 3_600_000 && finalAt > Number(c0) * 1000, { nextUpdateAt: h100.nextUpdateAt, nextCloseAt: h100.nextCloseAt, chainTime: new Date(Number(c0) * 1000).toISOString() });
 
   // ---------------------------------------------------------------- the faucet
   st = "drip";
@@ -167,17 +182,18 @@ export async function journey(o: JourneyOptions): Promise<{ client: AgateClient;
   const b = record(st, await buyLong(c, w, { gpu: GPU, month: "2026-11", dollars: "1000", maxPrice: String(shownAsk) }));
   const w2 = await c.getWallet(user);
   const held = w2.positions.find((p) => p.kind === "tokens" && p.month === "2026-11");
-  S.check(st, "bought at the best ask: 248.1389 GPU-hours for $999.99 or less, the unused quote refunded", near(b.result.avgPrice, 4.03, 0.0001) && near(b.result.gpuHours, 248.1389) && b.result.spent <= 1000 && near(b.result.spent + b.result.refund, 1000), b.result);
+  S.check(st, `bought at the best ask ${shownAsk}: $1,000 / ${shownAsk} GPU-hours for $999.99 or less, the unused quote refunded`, near(b.result.avgPrice, shownAsk, 0.0001) && near(b.result.gpuHours, 1000 / shownAsk, 0.0001) && b.result.spent <= 1000 && near(b.result.spent + b.result.refund, 1000), b.result);
   S.check(st, "the wallet holds the tokens; dollars down by exactly what was spent", !!held && near(held.q, b.result.gpuHours) && near(w1.balance - w2.balance, b.result.spent), { held, spent: b.result.spent, delta: w1.balance - w2.balance });
   if (idx) {
     await o.hooks.indexed();
     const w2i = await c.getWallet(user);
     const fills = await c.recentFills(GPU, "2026-11");
     const candles = await c.candles(GPU, "2026-11");
-    S.check(st, "indexer: the fill is the newest (taker buy at 4.03, size in GPU-hours); the entry price is 4.03", fills[0]?.side === "buy" && fills[0]?.price === 4.03 && near(fills[0]?.size ?? 0, b.result.gpuHours) && near(w2i.positions.find((p) => p.kind === "tokens")?.entry ?? 0, 4.03), { fill: fills[0], entry: w2i.positions.find((p) => p.kind === "tokens")?.entry });
-    S.check(st, "indexer: an hourly candle holds the trade (o = h = l = c = 4.03)", candles.length >= 1 && candles.at(-1)!.c === 4.03 && near(candles.reduce((a, k) => a + k.v, 0), b.result.gpuHours), candles);
+    S.check(st, `indexer: the fill is the newest (taker buy at ${shownAsk}, size in GPU-hours); the entry price is ${shownAsk}`, fills[0]?.side === "buy" && fills[0]?.price === shownAsk && near(fills[0]?.size ?? 0, b.result.gpuHours) && near(w2i.positions.find((p) => p.kind === "tokens")?.entry ?? 0, shownAsk), { fill: fills[0], entry: w2i.positions.find((p) => p.kind === "tokens")?.entry });
+    // the newest hourly candle closes at the trade and holds its size (a fork of the live market may hold older trades)
+    S.check(st, `indexer: the newest hourly candle holds the trade (c = ${shownAsk})`, candles.length >= 1 && candles.at(-1)!.c === shownAsk && candles.at(-1)!.v >= b.result.gpuHours - 0.0001, candles.slice(-3));
     const s2 = (await c.getMarket(GPU)).series.find((s) => s.month === "2026-11")!;
-    S.check(st, "the quote's last is the trade now (lastAt set); open interest counts the tokens outstanding", s2.quote?.last === 4.03 && s2.quote?.lastAt !== null && s2.openInterest >= b.result.gpuHours, { quote: s2.quote, openInterest: s2.openInterest });
+    S.check(st, "the quote's last is the trade now (lastAt set); open interest counts the tokens outstanding", s2.quote?.last === shownAsk && s2.quote?.lastAt !== null && s2.openInterest >= b.result.gpuHours, { quote: s2.quote, openInterest: s2.openInterest });
   }
 
   st = "sell 100 GPU-hours";
@@ -263,31 +279,34 @@ export async function journey(o: JourneyOptions): Promise<{ client: AgateClient;
   S.check(st, "the remainder under one LOT per part stays as tokens; dollars moved by -spent + paidNow", near(w6.balance - w5.balance, ld.result.paidNow - ld.result.spent) && ld.result.restTokens < 0.0002, { rest: ld.result.restTokens, delta: w6.balance - w5.balance });
 
   // ---------------------------------------------------------------- pro: limit orders
-  st = "limit long 10 GPU-hours at $3.90, then cancel";
+  // resting prices a little outside the opening book (3.90 and 4.10 around 3.95 / 4.03), so they never cross it
+  const lp = Math.round((bid0 - 0.05) * 100) / 100;
+  const sp = Math.round((ask0 + 0.07) * 100) / 100;
+  st = `limit long 10 GPU-hours at $${lp.toFixed(2)}, then cancel`;
   step(st);
-  const lb = record(st, await placeLimit(c, w, { gpu: GPU, month: "2026-11", side: "long", price: "3.90", gpuHours: "10" }));
+  const lb = record(st, await placeLimit(c, w, { gpu: GPU, month: "2026-11", side: "long", price: lp.toFixed(2), gpuHours: "10" }));
   const bkL = await c.book(GPU, "2026-11");
-  S.check(st, "deposits exactly 10 x 3.90 = $39 into Kuru's margin account and rests a bid at 3.90", lb.result.deposited === 39 && bkL.bids.some((x) => x.price === 3.9 && x.size >= 10), { deposited: lb.result.deposited, bids: bkL.bids });
+  S.check(st, `deposits exactly 10 x ${lp.toFixed(2)} into Kuru's margin account and rests a bid at ${lp.toFixed(2)}`, near(lb.result.deposited, 10 * lp) && bkL.bids.some((x) => x.price === lp && x.size >= 10), { deposited: lb.result.deposited, bids: bkL.bids });
   if (idx) await o.hooks.indexed();
   const oo = await c.openOrders(user);
-  S.check(st, `openOrders lists it (id ${lb.result.orderId}, long, 3.90, 10 GPU-hours)${idx ? ", from the indexer, checked on chain" : ", from the chain"}`, oo.length === 1 && oo[0]!.id === lb.result.orderId && oo[0]!.side === "long" && oo[0]!.price === 3.9 && oo[0]!.q === 10 && (idx ? oo[0]!.placedAt !== "" : true), oo);
+  S.check(st, `openOrders lists it (id ${lb.result.orderId}, long, ${lp.toFixed(2)}, 10 GPU-hours)${idx ? ", from the indexer, checked on chain" : ", from the chain"}`, oo.length === 1 && oo[0]!.id === lb.result.orderId && oo[0]!.side === "long" && oo[0]!.price === lp && oo[0]!.q === 10 && (idx ? oo[0]!.placedAt !== "" : true), oo);
   const cl = record(st, await cancelLimit(c, w, { gpu: GPU, month: "2026-11", orderIds: [lb.result.orderId] }));
   if (idx) await o.hooks.indexed();
   const oo2 = await c.openOrders(user);
   const wm = await c.getWallet(user);
-  S.check(st, "cancelled: no open order; the $39 is back in the margin account", cl.result.cancelled.length === 1 && oo2.length === 0 && wm.marginBalance === 39, { cancelled: cl.result, open: oo2, margin: wm.marginBalance });
+  S.check(st, `cancelled: no open order; the $${(10 * lp).toFixed(2)} is back in the margin account`, cl.result.cancelled.length === 1 && oo2.length === 0 && near(wm.marginBalance, 10 * lp), { cancelled: cl.result, open: oo2, margin: wm.marginBalance });
   const wd = record(st, await withdrawMargin(c, w, { asset: "dollar" }));
   const wm2 = await c.getWallet(user);
-  S.check(st, "withdrawn: margin 0, the wallet up $39", wd.result.amount === 39 && wm2.marginBalance === 0 && near(wm2.balance - wm.balance, 39), { margin: wm2.marginBalance, delta: wm2.balance - wm.balance });
+  S.check(st, `withdrawn: margin 0, the wallet up $${(10 * lp).toFixed(2)}`, near(wd.result.amount, 10 * lp) && wm2.marginBalance === 0 && near(wm2.balance - wm.balance, 10 * lp), { margin: wm2.marginBalance, delta: wm2.balance - wm.balance });
 
-  st = "limit short 10 GPU-hours at $4.10 (mints pairs), cancel, redeem";
+  st = `limit short 10 GPU-hours at $${sp.toFixed(2)} (mints pairs), cancel, redeem`;
   step(st);
-  const ls = record(st, await placeLimit(c, w, { gpu: GPU, month: "2026-11", side: "short", price: "4.10", gpuHours: "10", mint: true }));
+  const ls = record(st, await placeLimit(c, w, { gpu: GPU, month: "2026-11", side: "short", price: sp.toFixed(2), gpuHours: "10", mint: true }));
   const wls = await c.getWallet(user);
-  S.check(st, "mints 10 pairs (10 x $8.00 = $80 to the series), deposits the 10 tokens and rests an ask at 4.10; the short side stays in the wallet's short balance", ls.result.minted === 10 && ls.result.deposited === 10 && near(wm2.balance - wls.balance, 80) && wls.positions.some((p) => p.kind === "shortBalance" && p.q === 10), { result: ls.result, positions: wls.positions.filter((p) => p.kind === "shortBalance") });
+  S.check(st, `mints 10 pairs (10 x $8.00 = $80 to the series), deposits the 10 tokens and rests an ask at ${sp.toFixed(2)}; the short side stays in the wallet's short balance`, ls.result.minted === 10 && ls.result.deposited === 10 && near(wm2.balance - wls.balance, 80) && wls.positions.some((p) => p.kind === "shortBalance" && p.q === 10), { result: ls.result, positions: wls.positions.filter((p) => p.kind === "shortBalance") });
   if (idx) await o.hooks.indexed();
   const oo3 = await c.openOrders(user);
-  S.check(st, "openOrders lists the ask (short, 4.10, 10)", oo3.length === 1 && oo3[0]!.side === "short" && oo3[0]!.price === 4.1 && oo3[0]!.q === 10, oo3);
+  S.check(st, `openOrders lists the ask (short, ${sp.toFixed(2)}, 10)`, oo3.length === 1 && oo3[0]!.side === "short" && oo3[0]!.price === sp && oo3[0]!.q === 10, oo3);
   if (idx) {
     const we = await c.getWallet(user);
     const sb = we.positions.find((p) => p.kind === "shortBalance");
