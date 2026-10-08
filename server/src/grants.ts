@@ -7,7 +7,8 @@
 // The session key's signer (the Assistant) is bound by the main wallet's enable signature and checked onchain by the
 // first trade.
 import { randomUUID } from "node:crypto";
-import { type Address, createPublicClient, http, isAddress, type PublicClient } from "viem";
+import { type Address, createPublicClient, isAddress, type PublicClient } from "viem";
+import { rpcTransport } from "@agate/client";
 import { accountClient, type Call, checkApproval, checkPocketCalls, kernelAddress, monadTestnet, pocketSessionAccount, type PocketLimits, type PocketTerms, readApproval, shortTokensCapFor, zerodev } from "@agate/wallet";
 import { config, requireSecret } from "./config.ts";
 import { type DynamicUser, owns } from "./dynamic/jwt.ts";
@@ -20,7 +21,8 @@ export const MAX_GRANT_DAYS = 90;
 export const MAX_TRADES_PER_DAY = 50;
 
 let pcCache: PublicClient | undefined;
-export const publicClient = () => (pcCache ??= createPublicClient({ chain: monadTestnet, transport: http(config.rpcUrl) }) as PublicClient);
+/** MONAD_RPC_URL may be a comma list, read as @agate/client reads it (rpcTransport). */
+export const publicClient = () => (pcCache ??= createPublicClient({ chain: monadTestnet, transport: rpcTransport(config.rpcUrl) }) as PublicClient);
 
 export type GrantRequest = {
   label: string;

@@ -3,15 +3,16 @@
 //   bun run scripts/server-wallet.ts sign <label> [n]   sign n EIP-1559 txs for 10143 (not sent), recover, time them
 //   bun run scripts/server-wallet.ts send <label>       sign + broadcast one 0-value self-transfer (needs MON on it)
 // Prints addresses, ids and timings only; never a key share.
-import { createPublicClient, defineChain, type Hex, http, recoverTransactionAddress, type TransactionSerializable } from "viem";
+import { rpcTransport, rpcUrlsOf } from "@agate/client";
+import { createPublicClient, defineChain, type Hex, recoverTransactionAddress, type TransactionSerializable } from "viem";
 import { config } from "../src/config.ts";
 import { createServerWallet, serverSignTransaction } from "../src/dynamic/serverWallet.ts";
 import { Store } from "../src/store.ts";
 
 const [cmd, label = "payer", nArg] = process.argv.slice(2);
 const store = new Store();
-const chain = defineChain({ id: config.chainId, name: "Monad Testnet", nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 }, rpcUrls: { default: { http: [config.rpcUrl] } } });
-const pc = createPublicClient({ chain, transport: http(config.rpcUrl) });
+const chain = defineChain({ id: config.chainId, name: "Monad Testnet", nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 }, rpcUrls: { default: { http: rpcUrlsOf(config.rpcUrl) } } });
+const pc = createPublicClient({ chain, transport: rpcTransport(config.rpcUrl) });
 
 if (cmd === "create") {
   console.log(JSON.stringify(await createServerWallet(store, label)));

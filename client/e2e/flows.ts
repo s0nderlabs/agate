@@ -1,9 +1,10 @@
 // The user's journey through every flow, driven only through @agate/client and checked after each step through the
 // client's own reads (chain, and the indexer where it serves the data): drip, buy long, sell part, open a short, close
 // a short, pay me daily, a limit order placed and cancelled (both sides, the short one minting pairs, then redeemed),
+// the same limit orders as the call batches built for a smart account (planPlaceLimit, planCancelLimit, planWithdrawMargin),
 // the daily claim after a final day, and the month end (final claims and settle). Time moves only through the world's
 // hook (index days written on the fork). Every transaction goes to a loopback anvil fork (assertFork).
-import { type Address, createWalletClient, type Hex, http, type WalletClient } from "viem";
+import { type Address, createWalletClient, type Hex, http, type Log, type WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   type AgateClient,
@@ -14,10 +15,16 @@ import {
   createAgateClient,
   drip,
   type Gpu,
+  type LimitSummary,
   type Market,
   openLongDaily,
   openShort,
   placeLimit,
+  type Plan,
+  planCancelLimit,
+  planPlaceLimit,
+  planWithdrawMargin,
+  readResult,
   redeem,
   sellLong,
   settle,
@@ -145,9 +152,10 @@ export async function journey(o: JourneyOptions): Promise<{ client: AgateClient;
   const book0 = await c.book(GPU, "2026-11");
   // the maker quotes about 1% around its fair (the index price before the month): 3.95 / 4.03 around 3.99
   const fair = h100.price;
-  const ladder = (lv: { price: number; size: number }[], dir: 1 | -1) => lv.length === 3 && lv.map((l) => l.size).join() === "1000,2000,4000" && lv.every((l, i) => i === 0 || near(l.price - lv[i - 1]!.price, dir * 0.01, 0.0001));
+  // the maker's 1,000 / 2,000 / 4,000 GPU-hours, a level partly taken by trades on the live market before the fork
+  const ladder = (lv: { price: number; size: number }[], dir: 1 | -1) => lv.length === 3 && lv.every((l, i) => l.size > 0 && l.size <= [1000, 2000, 4000][i]! + 1e-6 && (i === 0 || near(l.price - lv[i - 1]!.price, dir * 0.01, 0.0001)));
   const [bid0, ask0] = [book0.bids[0]?.price ?? 0, book0.asks[0]?.price ?? 0];
-  S.check(st, `the book is the maker's real ladder: 3 levels a tick apart each side, 1,000 / 2,000 / 4,000 GPU-hours, about 1% around fair ${fair}`, ladder(book0.bids, -1) && ladder(book0.asks, 1) && bid0 < fair && fair < ask0 && Math.abs((bid0 + ask0) / 2 - fair) <= 0.01 && near(book0.spread, ask0 - bid0) && ask0 - bid0 <= fair * 0.025, book0);
+  S.check(st, `the book is the maker's real ladder: 3 levels a tick apart each side, up to 1,000 / 2,000 / 4,000 GPU-hours, about 1% around fair ${fair}`, ladder(book0.bids, -1) && ladder(book0.asks, 1) && bid0 < fair && fair < ask0 && Math.abs((bid0 + ask0) / 2 - fair) <= 0.01 && near(book0.spread, ask0 - bid0) && ask0 - bid0 <= fair * 0.025, book0);
   // before any trade `last` is the mid; a fork of the live market read with its indexer may already hold trades
   const q0 = nov?.quote;
   S.check(st, "the quote is the top of book; before any trade `last` is the mid and lastAt is null", q0?.bid === bid0 && q0?.ask === ask0 && (q0?.lastAt === null ? near(q0.last, (bid0 + ask0) / 2, 0.005) : (q0?.last ?? 0) > 0), q0);
@@ -324,6 +332,48 @@ export async function journey(o: JourneyOptions): Promise<{ client: AgateClient;
   const rd = record(st, await redeem(c, w, { gpu: GPU, month: "2026-11", gpuHours: "10" }));
   const wr = await c.getWallet(user);
   S.check(st, "after cancel and withdraw, 10 pairs redeem for exactly 10 x $8.00 = $80; no short balance left", rd.result.paid === 80 && !wr.positions.some((p) => p.kind === "shortBalance") && near(tokBefore - wr.positions.find((p) => p.kind === "tokens")!.q, 10) && (await c.openOrders(user)).length === 0, { paid: rd.result.paid });
+
+  // ---------------------------------------------------------------- pro: the same limits as call batches
+  // planPlaceLimit, planCancelLimit and planWithdrawMargin build what a smart main account would send as one batch
+  // (the app's Pro ticket does not use them yet; an AI pocket cannot, its session key allows only the router); here
+  // the plain account sends each call in order, which runs the same calls against the same contracts
+  st = `limit orders as call batches (smart accounts): a bid at $${lp.toFixed(2)} and a minted ask at $${sp.toFixed(2)}, cancelled, then the margin withdrawn`;
+  step(st);
+  const runPlan = async (plan: Plan<LimitSummary>) => {
+    const logs: Log[] = [];
+    for (const call of plan.calls) {
+      const hash = await w.sendTransaction({ account: account, chain: c.chain, to: call.to, data: call.data, value: call.value });
+      const rc = await c.pub.waitForTransactionReceipt({ hash });
+      if (rc.status !== "success") throw new Error(`${plan.summary.action}: ${call.label} reverted (${hash})`);
+      // the gas limit is what Monad bills: read it from the sent transaction for the step table
+      const sent = await c.pub.getTransaction({ hash });
+      const tx: TxSummary = { label: `${call.label} (batch)`, hash, to: call.to, gasLimit: sent.gas, gasUsed: rc.gasUsed, block: rc.blockNumber, events: [] };
+      S.txs(st, [tx]);
+      logs.push(...rc.logs);
+    }
+    return readResult(c, plan.summary.action, logs);
+  };
+  const w0p = await c.getWallet(user);
+  const pb = await planPlaceLimit(c, user, { gpu: GPU, month: "2026-11", side: "long", price: lp.toFixed(2), gpuHours: "10" });
+  S.check(st, `the bid's batch: deposit 10 x ${lp.toFixed(2)} into Kuru's margin account (after an approve when the allowance is short), then addBuyOrder`, pb.calls.at(-1)?.label === "addBuyOrder" && pb.calls.some((x) => x.label === "deposit tUSD into Kuru") && near(pb.summary.deposited ?? 0, 10 * lp), pb.summary);
+  const bidId = String((await runPlan(pb)).orderId ?? "");
+  const pa = await planPlaceLimit(c, user, { gpu: GPU, month: "2026-11", side: "short", price: sp.toFixed(2), gpuHours: "10", mint: true });
+  S.check(st, "the ask's batch mints 10 pairs, deposits the 10 tokens and adds the sell order", pa.summary.minted === 10 && pa.summary.deposited === 10 && pa.calls.at(-1)?.label === "addSellOrder", pa.summary);
+  const askId = String((await runPlan(pa)).orderId ?? "");
+  const ooP = await c.openOrders(user);
+  S.check(st, `both orders rest in the book (ids ${bidId}, ${askId}): a long at ${lp.toFixed(2)} and a short at ${sp.toFixed(2)}, 10 GPU-hours each`, bidId !== "" && askId !== "" && ooP.length === 2 && ooP.some((x) => x.id === bidId && x.side === "long" && x.price === lp && x.q === 10) && ooP.some((x) => x.id === askId && x.side === "short" && x.price === sp && x.q === 10), ooP);
+  const pc = await planCancelLimit(c, user, { gpu: GPU, month: "2026-11", orderIds: [bidId, askId, "999999999"], withdraw: false });
+  S.check(st, "the cancel batch cancels both in one call and leaves out an id that is not the account's", pc.calls.length === 1 && pc.summary.cancelled?.length === 2 && big(pc.summary.skipped) === big(["999999999"]), pc.summary);
+  const cr = await runPlan(pc);
+  const wcP = await c.getWallet(user);
+  S.check(st, `cancelled: no open order; $${(10 * lp).toFixed(2)} and the 10 tokens wait in Kuru's margin account`, (cr.cancelled as string[] | undefined)?.length === 2 && (await c.openOrders(user)).length === 0 && near(wcP.marginBalance, 10 * lp) && wcP.positions.find((p) => p.kind === "tokens")?.inMargin === 10, { cancelled: cr.cancelled, margin: wcP.marginBalance });
+  await runPlan(await planWithdrawMargin(c, user, { asset: "dollar" }));
+  await runPlan(await planWithdrawMargin(c, user, { asset: { gpu: GPU, month: "2026-11" } }));
+  const wwP = await c.getWallet(user);
+  const tokP = (wx: typeof wwP) => wx.positions.find((p) => p.kind === "tokens");
+  S.check(st, "withdrawn: margin 0 for both; the wallet is down exactly the 10 minted pairs ($80), now 10 extra tokens and a short balance of 10", wwP.marginBalance === 0 && tokP(wwP)?.inMargin === 0 && near(w0p.balance - wwP.balance, 80) && near((tokP(wwP)?.q ?? 0) - (tokP(w0p)?.q ?? 0), 10) && wwP.positions.some((p) => p.kind === "shortBalance" && near(p.q, 10)), { before: w0p.balance, after: wwP.balance, short: wwP.positions.find((p) => p.kind === "shortBalance") });
+  const rdP = record(st, await redeem(c, w, { gpu: GPU, month: "2026-11", gpuHours: "10" }));
+  S.check(st, "the 10 pairs redeem for $80: the wallet is back where it started", rdP.result.paid === 80 && near((await c.getWallet(user)).balance, w0p.balance), { paid: rdP.result.paid });
 
   // ---------------------------------------------------------------- a day of November final: the daily claim
   st = "Nov 1 final (time travel), the daily claim";

@@ -27,6 +27,14 @@ Per app (Codex, Hermes and OpenClaw checked against the live server on Oct 8 202
 
 - **Claude Code plugin**: `agents/claude-plugin` (set `AGATE_MCP_URL`).
 
+## What backs a token
+
+A token is a cash-settled claim on the month's average GPU-hour price, not a GPU-hour held anywhere, and it is never
+created out of thin air: it exists only when someone locks the month's ceiling in dollars (H100 November 2026: $8.00).
+That deposit makes the token (pays the month's average, clamped to the floor $1.95 and the ceiling $8.00) and a short
+position (pays the ceiling minus that average); the two always pay exactly the locked $8.00, so every payout is
+already in the contract. No margin calls, no liquidations. Tell people this when they ask what they are buying.
+
 ## What a connection can do
 
 Reads: `get_prices`, `quote`, `size_for`, `get_portfolio`, `my_limits`, `activity`, `approval_status`.

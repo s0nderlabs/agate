@@ -6,7 +6,7 @@ signs as the AI's Assistant. The browser half (sign-in, wallets, the pocket perm
 (`../wallet`). The app's contract is [API.md](API.md).
 
 Run: `scripts/run.sh` (or `scripts/restart.sh` into tmux). Secrets live in `~/.agate-dynamic/` (mode 700), never in
-the repo. Tests: `bun test` (42). The environment itself is code: [`../ops/dynamic`](../ops/dynamic/README.md).
+the repo. Tests: `bun test` (54). `MONAD_RPC_URL` takes one RPC URL or a comma list (tried in order). The environment itself is code: [`../ops/dynamic`](../ops/dynamic/README.md).
 
 ## Code usage per Dynamic primitive
 
@@ -23,7 +23,7 @@ Everything below ran on Monad testnet (10143) on Oct 4 2026 unless marked.
 | Delegated signing (`@dynamic-labs-wallet/node-evm`) | the Assistant signs each AI trade with the user operation as context, retried on transient MPC failures | [`src/dynamic/signer.ts`](src/dynamic/signer.ts#L83) `sendWithIntent` |
 | Transaction Review (HMAC request, Ed25519 response) | agate approves only signatures it built in the last minute for a live connection, inside the pocket's limits (blocked on Dynamic's side on 10143, asked) | [`src/dynamic/review.ts`](src/dynamic/review.ts#L73) `decide`, [`src/app.ts`](src/app.ts#L123) |
 | Session JWT + JWKS, user API | every app call is the signed-in person; wallets created after sign-in are refreshed from Dynamic | [`src/dynamic/jwt.ts`](src/dynamic/jwt.ts#L17), [`src/dynamic/users.ts`](src/dynamic/users.ts#L19) |
-| Server wallets (`DynamicEvmWalletClient`) | an AI company's agent owns its own smart account through one; the payer bot is next | [`src/dynamic/serverWallet.ts`](src/dynamic/serverWallet.ts#L26), [`src/company/agent.ts`](src/company/agent.ts#L41) |
+| Server wallets (`DynamicEvmWalletClient`) | an AI company's agent owns its own smart account through one; the payer bot signs with one since Oct 5 (`AGATE_PAYER_SIGNER=dynamic`) | [`src/dynamic/serverWallet.ts`](src/dynamic/serverWallet.ts#L26), [`src/company/agent.ts`](src/company/agent.ts#L41) |
 | Session events, refresh, sign-out | the app keeps a person signed in while they use it | [`wallet/src/dynamic.ts`](../wallet/src/dynamic.ts#L87) `refreshSession`, `onSessionEvent`, `signOut` |
 | Test accounts (`+dynamic_test`) | judges and the live tests sign in without an inbox | [`../ops/dynamic/sandbox.json`](../ops/dynamic/sandbox.json) |
 | Management API (admin token) | the environment as code: export, diff, apply; re-points the webhook and Transaction Review after a host change | [`scripts/env.ts`](scripts/env.ts) |

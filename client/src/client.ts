@@ -2,7 +2,7 @@
 // for prices, series, books, balances and positions (viem over the public RPC, batched through Multicall3); the Envio
 // indexer adds what only events hold (index history, fills, candles, listing times, open orders, entry prices). When
 // the indexer cannot be reached the reads still answer from the chain, as documented per read (README).
-import { type Abi, type Address, type Chain, createPublicClient, decodeErrorResult, defineChain, fallback, type Hex, http, type PublicClient, toFunctionSelector } from "viem";
+import { type Abi, type Address, type Chain, createPublicClient, decodeErrorResult, defineChain, fallback, type Hex, http, type PublicClient, type Transport, toFunctionSelector } from "viem";
 import { agateDollarAbi, agateFactoryAbi, agateIndexAbi, agateRouterAbi, agateSeriesAbi, agateTokenAbi, kuruMarginAccountAbi, kuruOrderBookAbi } from "./abi.ts";
 import { decodeL2Book, type RawBook, toBook } from "./book.ts";
 import { dayIdAt, dayStart, expectedClose, expectedFinal, type IndexClocks, type RecordTimes } from "./clock.ts";
@@ -12,6 +12,19 @@ import type { Book, Candle, Deployments, FactoryRecord, Fill, Gpu, IndexDay, Mar
 import { dateOfDay, daysIn, firstDayOf, iso, LOT, monthLabel, monthOfDay, monthOfLabel, monthShort, SIZE_PER_TOKEN, TICK, toNumber6, U, unitsToHours, ZERO_ADDRESS } from "./units.ts";
 
 export const PUBLIC_RPC = "https://testnet-rpc.monad.xyz";
+
+/** An RPC setting (one URL or a comma list) as URLs; the public RPC when it is empty. */
+export function rpcUrlsOf(list?: string | null): string[] {
+  const urls = (list ?? PUBLIC_RPC).split(",").map((u) => u.trim()).filter(Boolean);
+  return urls.length > 0 ? urls : [PUBLIC_RPC];
+}
+
+/** The transport for an RPC setting: one URL as it is; a comma list tried in order, the next URL when a call fails
+ *  (a 429 from a public RPC included). Shared by the client, agate's server and its scripts. */
+export function rpcTransport(list?: string | null): Transport {
+  const urls = rpcUrlsOf(list);
+  return urls.length === 1 ? http(urls[0], { timeout: 30_000, retryCount: 2 }) : fallback(urls.map((u) => http(u, { timeout: 15_000, retryCount: 1 })), { retryCount: 1 });
+}
 export const MULTICALL3: Address = "0xcA11bde05977b3631167028862bE2a173976CA11";
 /** order ids per book that openOrders checks on chain beyond what the indexer has seen (or, without it, in all) */
 export const SCAN_ORDERS = 500n;
@@ -246,8 +259,7 @@ export class AgateClient {
     this.f = f;
     const chainId = cfg.chainId ?? this.deployments.chainId;
     if (chainId !== this.deployments.chainId) throw new ReadError(`chain ${chainId} is not the deployments' chain ${this.deployments.chainId}`);
-    const rpcUrls = (cfg.rpcUrl ?? PUBLIC_RPC).split(",").map((u) => u.trim()).filter(Boolean);
-    if (rpcUrls.length === 0) rpcUrls.push(PUBLIC_RPC);
+    const rpcUrls = rpcUrlsOf(cfg.rpcUrl);
     this.chain = defineChain({
       id: chainId,
       name: chainId === 10143 ? "Monad Testnet" : `chain ${chainId}`,
@@ -256,7 +268,7 @@ export class AgateClient {
       contracts: { multicall3: { address: MULTICALL3 } },
     });
     this.ownPub = !cfg.publicClient;
-    const transport = rpcUrls.length === 1 ? http(rpcUrls[0], { timeout: 30_000, retryCount: 2 }) : fallback(rpcUrls.map((u) => http(u, { timeout: 15_000, retryCount: 1 })), { retryCount: 1 });
+    const transport = rpcTransport(cfg.rpcUrl);
     this.pub = cfg.publicClient ?? (createPublicClient({ chain: this.chain, transport }) as PublicClient);
     const url = resolveGraphqlUrl(cfg.graphqlUrl);
     this.gql = url ? graphql(url, cfg.fetch ? { fetch: cfg.fetch } : {}) : null;

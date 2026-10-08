@@ -53,6 +53,7 @@ export const config = {
   environmentId: process.env.DYNAMIC_ENVIRONMENT_ID ?? "db2880bd-e52a-4f00-aa83-2c3ec77281cb",
   dynamicApi: "https://app.dynamicauth.com/api/v0",
   chainId: 10143,
+  /** one RPC URL or a comma list, tried in order (the next one when a call fails, a 429 included) */
   rpcUrl: process.env.MONAD_RPC_URL ?? PUBLIC_RPC,
   dollar: TESTNET_DEPLOYMENTS.dollar as Address,
   router: real.router as Address,
