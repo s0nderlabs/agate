@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/agate-lockup-dark.svg">
-    <img src="docs/assets/agate-lockup-light.svg" alt="agate" width="220">
+    <img src="docs/assets/agate-lockup-light.svg" alt="Agate" width="230">
   </picture>
 </p>
 
