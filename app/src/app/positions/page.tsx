@@ -1,9 +1,9 @@
 import { AppProviders } from "@/components/app/AppProviders";
 import { PositionsScreen } from "@/components/positions/PositionsScreen";
-import { parseConfig } from "@/lib/mock/config";
+import { pageConfig } from "@/lib/mock/savedTheme";
 
 export default async function PositionsPage({ searchParams }: PageProps<"/positions">) {
-  const initial = parseConfig(await searchParams);
+  const initial = await pageConfig(searchParams);
   return (
     <AppProviders initial={initial}>
       <PositionsScreen />

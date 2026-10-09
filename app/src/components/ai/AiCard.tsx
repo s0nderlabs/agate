@@ -49,8 +49,9 @@ export function AiCardScreen({ id }: { id: string }) {
     body = (
       <div className={s.main} style={{ padding: 0 }}>
         <div className={s.headText}>
-          <h1 className={s.h1}>Connected AIs</h1>
-          <p className={s.lead}>Sign in to see the AIs you've connected.</p>
+          {/* the back link above already says "Connected AIs": the heading says what this page is */}
+          <h1 className={s.h1}>Sign in to see this AI</h1>
+          <p className={s.lead}>Each AI you connect has its own page: its pocket, its trades and your limits.</p>
           <div className={s.actions}>
             <button className="ag-btn ag-btn--primary" type="button" onClick={flow.openSignIn}>
               Sign in

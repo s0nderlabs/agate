@@ -507,7 +507,7 @@ export function limitReducer(s: LimitState, e: LimitEvent): LimitState {
 
 /** The run's words while it is on its way, for the button it was started from. */
 export function limitStepText(s: LimitState): string | null {
-  if (s.step === "checking") return s.order.kind === "placeLimit" ? "Checking the book" : "Checking the order";
+  if (s.step === "checking") return s.order.kind === "placeLimit" ? "Checking the book" : s.order.kind === "redeem" ? "Turning them back into dollars" : "Checking the order";
   if (s.step === "signing") return "Your wallet is signing";
   if (s.step === "sending") return "Sending to Monad";
   return null;

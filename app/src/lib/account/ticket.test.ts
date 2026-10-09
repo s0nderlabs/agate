@@ -49,6 +49,7 @@ describe("limitPlanOf: each limit order as the client's builder call", () => {
       planPlaceLimit: answer("planPlaceLimit", { action: "placeLimit", gpu: "H100", month: "2026-11", side: "long", price: 3.9, gpuHours: 10, postOnly: true, deposited: 39, minted: 0 }),
       planCancelLimit: answer("planCancelLimit", { action: "cancelLimit", gpu: "H100", month: "2026-11", cancelled: ["41"], skipped: [], withdrawn: { dollars: 39, gpuHours: 0 } }),
       planWithdrawMargin: answer("planWithdrawMargin", { action: "withdrawMargin", withdrawn: { dollars: 12.5, gpuHours: 0 } }),
+      planRedeem: answer("planRedeem", { action: "redeem", gpu: "H100", month: "2026-11", gpuHours: 10, paid: 80 }),
     } as unknown as LimitBuilders;
     return { b, calls };
   }
@@ -83,6 +84,13 @@ describe("limitPlanOf: each limit order as the client's builder call", () => {
       { fn: "planWithdrawMargin", me: ME, p: { asset: "dollar" } },
       { fn: "planWithdrawMargin", me: ME, p: { asset: { gpu: "H100", month: "2026-11" } } },
     ]);
+  });
+
+  test("redeem after a cancelled ask: exactly the order's unsold GPU-hours, never every pair the wallet holds", async () => {
+    const { b, calls } = fake();
+    const p = await limitPlanOf(agate, ME, { kind: "redeem", gpu: "H100", month: "2026-11", gpuHours: "10.0000" }, b);
+    expect(calls).toEqual([{ fn: "planRedeem", me: ME, p: { gpu: "H100", month: "2026-11", gpuHours: "10.0000" } }]);
+    expect(p.summary).toMatchObject({ action: "redeem", gpuHours: 10, paid: 80 });
   });
 
   test("a refusal from the builder comes through untouched (errors.ts limitRefusal words it)", async () => {

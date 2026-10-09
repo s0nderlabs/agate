@@ -37,6 +37,8 @@ wall/e2e/out/
 *.log
 # third-party raw pages are never committed (read from AGATE_RAW_DIR)
 raw/
+# ...but the app's route folder that serves the docs as markdown (/docs/raw/<slug>.md) is code, not a page
+!/app/src/app/docs/raw/
 *.html.gz
 *.all.gz
 # OS

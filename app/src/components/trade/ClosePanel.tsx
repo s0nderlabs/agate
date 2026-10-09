@@ -498,7 +498,8 @@ function CloseBody({ p, series, dense, loading: marketLoading = false, stale = "
             </div>
           )}
           <div>
-            <dt>{p.daily ? "You get now" : "You'll receive"}</dt>
+            {/* a Short's buy-back can spend up to its bound and hand any extra back as GPU-hours, so its dollars are an estimate */}
+            <dt>{p.daily ? "You get now" : L ? "You'll receive" : "You'll receive about"}</dt>
             <dd className={skel}>
               <Num>{usd0(Math.max(0, est.back))}</Num>
             </dd>

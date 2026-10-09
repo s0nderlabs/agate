@@ -4,13 +4,14 @@
 // your positions and open orders, and an order ticket with limits.
 import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "@/lib/account";
+import { COPY } from "@/lib/account/errors";
 import { restingOpenOrder } from "@/lib/account/ticket";
 import { useMock, useOpenOrders } from "@/lib/mock/store";
 import { groundFor } from "@/lib/mock/config";
 import { isOld, useBook, useCandles, useDataStatus, useMarkets, useNow, useScreenMarket, useSeriesFor } from "@/lib/data/hooks";
 import { cloudsText, dateText, headline, hoursSinceListing, monthChange, monthStateOf, NO_DAY, panelCount, staleState, statusLine, topOf } from "@/lib/data/derive";
 import { usd } from "@/lib/format";
-import { showHours } from "@/lib/size";
+import { floorHours, showHours } from "@/lib/size";
 import { useTrade } from "@/components/markets/useTrade";
 import { monthName } from "@/components/markets/PriceChart";
 import { MarketStrip, NavBar, Notice } from "@/components/shell/Shell";
@@ -97,11 +98,24 @@ export function TradeScreen() {
     if (!o || cancelRun.busy) return;
     setCanceling(id);
     setOrdersNote(null);
-    void cancelRun.run({ kind: "cancelLimit", gpu: o.gpu, month: o.month, orderIds: [o.orderId] }).then((r) => {
-      setCanceling(null);
+    void cancelRun.run({ kind: "cancelLimit", gpu: o.gpu, month: o.month, orderIds: [o.orderId] }).then(async (r) => {
       const back = r.ok ? r.result.withdrawn : undefined;
       const parts = back ? [back.dollars > 0 ? usd(back.dollars) : "", back.gpuHours > 0 ? `${showHours(back.gpuHours)} GPU-hours` : ""].filter(Boolean) : [];
-      setOrdersNote(r.ok ? `Canceled.${parts.length ? ` ${parts.join(" and ")} came back to your account.` : ""}` : r.message);
+      const said = `Canceled.${parts.length ? ` ${parts.join(" and ")} came back to your account.` : ""}`;
+      // an ask minted the pairs it sells: the part it never sold comes back as a Long beside its Short, so it goes
+      // back to dollars at once (the pair is worth the ceiling) rather than sitting there until the month ends. Only
+      // what the cancel itself freed (it can be less than the list showed, if some sold since), never more than the order
+      const freed = Math.min(back?.gpuHours ?? 0, o.q);
+      if (r.ok && o.side === "short" && freed >= 0.0001) {
+        setOrdersNote(`${said} Turning them back into dollars.`);
+        const x = await cancelRun.run({ kind: "redeem", gpu: o.gpu, month: o.month, gpuHours: floorHours(freed).toFixed(4) });
+        setCanceling(null);
+        const dollars = (back?.dollars ?? 0) + (x.ok ? (x.result.paid ?? 0) : 0);
+        setOrdersNote(x.ok ? `Canceled. ${usd(dollars)} came back to your account.` : `${said} ${x.message ?? COPY.redeemLater}`);
+        return;
+      }
+      setCanceling(null);
+      setOrdersNote(r.ok ? said : r.message);
     });
   };
   const pro = config.mode === "pro";

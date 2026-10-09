@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useAiBackend, useMcpUrl } from "@/lib/account/ai";
+import { AGATE_SERVER } from "@/lib/account/realAi";
 import { useLinkQuery } from "@/lib/mock/store";
 import { CopyButton } from "@/components/flow/Copy";
 
@@ -16,8 +17,9 @@ export function HowTo({ heading = "h2", onGo }: { heading?: "h1" | "h2"; onGo?: 
   const { backend } = useAiBackend();
   const q = useLinkQuery();
   const url = mcp.data ?? "";
-  // live on the pretend server has only a made-up link: never offer it to paste into a real AI app
-  const notPublic = (!!url && !url.startsWith("https://")) || (backend.fake && !backend.example);
+  // live reads the real server's public link, signed in or not; a build with no server (or a link that is not https,
+  // or one that cannot be read) never offers a link to paste into a real AI app
+  const notPublic = (!!url && !url.startsWith("https://")) || (!backend.example && (!AGATE_SERVER || mcp.isError));
   const H = heading;
   const command = `claude mcp add --transport http agate ${url}`;
   return (

@@ -14,7 +14,7 @@ import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { finePointer, tapMode, useModalFocus } from "@/lib/ui/hooks";
 import { showHours } from "@/lib/size";
 import { int, usd, usd0 } from "@/lib/format";
-import { AccountHead, AccountSheet, AddressRow, AisRow, SECURED, SIGN_OUT_NOTE, useAiSummary, usePasskeyRow } from "@/components/flow/AccountSheet";
+import { AccountHead, AccountSheet, AddressRow, AisRow, DocsRow, SECURED, SIGN_OUT_NOTE, useAiSummary, usePasskeyRow } from "@/components/flow/AccountSheet";
 import { CloseSheet } from "@/components/flow/CloseSheet";
 import { CloseForm } from "@/components/trade/ClosePanel";
 import { DisconnectSheet } from "@/components/flow/DisconnectSheet";
@@ -453,7 +453,7 @@ function Info({ title, body, onClose }: { title: string; body: ReactNode; onClos
 }
 
 /** The phone tab bar's More: the balance (or what Agate is), then Simple or Pro and light or dark, which leave the
- * top bar on phones. No Docs row until docs exist. */
+ * top bar on phones, and the way to the docs (the compact top bars have no Docs link). */
 function More({ onSignIn, onClose }: { onSignIn: () => void; onClose: () => void }) {
   const { config, setConfig } = useMock();
   const account = useAccount();
@@ -472,7 +472,7 @@ function More({ onSignIn, onClose }: { onSignIn: () => void; onClose: () => void
           </button>
         </>
       )}
-      <div className="ag-rows" data-tall={account.ready || undefined}>
+      <div className="ag-rows" data-tall>
         {account.ready && (
           <>
             <AddressRow />
@@ -502,6 +502,7 @@ function More({ onSignIn, onClose }: { onSignIn: () => void; onClose: () => void
             </button>
           </div>
         </div>
+        <DocsRow onGo={onClose} />
       </div>
       {account.ready && (
         <>

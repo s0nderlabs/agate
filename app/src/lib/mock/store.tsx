@@ -5,7 +5,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { OpenOrder } from "@/components/trade/OrderTicket";
 import { DRIP } from "@/lib/account/types";
-import { configQuery, DEFAULT_CONFIG, isCheckTab, type MockConfig } from "./config";
+import { configQuery, DEFAULT_CONFIG, isCheckTab, THEME_COOKIE, type MockConfig } from "./config";
 import type { Gpu, Position, Side, Wallet } from "./types";
 
 export type { MockConfig } from "./config";
@@ -44,7 +44,8 @@ export interface Finished {
 
 interface Ctx {
   config: MockConfig;
-  setConfig: (patch: Partial<MockConfig>) => void;
+  /** save: false applies a theme without keeping it (one that arrived in a link) */
+  setConfig: (patch: Partial<MockConfig>, save?: boolean) => void;
   wallet: Wallet;
   signIn: (email: string) => void;
   signOut: () => void;
@@ -120,8 +121,14 @@ export function MockProvider({ initial, children }: { initial: MockConfig; child
     if (url.href !== window.location.href) window.history.replaceState(null, "", url.toString());
   }, [config]);
 
-  const setConfig = useCallback((patch: Partial<MockConfig>) => {
+  const setConfig = useCallback((patch: Partial<MockConfig>, save = true) => {
     setConfigState((c) => ({ ...c, ...patch }));
+    // the picked theme outlives a reload (the pages read this cookie, savedTheme.ts); a render-check tab never keeps one
+    if (patch.theme && save && !isCheckTab()) {
+      try {
+        document.cookie = `${THEME_COOKIE}=${patch.theme}; path=/; max-age=31536000; samesite=lax`;
+      } catch {}
+    }
     if (patch.auth === "in") setWallet((w) => (w.signedIn ? w : { ...w, signedIn: true, email: w.email ?? "you@example.com", balance: w.balance || DRIP }));
     if (patch.auth === "out") setWallet((w) => ({ ...w, signedIn: false }));
   }, []);

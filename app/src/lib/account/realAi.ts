@@ -14,11 +14,22 @@ import type { PlanCall } from "./types";
 /** Agate's server (literal process.env read, inlined at build time). Unset: every server call reads as offline. */
 export const AGATE_SERVER = (process.env.NEXT_PUBLIC_AGATE_SERVER ?? "").replace(/\/+$/, "");
 
+/** The link AI apps add: the resource in the server's protected-resource metadata, which is public, so it is read
+ *  without signing in (and without loading the sign-in stack). */
+export const publicMcpUrl = () => serverApi(publicTransport).mcpUrl();
+
+const publicTransport: Transport = (method, path, body) => serverFetch(method, path, body, null);
+
 const fetchTransport: Transport = async (method, path, body) => {
   if (!AGATE_SERVER) throw new Error("no server set for this build");
   const { lib, client } = await getDynamic();
   // read fresh on every call: the session is refreshed under the same client
-  const token = lib.sessionToken(client);
+  return serverFetch(method, path, body, lib.sessionToken(client));
+};
+
+/** One request to Agate's server, signed in when a session token is given; the answer's body read as JSON if it is. */
+async function serverFetch(method: "GET" | "POST", path: string, body: unknown, token: string | null | undefined) {
+  if (!AGATE_SERVER) throw new Error("no server set for this build");
   const r = await fetch(`${AGATE_SERVER}${path}`, {
     method,
     headers: { ...(body === undefined ? {} : { "content-type": "application/json" }), ...(token ? { authorization: `Bearer ${token}` } : {}) },
@@ -29,7 +40,7 @@ const fetchTransport: Transport = async (method, path, body) => {
     json = await r.json();
   } catch {}
   return { status: r.status, body: json };
-};
+}
 
 /** Dynamic's key steps fail now and then and work on a second go (measured: 3 of 19 delegated signs), so each runs
  *  once more, quietly, before the screen says it stopped. A lapsed code is not retried: it needs the person. */

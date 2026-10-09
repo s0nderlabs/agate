@@ -42,7 +42,7 @@ function doneOf(action: TradeAction, x: Record<string, unknown>, r: UserOperatio
       return { ...base, received, net: received - (n("cost") ?? 0) };
     }
     case "closeShort":
-      return { ...base, spent: n("spent"), refund: n("refund"), received: n("paid"), net: (n("paid") ?? 0) - (n("spent") ?? 0) };
+      return { ...base, spent: n("spent"), refund: n("refund"), received: n("paid"), net: (n("paid") ?? 0) - (n("spent") ?? 0), surplus: n("surplusGpuHours") };
     case "drip":
       return { ...base, amount: n("amount") };
   }
@@ -69,8 +69,8 @@ async function planOf(agate: AgateClient, me: `0x${string}`, order: Order) {
   }
 }
 
-/** The client's three limit builders (a test hands in its own). */
-export type LimitBuilders = Pick<typeof import("@agate/client"), "planPlaceLimit" | "planCancelLimit" | "planWithdrawMargin">;
+/** The client's limit builders (a test hands in its own). */
+export type LimitBuilders = Pick<typeof import("@agate/client"), "planPlaceLimit" | "planCancelLimit" | "planWithdrawMargin" | "planRedeem">;
 
 /** The client's limit batch for a limit order, from the main account. A bid or an ask is post-only (it rests, never
  *  takes: the ticket sends an order that fills now through Review instead); an ask mints the pairs it sells, so it
@@ -82,7 +82,10 @@ export async function limitPlanOf(agate: AgateClient, me: `0x${string}`, order: 
       ? await b.planPlaceLimit(agate, me, { gpu: order.gpu as Gpu, month: order.month, side: order.side, price: order.price, gpuHours: order.gpuHours, postOnly: true, mint: order.side === "short" })
       : order.kind === "cancelLimit"
         ? await b.planCancelLimit(agate, me, { gpu: order.gpu as Gpu, month: order.month, orderIds: order.orderIds, withdraw: true })
-        : await b.planWithdrawMargin(agate, me, { asset: order.asset === "dollar" ? "dollar" : { gpu: order.asset.gpu as Gpu, month: order.asset.month } });
+        : order.kind === "redeem"
+          ? // exactly the pairs named (a cancelled ask's unsold part), never every pair the wallet holds
+            await b.planRedeem(agate, me, { gpu: order.gpu as Gpu, month: order.month, gpuHours: order.gpuHours })
+          : await b.planWithdrawMargin(agate, me, { asset: order.asset === "dollar" ? "dollar" : { gpu: order.asset.gpu as Gpu, month: order.asset.month } });
   return { account: p.account, calls: p.calls.map((x) => ({ to: x.to, value: x.value, data: x.data, label: x.label })), summary: { ...p.summary, action: p.summary.action as LimitOrder["kind"] }, plannedAt: Date.now() };
 }
 
@@ -90,6 +93,7 @@ export async function limitPlanOf(agate: AgateClient, me: `0x${string}`, order: 
 function limitDoneOf(p: LimitPlan, x: Record<string, unknown>, r: UserOperationReceipt): LimitDone {
   const base = { action: p.summary.action, txHash: r.receipt.transactionHash, userOpHash: r.userOpHash };
   if (p.summary.action === "placeLimit") return { ...base, orderId: typeof x.orderId === "string" ? x.orderId : "" };
+  if (p.summary.action === "redeem") return { ...base, paid: typeof x.paid === "number" ? x.paid : p.summary.paid };
   const cancelled = Array.isArray(x.cancelled) ? (x.cancelled as string[]) : p.summary.cancelled;
   return p.summary.action === "cancelLimit" ? { ...base, cancelled, withdrawn: p.summary.withdrawn } : { ...base, withdrawn: p.summary.withdrawn };
 }

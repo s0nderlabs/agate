@@ -1,9 +1,9 @@
 import { AppProviders } from "@/components/app/AppProviders";
 import { TradeScreen } from "@/components/trade/TradeScreen";
-import { parseConfig } from "@/lib/mock/config";
+import { pageConfig } from "@/lib/mock/savedTheme";
 
 export default async function Home({ searchParams }: PageProps<"/">) {
-  const initial = parseConfig(await searchParams);
+  const initial = await pageConfig(searchParams);
   return (
     <AppProviders initial={initial}>
       <TradeScreen />

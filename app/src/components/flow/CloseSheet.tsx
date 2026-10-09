@@ -115,11 +115,13 @@ export function CloseSheet({ p, order: given, shown: givenShown, onClose, onBack
     const r = run.result;
     // a Short: what came back after the buy-back (the balance's change), the figure the close form showed
     const shortBack = r.net ?? (r.received ?? 0) - (r.spent ?? 0);
+    // the buy-back spends up to its bound, and GPU-hours bought beyond the Short stay with the person as a Long
+    const extra = floorHours(r.surplus ?? 0);
     const line =
       r.action === "closeLong"
         ? `${showHours(r.gpuHours ?? 0)} GPU-hours sold for ${usd(r.received ?? 0)}, now in your balance.`
         : r.action === "closeShort"
-          ? `Bought back for ${usd(r.spent ?? 0)}. ${usd(shortBack)} came back to your balance.`
+          ? `Bought back for ${usd(r.spent ?? 0)}. ${usd(shortBack)} came back to your balance.${extra > 0 ? ` The buy-back also got ${showHours(extra)} extra GPU-hours, now a Long in your account.` : ""}`
           : // a pay me daily Long: what it sold for less what it had been paid (the dollars put up front came back in the same step)
             `${usd(r.net ?? r.received ?? 0)} came back to your balance.`;
     return (
@@ -204,7 +206,11 @@ export function CloseSheet({ p, order: given, shown: givenShown, onClose, onBack
           The price moved since you looked. These are the numbers now.
         </p>
       )}
-      <p style={{ fontSize: 15 }}>{s.action === "closeShort" ? "The price is checked again when it sends: it never pays more than this." : "The price is checked again when it sends: it never pays less than this."}</p>
+      <p style={{ fontSize: 15 }}>
+        {s.action === "closeShort"
+          ? "The price is checked again when it sends: it never pays more than this. Any GPU-hours it buys beyond your Short stay in your account as a Long."
+          : "The price is checked again when it sends: it never pays less than this."}
+      </p>
       <button className="ag-btn ag-btn--primary ag-btn--lg" type="button" onClick={() => void confirm(run.plan)}>
         {given ? "Confirm close" : `Close ${L ? "Long" : "Short"}`}
       </button>

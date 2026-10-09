@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { AppProviders } from "@/components/app/AppProviders";
 import { PrivacyScreen } from "@/components/privacy/PrivacyScreen";
-import { parseConfig } from "@/lib/mock/config";
+import { pageConfig } from "@/lib/mock/savedTheme";
 
 export const metadata: Metadata = { title: "Privacy · Agate" };
 
 export default async function PrivacyPage({ searchParams }: PageProps<"/privacy">) {
-  const initial = parseConfig(await searchParams);
+  const initial = await pageConfig(searchParams);
   return (
     <AppProviders initial={initial}>
       <PrivacyScreen />

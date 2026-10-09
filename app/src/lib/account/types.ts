@@ -66,11 +66,14 @@ export type TradeAction = "openLong" | "openLongDaily" | "closeLong" | "openShor
  * planWithdrawMargin); the real account's only, the pretend account keeps practice orders in the example wallet
  * (mock/store.tsx useOpenOrders). A bid deposits its dollars; an ask mints the pairs it sells, so it opens a Short and
  * never sells a Long held beside it. A cancel takes what it frees back to the account in the same batch; a filled
- * order leaves its proceeds in Kuru's margin account until withdrawMargin moves them ("dollar", or a month's GPU-hours). */
+ * order leaves its proceeds in Kuru's margin account until withdrawMargin moves them ("dollar", or a month's GPU-hours).
+ * redeem (planRedeem) turns pairs held in the wallet back into the ceiling in dollars: after a cancelled ask, the part
+ * it had minted and not sold (a Long and a Short of the same size) goes back to dollars. */
 export type LimitOrder =
   | ({ kind: "placeLimit"; side: Side; price: Decimal; gpuHours: Decimal } & OnMarket)
   | ({ kind: "cancelLimit"; orderIds: string[] } & OnMarket)
-  | { kind: "withdrawMargin"; asset: "dollar" | OnMarket };
+  | { kind: "withdrawMargin"; asset: "dollar" | OnMarket }
+  | ({ kind: "redeem"; gpuHours: Decimal } & OnMarket);
 
 /** The client's LimitSummary actions (plan.ts). */
 export type LimitAction = LimitOrder["kind"];
@@ -96,6 +99,8 @@ export interface LimitPlan {
     skipped?: string[];
     /** taken back from Kuru's margin account by the batch */
     withdrawn?: { dollars: number; gpuHours: number };
+    /** redeem: the dollars the pairs pay back */
+    paid?: number;
   };
   /** ms since epoch */
   plannedAt: number;
@@ -112,6 +117,8 @@ export interface LimitDone {
   cancelled?: string[];
   /** cancelLimit and withdrawMargin: what came back to the account */
   withdrawn?: { dollars: number; gpuHours: number };
+  /** redeem: the dollars the pairs paid back */
+  paid?: number;
 }
 
 /** One of the real account's resting Kuru orders (@agate/client openOrders). */
@@ -201,6 +208,8 @@ export interface DoneResult {
   paidNow?: number;
   received?: number;
   net?: number;
+  /** a Short's buy-back: GPU-hours bought beyond the Short, which stay in the account as a Long */
+  surplus?: number;
   positionIds?: string[];
   /** drip: test dollars that arrived, and when the next drip opens (ISO) */
   amount?: number;

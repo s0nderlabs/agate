@@ -47,6 +47,9 @@ export interface MockConfig {
   indexUi: "market" | "new" | "before";
 }
 
+/** The cookie that keeps the picked theme across reloads (written by the store, read by the pages: savedTheme.ts). */
+export const THEME_COOKIE = "agate-theme";
+
 export const MOMENTS = ["oct", "nov3", "nov13", "nov30", "dec1gap", "dec1final"] as const;
 export type Moment = (typeof MOMENTS)[number];
 

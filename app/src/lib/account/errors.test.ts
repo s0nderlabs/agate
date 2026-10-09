@@ -258,6 +258,9 @@ describe("limit orders (Pro, the real account)", () => {
     expect(limitRefusal(writeError("an ask that mints 10 pairs: needs $80", "check", "InsufficientBalance"), ask).message).toBe(COPY.limitFunds);
     expect(limitRefusal(writeError("none of these orders is resting and yours"), cancel)).toMatchObject({ message: COPY.orderGone, refresh: true, nothingSent: true });
     expect(limitRefusal(writeError("the margin account holds 0"), withdraw)).toMatchObject({ message: COPY.nothingAtKuru, refresh: true });
+    // a redeem after a cancel that finds no pair to turn back: they stay until the month ends (never "needs dollars")
+    const redeem: LimitOrder = { kind: "redeem", gpu: "H100", month: "2026-11", gpuHours: "10.0000" };
+    expect(limitRefusal(writeError("the wallet holds no H100-NOV26 pair (a token and a short unit)", "check", "InsufficientBalance"), redeem)).toMatchObject({ message: COPY.redeemLater, refresh: true, nothingSent: true });
     expect(limitRefusal(writeError("a post-only bid at 4.03 would cross the best ask 4.03", "check", "PostOnlyError"), bid)).toMatchObject({ sheet: "ticket", message: COPY.postOnly });
     expect(limitRefusal(writeError("the book could not be read, so a post-only order cannot be checked; nothing was sent"), bid)).toMatchObject({ message: COPY.network, action: "retry" });
   });
@@ -276,6 +279,13 @@ describe("limit orders (Pro, the real account)", () => {
     expect(limitSendRefusal(named("UserNotAuthenticatedError", "sign in again"), bid)).toMatchObject({ message: COPY.sessionTrade, nothingSent: true });
     expect(limitSendRefusal(new TypeError("Failed to fetch"), cancel)).toMatchObject({ message: COPY.sendNetwork, nothingSent: true });
     expect(limitSendRefusal(named("WaitForUserOperationReceiptTimeoutError", "timed out"), ask)).toMatchObject({ message: COPY.pending, nothingSent: false });
+  });
+
+  test("sending the redeem after a cancel: its order is gone, so never 'try again', only what the month's end does", () => {
+    const redeem: LimitOrder = { kind: "redeem", gpu: "H100", month: "2026-11", gpuHours: "6.0000" };
+    expect(limitSendRefusal(writeError("the operation landed and reverted", "receipt", "reverted"), redeem)).toMatchObject({ message: COPY.redeemLater, action: "back" });
+    expect(limitSendRefusal(new TypeError("Failed to fetch"), redeem)).toMatchObject({ message: COPY.redeemLater, action: "back" });
+    expect(limitSendRefusal(named("UserNotAuthenticatedError", "sign in again"), redeem)).toMatchObject({ message: COPY.sessionTrade, action: "signin" });
   });
 });
 

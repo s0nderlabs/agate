@@ -202,6 +202,19 @@ export function AisRow({ onGo }: { onGo?: () => void }) {
   );
 }
 
+/** "Docs": More's way to the docs on phones and tablets, whose top bar has no Docs link. */
+export function DocsRow({ onGo }: { onGo?: () => void }) {
+  const q = useLinkQuery();
+  return (
+    <Link href={`/docs${q}`} onClick={onGo}>
+      <span>Docs</span>
+      <span>
+        <Chevron />
+      </span>
+    </Link>
+  );
+}
+
 export const SECURED = "Secured by Dynamic. Your account runs on Monad's test network.";
 export const SIGN_OUT_NOTE = "Signing out doesn't stop your AIs. Disconnect them in Connected AIs.";
 

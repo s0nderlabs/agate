@@ -121,6 +121,7 @@ export const COPY = {
   cancelLanded: "This order changed before the cancel landed. Nothing changed.",
   withdrawLanded: "It didn't go through on Monad. Nothing moved. Try again.",
   limitBusy: "Another order is on its way. Try this again once it lands.",
+  redeemLater: "They stay as a Long and a Short until the month ends, which pays both back in full.",
   otherMonth: "Pick a different month to move into.",
   // planning: sheets
   funds: "This trade needs more test dollars than your account holds. Nothing was sent.",
@@ -380,6 +381,8 @@ export function limitRefusal(e: unknown, order: LimitOrder): Refusal {
   const x = chain(e)[0] ?? {};
   const msg = str(x.message);
   if (str(x.name) === "WriteError") {
+    // a redeem after a cancel that finds fewer pairs than the order left: they stay as they are until the month ends
+    if (order.kind === "redeem" && str(x.reason) === "InsufficientBalance") return fail("noPairs", COPY.redeemLater, "back", { refresh: true });
     if (str(x.reason) === "InsufficientBalance") return { sheet: "funds", message: COPY.limitFunds, action: "funds", nothingSent: true, reason: "InsufficientBalance" };
     if (/none of these orders is resting/i.test(msg)) return fail("orderGone", COPY.orderGone, "back", { refresh: true });
     if (/margin account holds/i.test(msg)) return fail("nothingAtKuru", COPY.nothingAtKuru, "back", { refresh: true });
@@ -393,6 +396,9 @@ export function limitRefusal(e: unknown, order: LimitOrder): Refusal {
  *  met an order that filled first): sendRefusal, with the order's own words for a revert. */
 export function limitSendRefusal(e: unknown, order: LimitOrder): Refusal {
   const r = sendRefusal(e);
+  // a redeem only follows a cancel that landed, whose order is gone: nothing is left to try again, and the pairs stay
+  // as a Long and a Short that the month's end pays back in full
+  if (order.kind === "redeem" && r.reason !== "session") return { ...r, message: COPY.redeemLater, action: "back" };
   if (r.reason !== "reverted") return r;
   return { ...r, message: order.kind === "placeLimit" ? COPY.limitLanded : order.kind === "cancelLimit" ? COPY.cancelLanded : COPY.withdrawLanded };
 }

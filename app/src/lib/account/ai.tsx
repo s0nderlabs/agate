@@ -17,7 +17,7 @@ import { useMock } from "@/lib/mock/store";
 import { serverApi, type ServerApi } from "./api";
 import { expireRequest, fakeChain, fakeKey, fakeTransport, fakeWorld, forgetWorld, takeOwed, type PocketRead } from "./fakeServer";
 import { PRETEND_ADDRESS } from "./pretend";
-import { realAiBackend } from "./realAi";
+import { AGATE_SERVER, publicMcpUrl, realAiBackend } from "./realAi";
 import { useAccount } from "./index";
 
 /** What a pocket's key may do, as signed: the routers in /api/config's order, dollars, unix seconds. */
@@ -207,7 +207,10 @@ export function useStandingOrders(grantId: string | undefined) {
 /** The AI apps' link for the how-to (needs no sign-in). */
 export function useMcpUrl() {
   const { backend } = useAiBackend();
-  return useQuery({ queryKey: ["server", "mcp", backend.key], queryFn: () => backend.api.mcpUrl(), staleTime: Infinity, retry: 1 });
+  // live, the link is the real server's even before signing in (its metadata is public); only example data keeps the
+  // pretend server's made-up link
+  const live = !backend.example && !!AGATE_SERVER;
+  return useQuery({ queryKey: ["server", "mcp", live ? "live" : backend.key], queryFn: () => (live ? publicMcpUrl() : backend.api.mcpUrl()), staleTime: Infinity, retry: 1 });
 }
 
 /** After a write: read the connections, their activity, the pockets and the requests again. */

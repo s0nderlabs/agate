@@ -1,0 +1,876 @@
+/* Docs: the app's tokens and faces (Erode for headlines, Apfel for text, the system's monospace for code), hairlines,
+   no new colors, nothing under 15 px. Desktop: chapters | text (68 characters a line) | On this page from 1200 px.
+   Phones below 760 px: one column, the chapters behind a Contents button; tables and code scroll in their own box. */
+.screen {
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  /* what stays pinned above the text besides the top bar (the phone's Contents bar), for anchor landings */
+  --docs-pin: 0px;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* ---------- frame: chapters on the left, the page ---------- */
+.frame {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
+  column-gap: clamp(32px, 4vw, 64px);
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 max(clamp(16px, 2.4vw, 32px), env(safe-area-inset-right)) 0 max(clamp(16px, 2.4vw, 32px), env(safe-area-inset-left));
+}
+.side {
+  position: sticky;
+  top: var(--nav-h);
+  align-self: start;
+  max-height: calc(100dvh - var(--nav-h));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+  padding: 28px 4px 40px 2px;
+  display: grid;
+  gap: 22px;
+  align-content: start;
+}
+.page {
+  min-width: 0;
+  /* the page itself never scrolls sideways: wide things scroll in their own boxes */
+  overflow-x: clip;
+}
+.bar {
+  display: none;
+}
+
+/* ---------- the search field ---------- */
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search > svg {
+  position: absolute;
+  left: 12px;
+  color: var(--mute);
+  pointer-events: none;
+}
+.search input {
+  width: 100%;
+  height: 40px;
+  padding: 0 38px 0 36px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.search input::placeholder {
+  color: var(--mute-text);
+  opacity: 1;
+}
+.search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+.search input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 0;
+}
+/* the "/" hint, for a keyboard and mouse only, while the field is empty and idle */
+.kbd {
+  position: absolute;
+  right: 9px;
+  min-width: 22px;
+  height: 24px;
+  display: none;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1;
+  color: var(--mute-text);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  border-radius: var(--r-1);
+  pointer-events: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .kbd {
+    display: grid;
+  }
+  .search input:focus ~ .kbd,
+  .search input:not(:placeholder-shown) ~ .kbd {
+    display: none;
+  }
+}
+
+/* ---------- the chapter list ---------- */
+.chapters {
+  display: grid;
+  gap: 22px;
+}
+.groupName {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--mute-text);
+  margin-bottom: 6px;
+}
+.chapters ul,
+.hits ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* a hairline rail; the current chapter is a short ink segment on it, in full ink and weight */
+.group > ul {
+  box-shadow: inset 1px 0 0 var(--line);
+}
+.chapter {
+  display: block;
+  padding: 6px 0 6px 14px;
+  font-size: 16px;
+  line-height: 1.35;
+  color: var(--ink-2);
+  text-decoration: none;
+  text-wrap: pretty;
+}
+.chapter[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+/* the current chapter's sections, where no "On this page" column shows */
+.chapters .fold {
+  padding: 0 0 6px 14px;
+}
+.fold a {
+  display: block;
+  padding: 5px 0 5px 12px;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--mute-text);
+  text-decoration: none;
+  text-wrap: pretty;
+}
+@media (min-width: 1200px) {
+  .side .fold {
+    display: none;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .chapter:hover,
+  .fold a:hover {
+    color: var(--ink);
+  }
+}
+/* the lists scroll in their own column, which would cut an outside ring */
+.chapters a:focus-visible,
+.hits a:focus-visible,
+.toc a:focus-visible {
+  outline-offset: -2px;
+}
+
+/* search hits: the chapter, then where it matched */
+.hits {
+  display: grid;
+  gap: 4px;
+}
+.hit {
+  display: grid;
+  gap: 3px;
+  padding: 8px 0 8px 14px;
+  box-shadow: inset 1px 0 0 var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+.hit b {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.hit span {
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--mute-text);
+  overflow-wrap: anywhere;
+}
+@media (hover: hover) and (pointer: fine) {
+  .hit:hover {
+    box-shadow: inset 2px 0 0 var(--ink-2);
+  }
+}
+.mark {
+  background: none;
+  color: var(--ink);
+  font-weight: 500;
+}
+.none {
+  font-size: 16px;
+  color: var(--ink-2);
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- a chapter: the text, then On this page ---------- */
+.doc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 40px 0 72px;
+}
+@media (min-width: 1200px) {
+  .doc {
+    grid-template-columns: minmax(0, 780px) 208px;
+    column-gap: clamp(40px, 4vw, 72px);
+  }
+}
+.article {
+  min-width: 0;
+  max-width: 780px;
+}
+.toc {
+  display: none;
+}
+@media (min-width: 1200px) {
+  .toc {
+    display: block;
+    position: sticky;
+    top: calc(var(--nav-h) + 40px);
+    align-self: start;
+    max-height: calc(100dvh - var(--nav-h) - 56px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+}
+.tocHead {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+.toc ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  box-shadow: inset 1px 0 0 var(--line);
+}
+.toc a {
+  display: block;
+  padding: 5px 0 5px 14px;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--mute-text);
+  text-decoration: none;
+  text-wrap: pretty;
+}
+.toc li[data-depth="3"] a {
+  padding-left: 26px;
+}
+.toc a[aria-current] {
+  color: var(--ink);
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .toc a:hover {
+    color: var(--ink);
+  }
+}
+
+/* ---------- the text (HTML from the markdown) ---------- */
+.prose {
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--ink);
+  overflow-wrap: break-word;
+}
+/* text keeps a 68-character line; tables and code may use the column's full width */
+.prose > p,
+.prose > ul,
+.prose > ol,
+.prose > h1,
+.prose > h2,
+.prose > h3,
+.prose > h4,
+.prose > blockquote {
+  max-width: 68ch;
+}
+.prose h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(32px, 3.2vw, 42px);
+  line-height: 1.12;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+  margin: 0 0 24px;
+  font-feature-settings: "lnum";
+}
+.prose h2,
+.prose h3,
+.prose h4 {
+  scroll-margin-top: calc(var(--nav-h) + var(--docs-pin) + 20px);
+  text-wrap: balance;
+}
+.prose h2 {
+  font-size: 23px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  margin: 48px 0 14px;
+  padding-top: 26px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.prose h3 {
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.35;
+  margin: 32px 0 10px;
+}
+.prose h4 {
+  font-size: 17px;
+  font-weight: 500;
+  margin: 24px 0 8px;
+}
+.prose p {
+  margin: 0 0 16px;
+  text-wrap: pretty;
+}
+.prose ul,
+.prose ol {
+  margin: 0 0 18px;
+  padding-left: 22px;
+  display: grid;
+  gap: 8px;
+}
+.prose ul {
+  list-style: disc;
+}
+.prose ol {
+  list-style: decimal;
+}
+.prose li {
+  padding-left: 2px;
+  text-wrap: pretty;
+}
+.prose li::marker {
+  color: var(--ink-2);
+  font-feature-settings: "tnum";
+}
+.prose li > ul,
+.prose li > ol {
+  margin: 8px 0 0;
+}
+.prose li > p {
+  margin: 0 0 8px;
+}
+.prose strong {
+  font-weight: 600;
+}
+.prose a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .prose a:hover {
+    text-decoration-color: currentColor;
+  }
+}
+.prose code {
+  font-family: var(--mono);
+  font-size: max(15px, 0.88em);
+  padding: 0.1em 0.32em;
+  background: var(--well);
+  border-radius: var(--r-1);
+  /* a long address or URL breaks rather than push the page sideways */
+  overflow-wrap: anywhere;
+}
+.prose blockquote {
+  margin: 0 0 18px;
+  padding-left: 16px;
+  box-shadow: inset 2px 0 0 var(--line-2);
+  color: var(--ink-2);
+}
+.prose hr {
+  border: 0;
+  height: 1px;
+  background: var(--line);
+  margin: 32px 0;
+}
+.prose img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* code blocks and diagrams: monospace, never wrapped, their own sideways scroll */
+.prose pre {
+  margin: 4px 0 22px;
+  padding: 16px 18px;
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--r-1);
+  overflow-x: auto;
+  white-space: pre;
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.6;
+  tab-size: 2;
+  scrollbar-width: thin;
+}
+.prose pre code {
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  font-size: inherit;
+  white-space: inherit;
+  overflow-wrap: normal;
+}
+
+/* tables: hairline rules, tabular figures, their own sideways scroll when wider than the column */
+.prose :global(.table) {
+  margin: 4px 0 26px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 16px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.prose th,
+.prose td {
+  padding: 10px 18px 10px 0;
+  text-align: left;
+  vertical-align: top;
+}
+.prose th:last-child,
+.prose td:last-child {
+  padding-right: 0;
+}
+.prose th {
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  vertical-align: bottom;
+  box-shadow: inset 0 -1px 0 var(--line-2);
+}
+.prose td {
+  min-width: 6em;
+  box-shadow: inset 0 -1px 0 var(--line);
+  text-wrap: pretty;
+}
+/* in a table, code breaks only at its spaces: an address stays whole and the table scrolls instead */
+.prose td code {
+  overflow-wrap: normal;
+  font-size: 15px;
+}
+.prose :global(.table):focus-visible,
+.prose pre:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ---------- after the text: the markdown, the code, previous and next ---------- */
+.foot {
+  margin-top: 48px;
+  display: grid;
+  gap: 28px;
+  max-width: 68ch;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--mute-text);
+}
+.meta a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+.meta code {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+@media (hover: hover) and (pointer: fine) {
+  .meta a:hover {
+    color: var(--ink);
+    text-decoration-color: currentColor;
+  }
+}
+.pager {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding-top: 20px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.prev,
+.next {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 6px 0;
+  color: inherit;
+  text-decoration: none;
+}
+.next {
+  grid-column: 2;
+  text-align: right;
+}
+.prev span,
+.next span {
+  font-size: 15px;
+  color: var(--mute-text);
+}
+.prev b,
+.next b {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.35;
+}
+@media (hover: hover) and (pointer: fine) {
+  .prev:hover b,
+  .next:hover b {
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 3px;
+  }
+}
+
+/* ---------- /docs: the contents ---------- */
+.home {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 56px max(clamp(16px, 2.4vw, 32px), env(safe-area-inset-right)) 80px max(clamp(16px, 2.4vw, 32px), env(safe-area-inset-left));
+}
+.homeHead {
+  display: grid;
+  gap: 14px;
+  max-width: 60ch;
+  margin-bottom: 32px;
+}
+.homeTitle {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(38px, 4.6vw, 54px);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+.lead {
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.homeSearch {
+  max-width: 440px;
+  margin-bottom: 36px;
+}
+.homeGroup {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  column-gap: 40px;
+  padding: 26px 0 22px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.homeGroup > :not(.homeGroupName) {
+  grid-column: 2;
+}
+.homeGroupName {
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.4;
+  padding-top: 8px;
+}
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.entry {
+  display: grid;
+  gap: 3px;
+  padding: 8px 0;
+  color: inherit;
+  text-decoration: none;
+}
+.entry b {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.entry span {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 64ch;
+  text-wrap: pretty;
+}
+@media (hover: hover) and (pointer: fine) {
+  .entry:hover b {
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 3px;
+  }
+}
+.agents {
+  margin-top: 28px;
+  padding-top: 24px;
+  box-shadow: inset 0 1px 0 var(--line);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--mute-text);
+  max-width: 72ch;
+}
+.agents a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+
+/* ---------- the phone's Contents sheet (a modal dialog; only opened below 760 px) ---------- */
+.sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: min(88dvh, 760px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2) var(--r-2) 0 0;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 -24px 60px -24px rgb(0 0 0 / 0.4), inset 0 1px 0 var(--line);
+}
+.sheet[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sheet::backdrop {
+  background: rgb(15 15 16 / 0.36);
+}
+:global(html):has(.sheet[open]) {
+  overflow: hidden;
+}
+@keyframes rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sheet[open] {
+    animation: rise 280ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+}
+.sheetIn {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.sheetHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px max(8px, env(safe-area-inset-right)) 4px max(20px, env(safe-area-inset-left));
+}
+.sheetHead h2 {
+  font-size: 19px;
+  font-weight: 500;
+}
+.close {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+  border-radius: var(--r-1);
+}
+.sheetSearch {
+  padding: 4px max(20px, env(safe-area-inset-right)) 14px max(20px, env(safe-area-inset-left));
+}
+.sheetBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px max(20px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
+
+/* ---------- touch: every link and control at least 44 px tall ---------- */
+@media (pointer: coarse) {
+  .chapter,
+  .fold a,
+  .toc a,
+  .hit,
+  .entry,
+  .prev,
+  .next {
+    min-height: 44px;
+  }
+  .chapter,
+  .fold a,
+  .toc a {
+    display: flex;
+    align-items: center;
+  }
+  .search input {
+    height: 44px;
+  }
+  .meta a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+/* ---------- phones (below 760 px): one column, the Contents bar, full-bleed boxes ---------- */
+@media (max-width: 759.98px) {
+  .screen {
+    --docs-pin: 48px;
+  }
+  .frame {
+    display: block;
+    padding: 0;
+  }
+  .side {
+    display: none;
+  }
+  .bar {
+    display: flex;
+    position: sticky;
+    top: var(--nav-h);
+    z-index: 20;
+    align-items: center;
+    gap: 14px;
+    min-height: 48px;
+    padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+    background: var(--chrome);
+    box-shadow: inset 0 -1px 0 var(--line);
+  }
+  .barBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    border: 0;
+    background: none;
+    padding: 0;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--ink);
+    cursor: pointer;
+    flex: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .barHere {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 15px;
+    color: var(--mute-text);
+  }
+  .page {
+    padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  }
+  .doc {
+    padding: 28px 0 48px;
+  }
+  .prose h1 {
+    font-size: 30px;
+    margin-bottom: 20px;
+  }
+  .prose h2 {
+    font-size: 21px;
+    margin-top: 40px;
+    padding-top: 22px;
+  }
+  /* code and tables run to the screen's edges, so more of them shows before the sideways scroll */
+  .prose pre,
+  .prose :global(.table) {
+    margin-left: -16px;
+    margin-right: -16px;
+  }
+  .prose pre {
+    border-radius: 0;
+    padding: 14px 16px;
+    box-shadow: inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line);
+  }
+  .prose :global(.table) {
+    padding: 0 16px;
+  }
+  .sheet .chapter,
+  .sheet .fold a,
+  .sheet .hit {
+    min-height: 44px;
+  }
+  .sheet .chapter,
+  .sheet .fold a {
+    display: flex;
+    align-items: center;
+  }
+  .pager {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .next {
+    grid-column: 1;
+    text-align: left;
+  }
+  .home {
+    padding-top: 32px;
+    padding-bottom: 56px;
+  }
+  .homeGroup {
+    grid-template-columns: 1fr;
+    padding: 22px 0 16px;
+  }
+  .homeGroup > :not(.homeGroupName) {
+    grid-column: 1;
+  }
+  .homeGroupName {
+    padding: 0 0 6px;
+  }
+  .homeSearch {
+    max-width: none;
+    margin-bottom: 24px;
+  }
+}
+/* a phone on its side: the top bar scrolls away (Shell), so the Contents bar does too */
+@media (max-width: 759.98px) and (max-height: 500px) {
+  .bar {
+    position: static;
+  }
+  .screen {
+    --docs-pin: 0px;
+  }
+}
+/* phones in the new layout: the page clears the bottom tabs */
+@media (max-width: 639.98px) {
+  .screen[data-phone="new"] {
+    padding-bottom: calc(var(--dock-h, 0px) + env(safe-area-inset-bottom));
+  }
+}

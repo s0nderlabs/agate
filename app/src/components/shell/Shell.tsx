@@ -145,6 +145,9 @@ function ThemeToggle() {
   );
 }
 
+/** Where each top-bar place lives. */
+const PLACES = { markets: "/", positions: "/positions", index: "/gpu-index", docs: "/docs" } as const;
+
 /** active: the place on screen; null on pages outside the four (Connected AIs, the Allow page, an approval) */
 export function NavBar({ active = "markets" }: { active?: "markets" | "positions" | "index" | "docs" | null }) {
   const { config, setConfig } = useMock();
@@ -163,14 +166,10 @@ export function NavBar({ active = "markets" }: { active?: "markets" | "positions
         <Lockup height={28} size="l" wcase="title" />
       </Link>
       <nav className={s.links} aria-label="Main">
-        <button className={s.icon} aria-label="Search markets">
-          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-            <circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M12.5 12.5L17 17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
-          </svg>
-        </button>
+        {/* no search button: six GPUs need none (the chips under the bar pick one), and a button that does nothing is
+            worse than none (agate's Oct 8 test pass found it dead) */}
         {links.map(([k, label]) => (
-          <Link key={k} href={`${k === "index" ? "/gpu-index" : k === "positions" ? "/positions" : "/"}${linkQuery}`} className={s.link} data-place={k} aria-current={k === active ? "page" : undefined}>
+          <Link key={k} href={`${PLACES[k]}${linkQuery}`} className={s.link} data-place={k} aria-current={k === active ? "page" : undefined}>
             {label}
           </Link>
         ))}
