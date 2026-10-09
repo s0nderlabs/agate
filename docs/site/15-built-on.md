@@ -39,6 +39,8 @@ Code: `wall/apps/writer-cre` (the workflow in `workflow/handler.ts`), `contracts
   [`0x2d48b837...`](https://testnet.monadexplorer.com/tx/0x2d48b837a896f66570d596f8f8f400f80e99a100483ae9f3802bbc2d791d11ed). Each run reads six clouds' pages and the
   ECB's euro rate, about 27 readings across six GPUs, with the nodes agreeing field by field on the median.
 - Every report lands in `AgateIndex.onReport` (`contracts/src/AgateIndex.sol:94`), which accepts only the forwarder.
+- Since Oct 9 the live workflow reads the index before fetching and reads it back after writing. Its first live run,
+  10:15 UTC: [`0x19516ae0...`](https://testnet.monadexplorer.com/tx/0x19516ae0dd2f5e30b9a2b752b56cffe05b90022dbeaccfc7bdcdab49b5a8a4cf).
 
 ## Kuru: the order books
 
