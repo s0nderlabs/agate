@@ -29,7 +29,7 @@ Every trade is fully backed when it's made, so there are no margin calls and no 
 ## 3. Check the price (30 seconds)
 
 Open **Index**. Each GPU's price is the middle of what the clouds charge on their own public price pages, read every
-hour; every cloud's price is shown beside it. How it's made: [docs/site/04-the-price.md](docs/site/04-the-price.md).
+hour; every cloud's price is shown beside it. How it's made: [agate.elpabl0.xyz/docs/the-price](https://agate.elpabl0.xyz/docs/the-price).
 
 ## 4. Connect an AI (optional, 2 minutes)
 
@@ -54,10 +54,12 @@ within your limits, and show on the AI page. Steps for Codex, Hermes, OpenClaw a
 | Test dollar | [`0x3A05...bF38`](https://testnet.monadexplorer.com/address/0x3A0513b2A19EE92eb3f73Dd06EefEe4D477CbF38) |
 
 All addresses: [`contracts/deployments/10143.json`](contracts/deployments/10143.json). The same data as JSON, no key:
-https://agate.elpabl0.xyz/api/v1/prices ([docs/site/08-api.md](docs/site/08-api.md)).
+https://agate.elpabl0.xyz/api/v1/prices ([agate.elpabl0.xyz/docs/api](https://agate.elpabl0.xyz/docs/api)).
 
 ## Good to know
 
+- Every part of agate is documented at https://agate.elpabl0.xyz/docs (the same pages as markdown in
+  [`docs/site/`](docs/site/)); claims you can check line by line in the code: [`docs/judge.md`](docs/judge.md).
 - The price is written onchain by a Chainlink CRE workflow (run in CRE's simulator, `cre workflow simulate
   --broadcast`) and must be countersigned by a second, independent reader before a changed price counts.
 - Our own market maker keeps buy and sell orders on Kuru so there is always a price to trade at.

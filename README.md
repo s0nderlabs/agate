@@ -10,7 +10,8 @@ An open onchain price for GPU-hours that anyone, whether a person, an app or an 
 
 <p align="center">
   <a href="https://agate.elpabl0.xyz">App</a> ·
-  <a href="docs/site/">Docs</a> ·
+  <a href="https://agate.elpabl0.xyz/docs">Docs</a> ·
+  <a href="docs/site/">Docs as markdown</a> ·
   <a href="https://agate.elpabl0.xyz/api/v1/prices">API</a> ·
   <a href="https://testnet.monadexplorer.com/address/0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36">Index on Monad</a> ·
   <a href="docs/judge.md">Claims a judge can check</a> ·
