@@ -20,6 +20,7 @@ import { CRE_CAP_BYTES, SOURCE_META } from "@agate/sources/pure";
 import type { Panel } from "@agate/sources/types";
 import { gasLimitFor, MEASURED, measuredFromEnv, type ReadingSource, runService, type SourceContext } from "@agate/writer-standby";
 import { decodeFunctionResult, encodeFunctionData } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { childEnv, creLimits, creRpcRotation, creRpcUrls, creSource, prepareRuntime, workflowConfig } from "./simulate.ts";
 
 export const CRE_SIM_FORWARDER: Address = "0xB9F79d863261869B234c481D1f9A7af84AeAd192";
@@ -71,6 +72,9 @@ async function makeSource(ctx: SourceContext): Promise<ReadingSource> {
     gasLimit: creGasLimit(measured),
     clock,
     panels: ctx.panels,
+    // the index credits tx.origin, the CLI's broadcasting key: known here only when the CLI signs with ours (an
+    // AGATE_CRE_ENV file brings its own key, so the workflow then reads nothing rather than another writer's bits)
+    ...(process.env.AGATE_CRE_ENV ? {} : { writer: privateKeyToAccount(ctx.key).address }),
     ...(process.env.SOURCE_BASE_URL ? { sourceBaseUrl: process.env.SOURCE_BASE_URL } : {}),
   });
   const target = process.env.AGATE_CRE_TARGET ?? "local-simulation";

@@ -47,6 +47,8 @@ contract can read it through a Chainlink-style feed, H100 at
   CRE workflow in `wall/apps/writer-cre`. Method: [How the price is made](docs/site/04-the-price.md).
 - The market: `contracts/src/market/` (series, router, factory); the market maker and payer in `wall/apps/`.
 - The AI door: `server/src/mcp/server.ts` (17 tools), `wallet/src/allowed.ts` (the pocket's onchain limits).
+- Each sponsor (Chainlink CRE, Kuru, Envio, Dynamic, Alchemy) with transactions you can click: the sponsor table in
+  [`JUDGES.md`](JUDGES.md) and [agate.elpabl0.xyz/docs/built-on](https://agate.elpabl0.xyz/docs/built-on).
 - Every claim with its file and line: [`docs/judge.md`](docs/judge.md). What is not built yet:
   [Limits, stated](docs/site/16-limits.md).
 
@@ -91,7 +93,8 @@ markets.
 | AgateRouter | [`0x4F4C14E7421dA83C398e04e4b5CeA2543f903c9c`](https://testnet.monadexplorer.com/address/0x4F4C14E7421dA83C398e04e4b5CeA2543f903c9c) |
 | Test dollar (tUSD) | [`0x3A0513b2A19EE92eb3f73Dd06EefEe4D477CbF38`](https://testnet.monadexplorer.com/address/0x3A0513b2A19EE92eb3f73Dd06EefEe4D477CbF38) |
 
-Every month's series, token and Kuru book: [Contracts and addresses](docs/site/12-contracts.md). The six price feeds:
+Every month's series, token and Kuru book: [Contracts and addresses](docs/site/12-contracts.md). All 20 live contracts
+are verified on [Sourcify](https://sourcify.dev/#/lookup/0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36). The six price feeds:
 [Onchain feeds](docs/site/09-onchain.md).
 The index has run on the real calendar since Oct 4 2026. On Oct 8 a full pass passed: every package's tests, the live
 services, a fork journey through a month's end, and a signed-in run on a real account, with Hermes and OpenClaw

@@ -165,3 +165,175 @@ test("a version the compiled workflow lacks reads 0 for that slot (MISSED), neve
   expect(cv.rows.H100.state).toBe("MISSED");
   expect(cv.rows.H200.state).toBe("VALID"); // the civo page was still fetched once for H200
 });
+
+// ---------------------------------------------------------------- Oct 9: the workflow reads the index (EVM read)
+
+import { agateIndexAbi } from "@agate/report/abi";
+import { decodeFunctionData, encodeFunctionResult, type Hex, multicall3Abi } from "viem";
+import { MULTICALL3 } from "../handler.ts";
+
+const WRITER = "0x00000000000000000000000000000000000000aa" as const;
+type AbiParam = { type: string; components?: readonly AbiParam[]; name?: string };
+const fnOut = (name: string) => (agateIndexAbi as readonly { type: string; name?: string; outputs?: readonly AbiParam[] }[]).find((x) => x.type === "function" && x.name === name)!.outputs![0]!;
+/** A zero value of an ABI type, with overrides by field name at the top level. */
+function zeroOf(p: AbiParam, over: Record<string, unknown> = {}): unknown {
+  if (p.type.endsWith("[]")) return [];
+  if (p.type === "tuple") return Object.fromEntries(p.components!.map((c) => [c.name!, c.name! in over ? over[c.name!] : zeroOf(c)]));
+  if (p.type === "bool") return false;
+  if (p.type === "address") return "0x0000000000000000000000000000000000000000";
+  if (p.type.startsWith("bytes")) return p.type === "bytes" ? "0x" : `0x${"00".repeat(Number(p.type.slice(5)))}`;
+  return p.type.startsWith("uint") && Number(p.type.slice(4) || 256) > 48 ? 0n : 0;
+}
+const CHAIN_CLOCK = { day: cfg.clock.day, slices: cfg.clock.slices, epochTs: BigInt(cfg.clock.epochTs), epochDay: cfg.clock.epochDay, signAll: false, chainSelector: SELECTOR };
+/** A readings() result as large as the real one: every slot of the GPU carries a sum and a count. */
+const readingsRet = (gpu: string, bits: bigint) => {
+  const n = PANELS.find((p) => p.gpu === gpu)!.slots.length;
+  return encodeFunctionResult({ abi: agateIndexAbi, functionName: "readings", result: zeroOf(fnOut("readings"), { sliceBits: bits, sums: Array(n).fill(2 ** 39), counts: Array(n).fill(24) }) as never });
+};
+
+/** The index as the workflow's reads see it. posted(gpu, phase) says whether slice 5's bit is set: phase 0 before the
+ * write, 1 after it; fail(gpu) makes that readings() sub-call fail. */
+function evmWith(posted: (gpu: string, phase: number) => boolean, o: { clock?: typeof CHAIN_CLOCK; fail?: (gpu: string) => boolean } = {}) {
+  const evm = EvmMock.testInstance(SELECTOR);
+  const reads: { phase: number; clock: boolean; gpus: string[]; bytes: number }[] = [];
+  let writes = 0;
+  let written: ReturnType<typeof decodeReport> | undefined;
+  evm.callContract = (input) => {
+    expect(bytesToHex(input.call!.to).toLowerCase()).toBe(MULTICALL3.toLowerCase());
+    const calls = decodeFunctionData({ abi: multicall3Abi, data: bytesToHex(input.call!.data) as Hex }).args![0] as readonly { callData: Hex }[];
+    const phase = writes === 0 ? 0 : 1;
+    const gpus: string[] = [];
+    let clock = false;
+    const out = calls.map((c) => {
+      const d = decodeFunctionData({ abi: agateIndexAbi, data: c.callData });
+      if (d.functionName === "clocks") {
+        clock = true;
+        return { success: true, returnData: encodeFunctionResult({ abi: agateIndexAbi, functionName: "clocks", result: zeroOf(fnOut("clocks"), o.clock ?? CHAIN_CLOCK) as never }) };
+      }
+      const a = d.args as readonly [Hex, number, string];
+      expect(a[2].toLowerCase()).toBe(WRITER);
+      expect(Number(a[1])).toBe(20_727);
+      const gpu = PANELS.find((p) => p.gpuId.toLowerCase() === a[0].toLowerCase())!.gpu;
+      gpus.push(gpu);
+      if (o.fail?.(gpu)) return { success: false, returnData: "0x" as Hex };
+      return { success: true, returnData: readingsRet(gpu, posted(gpu, phase) ? 1n << 5n : 1n << 4n) }; // slice 5 is NOW's
+    });
+    const reply = encodeFunctionResult({ abi: multicall3Abi, functionName: "aggregate3", result: out });
+    reads.push({ phase, clock, gpus, bytes: (reply.length - 2) / 2 });
+    return { data: Buffer.from(reply.slice(2), "hex") } as never;
+  };
+  evm.writeReport = (input) => {
+    writes++;
+    written = decodeReport(bytesToHex(input.report!.rawReport.slice(REPORT_METADATA_HEADER_LENGTH)));
+    return { txStatus: 2, txHash: new Uint8Array(32).fill(0xee) } as never;
+  };
+  return { evm, reads, writes: () => writes, written: () => written };
+}
+function httpAll() {
+  const urls: string[] = [];
+  const http = HttpActionsMock.testInstance();
+  http.sendRequest = (req) => {
+    urls.push(req.url);
+    const body = PAGES[req.url.split("/").pop()!];
+    return body ? { statusCode: 200, body: Buffer.from(body).toString("base64"), headers: { "X-Agate-Page-Time": String(NOW) } } : { statusCode: 503, body: "" };
+  };
+  return urls;
+}
+const runAt = (c: Config) => JSON.parse(onCron(newTestRuntime<Config>(null, { timeProvider: () => NOW * 1000 }, c) as never, {} as never));
+const ALL = PANELS.map((p) => p.gpu);
+
+test("reads the index first: a GPU already posted for the slice stays out of the report; the read-back confirms the rest landed", () => {
+  const urls = httpAll();
+  const m = evmWith((g, phase) => phase > 0 || g === "H100");
+  const out = runAt({ ...cfg, writer: WRITER });
+  const before = m.reads.filter((r) => r.phase === 0);
+  expect(before.flatMap((r) => r.gpus)).toEqual(ALL); // every GPU, in panel order, across the batches
+  expect(before.filter((r) => r.clock).length).toBe(1); // the clock once
+  expect(m.reads.every((r) => r.bytes < 5_000)).toBe(true); // CRE's ChainRead.PayloadSizeLimit is 5 kb
+  expect(m.reads.length).toBeLessThanOrEqual(15); // CRE's ChainRead.CallLimit
+  expect(urls.length).toBeGreaterThan(0);
+  const ids = m.written()!.entries.map((e) => e.gpuId);
+  expect(ids).not.toContain(PANELS.find((p) => p.gpu === "H100")!.gpuId);
+  expect(ids.length).toBe(PANELS.length - 1);
+  expect(out.entries.length).toBe(PANELS.length); // the run still reports every GPU it read
+  expect(out.chain).toMatchObject({ clockOk: true, posted: ["H100"] });
+  expect(out.chain.landed).toEqual(Object.fromEntries(ALL.filter((g) => g !== "H100").map((g) => [g, true])));
+});
+
+test("every GPU already posted for the slice: no page fetched, nothing written, the run says skipped", () => {
+  const urls = httpAll();
+  const m = evmWith(() => true);
+  const out = runAt({ ...cfg, writer: WRITER });
+  expect(urls).toEqual([]);
+  expect(m.writes()).toBe(0);
+  expect(out).toMatchObject({ skipped: "posted", entries: [], dayId: 20_727, slice: 5, chain: { posted: ALL } });
+});
+
+test("a GPU not seen on the first read-back is read once more (a node one block behind); one still unset is reported false", () => {
+  httpAll();
+  let pass = 0;
+  const seen = new Set<string>();
+  const m = evmWith((g, phase) => {
+    if (phase === 0) return false;
+    if (!seen.has(g)) seen.add(g);
+    else pass = 2;
+    // B200 lags on the first read-back only; A100 never lands (its onReport reverted inside the forwarder)
+    if (g === "A100") return false;
+    return !(g === "B200" && pass < 2);
+  });
+  const out = runAt({ ...cfg, writer: WRITER });
+  expect(m.writes()).toBe(1);
+  const after = m.reads.filter((r) => r.phase > 0).flatMap((r) => r.gpus);
+  expect(after.filter((g) => g === "B200").length).toBe(2);
+  expect(after.filter((g) => g === "H100").length).toBe(1);
+  expect(out.chain.landed.B200).toBe(true);
+  expect(out.chain.landed.A100).toBe(false);
+});
+
+test("a failed sub-read reports that GPU as unknown (null), never as not landed", () => {
+  httpAll();
+  let wrote = false;
+  const m = evmWith((_g, phase) => phase > 0, { fail: (g) => wrote && g === "L40S" });
+  const ev = m.evm;
+  const w = ev.writeReport!;
+  ev.writeReport = (input) => {
+    wrote = true;
+    return w(input);
+  };
+  const out = runAt({ ...cfg, writer: WRITER });
+  expect(out.chain.landed.L40S).toBeNull();
+  expect(out.chain.landed.H100).toBe(true);
+});
+
+test("a clock on chain that differs from the config (here its epoch) is flagged, and the run still writes", () => {
+  httpAll();
+  const m = evmWith((_g, phase) => phase > 0, { clock: { ...CHAIN_CLOCK, epochTs: CHAIN_CLOCK.epochTs + 3_600n } });
+  const out = runAt({ ...cfg, writer: WRITER });
+  expect(out.chain.clockOk).toBe(false);
+  expect(m.writes()).toBe(1);
+});
+
+test("a failed index read leaves the run as before: every GPU written, no chain field", () => {
+  httpAll();
+  const evm = EvmMock.testInstance(SELECTOR);
+  evm.callContract = () => {
+    throw new Error("rpc down");
+  };
+  let n = 0;
+  evm.writeReport = (input) => {
+    n = decodeReport(bytesToHex(input.report!.rawReport.slice(REPORT_METADATA_HEADER_LENGTH))).entries.length;
+    return { txStatus: 2, txHash: new Uint8Array(32).fill(1) } as never;
+  };
+  const out = runAt({ ...cfg, writer: WRITER });
+  expect(n).toBe(PANELS.length);
+  expect(out.chain).toBeUndefined();
+});
+
+test("no writer in the config: no read at all (the old behaviour)", () => {
+  httpAll();
+  const m = evmWith(() => true);
+  const out = runAt(cfg);
+  expect(m.reads.length).toBe(0);
+  expect(m.writes()).toBe(1);
+  expect(out.chain).toBeUndefined();
+});

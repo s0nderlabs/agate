@@ -24,6 +24,10 @@ export interface WorkflowResult {
   entries: EntryJson[];
   sources: SourceLog[];
   tx: { status: number; receiverStatus: number | null; hash: Hex | null; error: string | null };
+  /** "posted": the workflow read that this writer already posted the slice for every GPU, so it fetched and wrote nothing */
+  skipped?: "posted";
+  /** what the workflow read from the index before (and, after a write, again): see handler.ts ChainView */
+  chain?: { clockOk: boolean; posted: string[]; landed?: Record<string, boolean | null> };
 }
 
 export const TX_SUCCESS = 2; // TxStatus.SUCCESS
@@ -55,6 +59,10 @@ export function parseSimulateOutput(stdout: string): { result: WorkflowResult | 
 }
 
 export function toTake(r: WorkflowResult, ms: number, runId?: string): TakeResult {
+  if (r.skipped === "posted") {
+    // nothing was due: the slice is already on chain for every GPU (never a direct post of it again)
+    return { reading: { readAt: r.t, dayId: r.dayId, slice: r.slice, entries: [], sources: r.sources }, via: "cre", sent: { ok: true, sent: false }, ms, ...(runId ? { runId } : {}) };
+  }
   const ok = r.tx.status === TX_SUCCESS && (r.tx.receiverStatus ?? RECEIVER_SUCCESS) === RECEIVER_SUCCESS;
   const error = r.tx.error ?? (ok ? undefined : `writeReport status ${r.tx.status}, receiver ${r.tx.receiverStatus}`);
   return {
@@ -77,6 +85,8 @@ export interface WorkflowConfigInput {
   schedule?: string;
   /** The readers of swapped slots for the run's day (8.6); absent: every slot reads with the registered reader. */
   readers?: SlotReaders;
+  /** The writer the index credits (the CLI's broadcasting key): the workflow reads its slice bits before and after. */
+  writer?: Address;
 }
 
 /** The config the workflow reads (handler.ts Config): the index's own clock and panels, never typed by hand. */
@@ -94,6 +104,7 @@ export function workflowConfig(o: WorkflowConfigInput) {
     clock,
     panels: o.panels,
     ...(o.readers ? { readers: o.readers } : {}),
+    ...(o.writer ? { writer: o.writer } : {}),
   };
 }
 

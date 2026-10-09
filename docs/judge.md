@@ -9,6 +9,8 @@ three-minute tour of the live product is [`JUDGES.md`](../JUDGES.md).
 | Claim | File | Line | Note |
 |---|---|---|---|
 | Only Chainlink's forwarder can deliver a CRE report | `contracts/src/AgateIndex.sol` | 96 | `A1_NotForwarder` |
+| The CRE workflow reads the index before it fetches (clock and slices already posted) through EVM reads (Multicall3, batched under CRE's 5 kb limit) | `wall/apps/writer-cre/workflow/handler.ts` | 99 | skip when all posted at :230 |
+| After the write, the workflow reads the slice bits again and reports which GPUs landed | `wall/apps/writer-cre/workflow/handler.ts` | 266 | |
 | The index has no proxy, no pause and no upgrade; its logic runs in linked libraries | `contracts/src/AgateIndex.sol` | 17 | |
 | A day is computed from one writer's stored readings, never a mix | `contracts/src/lib/IndexDays.sol` | 40 | `pick` returns one source |
 | A day below quorum cannot close | `contracts/src/lib/IndexDays.sol` | 43 | `C3_BelowQuorum` |
@@ -41,6 +43,9 @@ three-minute tour of the live product is [`JUDGES.md`](../JUDGES.md).
 | The daily trade count is refused by rule name | `server/src/grants.ts` | 139 | `dailyLimitRefusal` |
 | Disconnect ends signing, approvals, autopilot, the connector URL and OAuth tokens | `server/src/grants.ts` | 127 | `endGrant`; the pocket's dollars come back in a separate step, `app/src/components/flow/DisconnectSheet.tsx` |
 | Transaction Review approves only signatures agate built for a live connection | `server/src/dynamic/review.ts` | 73 | waits on Dynamic for Monad testnet |
+| Dynamic's webhooks are checked (HMAC) before anything is parsed, and each delivery is handled once | `server/src/dynamic/webhook.ts` | 23 | `firstSight(messageId)` at :43 |
+| An AI's trade is signed by the delegated Assistant wallet: the server records the exact operation as an intent, then signs it | `server/src/dynamic/signer.ts` | 95 | `sendWithIntent`; the account at :39 |
+| Server wallets (the payer, an AI company's agent) sign through Dynamic, not a raw key | `server/src/dynamic/serverWallet.ts` | 56 | `serverWalletAccount` |
 
 ## For developers
 

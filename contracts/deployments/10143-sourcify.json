@@ -1,0 +1,169 @@
+{
+ "chainId": 10143,
+ "verifier": "sourcify",
+ "checkedAt": "2026-10-09",
+ "note": "match, not exact_match: foundry.toml sets bytecode_hash = \"none\", so the bytecode carries no metadata hash and Sourcify matches the code itself.",
+ "lookup": "https://sourcify.dev/#/lookup/<address>",
+ "contracts": [
+  {
+   "name": "AgateIndex",
+   "address": "0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36",
+   "source": "src/AgateIndex.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "IndexAdmin",
+   "address": "0x258de83bbe96968aae3eb3e5360e002ff2261ba9",
+   "source": "src/lib/IndexAdmin.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "IndexDays",
+   "address": "0xdfbe1d61d6611628ed031ef2717e8d8a8b2bec57",
+   "source": "src/lib/IndexDays.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "IndexReports",
+   "address": "0xe5ced4b9a6535d5cf2ec599c828d406d8190b589",
+   "source": "src/lib/IndexReports.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "IndexViews",
+   "address": "0x78d75fecc29098a045da31044c634bda50056103",
+   "source": "src/lib/IndexViews.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgateFactory",
+   "address": "0xEdBE3e696944443bBCe7eb3CD04E626e9396a0b5",
+   "source": "src/market/AgateFactory.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgateRouter",
+   "address": "0x4F4C14E7421dA83C398e04e4b5CeA2543f903c9c",
+   "source": "src/market/AgateRouter.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgateDollar",
+   "address": "0x3A0513b2A19EE92eb3f73Dd06EefEe4D477CbF38",
+   "source": "src/market/AgateDollar.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgateSeries H100 2026-11",
+   "address": "0xbc28e45ede13d0bd61d78f6f3d9f6341b78fc577",
+   "source": "src/market/AgateSeries.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgateSeries H200 2026-11",
+   "address": "0x7b97b60f8993de841ebf95cc0ed4d20e0abbc9d4",
+   "source": "src/market/AgateSeries.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgateSeries B200 2026-11",
+   "address": "0x5bf2839ce16c6f0d106df46e637fe09187f97a52",
+   "source": "src/market/AgateSeries.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgateToken H100 2026-11",
+   "address": "0x0fbf1133774898d6e4b2a70a4338bd26d5a8ce28",
+   "source": "src/market/AgateToken.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgateToken H200 2026-11",
+   "address": "0x082a594cb758a310abba72633c703791c0821277",
+   "source": "src/market/AgateToken.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgateToken B200 2026-11",
+   "address": "0xfe7cea0d3529400a2969f2f4e4b524bba1c52c7c",
+   "source": "src/market/AgateToken.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgatePriceFeed H100",
+   "address": "0xC68687dd7d7b40281FB07E9006538aa45fAF3D98",
+   "source": "src/examples/AgatePriceFeed.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgatePriceFeed H200",
+   "address": "0x53ce1c4B23991164e3BF2EDB99C53fbf2016621D",
+   "source": "src/examples/AgatePriceFeed.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgatePriceFeed B200",
+   "address": "0x84A20500923a8A9d5d5b7D6920A09c6f62A56A2E",
+   "source": "src/examples/AgatePriceFeed.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgatePriceFeed B300",
+   "address": "0xE28b9C672Dd4080C52F86E4F9fF218171c164De6",
+   "source": "src/examples/AgatePriceFeed.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgatePriceFeed A100",
+   "address": "0x9dEdC0e77AFd2D8483fE86eA910f29ee972F559d",
+   "source": "src/examples/AgatePriceFeed.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  },
+  {
+   "name": "AgatePriceFeed L40S",
+   "address": "0xE85Ae44fA84EdE4B86DB276C0481EB15942A4b7f",
+   "source": "src/examples/AgatePriceFeed.sol",
+   "match": "match",
+   "runtimeMatch": "match",
+   "creationMatch": "match"
+  }
+ ]
+}

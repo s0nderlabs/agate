@@ -132,3 +132,24 @@ describe("creSource", () => {
     expect(busy.error).toMatch(/in flight/);
   });
 });
+
+describe("the workflow's index reads (Oct 9)", () => {
+  test("a run skipped because every GPU was already posted is a success with nothing sent, never a direct repost", () => {
+    const line = JSON.stringify(JSON.stringify({ agate: 1, t: 100, index: "0x5FbDB2315678afecb367f032d93F642f64180aa3", dayId: 7, slice: 3, entries: [], sources: [], tx: { status: 0, receiverStatus: null, hash: null, error: null }, skipped: "posted", chain: { clockOk: true, posted: ["H100"] } }));
+    const { result } = parseSimulateOutput(`some log\n${line}\n`);
+    expect(result?.skipped).toBe("posted");
+    const take = toTake(result!, 900, "r1");
+    expect(take.sent).toEqual({ ok: true, sent: false });
+    expect(take.error).toBeUndefined();
+    expect(take.reading.entries).toEqual([]);
+    expect(take.runId).toBe("r1");
+  });
+
+  test("the config carries the writer the index credits, so the workflow can read its slice bits", () => {
+    const w = "0x00000000000000000000000000000000000000aa" as const;
+    const c = workflowConfig({ index: "0x5FbDB2315678afecb367f032d93F642f64180aa3", chainSelector: 1n, gasLimit: 1n, clock: clockOf({ day: 600, slices: 4, epochTs: 5, epochDay: 20_758 }), panels: [], writer: w });
+    expect(c.writer).toBe(w);
+    const none = workflowConfig({ index: "0x5FbDB2315678afecb367f032d93F642f64180aa3", chainSelector: 1n, gasLimit: 1n, clock: clockOf({ day: 600, slices: 4, epochTs: 5, epochDay: 20_758 }), panels: [] });
+    expect("writer" in none).toBe(false);
+  });
+});

@@ -13,6 +13,12 @@ Solidity 0.8.30 with Foundry, in `contracts/`. Addresses are in `contracts/deplo
 `10143-indexes.json` (the index) and `10143-feeds.json` (the example feeds). Explorer:
 [testnet.monadexplorer.com](https://testnet.monadexplorer.com).
 
+**Verified on Sourcify.** All 20 live contracts (the index and its four libraries, the factory, the router, the test
+dollar, each November series and token, and the six feeds) are verified on Sourcify with both the runtime and the
+creation code matching: look any address up at [sourcify.dev](https://sourcify.dev/#/lookup/0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36).
+The list is `contracts/deployments/10143-sourcify.json`. The status is `match` rather than `exact_match` because the
+build leaves the metadata hash out of the bytecode (`bytecode_hash = "none"`), so Sourcify matches the code itself.
+
 ## The price
 
 | Contract | Address | What it does |
