@@ -20,6 +20,7 @@ import { Note } from "@/components/trade/Note";
 import { NoData, StateBox } from "@/components/trade/States";
 import { CloseForm } from "@/components/trade/ClosePanel";
 import { useAccount } from "@/lib/account";
+import { collectRefusal } from "@/lib/account/errors";
 import type { Grant } from "@/lib/account/api";
 import { groundFor } from "@/lib/mock/config";
 import { ALL_GPUS } from "@/lib/mock/data";
@@ -827,10 +828,16 @@ function Picked({ h, now, loading }: { h: Holding; now: number; loading: boolean
   const canCollect = !by && v.ready > 0 && !!account.collect;
   const closable = !!series && monthOpen(series, now) && !!closeOrder(p);
   const why = closeWhy(stage, month, closable, p.kind);
+  const [collectErr, setCollectErr] = useState<string | null>(null);
   const collect = async () => {
     setCollecting(true);
+    setCollectErr(null);
     try {
       await account.collect?.(p);
+    } catch (e) {
+      // nothing is guessed: the plain reason, and the button stays for another try
+      console.warn("[positions] collect failed", e);
+      setCollectErr(collectRefusal(e, p.month));
     } finally {
       setCollecting(false);
     }
@@ -891,6 +898,11 @@ function Picked({ h, now, loading }: { h: Holding; now: number; loading: boolean
             </>
           )}
         </button>
+      )}
+      {canCollect && collectErr && (
+        <p className="ag-err" role="alert">
+          {collectErr}
+        </p>
       )}
       {by ? (
         <PocketLink grant={by} />

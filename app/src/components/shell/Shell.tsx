@@ -16,6 +16,7 @@ import { useLinkQuery, useMock } from "@/lib/mock/store";
 import type { Gpu } from "@/lib/mock/types";
 import { int, usd } from "@/lib/format";
 import s from "./shell.module.css";
+import { PLACES } from "@/lib/places";
 
 /** status: a line from the live data (a stale price, a pause) shown instead of the testnet copy, on every width
  * and signed in too, with no dismiss. */
@@ -147,11 +148,11 @@ function ThemeToggle() {
 }
 
 /** Where each top-bar place lives. */
-export const PLACES = { markets: "/app", positions: "/app/positions", index: "/app/gpu-index", docs: "/docs" } as const;
+export { PLACES } from "@/lib/places";
 
 /** active: the place on screen; null on pages outside the four (Connected AIs, the Allow page, an approval). site: a
  *  page of the site (docs, privacy), whose mark goes home to the landing rather than into the app */
-export function NavBar({ active = "markets", site = false }: { active?: "markets" | "positions" | "index" | "docs" | null; site?: boolean }) {
+export function NavBar({ active = "markets", site = false }: { active?: "markets" | "positions" | "index" | "how" | "docs" | null; site?: boolean }) {
   const { config, setConfig } = useMock();
   const account = useAccount();
   const linkQuery = useLinkQuery();
@@ -160,6 +161,7 @@ export function NavBar({ active = "markets", site = false }: { active?: "markets
     ["markets", "Markets"],
     ["positions", "Positions"],
     ["index", "Index"],
+    ["how", "How it works"],
     ["docs", "Docs"],
   ];
   return (

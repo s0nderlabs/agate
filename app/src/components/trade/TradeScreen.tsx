@@ -195,6 +195,10 @@ export function TradeScreen() {
     return null;
   }, [candles]);
   const quietFor = lastTradeAt === null ? null : Math.floor((now - lastTradeAt) / 3_600_000);
+  // the book's spread now, drawn behind the month's candles: the same top the ticket and the book show (a two-sided book
+  // only)
+  const top = topOf(bq.book, nov.quote, !bq.loading);
+  const spread = top.bid > 0 && top.ask > top.bid ? { bid: top.bid, ask: top.ask } : null;
   const srcPop = loading ? (
     <span className="ag-skel" aria-hidden="true">
       5 of 5 clouds
@@ -498,7 +502,7 @@ export function TradeScreen() {
                 </StateBox>
               ) : (
                 // the axis runs from the listing, so the hours before the first trade stay empty
-                <CandleChart candles={candles} hours={spanHours} size={candleSize} kind={kind} height="100%" startAt={nov.listedAt} />
+                <CandleChart candles={candles} hours={spanHours} size={candleSize} kind={kind} height="100%" startAt={nov.listedAt} spread={spread} />
               )}
             </div>
             {view === "index"
@@ -541,6 +545,12 @@ export function TradeScreen() {
                     {/* a thin market: a flat stretch is a quiet book, said in words */}
                     {autoSize && quietFor !== null && quietFor >= 2 && (
                       <span>Last trade {quietFor >= 48 ? `${Math.floor(quietFor / 24)} days` : `${quietFor} hours`} ago.</span>
+                    )}
+                    {spread && (
+                      <span>
+                        <i className={s.lgBand} aria-hidden="true" />
+                        Quoted now: {usd(spread.bid)} to sell, {usd(spread.ask)} to buy
+                      </span>
                     )}
                   </div>
                 )}

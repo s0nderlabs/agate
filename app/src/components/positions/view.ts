@@ -46,7 +46,10 @@ export function holdingView(p: Position, series: Series | undefined, last: numbe
   const worth = left === null ? null : left > CENT ? left : 0;
   const change = price === null || p.entry <= 0 ? null : (long ? price - p.entry : p.entry - price) * p.q;
   const done = final && worth !== null && worth <= CENT && p.claimable <= CENT;
-  const ready = p.claimable > CENT && (final || p.daily) ? p.claimable : 0;
+  // a position's vested claim; held tokens or a short balance in a final month: what the settle pays for the part in
+  // the wallet (tokens resting at Kuru come back first, so they are left out), less anything already paid on it
+  const settles = final && p.kind !== "position" && priced && price !== null ? per(price) * Math.max(0, p.q - p.inMargin) - p.paid : 0;
+  const ready = p.kind !== "position" ? (settles > CENT ? settles : 0) : p.claimable > CENT && (final || p.daily) ? p.claimable : 0;
   return { long, stage, final, price, cost, worth, change, done, ready };
 }
 

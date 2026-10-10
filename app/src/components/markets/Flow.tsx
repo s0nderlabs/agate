@@ -14,7 +14,8 @@ import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { finePointer, tapMode, useModalFocus } from "@/lib/ui/hooks";
 import { showHours } from "@/lib/size";
 import { int, usd, usd0 } from "@/lib/format";
-import { AccountHead, AccountSheet, AddressRow, AisRow, DocsRow, SECURED, SIGN_OUT_NOTE, useAiSummary, usePasskeyRow } from "@/components/flow/AccountSheet";
+import { AccountHead, AccountSheet, AddressRow, AisRow, DocsRow, PlaceRow, SECURED, SIGN_OUT_NOTE, useAiSummary, usePasskeyRow } from "@/components/flow/AccountSheet";
+import { PLACES } from "@/lib/places";
 import { CloseSheet } from "@/components/flow/CloseSheet";
 import { CloseForm } from "@/components/trade/ClosePanel";
 import { DisconnectSheet } from "@/components/flow/DisconnectSheet";
@@ -516,6 +517,7 @@ function More({ onSignIn, onClose }: { onSignIn: () => void; onClose: () => void
             </button>
           </div>
         </div>
+        <PlaceRow href={PLACES.how} label="How it works" onGo={onClose} />
         <DocsRow onGo={onClose} />
       </div>
       {account.ready && (

@@ -194,3 +194,14 @@
     display: none;
   }
 }
+
+/* the book's spread now (best bid to best ask), behind the candles: a quiet fill and its two edges */
+.spread rect {
+  fill: color-mix(in oklch, var(--ink) 5%, transparent);
+}
+.spread line {
+  stroke: color-mix(in oklch, var(--ink) 22%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  vector-effect: non-scaling-stroke;
+}

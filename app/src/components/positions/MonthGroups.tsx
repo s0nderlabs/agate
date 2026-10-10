@@ -164,6 +164,8 @@ function Holding({ p, series, last, now, finished = false }: { p: Position; seri
               setCollecting(true);
               try {
                 await account.collect?.(p);
+              } catch (e) {
+                console.warn("[positions] collect failed", e);
               } finally {
                 setCollecting(false);
               }

@@ -270,8 +270,8 @@ export interface Account {
   drip: () => Promise<void>;
   /** plans one trade (nothing is sent); rejects with the client's refusal (WriteError, AmountError, ReadError) */
   plan: (order: Order, shown?: TicketShown) => Promise<AccountPlan>;
-  /** collects a finished month's position (what it pays at the end); the pretend account's only, until the real
-   *  account's settle is wired (the first month ends Dec 1) */
+  /** collects what a holding pays (a position's vested claim, or after the month a settle of held tokens or a short
+   *  balance) and resolves with the dollars paid */
   collect?: (p: Position) => Promise<number>;
   /** sends a plan as one operation and resolves with what it did */
   send: (plan: AccountPlan, onStep?: OnStep) => Promise<DoneResult>;

@@ -195,7 +195,7 @@ export function getMarket(gpu: Gpu, state: DataState = "normal"): Market {
 /** Shown beside our index for H100 only; display only, never used to pay. */
 export const COMPARISON: Comparison[] = [
   { name: "Agate index", price: 3.99, kind: "ours", note: "Posted prices from five clouds, onchain on Monad. This is the one that pays.", asOf: "Oct 2" },
-  { name: "Ornn", price: 2.92, kind: "traded-private", note: "Traded prices, private data. Shown with credit, display only.", asOf: "Oct 2" },
+  { name: "Ornn", price: 2.79, kind: "traded-private", note: "Traded prices, private data. Shown with credit, display only.", asOf: "Oct 9" },
   { name: "Akash", price: 2.6, kind: "traded-onchain", note: "Real rentals on Akash's own chain: 35 leases, 3 sellers. Display only.", asOf: "Oct 2" },
 ];
 

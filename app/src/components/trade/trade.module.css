@@ -446,6 +446,13 @@
 .lgExample {
   opacity: 0.42;
 }
+/* the spread band's swatch: the band's own fill between its two dashed edges */
+.lgBand {
+  width: 18px;
+  height: 10px;
+  background: color-mix(in oklch, var(--ink) 5%, transparent);
+  border-block: 1px dashed color-mix(in oklch, var(--ink) 22%, transparent);
+}
 .lgDot {
   width: 9px;
   height: 9px;

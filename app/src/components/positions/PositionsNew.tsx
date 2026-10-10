@@ -210,6 +210,8 @@ function Hero({ list, scope, ai, reading }: { list: Holding[]; scope: Scope; ai:
     setCollecting(true);
     try {
       for (const h of ready) await account.collect?.(h.p);
+    } catch (e) {
+      console.warn("[positions] collect failed", e);
     } finally {
       setCollecting(false);
     }
@@ -414,6 +416,8 @@ function HoldingCard({ h, now }: { h: Holding; now: number }) {
                   setCollecting(true);
                   try {
                     await account.collect?.(p);
+                  } catch (e) {
+                    console.warn("[positions] collect failed", e);
                   } finally {
                     setCollecting(false);
                   }

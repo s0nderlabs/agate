@@ -570,3 +570,9 @@
     grid-template-rows: none;
   }
 }
+/* phones: one AI's name and mark take their own line above its pocket figure */
+@media (max-width: 639.98px) {
+  .ident {
+    flex-basis: 100%;
+  }
+}

@@ -43,7 +43,9 @@ function merged(all: Candle[], size: number): Candle[] {
 /** startAt: when the month listed. The axis then runs one slot per candle from the listing (or `hours` back from the
  * last candle, whichever is later) to the last candle, so the time before its first trade, and any quiet slot, stays
  * empty. Without it, the last candles that fit `hours` side by side. size: hours per candle (1, 4 or 24). */
-export function CandleChart({ candles: hourly, hours, size = 1, kind = "candles", height = 360, startAt }: { candles: Candle[]; hours: number; size?: number; kind?: "candles" | "line"; height?: number | string; startAt?: string }) {
+/** spread: the book's best bid and ask now, drawn as a quiet band behind the candles, so a market that barely trades
+ *  reads calm: a fill at the bid or the ask lands on the band's edge instead of looking like a sudden drop. */
+export function CandleChart({ candles: hourly, hours, size = 1, kind = "candles", height = 360, startAt, spread = null }: { candles: Candle[]; hours: number; size?: number; kind?: "candles" | "line"; height?: number | string; startAt?: string; spread?: { bid: number; ask: number } | null }) {
   const { candles, slots } = useMemo(() => {
     const all = merged(hourly, size);
     const B = size * HOUR;
@@ -69,11 +71,13 @@ export function CandleChart({ candles: hourly, hours, size = 1, kind = "candles"
   const [hover, setHover] = useState<number | null>(null);
   const plotRef = useRef<HTMLDivElement>(null);
 
+  // the band only for a real two-sided book
+  const band = spread && spread.bid > 0 && spread.ask > spread.bid ? spread : null;
   const { lo, hi, ticks, vmax } = useMemo(() => {
     // no trades yet: an empty plot, no scale
     if (!drawn.length) return { lo: 0, hi: 1, ticks: [] as number[], vmax: 1 };
-    const mn = Math.min(...drawn.map((c) => c.l));
-    const mx = Math.max(...drawn.map((c) => c.h));
+    const mn = Math.min(...drawn.map((c) => c.l), band ? band.bid : Infinity);
+    const mx = Math.max(...drawn.map((c) => c.h), band ? band.ask : -Infinity);
     const pad = (mx - mn) * 0.12 || 0.02;
     const st = niceStep(mx - mn + pad * 2);
     const lo = Math.floor((mn - pad) / st) * st;
@@ -81,7 +85,7 @@ export function CandleChart({ candles: hourly, hours, size = 1, kind = "candles"
     const ticks: number[] = [];
     for (let v = lo; v <= hi + 1e-9; v += st) ticks.push(Math.round(v * 1000) / 1000);
     return { lo, hi, ticks, vmax: Math.max(...drawn.map((c) => c.v)) || 1 };
-  }, [drawn]);
+  }, [drawn, band?.bid, band?.ask]);
   // a touch readout stays pinned until a tap lands outside the plot
   const pinned = hover !== null;
   useEffect(() => {
@@ -130,6 +134,13 @@ export function CandleChart({ candles: hourly, hours, size = 1, kind = "candles"
             {ticks.map((v) => (
               <line key={v} className={s.grid} x1={0} x2={1000} y1={Y(v)} y2={Y(v)} />
             ))}
+            {band && (
+              <g className={s.spread}>
+                <rect x={0} width={1000} y={Y(band.ask)} height={Math.max(Y(band.bid) - Y(band.ask), 0.8)} />
+                <line x1={0} x2={1000} y1={Y(band.ask)} y2={Y(band.ask)} />
+                <line x1={0} x2={1000} y1={Y(band.bid)} y2={Y(band.bid)} />
+              </g>
+            )}
             {kind === "line" && (
               <>
                 <path className={s.area} d={`${pts.map(({ c, i }, k) => `${k ? "L" : "M"}${X(i).toFixed(2)},${Y(c.c).toFixed(2)}`).join(" ")} L${X(pts[pts.length - 1].i).toFixed(2)},320 L${X(pts[0].i).toFixed(2)},320 Z`} />

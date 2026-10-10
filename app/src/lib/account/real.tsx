@@ -14,6 +14,7 @@ import { getDynamic, googlePending, markGoogle, readHint, REAL_CONFIGURED, write
 import { codeProblemOf, passkeyProblemOf, sendCodeProblemOf, SIGNIN_COPY } from "./errors";
 import { canStart, cleanCode, GETTING_READY_MS, isCode, ordersAfter, refreshDue, restingKey, RESTORE_PATIENCE_MS, SIGNED_OUT, signInReducer, toAccountStep, withoutResting, type SignInState } from "./machine";
 import { forgetClients, mainAddressOf, sendCalls } from "./main";
+import type { Position } from "@/lib/mock/types";
 import type { Account, AccountPlan, DoneResult, LimitDone, LimitOrder, LimitPlan, OnStep, Order, RestingOrder, SignInStep, TradeAction } from "./types";
 
 type EmailOtp = Awaited<ReturnType<Dyn["lib"]["startEmailSignIn"]>>;
@@ -584,6 +585,25 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
     [need, afterReceipt],
   );
 
+  // ===== the month's end: Collect what a holding pays (a position's vested claim; after the month, held tokens or a
+  // short balance settle at the final average), planned by @agate/client and sent as one operation =====
+  const collect = useCallback(
+    async (p: Position): Promise<number> => {
+      const h = need();
+      const [agate, c] = await Promise.all([getAgate(), import("@agate/client")]);
+      const me = h.address as `0x${string}`;
+      const plan =
+        p.kind === "position" && p.positionId
+          ? await c.planClaim(agate, me, { gpu: p.gpu, month: p.month, positionIds: [p.positionId] })
+          : await c.planSettle(agate, me, { gpu: p.gpu, month: p.month, side: p.kind === "shortBalance" || p.side === "short" ? "short" : "long" });
+      const r = await sendCalls(h.owner, 0, h.address, plan.calls.map((x) => ({ to: x.to, value: x.value, data: x.data, label: x.label })));
+      afterReceipt();
+      if (!r.success) throw reverted();
+      return Number(c.readResult(agate, plan.summary.action, r.logs).paid ?? 0);
+    },
+    [need, afterReceipt],
+  );
+
   // ===== Pro's limit orders: planned and sent like a trade, without a Review sheet (machine.ts limitReducer) =====
 
   const planLimit = useCallback(
@@ -650,11 +670,12 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
       signOut,
       drip,
       plan,
+      collect,
       send,
       orders: ready ? (orders.data ?? []) : [],
       planLimit,
       sendLimit,
     }),
-    [signIn, ready, email, who, address, w, wallet.isPending, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, passkeys.data, passkeys.isError, addPasskey, retry, cancelSignIn, signOut, drip, plan, send, orders.data, planLimit, sendLimit],
+    [signIn, ready, email, who, address, w, wallet.isPending, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, passkeys.data, passkeys.isError, addPasskey, retry, cancelSignIn, signOut, drip, plan, collect, send, orders.data, planLimit, sendLimit],
   );
 }

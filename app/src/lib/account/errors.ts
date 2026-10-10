@@ -263,6 +263,15 @@ const ticket = (reason: string, message: string): Refusal => ({ sheet: "ticket",
 
 // ===== planning (spec 6.9 "Planning") =====
 
+/** Why a Collect did not go through, in its own words: a refused plan as refusalOf says it (month not final, nothing
+ *  to claim or settle), anything after sending as sendRefusal, except a revert, which no price explains here. */
+export function collectRefusal(e: unknown, month?: string): string {
+  const x = chain(e)[0] ?? {};
+  if (str(x.name) === "WriteError" && str(x.stage) === "check") return refusalOf(e, { kind: "sale", month }).message;
+  if (str(x.reason) === "reverted") return "The collect landed but didn't go through. Nothing changed. Try again in a moment.";
+  return sendRefusal(e).message;
+}
+
 /** A refused plan: what the client's plan builders threw. Nothing was sent in any of these. */
 export function refusalOf(e: unknown, ctx: { kind: TradeKind; month?: string }): Refusal {
   const x = chain(e)[0] ?? {};
