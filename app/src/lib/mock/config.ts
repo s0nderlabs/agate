@@ -158,7 +158,7 @@ export const MOCK_CONTROLS = flag === "on";
 // source: example data by default while the live empty states are reviewed (flip to "live" once November lists);
 // a build without Mock controls is always live, so its links never carry ?source. pbar: filled, the research
 // pick (Oct 4: every persistent trade bar measured is filled; tint keeps meaning "picked side" inside the ticket)
-export const DEFAULT_CONFIG: MockConfig = { dfill: "deep", mode: "simple", theme: "light", auth: "out", data: "normal", gpu: "H100", source: MOCK_CONTROLS ? "example" : "live", dock: "closed", phone: "new", pbar: "fill", signin: "auto", ais: "none", connect: "normal", disc: "normal", when: "oct", holds: "none", months: "one", closeUi: MOCK_CONTROLS ? "tabs" : "before", candles: MOCK_CONTROLS ? "auto" : "before", positionsUi: MOCK_CONTROLS ? "market" : "before", indexUi: MOCK_CONTROLS ? "market" : "before", landing: "chipsfield", logo: "fold", wicks: "off", chipColor: "mono", oldDays: "full", boardCut: "off", navLinks: "docs", heroWords: "center", navShape: "center", corners: "square", intro: "cell", chartMotion: "live", textIn: "settle", closeArt: "type", story: "site", turnAt: "beside", aiUi: "tabs", payUi: "rows", siteNav: "bar", docsHome: "ways" };
+export const DEFAULT_CONFIG: MockConfig = { dfill: "deep", mode: "simple", theme: "light", auth: "out", data: "normal", gpu: "H100", source: MOCK_CONTROLS ? "example" : "live", dock: "closed", phone: "new", pbar: "fill", signin: "auto", ais: "none", connect: "normal", disc: "normal", when: "oct", holds: "none", months: "one", closeUi: "tabs", candles: "auto", positionsUi: "market", indexUi: "market", landing: "chipsfield", logo: "fold", wicks: "off", chipColor: "mono", oldDays: "full", boardCut: "off", navLinks: "docs", heroWords: "center", navShape: "center", corners: "square", intro: "cell", chartMotion: "live", textIn: "settle", closeArt: "type", story: "site", turnAt: "beside", aiUi: "tabs", payUi: "rows", siteNav: "bar", docsHome: "ways" };
 
 export function parseConfig(sp: Record<string, string | string[] | undefined>): MockConfig {
   const pick = <T extends string>(k: string, allowed: readonly T[], d: T): T => {
@@ -214,12 +214,12 @@ export function parseConfig(sp: Record<string, string | string[] | undefined>): 
   // without the controls, options being judged stay at their default and the made-up data states and the panel
   // cannot be opened from a link
   const D = DEFAULT_CONFIG;
-  // the Oct 6 rework mocks stay "before" in a hosted build until they are judged (other commits ship meanwhile); the logo
-  // and the landing's opening are the Oct 9 picks (the folded A in one ink, and its fold), so a hosted build shows one
-  // mark: the same in the top bar and in the loader
+  // a hosted build shows the picks: the Oct 7 market-frame Positions and Index, Close in the trade panel and candles
+  // that follow the range (judged Oct 10), the Oct 9 logo and the landing's opening, so it shows one mark: the same in
+  // the top bar and in the loader
   return MOCK_CONTROLS
     ? all
-    : { ...all, dfill: D.dfill, data: D.data, dock: D.dock, phone: D.phone, pbar: D.pbar, signin: D.signin, ais: D.ais, connect: D.connect, disc: D.disc, when: D.when, holds: D.holds, months: D.months, closeUi: "before", candles: "before", positionsUi: "before", indexUi: "before", logo: D.logo, intro: D.intro, landing: D.landing, wicks: D.wicks, chipColor: D.chipColor, oldDays: D.oldDays, boardCut: D.boardCut, navLinks: D.navLinks, heroWords: D.heroWords, navShape: D.navShape, corners: D.corners, chartMotion: D.chartMotion, textIn: D.textIn, closeArt: D.closeArt, story: D.story, turnAt: D.turnAt, aiUi: D.aiUi, payUi: D.payUi, siteNav: D.siteNav, docsHome: D.docsHome };
+    : { ...all, dfill: D.dfill, data: D.data, dock: D.dock, phone: D.phone, pbar: D.pbar, signin: D.signin, ais: D.ais, connect: D.connect, disc: D.disc, when: D.when, holds: D.holds, months: D.months, closeUi: D.closeUi, candles: D.candles, positionsUi: D.positionsUi, indexUi: D.indexUi, logo: D.logo, intro: D.intro, landing: D.landing, wicks: D.wicks, chipColor: D.chipColor, oldDays: D.oldDays, boardCut: D.boardCut, navLinks: D.navLinks, heroWords: D.heroWords, navShape: D.navShape, corners: D.corners, chartMotion: D.chartMotion, textIn: D.textIn, closeArt: D.closeArt, story: D.story, turnAt: D.turnAt, aiUi: D.aiUi, payUi: D.payUi, siteNav: D.siteNav, docsHome: D.docsHome };
 }
 
 /** A render-check tab (opened with ?agentcheck=1): it keeps its own wallets and pocket dollars, so it never touches a person's own. */

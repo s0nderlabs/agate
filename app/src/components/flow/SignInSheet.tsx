@@ -13,6 +13,7 @@ import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { finePointer, usePasskeySupport } from "@/lib/ui/hooks";
 import { useNow } from "@/lib/ui/useNow";
 import { DripButton } from "./DripButton";
+import { GoogleG, PasskeyMark } from "./Marks";
 import { Check, Steps } from "./Steps";
 
 /** Where the sheet was opened from: it sets the heading and the last button. */
@@ -118,8 +119,12 @@ function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignIn
   const [email, setEmail] = useState(kept);
   const [bad, setBad] = useState(false);
   const sending = step.status === "sendingCode";
-  const failed = step.status === "error" ? step.message : null;
+  // a Google or passkey failure is said under those buttons; only the email's own failures go under its field
+  const viaProvider = step.status === "error" && (step.at === "google" || step.at === "passkey");
+  const failed = step.status === "error" && !viaProvider ? step.message : null;
   const title = from === "trade" ? "Sign in to trade" : from === "connect" ? `Sign in to connect ${ai ?? "your AI"}` : "Sign in";
+  const google = account.kind === "pretend" || GOOGLE;
+  // the way most apps lay it out: the one-tap ways first, each with its own mark, then "or" and the email
   return (
     <form
       className="grid gap-[18px]"
@@ -132,19 +137,49 @@ function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignIn
         account.startSignIn(email);
       }}
     >
-      <h2 tabIndex={-1}>{title}</h2>
-      <p>
-        {practice
-          ? "Practice sign-in for now: no email is sent, and any 6 digits work as the code. We set up your account and pay the network fees, so there is nothing to install."
-          : "Use your email. We send you a 6-digit code, set up your account and pay the network fees, so there is nothing to install."}
-      </p>
       <div className="grid gap-2">
+        <h2 tabIndex={-1}>{title}</h2>
+        <p>
+          {practice
+            ? "Practice sign-in for now: no email is sent, and any 6 digits work as the code. Nothing to install: we set up your account and pay the network fees."
+            : "Nothing to install: we set up your account and pay the network fees."}
+        </p>
+      </div>
+      {(google || passkeys) && (
+        <>
+          <div className="grid gap-[10px]">
+            {google && (
+              <button className="ag-btn ag-btn--ghost ag-btn--lg ag-provider" type="button" disabled={sending || !account.configured} onClick={() => account.startGoogle()}>
+                <GoogleG />
+                Continue with Google
+              </button>
+            )}
+            {passkeys && (
+              <button className="ag-btn ag-btn--ghost ag-btn--lg ag-provider" type="button" disabled={sending || !account.configured} onClick={() => account.startPasskey()}>
+                <PasskeyMark />
+                Sign in with a passkey
+              </button>
+            )}
+            {viaProvider && (
+              <p className="ag-err" role="alert">
+                {step.message}
+              </p>
+            )}
+          </div>
+          <div className="ag-or" role="separator" aria-label="or">
+            <span>or</span>
+          </div>
+        </>
+      )}
+      <div className="grid gap-2">
+        <label className="ag-label" htmlFor="email">
+          Email
+        </label>
         <input
           id="email"
           className="ag-input"
           type="email"
           placeholder="you@example.com"
-          aria-label="Email"
           autoComplete="email"
           inputMode="email"
           enterKeyHint="send"
@@ -168,19 +203,9 @@ function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignIn
             Sending code
           </>
         ) : (
-          "Send code"
+          "Email me a code"
         )}
       </button>
-      {(account.kind === "pretend" || GOOGLE) && (
-        <button className="ag-btn ag-btn--ghost ag-btn--lg" type="button" disabled={sending || !account.configured} onClick={() => account.startGoogle()}>
-          Continue with Google
-        </button>
-      )}
-      {passkeys && (
-        <button className="ag-btn ag-btn--ghost ag-btn--lg" type="button" disabled={sending || !account.configured} onClick={() => account.startPasskey()}>
-          Sign in with a passkey
-        </button>
-      )}
       <button className="ag-btn ag-btn--quiet" type="button" onClick={onClose}>
         Not now
       </button>

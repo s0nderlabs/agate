@@ -4,7 +4,7 @@
 // live in components/flow/. Sheets that run a step (setting up an account, placing, a pocket move, a disconnect)
 // cannot be closed until it finishes.
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { DRIP, useAccount, type DoneResult, type Order, type SendStep, type TicketShown } from "@/lib/account";
 import { explorerTx } from "@/lib/account/aiView";
 import { COPY, refusalOfOrder, sendRefusal, type Refusal } from "@/lib/account/errors";
@@ -132,6 +132,20 @@ export function TradeFlow({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [close]);
+
+  // an account being set up with no sheet open (back from Google, which reloads the page, or set up when the page
+  // loaded) opens the sign-in sheet by itself, so "Setting up your account" is on screen while it happens, not only
+  // after a tap on the account button. Inside the app only: the site's pages (the landing, docs, privacy) stay usable,
+  // and the app's account button shows the same sheet there. The heading follows the page it opens on
+  const pathname = usePathname();
+  const step = account.signIn;
+  const settingUp = step.status === "creating" || (step.status === "error" && step.at === "wallet");
+  const runningUnseen = !sheet && settingUp && pathname.startsWith("/app");
+  useEffect(() => {
+    if (!runningUnseen) return;
+    const from: SignInFrom = pathname.startsWith("/app/connect") ? "connect" : pathname.startsWith("/app/approve") ? "approve" : "nav";
+    setSheet({ kind: "signin", from });
+  }, [runningUnseen, pathname]);
 
   // signed in from the sheet: on with the trade (test dollars first if short), the page's own next step, or close
   const signedIn = useCallback((at: Extract<Sheet, { kind: "signin" }>) => {

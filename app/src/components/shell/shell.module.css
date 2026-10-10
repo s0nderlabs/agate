@@ -158,6 +158,11 @@
   box-shadow: inset 0 0 0 1px var(--line);
   border-radius: var(--r-avatar);
 }
+/* a letter avatar fills the whole square, so the well and its hairline give way to it */
+.avatar[data-filled] {
+  background: none;
+  box-shadow: none;
+}
 .signin {
   border: 0;
   background: var(--btn);

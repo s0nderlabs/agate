@@ -3,7 +3,8 @@
 // weight (Oct 6: no stone beside it), and under it the three markets sit still as tabs, each the way to switch GPU.
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Lockup, Stone } from "@/components/brand/Logo";
+import { Lockup } from "@/components/brand/Logo";
+import { Avatar, avatarLetter } from "@/components/flow/Marks";
 import { Num } from "@/components/num/Num";
 import { useFlow } from "@/components/markets/Flow";
 import { useDrip } from "@/components/flow/DripButton";
@@ -206,8 +207,9 @@ export function NavBar({ active = "markets", site = false }: { active?: "markets
             <span className={s.acctBal}>
               <Num>{int(account.balance)}</Num> test dollars
             </span>
-            <span className={s.avatar}>
-              <Stone size={16} />
+            {/* the person's own avatar (their email's first letter), never the Agate mark: the mark is the brand's */}
+            <span className={s.avatar} data-filled={avatarLetter(account.email) ? "" : undefined}>
+              <Avatar who={account.email} />
             </span>
           </button>
         ) : (

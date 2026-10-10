@@ -207,7 +207,7 @@ const DESIGN_ROWS: Row[] = [
     key: "positionsUi",
     label: "Positions page",
     options: [
-      ["market", "Market frame (round 2)"],
+      ["market", "Market frame"],
       ["new", "Reworked (round 1)"],
       ["before", "Before"],
     ],
@@ -216,7 +216,7 @@ const DESIGN_ROWS: Row[] = [
     key: "indexUi",
     label: "Index page",
     options: [
-      ["market", "Market frame (round 2)"],
+      ["market", "Market frame"],
       ["new", "Reworked (round 1)"],
       ["before", "Before"],
     ],

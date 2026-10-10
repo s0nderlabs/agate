@@ -701,6 +701,49 @@ h3 {
   border-radius: var(--r-1);
 }
 
+/* sign in: a provider's button carries its mark before the words, the two centred together (Google's colour G sits on
+   the sheet's own light or dark ground, both of which its sign-in branding allows) */
+.ag-provider {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.ag-provider > svg {
+  flex: none;
+}
+/* "or" between the one-tap ways and the email: a hairline each side of the word */
+.ag-or {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--mute-text);
+  font-size: 15px;
+}
+.ag-or::before,
+.ag-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-2);
+}
+/* a field's own label over it, at the body size (the placeholder alone vanishes once typed into) */
+.ag-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+/* the person's avatar in the account button: a letter on its own tone, the button's square corners */
+[data-avatar] {
+  display: grid;
+  place-items: center;
+  color: var(--color-paper);
+  font-weight: 500;
+  line-height: 1;
+  border-radius: var(--r-avatar);
+  letter-spacing: 0;
+}
+
 /* Done: the check draws itself once, after the sheet settles (a rare moment, so it may take its time) */
 .ag-done circle {
   fill: color-mix(in oklch, var(--up) 14%, transparent);
