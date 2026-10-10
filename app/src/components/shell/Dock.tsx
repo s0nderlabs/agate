@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useFlow } from "@/components/markets/Flow";
 import { useLinkQuery } from "@/lib/mock/store";
 import d from "./dock.module.css";
+import { PLACES } from "./Shell";
 
 type Place = "markets" | "positions" | "index";
 
@@ -22,9 +23,9 @@ export function TabBar({ active }: { active: Place | null }) {
   const linkQuery = useLinkQuery();
   const { openMore } = useFlow();
   const places: [Place, string, string][] = [
-    ["markets", "Markets", "/"],
-    ["positions", "Positions", "/positions"],
-    ["index", "Index", "/gpu-index"],
+    ["markets", "Markets", PLACES.markets],
+    ["positions", "Positions", PLACES.positions],
+    ["index", "Index", PLACES.index],
   ];
   return (
     <nav aria-label="Main" className={d.tabbar}>

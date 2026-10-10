@@ -807,7 +807,7 @@ function Chevron() {
 function PocketLink({ grant }: { grant: Grant }) {
   const q = useLinkQuery();
   return (
-    <Link className={`ag-btn ag-btn--soft ${m.wide}`} href={`/ai/${encodeURIComponent(grant.id)}${q}`}>
+    <Link className={`ag-btn ag-btn--soft ${m.wide}`} href={`/app/ai/${encodeURIComponent(grant.id)}${q}`}>
       See {grant.label}'s pocket
       <Chevron />
     </Link>
@@ -928,7 +928,7 @@ function TradeActs() {
   return (
     <>
       <span className={m.actRow}>
-        <Link className="ag-btn ag-btn--primary" href={`/${q}`}>
+        <Link className="ag-btn ag-btn--primary" href={`/app${q}`}>
           {next ? `Trade ${monthLong(next.month)}` : "Go to Markets"}
         </Link>
         {/* only while today's test dollars are there to take, never a button that can only refuse */}
@@ -1035,7 +1035,7 @@ function Empty({ out = false, unread = [] }: { out?: boolean; unread?: PocketRea
               <button type="button" className="ag-btn ag-btn--primary" onClick={openSignIn}>
                 Sign in
               </button>
-              <Link className="ag-btn ag-btn--soft" href={`/${q}`}>
+              <Link className="ag-btn ag-btn--soft" href={`/app${q}`}>
                 Explore markets
               </Link>
             </span>

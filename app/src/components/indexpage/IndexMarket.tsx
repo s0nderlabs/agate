@@ -443,7 +443,7 @@ export function IndexMarket() {
                   <Chevron />
                 </a>
               )}
-              <Link className={x.action} href={`/ai${linkQuery}`}>
+              <Link className={x.action} href={`/app/ai${linkQuery}`}>
                 <b>Ask your AI for today's {gpu} index</b>
                 <Chevron />
               </Link>
@@ -451,7 +451,7 @@ export function IndexMarket() {
 
             <div className={trade ? x.railEnd : undefined}>
               {trade ? (
-                <Link className={`${t.cta} ${x.ctaLink}`} href={`/${linkQuery}`}>
+                <Link className={`${t.cta} ${x.ctaLink}`} href={`/app${linkQuery}`}>
                   {trade}
                 </Link>
               ) : (

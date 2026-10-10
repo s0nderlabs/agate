@@ -27,7 +27,7 @@ import s from "./ai.module.css";
 function Back() {
   const q = useLinkQuery();
   return (
-    <Link className={s.back} href={`/ai${q}`}>
+    <Link className={s.back} href={`/app/ai${q}`}>
       <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
         <path d="M7.5 2.5L4 6l3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
       </svg>
@@ -287,7 +287,7 @@ function Waiting({ a, ai, now }: { a: ApprovalView; ai: string; now: number }) {
       </p>
       {error && <p className={s.err}>{error}</p>}
       <div className={s.actions}>
-        <Link className="ag-btn ag-btn--primary" href={`/approve?request=${encodeURIComponent(a.id)}${q.replace(/^\?/, "&")}`}>
+        <Link className="ag-btn ag-btn--primary" href={`/app/approve?request=${encodeURIComponent(a.id)}${q.replace(/^\?/, "&")}`}>
           Review
         </Link>
         <button

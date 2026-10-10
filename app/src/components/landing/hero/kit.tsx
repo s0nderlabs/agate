@@ -182,11 +182,12 @@ export function smoothPath(values: number[], w: number, h: number, pad = { t: 8,
 
 export function useHref() {
   const q = useLinkQuery();
-  return (path: string) => (path === "/" ? `/${q}` : `${path}${q}`);
+  // "/" is the site's home (the landing); the app lives under /app
+  return (path: string) => `${path}${q}`;
 }
 
 /** The one button a hero has: start trading. */
-export function Cta({ children = "Start trading", className = "", href = "/" }: { children?: ReactNode; className?: string; href?: string }) {
+export function Cta({ children = "Start trading", className = "", href = "/app" }: { children?: ReactNode; className?: string; href?: string }) {
   const to = useHref();
   return (
     <Link href={to(href)} className={`${k.cta} ${className}`}>
@@ -211,13 +212,13 @@ export function Nav({ dark = false, className = "", cta = "", theme = false, lin
         <Lockup height={28} wcase="title" />
       </Link>
       <nav className={k.links} aria-label="Agate">
-        <Link href={to("/")}>Markets</Link>
-        <Link href={to("/gpu-index")}>Index</Link>
-        {docs ? <Link href={to("/docs")}>Docs</Link> : <Link href={to("/positions")}>Positions</Link>}
+        <Link href={to("/app")}>Markets</Link>
+        <Link href={to("/app/gpu-index")}>Index</Link>
+        {docs ? <Link href={to("/docs")}>Docs</Link> : <Link href={to("/app/positions")}>Positions</Link>}
       </nav>
       <div className={k.end}>
         {theme && <ThemeSwitch />}
-        <Link href={to("/")} className={`${docs ? k.navGhost : k.navCta} ${cta}`}>
+        <Link href={to("/app")} className={`${docs ? k.navGhost : k.navCta} ${cta}`}>
           {docs ? "Open app" : "Start trading"}
         </Link>
       </div>

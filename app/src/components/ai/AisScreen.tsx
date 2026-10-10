@@ -154,7 +154,7 @@ function AiRow({ g, events, now }: { g: Grant; events: ActivityEvent[] | undefin
   return (
     <li className={s.row}>
       <div className={s.who}>
-        <Link className={s.name} href={`/ai/${encodeURIComponent(g.id)}${q}`}>
+        <Link className={s.name} href={`/app/ai/${encodeURIComponent(g.id)}${q}`}>
           {g.label}
         </Link>
         <span className={s.status}>{statusText(g, events, now)}</span>
@@ -194,7 +194,7 @@ function AiRow({ g, events, now }: { g: Grant; events: ActivityEvent[] | undefin
         </span>
       </div>
       <div className={s.rowActs}>
-        <Link className="ag-btn ag-btn--ghost" href={`/ai/${encodeURIComponent(g.id)}${q}`} aria-label={`Open ${g.label}`}>
+        <Link className="ag-btn ag-btn--ghost" href={`/app/ai/${encodeURIComponent(g.id)}${q}`} aria-label={`Open ${g.label}`}>
           Open
         </Link>
         <button type="button" className={`ag-textbtn ${s.textDown}`} onClick={() => flow.openDisconnect(g.id)} aria-label={`Disconnect ${g.label}`}>
@@ -214,7 +214,7 @@ function EndedRow({ g, events, now }: { g: Grant; events: ActivityEvent[] | unde
   return (
     <li className={`${s.row} ${s.ended}`}>
       <div className={s.who}>
-        <Link className={s.name} href={`/ai/${encodeURIComponent(g.id)}${q}`}>
+        <Link className={s.name} href={`/app/ai/${encodeURIComponent(g.id)}${q}`}>
           {g.label}
         </Link>
         <span className={s.status}>{statusText(g, events, now)}</span>
@@ -233,7 +233,7 @@ function EndedRow({ g, events, now }: { g: Grant; events: ActivityEvent[] | unde
             Take back {usd0(left)}
           </button>
         )}
-        <Link className="ag-btn ag-btn--ghost" href={`/ai/${encodeURIComponent(g.id)}${q}`} aria-label={`Open ${g.label}`}>
+        <Link className="ag-btn ag-btn--ghost" href={`/app/ai/${encodeURIComponent(g.id)}${q}`} aria-label={`Open ${g.label}`}>
           Open
         </Link>
       </div>

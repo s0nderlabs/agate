@@ -883,7 +883,7 @@ export function Story({ hero, site = false, turnAt = "beside", turn }: { hero: R
             <Link href={to("/")} aria-label="Agate">
               <Lockup height={26} wcase="title" />
             </Link>
-            <Link href={to("/")} className={s.barLink}>
+            <Link href={to("/app")} className={s.barLink}>
               Open app
             </Link>
           </header>
@@ -938,7 +938,7 @@ export function Story({ hero, site = false, turnAt = "beside", turn }: { hero: R
               <p className={s.line} data-l>
                 The middle of every cloud&apos;s price, written onchain every day.
               </p>
-              <Link href={to("/gpu-index")} className={s.link} data-l>
+              <Link href={to("/app/gpu-index")} className={s.link} data-l>
                 See today&apos;s reads
               </Link>
             </div>
@@ -1120,7 +1120,7 @@ export function Story({ hero, site = false, turnAt = "beside", turn }: { hero: R
             <div ref={rf("c8")} className={s.copy} data-at="center" data-t="13.95">
               <h2 className={s.h}>{lines("Make your first trade\nin a minute.")}</h2>
               <div className={s.ctaRow} data-l>
-                <Link href={to("/")} className={s.cta}>
+                <Link href={to("/app")} className={s.cta}>
                   Start trading
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
                     <path d="M3 8h10M9 4l4 4-4 4" />
@@ -1137,8 +1137,8 @@ export function Story({ hero, site = false, turnAt = "beside", turn }: { hero: R
       <footer className={s.foot} data-tone={tone}>
         <Lockup height={26} wcase="title" />
         <nav aria-label="Agate">
-          <Link href={to("/")}>Markets</Link>
-          <Link href={to("/gpu-index")}>Index</Link>
+          <Link href={to("/app")}>Markets</Link>
+          <Link href={to("/app/gpu-index")}>Index</Link>
           <Link href={to("/docs")}>Docs</Link>
           <Link href={to("/privacy")}>Privacy</Link>
         </nav>

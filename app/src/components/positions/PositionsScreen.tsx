@@ -54,7 +54,7 @@ function PositionsBefore() {
             <span className={`${s.balance} font-display`}>{usd0(account.balance)}</span>
             <div className={s.actions}>
               <DripButton lg={false} />
-              <Link className="ag-btn ag-btn--ghost" href={`/${linkQuery}`} style={{ alignSelf: "start" }}>
+              <Link className="ag-btn ag-btn--ghost" href={`/app${linkQuery}`} style={{ alignSelf: "start" }}>
                 Trade
               </Link>
             </div>
@@ -78,7 +78,7 @@ function PositionsBefore() {
             ) : (
               <div className={s.empty}>
                 <p>No positions yet. When you go Long or Short, it shows up here with what it's worth and what's been paid.</p>
-                <Link href={`/${linkQuery}`}>Go to Markets</Link>
+                <Link href={`/app${linkQuery}`}>Go to Markets</Link>
               </div>
             )}
           </section>

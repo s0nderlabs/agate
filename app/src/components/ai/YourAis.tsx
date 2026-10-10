@@ -22,7 +22,7 @@ function Row({ g }: { g: Grant }) {
   const pocket = usePocket(g.pocket);
   const left = pocket.data?.balance;
   return (
-    <Link href={`/ai/${encodeURIComponent(g.id)}${q}`}>
+    <Link href={`/app/ai/${encodeURIComponent(g.id)}${q}`}>
       <span>
         {g.label} trades from its own pocket{left === undefined ? "." : `: ${usd0(left)} left.`}
       </span>
@@ -46,7 +46,7 @@ export function YourAis({ className, titleClass }: { className?: string; titleCl
         {live.length ? (
           live.map((g) => <Row key={g.id} g={g} />)
         ) : (
-          <Link href={`/ai${q}`}>
+          <Link href={`/app/ai${q}`}>
             <span>{grants.isError ? "Can't check your AIs right now." : "Let an AI trade for you, from its own pocket."}</span>
             <span>
               Connected AIs

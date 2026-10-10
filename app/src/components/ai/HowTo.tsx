@@ -56,7 +56,7 @@ export function HowTo({ heading = "h2", onGo }: { heading?: "h1" | "h2"; onGo?: 
         </div>
       )}
       <p>
-        <Link className="ag-textbtn" href={`/connect${q}`} onClick={onGo}>
+        <Link className="ag-textbtn" href={`/app/connect${q}`} onClick={onGo}>
           Connect from here instead
         </Link>
       </p>

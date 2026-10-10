@@ -83,9 +83,9 @@ export interface MockConfig {
   /** being judged (Oct 10): the hero's words
    *  settle in one after another on a long soft ease-out with a blur that clears, or arrive all at once (before) */
   textIn: "settle" | "quick";
-  /** being judged (Oct 10): the landing's close as type only, in the page's grid, or the H100 at
-   *  rest (before) */
-  closeArt: "type" | "chip";
+  /** being judged (Oct 10): the landing's close as type only, in the page's grid, the rendered server
+   *  aisle under the words, or the H100 at rest (before) */
+  closeArt: "type" | "aisle" | "chip";
   /** being judged (Oct 9): below the chips hero, one pinned story told in
    *  zooms (into a chip, the H100, the clouds' prices, the jump, the sides, every day, your AI, back out), or nothing
    *  below the hero (before). Oct 10: "site", the chip dive kept, then a market page in the order
@@ -194,7 +194,7 @@ export function parseConfig(sp: Record<string, string | string[] | undefined>): 
     intro: pick("intro", ["fold", "cell"] as const, DEFAULT_CONFIG.intro),
     chartMotion: pick("chartMotion", ["live", "still"] as const, DEFAULT_CONFIG.chartMotion),
     textIn: pick("textIn", ["settle", "quick"] as const, DEFAULT_CONFIG.textIn),
-    closeArt: pick("closeArt", ["type", "chip"] as const, DEFAULT_CONFIG.closeArt),
+    closeArt: pick("closeArt", ["type", "aisle", "chip"] as const, DEFAULT_CONFIG.closeArt),
     story: pick("story", ["site", "on", "off"] as const, DEFAULT_CONFIG.story),
     turnAt: pick("turnAt", ["beside", "under"] as const, DEFAULT_CONFIG.turnAt),
     aiUi: pick("aiUi", ["tabs", "held"] as const, DEFAULT_CONFIG.aiUi),

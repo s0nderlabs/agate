@@ -16,7 +16,7 @@ export function PrivacyScreen() {
   const mail = <a href={`mailto:${CONTACT}`}>{CONTACT}</a>;
   return (
     <div className={`${s.screen} ${tone}`} data-phone={config.phone}>
-      <NavBar active={null} />
+      <NavBar active={null} site />
       <main className={s.main}>
         <article className={s.doc}>
           <h1 className={`${s.title} font-display`}>Privacy</h1>

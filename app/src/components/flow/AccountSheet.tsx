@@ -192,7 +192,7 @@ export function AisRow({ onGo }: { onGo?: () => void }) {
   const q = useLinkQuery();
   const ai = useAiSummary();
   return (
-    <Link href={`/ai${q}`} onClick={onGo}>
+    <Link href={`/app/ai${q}`} onClick={onGo}>
       <span>Connected AIs</span>
       <span>
         <span className={ai.loading ? "ag-skel ag-skel-on" : undefined}>{ai.loading ? "None yet" : ai.text}</span>

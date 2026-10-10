@@ -61,7 +61,7 @@ export function marketHref(query: string, gpu: string) {
   if (gpu === DEFAULT_CONFIG.gpu) sp.delete("gpu");
   else sp.set("gpu", gpu);
   const q = sp.toString();
-  return `/${q ? `?${q}` : ""}`;
+  return `/app${q ? `?${q}` : ""}`;
 }
 
 /** Each AI's pocket and what it holds, from the reads the AI pages share (same keys as usePocket, so one cache): the
@@ -215,7 +215,7 @@ function Hero({ list, scope, ai, reading }: { list: Holding[]; scope: Scope; ai:
     }
   };
   const trade = (cls: string) => (
-    <Link className={`ag-btn ${cls}`} href={`/${q}`}>
+    <Link className={`ag-btn ${cls}`} href={`/app${q}`}>
       Trade
     </Link>
   );
@@ -261,7 +261,7 @@ function Hero({ list, scope, ai, reading }: { list: Holding[]; scope: Scope; ai:
       <div className={s.heroActs}>
         {ai ? (
           <>
-            <Link className="ag-btn ag-btn--primary" href={`/ai/${encodeURIComponent(ai.id)}${q}`}>
+            <Link className="ag-btn ag-btn--primary" href={`/app/ai/${encodeURIComponent(ai.id)}${q}`}>
               See {ai.label}'s pocket
             </Link>
             {trade("ag-btn--soft")}
@@ -658,7 +658,7 @@ function Nothing({ unread }: { unread: PocketRead[] }) {
         <p className={s.lineCopy}>Nothing held yet. A position shows here with what it's worth and what it pays.</p>
         <PocketNotes pockets={unread} />
         <div className={s.heroActs}>
-          <Link className="ag-btn ag-btn--primary" href={`/${q}`}>
+          <Link className="ag-btn ag-btn--primary" href={`/app${q}`}>
             {next ? `Trade ${monthLong(next.month)}` : "Go to Markets"}
           </Link>
         </div>

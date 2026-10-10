@@ -316,7 +316,7 @@ export function IndexNew() {
                     <span>
                       <b>Ask your AI</b>: add Agate to Claude, then ask it for today's {market.gpu} index.
                     </span>
-                    <Link className="ag-textbtn" href={`/ai${linkQuery}`}>
+                    <Link className="ag-textbtn" href={`/app/ai${linkQuery}`}>
                       Add Agate to your AI
                     </Link>
                   </li>

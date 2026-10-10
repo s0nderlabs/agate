@@ -115,13 +115,13 @@ export function Change({ v }: { v: number }) {
 /** Links keep the mock state, so judging carries into the app. */
 export function useLinks() {
   const q = useLinkQuery();
-  return { market: `/${q}`, index: `/gpu-index${q}`, positions: `/positions${q}` };
+  return { market: `/app${q}`, index: `/app/gpu-index${q}`, positions: `/app/positions${q}` };
 }
 
 /** Any app path with the mock state carried ("/" is the market). */
 export function useLinkQueryHref() {
   const q = useLinkQuery();
-  return (path: string) => (path === "/" ? `/${q}` : `${path}${q}`);
+  return (path: string) => (path === "/" ? `/app${q}` : `${path}${q}`);
 }
 
 export function Cta({ className, children = COPY.cta, soft = false }: { className?: string; children?: ReactNode; soft?: boolean }) {

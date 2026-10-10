@@ -318,7 +318,7 @@ export function ConnectScreen({ requestId }: { requestId: string | null }) {
               <ExampleRedirect example={backend.fake} to={s.redirect} />
             </>
           )}
-          <Link className="ag-btn ag-btn--ghost" href={`/ai${q}`}>
+          <Link className="ag-btn ag-btn--ghost" href={`/app/ai${q}`}>
             Connected AIs
           </Link>
         </div>
@@ -472,7 +472,7 @@ function Actions(p: { s: ConnectState; name: string; lane: "oauth" | "inapp"; si
               {st.step === "denying" ? "Declining" : "Don't allow"}
             </button>
           ) : (
-            <Link className="ag-textbtn" href={`/ai${q}`}>
+            <Link className="ag-textbtn" href={`/app/ai${q}`}>
               Not now
             </Link>
           )}
@@ -514,7 +514,7 @@ function Actions(p: { s: ConnectState; name: string; lane: "oauth" | "inapp"; si
           </button>
         )}
         {f.actions.includes("back") && (
-          <Link className="ag-btn ag-btn--ghost ag-btn--lg" href={`/ai${q}`}>
+          <Link className="ag-btn ag-btn--ghost ag-btn--lg" href={`/app/ai${q}`}>
             Connected AIs
           </Link>
         )}
@@ -523,10 +523,10 @@ function Actions(p: { s: ConnectState; name: string; lane: "oauth" | "inapp"; si
   }
   if (st.step === "done") {
     return st.lane === "oauth" ? (
-      <BackTo name={n} redirect={st.redirect} example={backend.fake} pocketHref={`/ai/${encodeURIComponent(st.grantId)}${q}`} />
+      <BackTo name={n} redirect={st.redirect} example={backend.fake} pocketHref={`/app/ai/${encodeURIComponent(st.grantId)}${q}`} />
     ) : (
       <>
-        <Link className="ag-btn ag-btn--primary ag-btn--lg" href={`/ai/${encodeURIComponent(st.grantId)}${q}`} onClick={() => p.dispatch({ type: "hideLink" })}>
+        <Link className="ag-btn ag-btn--primary ag-btn--lg" href={`/app/ai/${encodeURIComponent(st.grantId)}${q}`} onClick={() => p.dispatch({ type: "hideLink" })}>
           See {n}'s pocket
         </Link>
         {st.connector && (

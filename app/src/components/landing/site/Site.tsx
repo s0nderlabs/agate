@@ -139,7 +139,7 @@ export function Site({ hero, turnAt = "beside" }: { hero: ReactNode; turnAt?: "b
         </span>
       </div>
       <div className={s.turnActs} data-l>
-        <Link href={to("/")} className={s.turnCta}>
+        <Link href={to("/app")} className={s.turnCta}>
           Trade H100
           <Arrow />
         </Link>
@@ -259,7 +259,7 @@ function Different({ M, to }: { M: Money; to: To }) {
             </div>
             </div>
             <p className={s.body}>Renting GPUs? Go Long and lock in what you pay. Renting them out? Go Short and lock in what you earn.</p>
-            <Link href={to("/")} className={s.link}>
+            <Link href={to("/app")} className={s.link}>
               Open the market
             </Link>
           </article>
@@ -314,7 +314,7 @@ function Different({ M, to }: { M: Money; to: To }) {
             </div>
             </div>
             <p className={s.body}>One open price per GPU, every day. Use it in your app, your contract or your models.</p>
-            <Link href={to("/gpu-index")} className={s.link}>
+            <Link href={to("/app/gpu-index")} className={s.link}>
               See the index
             </Link>
           </article>
@@ -600,7 +600,7 @@ function Clouds({ clouds, index, date, to }: { clouds: { name: string; price: nu
           </div>
           <figcaption className={s.figFoot}>
             <span>From each cloud&rsquo;s own public price page</span>
-            <Link href={to("/gpu-index")} className={s.link}>
+            <Link href={to("/app/gpu-index")} className={s.link}>
               See every source
             </Link>
           </figcaption>
@@ -857,7 +857,7 @@ function Questions({ to }: { to: To }) {
       a: (
         <>
           Teams that rent GPUs and want a steady cost, clouds that rent them out and want steady income, and anyone with a view on where compute prices go.{" "}
-          <Link href={to("/")}>Open the market</Link>
+          <Link href={to("/app")}>Open the market</Link>
         </>
       ),
     },
@@ -891,10 +891,12 @@ function Questions({ to }: { to: To }) {
 }
 
 /* ------------------------------------------------------------------ 10. the close and the footer */
-function Close({ to, art }: { to: To; art: "type" | "chip" }) {
+function Close({ to, art }: { to: To; art: "type" | "aisle" | "chip" }) {
+  // the picture under the centred words: the rendered server aisle (Oct 10) or the H100 at rest (before)
+  const img = art === "aisle" ? "aisle" : "close";
   const acts = (
     <div className={s.acts}>
-      <Link href={to("/")} className={s.cta}>
+      <Link href={to("/app")} className={s.cta}>
         Start trading
         <Arrow />
       </Link>
@@ -930,24 +932,17 @@ function Close({ to, art }: { to: To; art: "type" | "chip" }) {
           <h2 id="s-close" className={s.closeH}>
             Make your first trade in a minute.
           </h2>
-          <div className={s.acts}>
-            <Link href={to("/")} className={s.cta}>
-              Start trading
-              <Arrow />
-            </Link>
-            <Link href={to("/docs")} className={s.ghost}>
-              Read the docs
-            </Link>
-          </div>
+          {acts}
         </div>
-        {/* the bookend: the page opens by diving into the H100 and closes on it at rest (the rendered close_dark). Lossless
-            WebP: every lossy setting (and 10-bit AVIF) rang in the near-black glow; 1440 and 2160 wide, lazy, at the end.
-            Cropped to 3:1 around the package, the cut edges folded back into the ground */}
+        {/* the picture under the words: the rendered server aisle (aisle_dark_flat), or the bookend, the H100 the page dove
+            into, at rest (close_dark, cropped to 3:1 around the package). Both 3:1, edges exactly
+            the ground. Lossless WebP: every lossy setting (and 10-bit AVIF) rang in the near-black glow; 1440 and 2160
+            wide, lazy, at the end */}
         <div className={s.closeArt} aria-hidden>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/landing/close-1440.webp"
-            srcSet="/landing/close-1440.webp 1440w, /landing/close-2160.webp 2160w"
+            src={`/landing/${img}-1440.webp`}
+            srcSet={`/landing/${img}-1440.webp 1440w, /landing/${img}-2160.webp 2160w`}
             sizes="(max-width: 1440px) 100vw, 1440px"
             width={2880}
             height={960}
@@ -972,14 +967,14 @@ function Foot({ to }: { to: To }) {
       </div>
       <div>
         <h3>Market</h3>
-        <Link href={to("/")}>Markets</Link>
-        <Link href={to("/gpu-index")}>Index</Link>
-        <Link href={to("/positions")}>Positions</Link>
+        <Link href={to("/app")}>Markets</Link>
+        <Link href={to("/app/gpu-index")}>Index</Link>
+        <Link href={to("/app/positions")}>Positions</Link>
       </div>
       <div>
         <h3>AI</h3>
         <Link href={to("/docs/connect-an-ai")}>Connect your AI</Link>
-        <Link href={to("/ai")}>Your AIs</Link>
+        <Link href={to("/app/ai")}>Your AIs</Link>
         <Link href={to("/docs/ai-pockets")}>Budgets and limits</Link>
       </div>
       <div>

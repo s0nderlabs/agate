@@ -146,10 +146,11 @@ function ThemeToggle() {
 }
 
 /** Where each top-bar place lives. */
-const PLACES = { markets: "/", positions: "/positions", index: "/gpu-index", docs: "/docs" } as const;
+export const PLACES = { markets: "/app", positions: "/app/positions", index: "/app/gpu-index", docs: "/docs" } as const;
 
-/** active: the place on screen; null on pages outside the four (Connected AIs, the Allow page, an approval) */
-export function NavBar({ active = "markets" }: { active?: "markets" | "positions" | "index" | "docs" | null }) {
+/** active: the place on screen; null on pages outside the four (Connected AIs, the Allow page, an approval). site: a
+ *  page of the site (docs, privacy), whose mark goes home to the landing rather than into the app */
+export function NavBar({ active = "markets", site = false }: { active?: "markets" | "positions" | "index" | "docs" | null; site?: boolean }) {
   const { config, setConfig } = useMock();
   const account = useAccount();
   const linkQuery = useLinkQuery();
@@ -162,7 +163,7 @@ export function NavBar({ active = "markets" }: { active?: "markets" | "positions
   ];
   return (
     <header className={s.nav}>
-      <Link href={`/${linkQuery}`} className={s.brand} aria-label="Agate home">
+      <Link href={site ? `/${linkQuery}` : `${PLACES.markets}${linkQuery}`} className={s.brand} aria-label={site ? "Agate home" : "Agate markets"}>
         <Lockup height={28} size="l" wcase="title" />
       </Link>
       <nav className={s.links} aria-label="Main">

@@ -1,12 +1,12 @@
 import { AppProviders } from "@/components/app/AppProviders";
-import { PositionsScreen } from "@/components/positions/PositionsScreen";
+import { IndexScreen } from "@/components/indexpage/IndexScreen";
 import { pageConfig } from "@/lib/mock/savedTheme";
 
-export default async function PositionsPage({ searchParams }: PageProps<"/positions">) {
+export default async function IndexPage({ searchParams }: PageProps<"/app/gpu-index">) {
   const initial = await pageConfig(searchParams);
   return (
     <AppProviders initial={initial}>
-      <PositionsScreen />
+      <IndexScreen />
     </AppProviders>
   );
 }

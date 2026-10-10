@@ -19,7 +19,7 @@ export function SourcesPop({ market, label, ok }: { market: Market; label: strin
   // on a phone or tablet the anchored panel would hang off the screen, so the same contents open as a sheet
   const foot = (
     <p className={s.popFoot}>
-      The full method, every day's readings and the history live on the <Link href={`/gpu-index${linkQuery}#today`}>Index page</Link>.
+      The full method, every day's readings and the history live on the <Link href={`/app/gpu-index${linkQuery}#today`}>Index page</Link>.
     </p>
   );
   const toggle = () => {

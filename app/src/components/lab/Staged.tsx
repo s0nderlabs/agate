@@ -39,12 +39,12 @@ export function Staged({ theme }: { theme: "light" | "dark" }) {
     <div className={s.stage}>
       <div className={s.laptop}>
         <div className={s.screen}>
-          <Frame src={`/?${q}`} w={1440} h={900} scale={0.5} title="Agate's market screen, live" />
+          <Frame src={`/app?${q}`} w={1440} h={900} scale={0.5} title="Agate's market screen, live" />
         </div>
         <div className={s.base} />
       </div>
       <div className={s.phone}>
-        <Frame src={`/?${q}&chk=labphone`} w={393} h={852} scale={0.62} title="Agate on a phone, live" />
+        <Frame src={`/app?${q}&chk=labphone`} w={393} h={852} scale={0.62} title="Agate on a phone, live" />
       </div>
     </div>
   );

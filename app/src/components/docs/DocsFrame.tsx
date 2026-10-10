@@ -121,7 +121,7 @@ export function DocsFrame({ nav, children }: { nav: NavGroup[]; children: React.
     <NavCtx.Provider value={nav}>
       <div className={`${s.screen} ${tone}`} data-phone={config.phone} suppressHydrationWarning>
         {serverHtml && <script dangerouslySetInnerHTML={{ __html: PREPAINT }} />}
-        <NavBar active="docs" />
+        <NavBar active="docs" site />
         {slug ? (
           <div className={s.frame}>
             <aside className={s.side} ref={side} aria-label="Docs">

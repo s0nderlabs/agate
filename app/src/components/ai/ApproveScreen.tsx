@@ -180,7 +180,7 @@ export function ApproveScreen({ id }: { id: string }) {
     }
   };
 
-  const aiHref = grant ? `/ai/${encodeURIComponent(grant.id)}${q}` : `/ai${q}`;
+  const aiHref = grant ? `/app/ai/${encodeURIComponent(grant.id)}${q}` : `/app/ai${q}`;
   const whole = (h: string, p: string, more?: React.ReactNode, check = false) => (
     <Frame tone={tone} phone={config.phone}>
       <div className={c.whole}>
@@ -237,7 +237,7 @@ export function ApproveScreen({ id }: { id: string }) {
     return whole(
       "Approved",
       `${w?.what ?? "The trade"} ran from your account. ${ai} will see it.`,
-      <Link className="ag-btn ag-btn--primary" href={`/positions${q}`}>
+      <Link className="ag-btn ag-btn--primary" href={`/app/positions${q}`}>
         See your positions
       </Link>,
       true,
@@ -368,7 +368,7 @@ export function ApproveScreen({ id }: { id: string }) {
               </>
             ) : (
               <>
-                <Link className="ag-btn ag-btn--primary ag-btn--lg" href={a.outcome === "unconfirmed" ? `/positions${q}` : aiHref}>
+                <Link className="ag-btn ag-btn--primary ag-btn--lg" href={a.outcome === "unconfirmed" ? `/app/positions${q}` : aiHref}>
                   {a.outcome === "unconfirmed" ? "See your positions" : grant ? `See ${ai}'s card` : "Connected AIs"}
                 </Link>
                 {a.outcome === "unconfirmed" && (

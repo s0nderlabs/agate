@@ -136,7 +136,7 @@ export function HeldNote({ month }: { month: string }) {
   if (!line) return null;
   return (
     <p className={s.held}>
-      {line} <Link href={`/positions${linkQuery}`}>Positions</Link>
+      {line} <Link href={`/app/positions${linkQuery}`}>Positions</Link>
     </p>
   );
 }

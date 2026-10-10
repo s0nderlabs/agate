@@ -386,7 +386,7 @@ function Sent({ message, onClose }: { message: string; onClose: () => void }) {
         className="ag-btn ag-btn--ghost"
         onClick={() => {
           onClose();
-          router.push(`/positions${linkQuery}`);
+          router.push(`/app/positions${linkQuery}`);
         }}
       >
         See your positions
@@ -430,7 +430,7 @@ function Done({ n, result, onClose }: { n: TradeNumbers; result?: DoneResult; on
         className="ag-btn ag-btn--ghost"
         onClick={() => {
           onClose();
-          router.push(`/positions${linkQuery}`);
+          router.push(`/app/positions${linkQuery}`);
         }}
       >
         See your positions

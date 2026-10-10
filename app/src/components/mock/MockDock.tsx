@@ -71,6 +71,7 @@ const HERO_ROWS: Row[] = [
     label: "The close shows",
     options: [
       ["type", "Nothing but type: the headline at full width, a ruled band with the buttons"],
+      ["aisle", "A server aisle under the words: where GPU hours run"],
       ["chip", "The H100 at rest (before)"],
     ],
   },
@@ -394,7 +395,8 @@ export function MockDock() {
   const { config, setConfig, reset } = useMock();
   const account = useAccount();
   const path = usePathname();
-  const onLanding = path === "/landing";
+  // the landing is the site's home (the app moved to /app)
+  const onLanding = path === "/";
   const open = config.dock === "open";
   const [hidden, setHidden] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
