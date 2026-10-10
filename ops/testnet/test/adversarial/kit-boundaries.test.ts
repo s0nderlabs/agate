@@ -31,6 +31,7 @@ beforeAll(() => {
   env = {
     PATH: `${bin}:${process.env.PATH}`,
     HOME: process.env.HOME ?? tmp,
+    AGATE_KIT_DEV_SESSION: "agate-dev", // hermetic: whatever ~/.agate-kit/dev-session says here
     TMPDIR: tmp,
     AGATE_KIT_OFFLINE: "1",
     AGATE_KIT_STATE: join(tmp, "state"),

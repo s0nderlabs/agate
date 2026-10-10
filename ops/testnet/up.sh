@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Opens one tmux window per process of an index's stack in the dev session (agate-dev by default), plus the
+# Opens one tmux window per process of an index's stack in the dev session (dev-session.sh), plus the
 # processes every index shares (market maker, payer and lister, indexer, repair agent, Akash reader).
 #
 #   ops/testnet/up.sh production [--restart-shared] [--dry-run] [--fork]

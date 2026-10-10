@@ -128,7 +128,8 @@ address has code. That file, with `10143-indexes.json`, is the record of what is
 ops/testnet/up.sh production
 ```
 
-Opens, in the dev session `agate-dev`: `prod-primary` (CRE writer), `prod-standby`, `prod-attest`,
+Opens, in the dev session (`AGATE_KIT_DEV_SESSION`, else the first line of `~/.agate-kit/dev-session`, else
+`agate-dev`): `prod-primary` (CRE writer), `prod-standby`, `prod-attest`,
 `prod-keep`, `prod-pagecheck`, the shared windows `shared-maker`, `shared-payer`, `shared-indexer`, `shared-repair`,
 `shared-akash` and `shared-awake` (`caffeinate -i -s`), then `prod-health` 30 seconds later, so the roles it watches
 have written a first heartbeat. It never touches `bun` or `wall-log`. It checks first that every Keychain item the
@@ -625,7 +626,7 @@ Each script also takes `--fork` by itself. A run by hand needs:
 - `AGATE_KIT_FORK_RPC=http://127.0.0.1:<port>`: an anvil fork of Monad testnet (any other URL, or a node that is not
   an anvil fork, is refused);
 - `AGATE_KIT_TMUX_SOCKET=<name>` and `AGATE_KIT_TMUX_SESSION=<name>` for up.sh, down.sh, demo-session.sh and status.sh:
-  a fork run refuses the default tmux server and the session `agate-dev`;
+  a fork run refuses the default tmux server and the dev session;
 - `AGATE_KIT_STATE=<dir>` (default `~/.agate-kit-rehearsal`): logs, launchers, forge's broadcast files and the
   processes' data (never `~/.agate-wall`);
 - with `AGATE_KIT_ROLES=rehearsal` (processes on the fork), the maker's float moved to the rehearsal maker once the

@@ -63,6 +63,8 @@ beforeAll(() => {
     // hermetic: never the repo's records or deployments files, whether or not a deploy has written them
     AGATE_KIT_RECORDS: join(tmp, "no-records.json"),
     AGATE_KIT_DEPLOYMENTS: join(tmp, "no-deployments.json"),
+    // hermetic: the default session name, whatever ~/.agate-kit/dev-session says on this machine
+    AGATE_KIT_DEV_SESSION: "agate-dev",
     AGATE_WALL_HOME: join(tmp, "wall-home"),
     FOUNDRY_OUT: join(tmp, "out"),
     FOUNDRY_CACHE_PATH: join(tmp, "cache"),
@@ -278,6 +280,20 @@ describe("modes that must refuse", () => {
     expect(s.code).not.toBe(0);
     expect(s.out).toContain("private tmux server");
     expect(run("status.sh", ["production", "--fork", "--dry-run"], { ...fork, AGATE_KIT_TMUX_SOCKET: "agate-rehearsal" }).out).toContain("never uses the session agate-dev");
+  });
+  test("the dev session's name: AGATE_KIT_DEV_SESSION, else the first line of ~/.agate-kit/dev-session, else agate-dev", () => {
+    const home = join(tmp, "home-dev-session");
+    mkdirSync(join(home, ".agate-kit"), { recursive: true });
+    writeFileSync(join(home, ".agate-kit", "dev-session"), "machine-session\nignored\n");
+    const fork = { AGATE_KIT_FORK_RPC: "http://127.0.0.1:8548", AGATE_KIT_TMUX_SOCKET: "agate-rehearsal" };
+    expect(run("up.sh", ["demo", "--fork", "--dry-run"], { ...fork, HOME: home, AGATE_KIT_DEV_SESSION: "" }).out).toContain("never uses the session machine-session");
+    expect(run("up.sh", ["demo", "--fork", "--dry-run"], { ...fork, HOME: home, AGATE_KIT_DEV_SESSION: "env-session" }).out).toContain("never uses the session env-session");
+    expect(run("up.sh", ["demo", "--fork", "--dry-run"], { ...fork, HOME: join(tmp, "no-such-home"), AGATE_KIT_DEV_SESSION: "" }).out).toContain("never uses the session agate-dev");
+    // a hand-edited file: spaces and a CR around the name are trimmed
+    writeFileSync(join(home, ".agate-kit", "dev-session"), "  spaced-session \r\n");
+    expect(run("up.sh", ["demo", "--fork", "--dry-run"], { ...fork, HOME: home, AGATE_KIT_DEV_SESSION: "" }).out).toContain("never uses the session spaced-session\n");
+    // the plain default stays refused even where the machine names another session
+    expect(run("up.sh", ["demo", "--fork", "--dry-run"], { ...fork, HOME: home, AGATE_KIT_DEV_SESSION: "", AGATE_KIT_TMUX_SESSION: "agate-dev" }).out).toContain("never uses the session agate-dev");
   });
   test("the market bots' gas limits come from the file only: a shell override or a bad file opens nothing", () => {
     for (const s of [["up.sh", "demo", "--dry-run"], ["demo-session.sh", "start", "--dry-run"]]) {

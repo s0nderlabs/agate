@@ -201,7 +201,8 @@ alchemy_today() {
 CRE_SIM_FORWARDER="0xB9F79d863261869B234c481D1f9A7af84AeAd192"
 PANELS="$WALL/packages/sources/panels/launch.json"
 GAS_GWEI="${AGATE_KIT_GAS_GWEI:-102}"
-DEV_SESSION_DEFAULT="agate-dev"
+# the tmux session of this machine's dev stack (dev-session.sh: AGATE_KIT_DEV_SESSION, ~/.agate-kit/dev-session, agate-dev)
+DEV_SESSION_DEFAULT="$(/bin/sh "$KIT/dev-session.sh")"
 # The market bots' LIMIT table override (AGATE_MARKET_GAS_LIMITS), measured on Monad: up.sh hands it to the maker and
 # the payer. RUNBOOK.md, "The market bots' gas limits on Monad".
 MARKET_GAS_FILE="${AGATE_KIT_MARKET_GAS_LIMITS:-$KIT/market-gas-limits.json}"
@@ -692,7 +693,9 @@ check_tmux_target() {
   if [ "$KIT_FORK" = 1 ]; then
     [ -n "$TMUX_SOCK" ] && [ "$TMUX_SOCK" != default ] ||
       die "a fork run uses a private tmux server: set AGATE_KIT_TMUX_SOCKET (e.g. agate-rehearsal)"
-    [ "$TMUX_SESSION" != "$DEV_SESSION_DEFAULT" ] || die "a fork run never uses the session $DEV_SESSION_DEFAULT"
+    case "$TMUX_SESSION" in
+      "$DEV_SESSION_DEFAULT" | agate-dev) die "a fork run never uses the session $TMUX_SESSION" ;;
+    esac
   fi
 }
 # The id (@N) of the window named exactly NAME in the session, or empty. Ids never shift when windows close.
