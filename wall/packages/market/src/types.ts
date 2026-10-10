@@ -121,6 +121,29 @@ export interface MarketReads {
   marginBalance(marginAccount: Address, who: Address, token: Address): Promise<bigint>;
 }
 
+/** A Kuru Spot V2 book's fixed parameters (getMarketParams plus its tokens). */
+export interface V2Params {
+  pricePrecision: bigint;
+  sizePrecision: bigint;
+  tickSize: bigint;
+  minQuoteNotional: bigint; // quote token atoms
+  maxQuoteNotional: bigint;
+  makerFeePps: bigint; // parts per million
+  base: Address;
+  quote: Address;
+  quoteDecimals: number;
+}
+/** Kuru Spot V2 reads (AccountCore and one OrderBook). Prices and sizes are V2's raw units. */
+export interface V2Reads {
+  v2Params(market: Address): Promise<V2Params>; // cached forever by the reads
+  v2MarketState(market: Address): Promise<number | null>;
+  v2RootId(accountCore: Address, who: Address): Promise<number>; // 0: no account yet
+  v2Balance(accountCore: Address, id: number, token: Address): Promise<bigint>; // free (not reserved)
+  v2Slots(market: Address, id: number, n: number): Promise<bigint[]>; // order id per slot 0..n-1, 0n = empty
+  v2Locked(market: Address, id: number): Promise<{ base: bigint; quote: bigint }>;
+  v2Book(market: Address, levels: number): Promise<L2Book>;
+}
+
 export type Shape =
   | "series.mint"
   | "series.redeem"
@@ -132,7 +155,11 @@ export type Shape =
   | "erc20.approve"
   | "kuru.deposit"
   | "kuru.withdraw"
-  | "kuru.batchUpdate";
+  | "kuru.batchUpdate"
+  | "kuruV2.deposit"
+  | "kuruV2.withdraw"
+  | "kuruV2.batch"
+  | "kuruV2.cancelAll";
 
 export interface SendSpec {
   to: Address;

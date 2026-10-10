@@ -16,8 +16,9 @@ import { isRevert, type RpcPool } from "@agate/watcher";
 import { agateFactoryAbi, agateIndexAbi, agateSeriesAbi } from "./abi.ts";
 import { MULTICALL3, ZERO_ADDRESS } from "./constants.ts";
 import { kuruMarginAccountAbi, kuruOrderBookAbi } from "./kuru-abi.ts";
+import { kuruV2AccountCoreAbi, kuruV2OrderBookAbi } from "./kuru-v2-abi.ts";
 import { revertReason } from "./sender.ts";
-import type { IndexRecordView, KuruOrder, L2Book, ListingCheck, MarketReads, PositionInfo, SeriesState, SeriesTerms, Side, VenueId } from "./types.ts";
+import type { IndexRecordView, KuruOrder, L2Book, ListingCheck, MarketReads, PositionInfo, SeriesState, SeriesTerms, Side, V2Params, V2Reads, VenueId } from "./types.ts";
 
 const erc20Abi = [
   { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "a", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
@@ -67,7 +68,7 @@ export interface ViemReadsOptions {
   noMulticall?: boolean;
 }
 
-export class ViemReads implements MarketReads, ExtraReads, PreviewReads {
+export class ViemReads implements MarketReads, ExtraReads, PreviewReads, V2Reads {
   private pending: Req[] = [];
   private scheduled = false;
   private mc: boolean | null = null;
@@ -380,6 +381,56 @@ export class ViemReads implements MarketReads, ExtraReads, PreviewReads {
 
   marginBalance(marginAccount: Address, who: Address, token: Address): Promise<bigint> {
     return this.view<bigint>({ address: marginAccount, abi: kuruMarginAccountAbi as Abi, functionName: "getBalance", args: [who, token] });
+  }
+
+  // ------------------------------------------------------------------ Kuru Spot V2
+
+  private v2(market: Address, functionName: string, args: readonly unknown[] = []): Call {
+    return { address: market, abi: kuruV2OrderBookAbi as Abi, functionName, args };
+  }
+  private ac(accountCore: Address, functionName: string, args: readonly unknown[] = []): Call {
+    return { address: accountCore, abi: kuruV2AccountCoreAbi as Abi, functionName, args };
+  }
+
+  v2Params(market: Address): Promise<V2Params> {
+    return this.cached(`v2params:${market.toLowerCase()}`, async () => {
+      const [p, base, quote, qd] = await Promise.all([
+        this.view<readonly [number, bigint, number, bigint, bigint, bigint, bigint]>(this.v2(market, "getMarketParams")),
+        this.view<Address>(this.v2(market, "baseToken")),
+        this.view<Address>(this.v2(market, "quoteToken")),
+        this.view<number>(this.v2(market, "quoteTokenDecimals")),
+      ]);
+      return { pricePrecision: BigInt(p[0]), sizePrecision: p[1], tickSize: BigInt(p[2]), minQuoteNotional: p[3], maxQuoteNotional: p[4], makerFeePps: p[6], base, quote, quoteDecimals: Number(qd) };
+    });
+  }
+
+  async v2MarketState(market: Address): Promise<number | null> {
+    const s = await this.maybe<number>(this.v2(market, "marketState"));
+    return s === null ? null : Number(s);
+  }
+
+  async v2RootId(accountCore: Address, who: Address): Promise<number> {
+    return Number(await this.view<number>(this.ac(accountCore, "rootAccountIdOf", [who])));
+  }
+
+  v2Balance(accountCore: Address, id: number, token: Address): Promise<bigint> {
+    return this.view<bigint>(this.ac(accountCore, "getBalance", [id, token]));
+  }
+
+  v2Slots(market: Address, id: number, n: number): Promise<bigint[]> {
+    return Promise.all(Array.from({ length: n }, (_, slot) => this.view<bigint>(this.v2(market, "getOrderId", [id, slot]))));
+  }
+
+  async v2Locked(market: Address, id: number): Promise<{ base: bigint; quote: bigint }> {
+    const [base, quote] = await this.view<readonly [bigint, bigint]>(this.v2(market, "makerLockedReserves", [id]));
+    return { base, quote };
+  }
+
+  async v2Book(market: Address, levels: number): Promise<L2Book> {
+    const [bp, bs, ap, as] = await this.view<readonly [readonly number[], readonly bigint[], readonly number[], readonly bigint[]]>(this.v2(market, "getL2Book", [BigInt(levels)]));
+    // empty levels come back as zero prices
+    const side = (ps: readonly number[], ss: readonly bigint[]) => ps.map((p, i) => [BigInt(p), ss[i] ?? 0n] as [bigint, bigint]).filter(([p, s]) => p > 0n && s > 0n);
+    return { block: 0n, bids: side(bp, bs), asks: side(ap, as) };
   }
 }
 

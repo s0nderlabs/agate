@@ -14,7 +14,8 @@ describe("config", () => {
     expect(c.maxLossU).toBe(500_000_000_000n);
     expect(c.keepWei).toBe(parseEther("20"));
     expect(c.runUntil).toBe(Date.parse("2026-12-02T00:00:00Z") / 1000);
-    expect(Object.keys(DEFAULTS).length).toBe(20); // the 20 fields of 3.11
+    expect(Object.keys(DEFAULTS).length).toBe(21); // the 20 fields of 3.11, plus kuruV2 (Oct 10 2026)
+    expect(c.kuruV2).toBeNull();
   });
   test("an unknown field is refused, at the top and in perFactory", () => {
     expect(() => parseConfig('{"spredBps": 50}')).toThrow("unknown field spredBps");

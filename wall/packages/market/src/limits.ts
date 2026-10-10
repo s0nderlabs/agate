@@ -44,6 +44,16 @@ export function provisionalCeiling(shape: Shape, adds = 0, cancels = 0): number 
       return 300_000;
     case "kuru.batchUpdate":
       return 400_000 + 350_000 * adds + 120_000 * cancels;
+    // Kuru Spot V2, Monad testnet estimates of Oct 10 2026 (n = 1 each): deposit 269k, a batch of one placement 394k,
+    // one cancel and two placements 512k, cancelAllOrders 261k, withdraw 4.96M (its limiter's accounting)
+    case "kuruV2.deposit":
+      return 450_000;
+    case "kuruV2.withdraw":
+      return 7_500_000;
+    case "kuruV2.batch":
+      return 450_000 + 150_000 * adds + 60_000 * cancels;
+    case "kuruV2.cancelAll":
+      return 600_000;
     default:
       return null;
   }
@@ -152,6 +162,10 @@ export const SHAPES: readonly Shape[] = [
   "kuru.deposit",
   "kuru.withdraw",
   "kuru.batchUpdate",
+  "kuruV2.deposit",
+  "kuruV2.withdraw",
+  "kuruV2.batch",
+  "kuruV2.cancelAll",
 ];
 
 /** Calldata gas as Ethereum prices it: 16 per nonzero byte, 4 per zero byte. */

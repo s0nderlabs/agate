@@ -1,9 +1,10 @@
 // BOTS-SPEC 3.11: the maker's config (AGATE_MM_CONFIG, JSON; every field optional). An unknown field is refused, so a
 // typo never silently falls back to a default. perFactory.<name> overrides the ladder and requote fields for one factory.
 import { readFileSync } from "node:fs";
-import { parseEther } from "viem";
-import { KURU_MAX_SIZE } from "@agate/market";
+import { type Address, parseEther } from "viem";
+import { KURU_MAX_SIZE, KURU_V2_ACCOUNT_CORE } from "@agate/market";
 import { UNITS_PER_TOKEN } from "./ladder.ts";
+import type { V2Cfg } from "./v2.ts";
 
 export interface BookConfig {
   spreadBps: number;
@@ -31,7 +32,13 @@ export interface MmConfig extends BookConfig {
   lowBalanceWei: bigint;
   runUntil: number; // unix s
   perFactory: Record<string, Partial<BookConfig>>;
+  /** Kuru Spot V2 books to quote beside the V1 ones (v2.ts); null: none */
+  kuruV2: V2Cfg | null;
 }
+
+/** kuruV2's own defaults: a small pilot ladder (two levels of 10 and 20 GPU-hours), at most 100 tokens held. */
+export const V2_DEFAULTS = { levels: 2, sizesTokens: [10, 20], maxBaseTokens: 100 };
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
 export const DEFAULTS = {
   factories: ["demo", "real"],
@@ -55,6 +62,7 @@ export const DEFAULTS = {
   // through judging and the November series' settle (the real calendar's November settles Dec 1)
   runUntil: "2026-12-02T00:00:00Z",
   perFactory: {} as Record<string, Record<string, unknown>>,
+  kuruV2: null as Record<string, unknown> | null,
 };
 
 const BOOK_FIELDS = ["spreadBps", "levels", "levelStepTicks", "sizesTokens", "requoteMoveU", "replenishBelowPct", "staleS", "minRequoteS", "maxNetTokens", "maxPairsTokens", "stopBeforeEndS"] as const;
@@ -149,7 +157,37 @@ export function parseConfig(text: string | null): MmConfig {
     lowBalanceWei: parseEther(String(lowBalanceMon)),
     runUntil: Math.floor(Date.parse(ru) / 1000),
     perFactory,
+    kuruV2: parseV2(j.kuruV2, book),
   };
+}
+
+/** The ladder and requote fields the V2 desk reads. Its wind-down is the series' (V1's stopAt), its mint cap the top
+ *  level's maxPairsTokens and its inventory cap maxBaseTokens, so maxNetTokens, maxPairsTokens and stopBeforeEndS are
+ *  refused under kuruV2 rather than silently ignored. */
+export const V2_BOOK_FIELDS = ["spreadBps", "levels", "levelStepTicks", "sizesTokens", "requoteMoveU", "replenishBelowPct", "staleS", "minRequoteS"] as const;
+
+/** kuruV2: { accountCore?, books: [{ market, series }], maxBaseTokens?, ...V2_BOOK_FIELDS } over the top-level book
+ *  (not perFactory) with V2_DEFAULTS' levels and sizes. */
+function parseV2(raw: unknown, top: BookConfig): V2Cfg | null {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== "object" || Array.isArray(raw)) throw new ConfigError("config: kuruV2 is not an object");
+  const j = raw as Record<string, unknown>;
+  const own = new Set(["accountCore", "books", "maxBaseTokens"]);
+  for (const k of Object.keys(j)) if (!own.has(k) && !(V2_BOOK_FIELDS as readonly string[]).includes(k)) throw new ConfigError(`config: unknown field kuruV2.${k}`);
+  const accountCore = (j.accountCore ?? KURU_V2_ACCOUNT_CORE) as string;
+  if (typeof accountCore !== "string" || !ADDRESS.test(accountCore)) throw new ConfigError("config: kuruV2.accountCore is not an address");
+  if (!Array.isArray(j.books) || j.books.length === 0) throw new ConfigError("config: kuruV2.books is not a list of { market, series }");
+  const books = j.books.map((b, i) => {
+    const x = b as Record<string, unknown>;
+    if (!x || typeof x !== "object" || typeof x.market !== "string" || !ADDRESS.test(x.market) || typeof x.series !== "string" || !ADDRESS.test(x.series)) throw new ConfigError(`config: kuruV2.books[${i}] needs a market and a series address`);
+    for (const k of Object.keys(x)) if (k !== "market" && k !== "series") throw new ConfigError(`config: unknown field kuruV2.books[${i}].${k}`);
+    return { market: x.market as Address, series: x.series as Address };
+  });
+  if (new Set(books.map((b) => b.market.toLowerCase())).size !== books.length) throw new ConfigError("config: kuruV2.books names a market twice");
+  const fields = Object.fromEntries(Object.entries(j).filter(([k]) => !own.has(k)));
+  const book = bookFields(fields, { ...top, sizesTokens: [...V2_DEFAULTS.sizesTokens], levels: V2_DEFAULTS.levels }, "kuruV2.");
+  const maxBaseTokens = num(j.maxBaseTokens ?? V2_DEFAULTS.maxBaseTokens, "kuruV2.maxBaseTokens", { min: 0 });
+  return { ...book, accountCore: accountCore as Address, books, maxBaseTokens };
 }
 
 /** The book fields for one factory: the top level with perFactory.<name> over it. */

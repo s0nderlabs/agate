@@ -6,6 +6,7 @@ import type { Address } from "viem";
 import { writeAtomic } from "@agate/watcher";
 import type { OwnOrder } from "./book.ts";
 import type { QuotedRec } from "./decide.ts";
+import type { V2Quoted } from "./v2.ts";
 
 export interface HeldSeries {
   series: Address;
@@ -46,6 +47,7 @@ export interface MmState {
   settled: string[]; // series dropped after settlement
   lastFair: Record<string, bigint>; // series -> its last fair value, for the mark when its index walk finds none (M-M4)
   identity?: MakerIdentity;
+  v2?: Record<string, V2Quoted>; // Kuru Spot V2 market (lowercase) -> its last requote (v2.ts)
 }
 
 export function emptyState(): MmState {

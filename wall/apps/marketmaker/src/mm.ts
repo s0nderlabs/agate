@@ -14,7 +14,7 @@ import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { type Abi, type Address, erc20Abi } from "viem";
 import { appendLine, RpcDown, writeAtomic } from "@agate/watcher";
-import { agateSeriesAbi, type Budget, type Deployments, type FactoryEntry, forcedDay, KURU_STATE, kuruMarginAccountAbi, kuruOrderBookAbi, type L2Book, LOT, type MarketReads, MAX_UINT256, type PreviewReads, type Sender, type SendResult, type SendSpec, type SeriesTerms, SIDE, type SpendGuard, U, VENUE, ZERO_ADDRESS as ZERO } from "@agate/market";
+import { agateSeriesAbi, type Budget, type Deployments, type FactoryEntry, forcedDay, KURU_STATE, kuruMarginAccountAbi, kuruOrderBookAbi, type L2Book, LOT, type MarketReads, MAX_UINT256, type PreviewReads, type Sender, type SendResult, type SendSpec, type SeriesTerms, SIDE, type SpendGuard, U, type V2Reads, VENUE, ZERO_ADDRESS as ZERO } from "@agate/market";
 import { othersBest, type OwnOrder, parseBatchLogs } from "./book.ts";
 import { bookConfig, type MmConfig, stopBeforeEnd } from "./config.ts";
 import { type Decision, decide, NEVER_QUOTED, order, type QuotedRec } from "./decide.ts";
@@ -22,6 +22,7 @@ import { FairBook, LAG_UNBOUNDED, type Pending } from "./fair.ts";
 import { exposure, type Inventory, markSeries, planDollars, planTokens, redeemable } from "./inventory.ts";
 import { type Band, clampCrossing, cutAsks, gate, type Ladder, ladderProblem, lockOf, targetLadder } from "./ladder.ts";
 import { emptyState, identityDiffers, makerIdentity, type MmState, StateFile } from "./state.ts";
+import { hasV2Reads, V2Desk, type V2Snap } from "./v2.ts";
 
 export const ROLE = "marketmaker";
 export const SCAN_BATCH = 500;
@@ -38,7 +39,7 @@ export interface Alerts {
 }
 
 export interface MmDeps {
-  reads: MarketReads & Partial<PreviewReads>;
+  reads: MarketReads & Partial<PreviewReads> & Partial<V2Reads>;
   sender: Sender;
   deployments: Deployments;
   config: MmConfig;
@@ -123,6 +124,10 @@ export class MarketMaker implements SpendGuard {
   private ctx: { t: number; balance: bigint } = { t: 0, balance: 0n };
   private initialized = false;
   private stopDaily = false;
+  /** the Kuru Spot V2 desk (config kuruV2), null without one */
+  readonly v2: V2Desk | null = null;
+  /** this tick's series, for the V2 desk's hold() */
+  private tickSeries: SeriesCtx[] = [];
   report: TickReport = { t: 0, value: null, pnl: null, killed: null, decisions: [], sends: [] };
 
   constructor(readonly d: MmDeps) {
@@ -144,6 +149,30 @@ export class MarketMaker implements SpendGuard {
     } else this.state = loaded ?? emptyState();
     this.state.identity = id;
     this.fair = new FairBook(d.reads);
+    const v2 = d.config.kuruV2;
+    if (v2) {
+      if (!hasV2Reads(d.reads)) throw new MakerConfigError("config kuruV2 needs Kuru Spot V2 reads, which these reads lack");
+      const reads = d.reads;
+      this.v2 = new V2Desk(v2, {
+        maker: d.sender.from,
+        reads,
+        dollar: d.deployments.dollar,
+        dir: d.dir,
+        send: (s) => this.send(s),
+        approve: (token, spender, safety) => this.approve(token, spender, safety),
+        hold: (series) => {
+          const s = this.tickSeries.find((x) => lc(x.series) === lc(series));
+          if (s) this.hold(s, null);
+        },
+        say: (event, data) => this.say(event, data ?? {}),
+        raise: (x) => d.alerts?.raise(x),
+        clear: (code, key) => d.alerts?.clearWhere((a) => a.code === code && a.id.endsWith(`:${lc(key)}`)),
+        state: () => this.state,
+        save: () => this.save(),
+        nowMs: d.nowMs,
+        budgetOut: () => this.budgetOut(),
+      });
+    }
   }
 
   get maker(): Address {
@@ -466,8 +495,15 @@ export class MarketMaker implements SpendGuard {
       markets.push(await this.marketCtx(m as Address, s, false));
     }
 
+    // the Kuru Spot V2 books (v2.ts): read once, counted in the mark, quoted after the V1 sends. A book the chain cannot
+    // read this tick (not the RPC) is left out with MM_V2_UNREADABLE and marked at its last holdings, so V1 keeps
+    // quoting and the loss limit neither trips on nor forgets what the V2 account holds.
+    this.tickSeries = series;
+    const v2snaps: V2Snap[] = this.v2 ? await this.v2.snapshot(series) : [];
+    const v2held = this.v2 ? this.v2.holdings(v2snaps) : { tokens: new Map<string, bigint>(), dollars: 0n };
+
     // mark and loss limit (3.8), kill switch
-    const value = this.mark(series, markets, walletD, marginD);
+    const value = this.mark(series, markets, walletD, marginD, v2held);
     let killReason = this.killReason();
     if (killReason === null && this.state.killed) {
       // the KILL file is gone: unkill. A cleared loss kill re-arms maxLossU under the value now (a person decided).
@@ -652,8 +688,13 @@ export class MarketMaker implements SpendGuard {
       if (urgent && !res.ok && !res.sent && res.error !== "stopping" && res.error !== "DRY_RUN") await this.cancelCrossed(p);
     }
 
+    // the V2 books, before the wind-down so a final series' tokens leave the V2 account and settle with the rest
+    if (this.v2 && v2snaps.length > 0) await this.v2.run(v2snaps, { t, killed: killReason, cancelAll, withdrawAll, oneShot: o.oneShot === true, walletD });
+    // what the V2 account still holds per series after that (last known for a book not read): never dropped while > 0
+    const v2left = this.v2 ? this.v2.holdings(v2snaps).tokens : new Map<string, bigint>();
+
     // wind-down and settlement (3.7)
-    await this.windDown(series, markets, t, withdrawAll && killReason !== null, floatLow);
+    await this.windDown(series, markets, t, withdrawAll && killReason !== null, floatLow, v2left);
     if (withdrawAll && killReason === null) this.say("withdraw_all_refused", { why: "the kill switch is off" });
 
     this.save();
@@ -694,11 +735,12 @@ export class MarketMaker implements SpendGuard {
   /** 3.8: wallet + margin dollars + the bids' locks + each series at its own fair. A series whose index walk finds no
    *  final value is marked at its last known fair, else at the worst case of [F, C], so the loss limit never stops for
    *  every book because one GPU's writers failed (M-M4); MM_MARK_FALLBACK (info) names it. */
-  private mark(series: readonly SeriesCtx[], markets: readonly MarketCtx[], walletD: bigint, marginD: bigint): bigint {
-    let v = walletD + marginD;
+  private mark(series: readonly SeriesCtx[], markets: readonly MarketCtx[], walletD: bigint, marginD: bigint, v2: { tokens: Map<string, bigint>; dollars: bigint }): bigint {
+    // V2: the account's tokens (free and resting asks) and its USDC (free, resting bids and the wallet's) count too
+    let v = walletD + marginD + v2.dollars;
     for (const m of markets) v += bidLock(m.orders);
     for (const s of series) {
-      const T = s.Tw + s.Tm + askTokens(markets.filter((m) => m.s === s).flatMap((m) => m.orders));
+      const T = s.Tw + s.Tm + askTokens(markets.filter((m) => m.s === s).flatMap((m) => m.orders)) + (v2.tokens.get(lc(s.series)) ?? 0n);
       const fallbackId = `:${lc(s.series)}`;
       if (T === 0n && s.Sh === 0n) {
         this.d.alerts?.clearWhere((a) => a.code === "MM_MARK_FALLBACK" && a.id.endsWith(fallbackId));
@@ -846,7 +888,7 @@ export class MarketMaker implements SpendGuard {
    *  pairs; once k == N settle both sides (not while the D1 hold applies); drop a series that holds nothing.
    *  withdraw-all (kill on) also withdraws every token and the dollar. Low dollars redeem idle pairs. Every step is a
    *  safety action. */
-  private async windDown(series: readonly SeriesCtx[], markets: readonly MarketCtx[], t: number, withdrawAll: boolean, floatLow: boolean): Promise<void> {
+  private async windDown(series: readonly SeriesCtx[], markets: readonly MarketCtx[], t: number, withdrawAll: boolean, floatLow: boolean, v2left: Map<string, bigint>): Promise<void> {
     for (const s of series) {
       const resting = markets.some((m) => m.s === s && m.orders.length > 0);
       const past = t >= s.stopAt;
@@ -888,7 +930,9 @@ export class MarketMaker implements SpendGuard {
           }
         }
       }
-      if (this.state.series[lc(s.series)] && final && !resting && s.Tw === 0n && s.Tm === 0n && s.Sh === 0n) {
+      // a series whose tokens still sit in the V2 account (its withdraw failed or is pending) stays held, so the V2 desk
+      // finds it again next tick and the mark keeps counting them
+      if (this.state.series[lc(s.series)] && final && !resting && s.Tw === 0n && s.Tm === 0n && s.Sh === 0n && (v2left.get(lc(s.series)) ?? 0n) === 0n) {
         delete this.state.series[lc(s.series)];
         delete this.state.lastFair[lc(s.series)];
         this.d.alerts?.clearWhere((a) => (a.code === "MM_FORCE_HELD" || a.code === "MM_MARK_FALLBACK") && a.id.endsWith(`:${lc(s.series)}`));

@@ -379,7 +379,11 @@ AGATE_MM_SESSION_UNTIL=<unix> AGATE_PAYER_SESSION_UNTIL=<unix> AGATE_KIT_ALCHEMY
 
 The maker keeps the stopped session's books and winds them down at each demo month's end (5 and 10 hours after the
 session began). After that (62 demo days and an hour from the session's start) `up.sh` points the shared maker's and
-payer's `AGATE_MM_CONFIG` / `AGATE_PAYER_CONFIG` at `ops/testnet/bots-real-only.json` (`{"factories":["real"]}`; both
+payer's `AGATE_MM_CONFIG` / `AGATE_PAYER_CONFIG` at `ops/testnet/bots-real-only.json` (`{"factories":["real"]}`; to
+quote a Kuru Spot V2 book too, give the maker a file of its own, the same plus
+`"kuruV2": {"books": [{"market": "<V2 book>", "series": "<series>"}]}`, point `AGATE_MM_CONFIG` at it and restart the
+maker's window: the payer refuses an unknown field, so never add kuruV2 to the shared file; see
+wall/apps/marketmaker/README.md "Kuru Spot V2"; both
 variables name a config FILE) unless the operator set them, so the next
 `ops/testnet/up.sh production --restart-shared` stops their MM_INDEX_BEHIND and LISTER_STUCK alerts about the demo
 index nothing writes any more (Oct 5); the next `start` gives them the demo factory again. A new session started

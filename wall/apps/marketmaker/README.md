@@ -108,6 +108,39 @@ Without them the `KILL` file only waits for the next start.
   chain or deployment (a fork rehearsal with the same `AGATE_WALL_HOME`, a testnet reset) is set aside as
   `state.stale-<ms>.json` and the maker starts as without one.
 
+## Kuru Spot V2 (`kuruV2`, Oct 10 2026)
+
+Kuru's Spot V2 lists a token only through Kuru's own governance (Kuru agreed on Oct 9 to list the November H100 token
+against its test USDC). Config `kuruV2` makes the same process and key quote such a book beside the V1 one, from the
+same fair value, band and ladder (`src/v2.ts`):
+
+```json
+{ "factories": ["real"], "kuruV2": { "books": [{ "market": "<V2 book>", "series": "<the series it trades>" }] } }
+```
+
+Optional fields: `accountCore` (default Kuru's testnet AccountCore `0xdbaa...8038`), `maxBaseTokens` (100: tokens the V2
+account may hold for one book; at the cap the bids close) and the ladder and requote fields `spreadBps`, `levels`,
+`levelStepTicks`, `sizesTokens`, `requoteMoveU`, `replenishBelowPct`, `staleS`, `minRequoteS` over the top level (not
+`perFactory`; the pilot's own defaults are two levels of 10 and 20 tokens). The wind-down time is the series' (V1's) and
+the mint stays inside the top level's `maxPairsTokens`, so `maxNetTokens`, `maxPairsTokens` and `stopBeforeEndS` are
+refused under `kuruV2`. What differs from V1:
+
+- **Funds sit in a V2 account.** Tokens for the asks come from the account, then the wallet, then a mint (the dollar's,
+  at the cap); the bids need Kuru's test USDC in the wallet (no public faucet: Kuru sends it). Both are deposited into
+  AccountCore before the batch.
+- **Slots, not ids.** One `batch` cancels every occupied slot and places the ladder, post-only GTC; the cancels run
+  first, so the slots are reused. The next tick adopts what the slots hold (a crossing order is skipped by Kuru), then a
+  slot losing its order or the market's locked reserves falling under `replenishBelowPct` count as fills.
+- **The same safety.** Kill, `cancel-all` and wind-down cancel the V2 book too (`cancelAllOrders`); a one-shot CLI tick
+  places nothing. The V2 account's tokens and USDC (and the USDC in the wallet) are in the loss limit's mark; a book the
+  chain cannot read raises `MM_V2_UNREADABLE` (action), sends nothing and is marked at its last holdings. A series the V2
+  desk mints or deposits for is held like a V1 one, and is not dropped while the V2 account still holds its tokens. A
+  final series' tokens are withdrawn to the wallet before the V1 wind-down settles them; `withdraw-all` (kill on) also
+  takes the USDC. A V2 withdrawal costs about 0.66 MON of gas on testnet (its withdrawal limiter), so it happens only then.
+- **Limits** (Monad estimates, Oct 10): deposit 269k gas, a batch of one placement 394k, one cancel and two placements
+  512k, `cancelAllOrders` 261k, withdraw 4.96M; the shapes `kuruV2.*` carry provisional ceilings in the LIMIT table.
+  An order must be worth at least the book's minimum notional (MON/USDC: $10) and under its fixed maximum price.
+
 ## Shared layer (`@agate/market`)
 
 The chain wiring is the shared layer in `wall/packages/market`, the same one the payer uses: the process bootstrap
