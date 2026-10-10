@@ -44,8 +44,9 @@ export interface Finished {
 
 interface Ctx {
   config: MockConfig;
-  /** save: false applies a theme without keeping it (one that arrived in a link) */
-  setConfig: (patch: Partial<MockConfig>, save?: boolean) => void;
+  /** save: false applies a theme without keeping it (one that arrived in a link); "system" also keeps it out of the
+   *  address and of links (a theme that follows the device's setting is the reader's device, never a choice to pass on) */
+  setConfig: (patch: Partial<MockConfig>, save?: boolean | "system") => void;
   wallet: Wallet;
   signIn: (email: string) => void;
   signOut: () => void;
@@ -62,6 +63,8 @@ interface Ctx {
   reset: () => void;
   /** how many times Reset was pressed on this page: what lives outside the wallet (pretend timers, the AI world) follows it */
   resets: number;
+  /** the theme follows the device's setting: links leave it out */
+  systemTheme: boolean;
 }
 
 const MockCtx = createContext<Ctx | null>(null);
@@ -94,6 +97,8 @@ export function MockProvider({ initial, children }: { initial: MockConfig; child
   const key = walletKey(config.source);
   const authNow = useRef(config.auth);
   authNow.current = config.auth;
+  // the theme in state follows the device's setting (set with save "system") rather than a pick or a link
+  const [systemTheme, setSystemTheme] = useState(false);
 
   useEffect(() => {
     const w = readWallet(key);
@@ -115,16 +120,17 @@ export function MockProvider({ initial, children }: { initial: MockConfig; child
   useEffect(() => {
     const url = new URL(window.location.href);
     (Object.keys(config) as (keyof MockConfig)[]).forEach((k) => {
-      if (config[k] === DEFAULT_CONFIG[k]) url.searchParams.delete(k);
+      if (config[k] === DEFAULT_CONFIG[k] || (k === "theme" && systemTheme)) url.searchParams.delete(k);
       else url.searchParams.set(k, String(config[k]));
     });
     if (url.href !== window.location.href) window.history.replaceState(null, "", url.toString());
-  }, [config]);
+  }, [config, systemTheme]);
 
-  const setConfig = useCallback((patch: Partial<MockConfig>, save = true) => {
+  const setConfig = useCallback((patch: Partial<MockConfig>, save: boolean | "system" = true) => {
     setConfigState((c) => ({ ...c, ...patch }));
+    if (patch.theme) setSystemTheme(save === "system");
     // the picked theme outlives a reload (the pages read this cookie, savedTheme.ts); a render-check tab never keeps one
-    if (patch.theme && save && !isCheckTab()) {
+    if (patch.theme && save === true && !isCheckTab()) {
       try {
         document.cookie = `${THEME_COOKIE}=${patch.theme}; path=/; max-age=31536000; samesite=lax`;
       } catch {}
@@ -204,8 +210,8 @@ export function MockProvider({ initial, children }: { initial: MockConfig; child
 
   const loadedFor = loadedKey === key ? config.source : null;
   const value = useMemo(
-    () => ({ config, setConfig, wallet, signIn, signOut, drip, open, shift, finish, finished, loadedFor, reset, resets }),
-    [config, setConfig, wallet, signIn, signOut, drip, open, shift, finish, finished, loadedFor, reset, resets],
+    () => ({ config, setConfig, wallet, signIn, signOut, drip, open, shift, finish, finished, loadedFor, reset, resets, systemTheme }),
+    [config, setConfig, wallet, signIn, signOut, drip, open, shift, finish, finished, loadedFor, reset, resets, systemTheme],
   );
   return <MockCtx.Provider value={value}>{children}</MockCtx.Provider>;
 }
@@ -256,10 +262,10 @@ export function useOpenOrders() {
 /** Query string for in-app links. The check-tab marker is read after mount, so the server and the first client
  * render agree (reading window during render caused a hydration mismatch on the nav links). */
 export function useLinkQuery() {
-  const { config } = useMock();
+  const { config, systemTheme } = useMock();
   const [check, setCheck] = useState(false);
   useEffect(() => {
     setCheck(isCheckTab());
   }, []);
-  return configQuery(config, check);
+  return configQuery(systemTheme ? { ...config, theme: DEFAULT_CONFIG.theme } : config, check);
 }

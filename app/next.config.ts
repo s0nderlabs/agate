@@ -2,8 +2,9 @@ import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // local render checks open the app at 127.0.0.1; without this Next blocks its dev scripts there
-  allowedDevOrigins: ["127.0.0.1"],
+  // local render checks open the app at 127.0.0.1; without this Next blocks its dev scripts there. AGATE_DEV_ORIGINS
+  // (a comma list, set in a local env file) adds more, such as a private network name for testing on a phone.
+  allowedDevOrigins: ["127.0.0.1", ...(process.env.AGATE_DEV_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean)],
   // the dev "N" indicator sat over the chart legend (Mock controls hold the other corner); compile and runtime errors
   // still show without it
   devIndicators: false,
@@ -12,12 +13,16 @@ const nextConfig: NextConfig = {
   // the Index page lives at /gpu-index: at /index, Next's client router took "/index" for "/" (Markets showed the Index
   // page and a Markets click did nothing). Old links still land on it. Oct 10: the site at the root, the app under /app; every
   // old app address (the server's /connect?request= and /approve?request= links, guides, bookmarks) lands on its new
-  // one with its query. They stay; "not permanent" only keeps browsers from caching them. ("/p/:rest*" matches "/p" too.)
+  // one with its query. They stay; "not permanent" only keeps browsers from caching them. A bare path has its own rule:
+  // "/p/:rest*" alone also matches "/p", but on Vercel it sends "/app/p/" and then strips the slash (two hops).
   async redirects() {
     return [
       { source: "/index", destination: "/app/gpu-index", permanent: false },
       { source: "/landing", destination: "/", permanent: false },
-      ...["positions", "gpu-index", "ai", "connect", "approve"].map((p) => ({ source: `/${p}/:rest*`, destination: `/app/${p}/:rest*`, permanent: false })),
+      ...["positions", "gpu-index", "ai", "connect", "approve"].flatMap((p) => [
+        { source: `/${p}`, destination: `/app/${p}`, permanent: false },
+        { source: `/${p}/:rest+`, destination: `/app/${p}/:rest+`, permanent: false },
+      ]),
     ];
   },
   // the developer API (docs/site/08-api.md) at the app's own address: /api/v1/... is agate's server's /v1/..., proxied

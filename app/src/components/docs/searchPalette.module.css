@@ -1,0 +1,348 @@
+/* The docs search: the button drawn as a field, and the dialog. The app's tokens only (the docs frame sets the tone, so
+   both themes follow), square corners, hairlines; the one drop shadow is the dialog's, as an overlay. Nothing under
+   15 px. Desktop: a box near the top of the screen. Phones (below 760 px): a full-width sheet over the whole screen. */
+
+/* ---------- the button that opens it ---------- */
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 40px;
+  padding: 0 9px 0 12px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--mute-text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    box-shadow 0.15s ease,
+    color 0.15s ease;
+}
+.lens {
+  flex: none;
+  color: var(--mute);
+}
+.label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* the "/" hint, for a keyboard and mouse only */
+.key {
+  display: none;
+  flex: none;
+  min-width: 22px;
+  height: 24px;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1;
+  color: var(--mute-text);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  border-radius: var(--r-1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .key {
+    display: grid;
+  }
+  .trigger:hover {
+    color: var(--ink-2);
+    box-shadow: inset 0 0 0 1px var(--line-2);
+  }
+}
+.trigger:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 0;
+}
+@media (pointer: coarse) {
+  .trigger {
+    height: 44px;
+  }
+}
+
+/* ---------- the dialog ---------- */
+.dialog {
+  position: fixed;
+  inset: 12vh 0 auto;
+  width: min(640px, calc(100% - 32px));
+  max-width: none;
+  max-height: min(72vh, 640px);
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: var(--card);
+  color: var(--ink);
+  font-feature-settings: "lnum";
+  font-variant-numeric: lining-nums;
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    0 28px 70px -24px rgb(0 0 0 / 0.42);
+  overflow: hidden;
+}
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.dialog::backdrop {
+  background: rgb(15 15 16 / 0.36);
+}
+:global(html):has(.dialog[open]) {
+  overflow: hidden;
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dialog[open] {
+    animation: enter 170ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .dialog[open]::backdrop {
+    animation: fade 170ms ease;
+  }
+}
+.box {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* the field */
+.field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  padding: 0 10px 0 18px;
+  box-shadow: inset 0 -1px 0 var(--line);
+  transition: box-shadow 0.15s ease;
+}
+.field:focus-within {
+  box-shadow: inset 0 -1px 0 var(--ink-2);
+}
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 58px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 18px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.input::placeholder {
+  color: var(--mute-text);
+  opacity: 1;
+}
+.close {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--mute-text);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.closeWord {
+  display: none;
+}
+.close:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .close:hover {
+    color: var(--ink);
+  }
+}
+/* a touch screen has no Esc key: the button says what it does, at a finger's size */
+@media (pointer: coarse) {
+  .close {
+    height: 44px;
+    padding: 0 10px;
+    box-shadow: none;
+    font-family: inherit;
+    font-size: 16px;
+    color: var(--ink);
+  }
+  .closeKey {
+    display: none;
+  }
+  .closeWord {
+    display: inline;
+  }
+}
+
+/* the list */
+.list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+  scroll-padding: 6px;
+  padding: 6px;
+}
+.group + .group {
+  margin-top: 6px;
+}
+.groupName {
+  padding: 12px 12px 6px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--mute-text);
+}
+.option {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: var(--r-1);
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* the selection: the well, and the ink rail the chapter list uses for the current page */
+.option[aria-selected="true"] {
+  background: var(--well);
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+.name {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.chapter {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.sep {
+  margin: 0 7px;
+  color: var(--mute-text);
+  font-weight: 400;
+}
+.snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--mute-text);
+  overflow-wrap: anywhere;
+}
+/* what matched: a quiet tint of the ink, in either theme */
+.mark {
+  background: var(--line-2);
+  color: var(--ink);
+  border-radius: var(--r-1);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* nothing found */
+.none {
+  display: grid;
+  gap: 8px;
+  padding: 16px 12px 18px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.none p:first-child {
+  color: var(--ink);
+}
+.none a,
+.note a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.none a:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .none a:hover {
+    text-decoration-color: currentColor;
+  }
+}
+.note {
+  margin: 6px 12px 8px;
+  padding-top: 10px;
+  box-shadow: inset 0 1px 0 var(--line);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--mute-text);
+}
+
+@media (pointer: coarse) {
+  .option {
+    min-height: 44px;
+  }
+}
+
+/* ---------- phones: a sheet over the whole screen, the field at the top ---------- */
+@media (max-width: 759.98px) {
+  .dialog {
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .field {
+    padding: env(safe-area-inset-top) max(6px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  }
+  .input {
+    height: 56px;
+  }
+  .list {
+    padding: 6px max(6px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+  }
+}
+@media (max-width: 759.98px) and (prefers-reduced-motion: no-preference) {
+  .dialog[open] {
+    animation: fade 170ms ease;
+  }
+}

@@ -37,6 +37,8 @@
 .end { display: flex; align-items: center; gap: 16px; }
 .links a { color: inherit; text-decoration: none; font-size: 16px; opacity: .72; transition: opacity .3s var(--ease); }
 .links a:hover { opacity: 1; }
+/* the page the bar is on (the site's pages): at full strength, as a hovered link */
+.links a[aria-current="page"] { opacity: 1; }
 .navCta {
   font-size: 16px; font-weight: 500; text-decoration: none; color: var(--h-cta-ink); background: var(--h-cta-bg);
   box-sizing: border-box; height: 40px; display: inline-flex; align-items: center;

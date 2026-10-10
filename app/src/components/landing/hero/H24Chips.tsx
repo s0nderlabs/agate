@@ -551,7 +551,7 @@ export function H24Chips({ look = "real", layout = "solo" }: { look?: ChipLook; 
     // ticks; the chip powering on
     let open = 0, cur = 0, hiR = 0, loR = 0, way = -1, ticks = 0, tickMax = 0;
     let phase: "rest" | "glide" | "tick" = "rest", tl = 0, tLast = performance.now(), glide = 0;
-    let fadeR = -10, fadeA = 1, fading = false, shifted = false, drawnAt = 0, formed = false;
+    let fadeR = -10, fadeA = 1, fading = false, shifted = false, formed = false;
     // today's day in its place: rows a to b, rising or falling by its way from the open
     const setDay = (a: number, b: number) => {
       const top = Math.min(a, b), rows = Math.abs(a - b) + 1;
@@ -629,6 +629,20 @@ export function H24Chips({ look = "real", layout = "solo" }: { look?: ChipLook; 
       stepTape(dt);
     };
 
+    // ?fps=1: the frames actually drawn each second, shown in a corner (a measuring aid, never on by default)
+    let drawn = 0, probe: HTMLDivElement | null = null, probeTimer = 0;
+    if (new URLSearchParams(window.location.search).get("fps") === "1") {
+      probe = document.createElement("div");
+      probe.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:9999;padding:6px 10px;font:500 15px/1.2 ui-monospace,monospace;background:#17171a;color:#f6f5f1;border-radius:2px;pointer-events:none";
+      document.body.appendChild(probe);
+      let t0 = performance.now();
+      probeTimer = window.setInterval(() => {
+        const now = performance.now();
+        if (probe) probe.textContent = `${Math.round((drawn * 1000) / (now - t0))} fps drawn`;
+        [drawn, t0] = [0, now];
+      }, 1000);
+    }
+
     let stop = () => {};
     let gone = false;
     const start = () => {
@@ -636,7 +650,9 @@ export function H24Chips({ look = "real", layout = "solo" }: { look?: ChipLook; 
       stop = runShader(c, {
         frag: frag(tape ? C.n + 1 : C.n),
         still,
-        dprMax: 1.25,
+        // sharp on a Retina screen (a soft canvas steps pixel to pixel as the board glides), within a pixel budget: a
+        // laptop gets 2x, a large external screen steps down toward the old 1.25x, a phone keeps 1.5x
+        dprMax: Math.max(1, Math.min(window.innerWidth < 760 ? 1.5 : 2, Math.sqrt(6e6 / Math.max(1, c.clientWidth * c.clientHeight)))),
         setup: (gl, _p, U) => {
           gl.uniform2f(U("uFL"), FCX, FCY);
           gl.uniform4fv(U("uC"), tape ? days : C.cand);
@@ -644,17 +660,13 @@ export function H24Chips({ look = "real", layout = "solo" }: { look?: ChipLook; 
         },
         idle: () => {
           tapeTick(performance.now());
-          // (at most 60 frames a second while the tape moves, whatever the screen)
-          if (moving()) {
-            const now = performance.now();
-            if (!shifted && now - drawnAt < 1000 / 60 - 2) return true;
-            drawnAt = now;
-            return false;
-          }
+          // (while the tape moves, every frame the screen shows: 120 a second on a 120 Hz screen)
+          if (moving()) return false;
           if (shifted) return false;
           return film >= END && drawnLight === light.current && drawnWick === wick.current && drawnMono === mono.current && drawnInk === ink.current && drawnFade === fade.current && drawnCut === cut.current && drawnWords === wordsAt.current;
         },
         frame: (gl, U, _t, w, h) => {
+          drawn++;
           drawnLight = light.current;
           drawnWick = wick.current;
           drawnMono = mono.current;
@@ -846,6 +858,8 @@ export function H24Chips({ look = "real", layout = "solo" }: { look?: ChipLook; 
     return () => {
       gone = true;
       stop();
+      window.clearInterval(probeTimer);
+      probe?.remove();
       Object.assign(heroView, { sc: 0, k: -1, r: -1, ready: false });
       window.removeEventListener("wheel", skip);
       window.removeEventListener("keydown", skip);

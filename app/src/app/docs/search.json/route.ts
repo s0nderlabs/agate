@@ -1,9 +1,10 @@
-import { getSearchIndex } from "@/lib/docs/content";
+import { getChapters } from "@/lib/docs/content";
+import { buildSearchIndex } from "@/lib/docs/search";
 
-// The docs search's index (every chapter's title, description, headings and text), written at build and fetched by
-// the browser the first time someone searches.
+// The docs search's index: one entry per chapter and one per H2 and H3 section, each text cut near 600 characters.
+// Written at build (force-static) and fetched by the browser the first time someone opens the search.
 export const dynamic = "force-static";
 
 export function GET() {
-  return Response.json(getSearchIndex());
+  return Response.json(buildSearchIndex(getChapters()));
 }

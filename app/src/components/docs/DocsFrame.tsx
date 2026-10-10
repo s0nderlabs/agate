@@ -1,17 +1,23 @@
 "use client";
-// The docs' frame, kept across chapters (the /docs layout): the app's top bar, then on a chapter the groups and
-// chapters on the left with the search, and the page. Below 760 px the left column leaves for a Contents button that
-// opens the same list as a sheet. The pages are static, so the saved theme and a link's mock states are applied here
-// in the browser: an inline script paints the saved theme before the first frame, then the store takes it over.
-import { usePathname, useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+// The docs' frame, kept across chapters (the /docs layout): the site's top bar, then on a chapter the groups and
+// chapters on the left under the search button, and the page. Below 760 px the left column leaves for a Contents
+// button that opens the same list as a sheet. The search itself is a dialog (SearchPalette).
+// The pages are static, so the theme and a link's mock states are applied here in the browser. The theme is the
+// link's, else the reader's saved pick, else the reader's system setting: an inline script paints it before the first
+// frame, then the store takes it over. A theme that comes from the system is applied without being saved and keeps
+// following the system until the reader picks one with the switch (that pick is saved, as on every page).
+import { usePathname } from "next/navigation";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useScreenTheme } from "@/components/ai/AisScreen";
 import { BottomDock } from "@/components/shell/Dock";
 import { NavBar } from "@/components/shell/Shell";
+import { SiteBar } from "@/components/site/SiteBar";
 import type { NavGroup } from "@/lib/docs/types";
-import { parseConfig, THEME_COOKIE, type MockConfig } from "@/lib/mock/config";
-import { useLinkQuery, useMock } from "@/lib/mock/store";
-import { ChapterList, docHref, SearchField, useDocSearch } from "./ChapterList";
+import { groundFor, parseConfig, THEME_COOKIE, type MockConfig } from "@/lib/mock/config";
+import { useMock } from "@/lib/mock/store";
+import { ChapterList } from "./ChapterList";
+import { DocsFooter } from "./DocsFooter";
+import { SearchButton, SearchPalette } from "./SearchPalette";
 import s from "./docs.module.css";
 
 const NavCtx = createContext<NavGroup[]>([]);
@@ -19,9 +25,13 @@ export function useDocsNav() {
   return useContext(NavCtx);
 }
 
-// Runs while the HTML is parsed, before the first paint: the saved theme (or the link's) on the frame and the page
-// ground. React then hydrates over it (suppressHydrationWarning on the frame) and the store catches up below.
-const PREPAINT = `(function(){try{var e=document.currentScript&&document.currentScript.parentElement;if(!e)return;var q=new URLSearchParams(location.search).get("theme");var m=document.cookie.match(/(?:^|;\\s*)${THEME_COOKIE}=(light|dark)/);var t=q==="light"||q==="dark"?q:m?m[1]:null;if(t==="dark"){e.classList.remove("tone-light");e.classList.add("tone-dark");document.documentElement.style.background="#141413";}}catch(_){}})();`;
+type Theme = MockConfig["theme"];
+const isTheme = (v: unknown): v is Theme => v === "light" || v === "dark";
+const DARK_QUERY = "(prefers-color-scheme: dark)";
+
+// Runs while the HTML is parsed, before the first paint: the theme on the frame and the page ground. React then
+// hydrates over it (suppressHydrationWarning on the frame) and the store catches up below.
+const PREPAINT = `(function(){try{var e=document.currentScript&&document.currentScript.parentElement;if(!e)return;var q=new URLSearchParams(location.search).get("theme");if(q!=="light"&&q!=="dark")q=null;var m=document.cookie.match(/(?:^|;\\s*)${THEME_COOKIE}=(light|dark)/);var t=q||(m?m[1]:null);if(!t&&window.matchMedia&&matchMedia("${DARK_QUERY}").matches)t="dark";if(t==="dark"){e.classList.remove("tone-light");e.classList.add("tone-dark");document.documentElement.style.background="${groundFor({ theme: "dark" })}";}}catch(_){}})();`;
 
 const noSubscribe = () => () => {};
 /** True on the server and while hydrating, false for a page the browser renders on its own (a client navigation), so
@@ -34,12 +44,20 @@ function useServerHtml() {
   );
 }
 
-function readThemeCookie() {
+function readThemeCookie(): Theme | null {
   try {
     const m = new RegExp(`(?:^|;\\s*)${THEME_COOKIE}=(light|dark)`).exec(document.cookie);
-    return m ? (m[1] as "light" | "dark") : null;
+    return m ? (m[1] as Theme) : null;
   } catch {
     return null;
+  }
+}
+
+function systemTheme(): Theme {
+  try {
+    return window.matchMedia(DARK_QUERY).matches ? "dark" : "light";
+  } catch {
+    return "light";
   }
 }
 
@@ -55,50 +73,65 @@ export function DocsFrame({ nav, children }: { nav: NavGroup[]; children: React.
   const serverHtml = useServerHtml();
   const pathname = usePathname();
   const slug = slugOf(pathname);
-  const router = useRouter();
-  const linkQuery = useLinkQuery();
-  const [query, setQuery] = useState("");
-  const hits = useDocSearch(query, nav);
   const sheet = useRef<HTMLDialogElement>(null);
+  const contents = useRef<HTMLButtonElement>(null);
   const side = useRef<HTMLElement>(null);
+  /** the theme applied from the system, while the frame follows it (null once a theme was picked or came in a link) */
+  const following = useRef<Theme | null>(null);
+  const lastTheme = useRef(config.theme);
 
-  // the theme picked before (the cookie the store writes) and the link's mock states, as the server pages read them
+  // on arrival: the link's mock states and its theme, else the saved pick, else the system's
   useLayoutEffect(() => {
     const q: Record<string, string> = {};
     new URLSearchParams(window.location.search).forEach((v, k) => (q[k] = v));
-    if (q.theme === undefined) {
-      const saved = readThemeCookie();
+    const saved = readThemeCookie();
+    let system: Theme | null = null;
+    if (!isTheme(q.theme)) {
       if (saved) q.theme = saved;
+      else q.theme = system = systemTheme();
     }
+    following.current = system;
     const want = parseConfig(q);
     const patch: Partial<MockConfig> = {};
     (Object.keys(want) as (keyof MockConfig)[]).forEach((k) => {
       if (want[k] !== config[k]) Object.assign(patch, { [k]: want[k] });
     });
-    // applied, never saved: a link's theme is the sender's, and only the reader's own pick is kept (as on app pages)
-    if (Object.keys(patch).length) setConfig(patch, false);
-    // once, on arrival: later changes come from the controls themselves
+    // applied, never saved: a link's theme is the sender's and the system's is the device's (kept out of the address
+    // and of links too); only the reader's own pick is kept (as on app pages)
+    if (Object.keys(patch).length || system) setConfig(patch, system ? "system" : false);
+    // once, on arrival: later changes come from the controls themselves and the system listener below
   }, []);
 
-  // "/" goes to the search: the one on screen, or (on a phone) the Contents sheet's
+  // the system setting changes (an evening schedule, or by hand in the device's settings): followed until a theme is
+  // picked
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
-      const t = e.target as HTMLElement | null;
-      if (t?.closest("input, textarea, select, [contenteditable='true']")) return;
-      const field = Array.from(document.querySelectorAll<HTMLInputElement>("input[data-docs-search]")).find((el) => el.offsetParent !== null);
-      e.preventDefault();
-      if (field) {
-        field.focus();
-        field.select();
-      } else if (sheet.current && !sheet.current.open) {
-        sheet.current.showModal();
-        sheet.current.querySelector<HTMLInputElement>("input[data-docs-search]")?.focus();
+    let mq: MediaQueryList;
+    try {
+      mq = window.matchMedia(DARK_QUERY);
+    } catch {
+      return;
+    }
+    const onChange = () => {
+      if (!following.current) return;
+      // picked in another tab meanwhile: that pick holds here too
+      if (readThemeCookie()) {
+        following.current = null;
+        return;
       }
+      const next: Theme = mq.matches ? "dark" : "light";
+      following.current = next;
+      setConfig({ theme: next }, "system");
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [setConfig]);
+
+  // any other change of theme (the switch, Mock controls) is a pick: the system is no longer followed
+  useEffect(() => {
+    if (lastTheme.current === config.theme) return;
+    lastTheme.current = config.theme;
+    if (following.current && config.theme !== following.current) following.current = null;
+  }, [config.theme]);
 
   // a new chapter: the sheet closes, and the left column brings the chapter into view if it sits out of sight
   useEffect(() => {
@@ -111,26 +144,22 @@ export function DocsFrame({ nav, children }: { nav: NavGroup[]; children: React.
   }, [pathname]);
 
   const current = useMemo(() => nav.flatMap((g) => g.chapters).find((c) => c.slug === slug) ?? null, [nav, slug]);
-  const goFirst = () => {
-    const h = hits?.[0];
-    if (h) router.push(docHref(h.slug, h.hint?.id, linkQuery));
-  };
   const closeSheet = () => sheet.current?.close();
 
   return (
     <NavCtx.Provider value={nav}>
       <div className={`${s.screen} ${tone}`} data-phone={config.phone} suppressHydrationWarning>
         {serverHtml && <script dangerouslySetInnerHTML={{ __html: PREPAINT }} />}
-        <NavBar active="docs" site />
+        {config.siteNav === "before" ? <NavBar active="docs" site /> : <SiteBar current="docs" />}
         {slug ? (
           <div className={s.frame}>
             <aside className={s.side} ref={side} aria-label="Docs">
-              <SearchField value={query} onChange={setQuery} onEnter={goFirst} />
-              <ChapterList nav={nav} current={slug} query={query} hits={hits} />
+              <SearchButton />
+              <ChapterList nav={nav} current={slug} />
             </aside>
             {/* phones: the list behind one button, under the top bar */}
             <div className={s.bar}>
-              <button type="button" className={s.barBtn} aria-haspopup="dialog" onClick={() => sheet.current?.showModal()}>
+              <button type="button" ref={contents} className={s.barBtn} aria-haspopup="dialog" onClick={() => sheet.current?.showModal()}>
                 <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
                   <path d="M3 5.5h14M3 10h14M3 14.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
                 </svg>
@@ -157,10 +186,11 @@ export function DocsFrame({ nav, children }: { nav: NavGroup[]; children: React.
                   </button>
                 </div>
                 <div className={s.sheetSearch}>
-                  <SearchField value={query} onChange={setQuery} onEnter={goFirst} />
+                  {/* the search takes the whole screen on a phone: the sheet steps aside, and focus comes back to Contents */}
+                  <SearchButton beforeOpen={closeSheet} returnTo={() => contents.current} />
                 </div>
                 <div className={s.sheetBody}>
-                  <ChapterList nav={nav} current={slug} query={query} hits={hits} onGo={closeSheet} />
+                  <ChapterList nav={nav} current={slug} onGo={closeSheet} />
                 </div>
               </div>
             </dialog>
@@ -169,7 +199,10 @@ export function DocsFrame({ nav, children }: { nav: NavGroup[]; children: React.
         ) : (
           children
         )}
-        {config.phone === "new" && <BottomDock active={null} />}
+        <DocsFooter />
+        <SearchPalette nav={nav} />
+        {/* the app's bottom tabs belong to the app: only under the app's bar (before) */}
+        {config.phone === "new" && config.siteNav === "before" && <BottomDock active={null} />}
       </div>
     </NavCtx.Provider>
   );

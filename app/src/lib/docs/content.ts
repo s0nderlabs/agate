@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { chapterMeta, parseFrontmatter, renderChapter, rewriteMarkdownLinks, type FileMap } from "./markdown";
-import { GROUPS, SITE, type ChapterMeta, type Heading, type NavGroup, type SearchDoc, type Section } from "./types";
+import { GROUPS, SITE, type ChapterMeta, type Heading, type NavGroup, type Section } from "./types";
 
 /** next build and next dev run from app/; the content sits beside it at the repo root. */
 const DIR = path.join(process.cwd(), "..", "docs", "site");
@@ -67,11 +67,6 @@ export function getNav(): NavGroup[] {
       .filter((c) => c.group === group)
       .map((c) => ({ slug: c.slug, title: c.title, description: c.description, sections: c.toc.filter((h) => h.depth === 2).map(({ id, text }) => ({ id, text })) })),
   })).filter((g) => g.chapters.length > 0);
-}
-
-/** The search index the browser fetches once (/docs/search.json). */
-export function getSearchIndex(): SearchDoc[] {
-  return getChapters().map((c) => ({ slug: c.slug, title: c.title, description: c.description, sections: c.sections }));
 }
 
 /** /llms.txt: what the docs hold, one line per chapter, grouped (llmstxt.org). */

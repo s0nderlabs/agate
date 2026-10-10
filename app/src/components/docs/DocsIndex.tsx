@@ -1,21 +1,28 @@
 "use client";
-// /docs: the contents, from each chapter's frontmatter. The five groups in reading order, each chapter as its name and
-// its one-line description; the search above filters the same list in place.
+// /docs: the contents, from each chapter's frontmatter. The search button, the four ways in, then the five groups in
+// reading order, each chapter as its name and its one-line description. The button opens the search dialog
+// (SearchPalette), which searches every section.
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { useLinkQuery } from "@/lib/mock/store";
-import { docHref, Lit, SearchField, useDocSearch } from "./ChapterList";
+import { useLinkQuery, useMock } from "@/lib/mock/store";
+import { docHref } from "./ChapterList";
 import { useDocsNav } from "./DocsFrame";
+import { SearchButton } from "./SearchPalette";
 import s from "./docs.module.css";
 
+/** The four ways in, each the chapter that starts it (the lead names them: the app, an AI, the API, the SDK). */
+const WAYS = [
+  { slug: "quickstart", title: "Trade in the app", line: "Sign in with email, Google or a passkey, then go Long or Short. Three minutes, no wallet.", go: "Quickstart" },
+  { slug: "connect-an-ai", title: "Let your AI trade", line: "Add Agate to any AI app that takes an MCP server. It trades from a budget you set.", go: "Connect an AI" },
+  { slug: "api", title: "Read the price", line: "One request, no key: today's price of every GPU and each cloud's own price behind it.", go: "Developer API" },
+  { slug: "sdk", title: "Build on it", line: "The TypeScript library the app runs on, and the price as a feed onchain.", go: "SDK" },
+] as const;
+
+const groupId = (g: string) => `group-${g.toLowerCase().replace(/\s+/g, "-")}`;
+
 export function DocsIndex() {
+  const { config } = useMock();
   const nav = useDocsNav();
-  const router = useRouter();
   const linkQuery = useLinkQuery();
-  const [query, setQuery] = useState("");
-  const hits = useDocSearch(query, nav);
-  const chapters = new Map(nav.flatMap((g) => g.chapters).map((c) => [c.slug, c]));
 
   return (
     <main className={s.home}>
@@ -24,57 +31,36 @@ export function DocsIndex() {
         <p className={s.lead}>How the price of a GPU-hour is made, how its monthly market works, and every way in: the app, an AI, the API, the SDK and the contracts.</p>
       </header>
       <div className={s.homeSearch}>
-        <SearchField
-          value={query}
-          onChange={setQuery}
-          onEnter={() => {
-            const h = hits?.[0];
-            if (h) router.push(docHref(h.slug, h.hint?.id, linkQuery));
-          }}
-        />
+        <SearchButton />
       </div>
-      {hits ? (
-        <section className={s.homeGroup} aria-label="Search results">
-          <p className="sr-only" role="status">
-            {hits.length === 1 ? "1 page" : `${hits.length} pages`}
-          </p>
-          {hits.length ? (
-            <ul className={s.entries}>
-              {hits.map((h) => {
-                const c = chapters.get(h.slug);
-                return (
-                  <li key={h.slug}>
-                    <Link className={s.entry} href={docHref(h.slug, h.hint?.id, linkQuery)}>
-                      <b>{c?.title}</b>
-                      <span>{h.hint ? <Lit text={h.hint.text} query={query} /> : c?.description}</span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className={s.none}>No pages match &ldquo;{query.trim()}&rdquo;.</p>
-          )}
-        </section>
-      ) : (
-        nav.map((g) => (
-          <section key={g.group} className={s.homeGroup} aria-labelledby={`group-${g.group.toLowerCase().replace(/\s+/g, "-")}`}>
-            <h2 className={s.homeGroupName} id={`group-${g.group.toLowerCase().replace(/\s+/g, "-")}`}>
-              {g.group}
-            </h2>
-            <ul className={s.entries}>
-              {g.chapters.map((c) => (
-                <li key={c.slug}>
-                  <Link className={s.entry} href={docHref(c.slug, null, linkQuery)}>
-                    <b>{c.title}</b>
-                    <span>{c.description}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
+      {config.docsHome === "ways" && (
+        <nav className={s.ways} aria-label="Ways in">
+          {WAYS.map((w) => (
+            <Link key={w.slug} className={s.way} href={docHref(w.slug, null, linkQuery)}>
+              <b>{w.title}</b>
+              <span>{w.line}</span>
+              <i>{w.go}</i>
+            </Link>
+          ))}
+        </nav>
       )}
+      {nav.map((g) => (
+        <section key={g.group} className={s.homeGroup} aria-labelledby={groupId(g.group)}>
+          <h2 className={s.homeGroupName} id={groupId(g.group)}>
+            {g.group}
+          </h2>
+          <ul className={s.entries}>
+            {g.chapters.map((c) => (
+              <li key={c.slug}>
+                <Link className={s.entry} href={docHref(c.slug, null, linkQuery)}>
+                  <b>{c.title}</b>
+                  <span>{c.description}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
       <p className={s.agents}>
         For AI agents: <a href="/llms.txt">llms.txt</a> lists every page, <a href="/llms-full.txt">llms-full.txt</a> holds them all as markdown, and each page has a View as Markdown link.
       </p>

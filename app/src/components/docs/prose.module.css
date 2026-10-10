@@ -1,0 +1,395 @@
+/* The docs' rich text, layered on the base prose rules in docs.module.css: highlighted code blocks with a header row
+   and Copy, callouts, a link beside each H2 and H3 (and a brief tint on the one a #link lands on), an arrow on links
+   that leave the docs, and framed tables. Every color is the app's tokens (or a mix of two of them), so the dark tone
+   (.tone-dark on the docs root) turns the whole of it over at once. Square corners, hairlines, nothing under 15 px.
+   The HTML comes from the markdown at build time, so its class names are global here. */
+
+.prose {
+  /* the code's colors: mostly ink; keywords a step quieter, comments muted, strings and numbers in one quiet accent
+     (the up green deepened toward ink). Every pair reads at 4.5:1 or more on the code ground in both tones. */
+  --code-accent: color-mix(in oklab, var(--up) 80%, var(--ink));
+  --shiki-foreground: var(--ink);
+  --shiki-background: var(--well);
+  --shiki-token-keyword: var(--ink-2);
+  --shiki-token-comment: var(--mute-text);
+  --shiki-token-string: var(--code-accent);
+  --shiki-token-string-expression: var(--code-accent);
+  --shiki-token-constant: var(--code-accent);
+  --shiki-token-function: var(--ink);
+  --shiki-token-parameter: var(--ink);
+  --shiki-token-punctuation: var(--ink-2);
+  --shiki-token-link: var(--ink);
+  --shiki-token-inserted: var(--up);
+  --shiki-token-deleted: var(--down);
+  --shiki-token-changed: var(--ink-2);
+  font-variant-numeric: lining-nums;
+}
+/* on the dark ground the accent leans toward the softer ink, so it stays quiet rather than bright */
+:global(.tone-dark) .prose {
+  --code-accent: color-mix(in oklab, var(--up) 76%, var(--ink-2));
+}
+
+/* ---------- code blocks: a header row (language or file name, Copy), then the code ---------- */
+.prose :global(figure.code) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 4px 0 22px;
+  background: var(--shiki-background);
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+  color: var(--shiki-foreground);
+}
+.prose :global(figure.code) > figcaption {
+  grid-row: 1;
+  grid-column: 1;
+  min-width: 0;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--mute-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prose :global(figure.code) > figcaption[data-title] {
+  font-family: var(--mono);
+  color: var(--ink-2);
+}
+.prose :global(figure.code) > :global(button.copy) {
+  grid-row: 1;
+  grid-column: 2;
+  display: inline-grid;
+  align-items: center;
+  justify-items: end;
+  min-width: 44px;
+  min-height: 41px;
+  margin: 0;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0 var(--r-1) 0 0;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--ink-2);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* both labels share one cell, so the button keeps its width when "Copy" turns to "Copied" */
+.prose :global(button.copy) > span {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.prose :global(button.copy) svg {
+  flex: none;
+}
+.prose :global(button.copy) > :global(.copy-done),
+.prose :global(button.copy[data-state="copied"]) > :global(.copy-idle) {
+  visibility: hidden;
+}
+.prose :global(button.copy[data-state="copied"]) > :global(.copy-done) {
+  visibility: visible;
+}
+.prose :global(button.copy[data-state="copied"]) {
+  color: var(--ink);
+}
+.prose :global(button.copy):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .prose :global(button.copy):hover {
+    color: var(--ink);
+    background: var(--line);
+  }
+}
+/* the code itself: the base rules give it the monospace, 15 px and its own sideways scroll; here it loses its own
+   frame (the figure draws it) */
+.prose :global(figure.code) > pre {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin: 0;
+  padding: 14px 16px 16px;
+  background: none;
+  box-shadow: none;
+  border-radius: 0 0 var(--r-1) var(--r-1);
+  color: inherit;
+}
+.prose :global(figure.code) > pre:focus-visible {
+  outline-offset: -2px;
+}
+/* a shell transcript: the prompt is drawn but never selected or copied; the output reads a step quieter */
+.prose :global(figure.code .prompt) {
+  color: var(--mute-text);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.prose :global(figure.code .out) {
+  color: var(--ink-2);
+}
+.prose :global(figure.code .tk-keyword) {
+  color: var(--shiki-token-keyword);
+  font-weight: 500;
+}
+.prose :global(figure.code .tk-comment) {
+  color: var(--shiki-token-comment);
+  font-style: italic;
+}
+.prose :global(figure.code .tk-string) {
+  color: var(--shiki-token-string);
+}
+.prose :global(figure.code .tk-string-expression) {
+  color: var(--shiki-token-string-expression);
+}
+.prose :global(figure.code .tk-constant) {
+  color: var(--shiki-token-constant);
+}
+.prose :global(figure.code .tk-function) {
+  color: var(--shiki-token-function);
+}
+.prose :global(figure.code .tk-parameter) {
+  color: var(--shiki-token-parameter);
+}
+.prose :global(figure.code .tk-punctuation) {
+  color: var(--shiki-token-punctuation);
+}
+.prose :global(figure.code .tk-link) {
+  color: var(--shiki-token-link);
+}
+.prose :global(figure.code .tk-inserted) {
+  color: var(--shiki-token-inserted);
+}
+.prose :global(figure.code .tk-deleted) {
+  color: var(--shiki-token-deleted);
+}
+.prose :global(figure.code .tk-changed) {
+  color: var(--shiki-token-changed);
+}
+
+/* ---------- callouts: a quiet card with a 2 px rule on the left; warnings rule and mark in the down color ---------- */
+.prose :global(aside.callout) {
+  max-width: 68ch;
+  margin: 4px 0 22px;
+  padding: 14px 18px 14px 20px;
+  background: var(--well);
+  border-radius: var(--r-1);
+  box-shadow:
+    inset 2px 0 0 var(--ink),
+    inset 0 0 0 1px var(--line);
+  color: var(--ink);
+}
+.prose :global(aside.callout[data-kind="warning"]),
+.prose :global(aside.callout[data-kind="caution"]) {
+  box-shadow:
+    inset 2px 0 0 var(--down),
+    inset 0 0 0 1px var(--line);
+}
+.prose :global(aside.callout) > :global(p.callout-kind) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.prose :global(p.callout-kind) svg {
+  flex: none;
+  color: var(--ink);
+}
+.prose :global(aside.callout[data-kind="warning"] p.callout-kind) svg,
+.prose :global(aside.callout[data-kind="caution"] p.callout-kind) svg {
+  color: var(--down);
+}
+.prose :global(aside.callout) > :last-child {
+  margin-bottom: 0;
+}
+/* inline code on the card's ground would vanish into it: it takes the page's ground instead */
+.prose :global(aside.callout) code,
+.prose :global(div.tablebox) th code {
+  background: var(--bg);
+}
+
+/* ---------- heading links: a # after each H2 and H3, shown on hover or keyboard focus ---------- */
+.prose h2,
+.prose h3 {
+  position: relative;
+  isolation: isolate;
+}
+.prose :global(a.anchor) {
+  padding-left: 0.3em;
+  font-weight: 400;
+  color: var(--mute);
+  text-decoration: none;
+  opacity: 0;
+  -webkit-user-select: none;
+  user-select: none;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+.prose :global(a.anchor)::before {
+  content: "#";
+}
+.prose :global(a.anchor):focus-visible {
+  opacity: 1;
+  color: var(--ink);
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .prose h2:hover :global(a.anchor),
+  .prose h3:hover :global(a.anchor) {
+    opacity: 1;
+  }
+  .prose :global(a.anchor):hover {
+    color: var(--ink);
+  }
+}
+/* landing on a heading by its #link tints it for a moment (a still tint, no fade, when motion is reduced) */
+.prose h2::after,
+.prose h3::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -4px -10px -4px;
+  border-radius: var(--r-1);
+  background: var(--line-2);
+  opacity: 0;
+  pointer-events: none;
+}
+.prose h2::after {
+  /* below the hairline that opens an H2 */
+  top: 18px;
+}
+.prose h2:target::after,
+.prose h3:target::after,
+.prose h2[data-arrived]::after,
+.prose h3[data-arrived]::after {
+  animation: arrive 1.6s ease-out;
+}
+@keyframes arrive {
+  0%,
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes arrive-still {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ---------- links that leave the docs: an arrow glued to the last character, so it never wraps alone ---------- */
+.prose :global(span.ext-tail) {
+  white-space: nowrap;
+}
+.prose :global(svg.ext-arrow) {
+  display: inline-block;
+  width: 0.62em;
+  height: 0.62em;
+  margin-left: 0.14em;
+  /* the arrow's drawn part sits between mid x-height and just above it, like a raised mark */
+  vertical-align: 0.1em;
+  color: var(--mute-text);
+  overflow: visible;
+}
+@media (hover: hover) and (pointer: fine) {
+  .prose :global(a.ext):hover :global(svg.ext-arrow) {
+    color: var(--ink);
+  }
+}
+/* a code span cut by the glue draws as one box: no inner padding or corners where the halves meet */
+.prose :global(code.ext-head) {
+  padding-right: 0;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+.prose :global(code.ext-rest) {
+  padding-left: 0;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+/* ---------- tables: a framed box with a header row on the well and hairlines between rows ---------- */
+.prose :global(div.tablebox) {
+  border: 1px solid var(--line);
+  border-radius: var(--r-1);
+}
+.prose :global(div.tablebox) th {
+  padding: 10px 16px;
+  background: var(--well);
+  box-shadow: inset 0 -1px 0 var(--line-2);
+}
+.prose :global(div.tablebox) td {
+  padding: 10px 16px;
+}
+.prose :global(div.tablebox) tbody tr:last-child td {
+  box-shadow: none;
+}
+.prose :global(div.tablebox) th:last-child,
+.prose :global(div.tablebox) td:last-child {
+  padding-right: 16px;
+}
+/* a column of figures lines up on the right, digits in even widths */
+.prose :global(div.tablebox) :global(th.num),
+.prose :global(div.tablebox) :global(td.num) {
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ---------- phones: code and tables run to the screen's edges, hairlines above and below only ---------- */
+@media (max-width: 759.98px) {
+  .prose :global(figure.code),
+  .prose :global(div.tablebox) {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 0;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+  }
+  .prose :global(figure.code) > :global(button.copy),
+  .prose :global(figure.code) > pre {
+    border-radius: 0;
+  }
+  .prose h2::after {
+    top: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prose :global(a.anchor) {
+    transition: none;
+  }
+  .prose h2:target::after,
+  .prose h3:target::after,
+  .prose h2[data-arrived]::after,
+  .prose h3[data-arrived]::after {
+    animation: arrive-still 1.6s steps(1, end);
+  }
+}
+
+/* the copy announcements: read out by a screen reader, never drawn */
+.live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

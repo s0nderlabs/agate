@@ -1,0 +1,39 @@
+/* The site's top bar on docs and privacy: the landing's Nav (hero/kit.module.css) given the page's tokens, so it
+   follows the page's light and dark like everything else there. Its height is the page's --nav-h, which the docs'
+   sticky chapter list and anchor landings already reckon with. */
+.bar {
+  --h-ink: var(--ink);
+  --h-cta-bg: var(--ink);
+  --h-cta-ink: var(--bg);
+  --gut: clamp(16px, 2.4vw, 32px);
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  font-family: var(--font-sans);
+  font-variant-numeric: lining-nums;
+}
+
+/* a reading page's bar: the full width, on the page's own ground with no line under it, so the bar and the page read
+   as one surface; the page scrolls away under it */
+.bar[data-shape="split"] {
+  background: var(--bg);
+}
+.bar[data-shape="split"] .nav {
+  box-sizing: border-box;
+  height: var(--nav-h);
+  padding-block: 0;
+}
+
+/* the landing's capsule, floating over the page as the page scrolls under it */
+.bar[data-shape="pill"] {
+  height: var(--nav-h);
+  display: grid;
+  pointer-events: none;
+}
+.bar[data-shape="pill"] .nav {
+  pointer-events: auto;
+  align-self: center;
+  margin-top: 0;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+}

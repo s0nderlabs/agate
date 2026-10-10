@@ -203,7 +203,7 @@ export function Cta({ children = "Start trading", className = "", href = "/app" 
 /** The top bar. links "docs" (the chips heroes): Markets, Index and Docs, and a quiet "Open app",
  *  so the hero's own "Start trading" is the one solid button on the screen; "app" is the bar before. shape: split (the mark left, everything else right), center (the links
  *  on the page's centre line) or pill (the whole bar a floating capsule in the middle). */
-export function Nav({ dark = false, className = "", cta = "", theme = false, links = "app", shape = "split", corners = "round" }: { dark?: boolean; className?: string; cta?: string; theme?: boolean; links?: "app" | "docs"; shape?: "split" | "center" | "pill"; corners?: "round" | "square" }) {
+export function Nav({ dark = false, className = "", cta = "", theme = false, links = "app", shape = "split", corners = "round", current }: { dark?: boolean; className?: string; cta?: string; theme?: boolean; links?: "app" | "docs"; shape?: "split" | "center" | "pill"; corners?: "round" | "square"; current?: "docs" }) {
   const to = useHref();
   const docs = links === "docs";
   return (
@@ -214,7 +214,7 @@ export function Nav({ dark = false, className = "", cta = "", theme = false, lin
       <nav className={k.links} aria-label="Agate">
         <Link href={to("/app")}>Markets</Link>
         <Link href={to("/app/gpu-index")}>Index</Link>
-        {docs ? <Link href={to("/docs")}>Docs</Link> : <Link href={to("/app/positions")}>Positions</Link>}
+        {docs ? <Link href={to("/docs")} aria-current={current === "docs" ? "page" : undefined}>Docs</Link> : <Link href={to("/app/positions")}>Positions</Link>}
       </nav>
       <div className={k.end}>
         {theme && <ThemeSwitch />}

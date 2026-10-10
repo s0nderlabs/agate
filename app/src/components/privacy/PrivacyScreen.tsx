@@ -5,6 +5,8 @@
 import { useScreenTheme } from "@/components/ai/AisScreen";
 import { BottomDock } from "@/components/shell/Dock";
 import { NavBar } from "@/components/shell/Shell";
+import { DocsFooter } from "@/components/docs/DocsFooter";
+import { SiteBar } from "@/components/site/SiteBar";
 import { useMock } from "@/lib/mock/store";
 import s from "./privacy.module.css";
 
@@ -16,7 +18,7 @@ export function PrivacyScreen() {
   const mail = <a href={`mailto:${CONTACT}`}>{CONTACT}</a>;
   return (
     <div className={`${s.screen} ${tone}`} data-phone={config.phone}>
-      <NavBar active={null} site />
+      {config.siteNav === "before" ? <NavBar active={null} site /> : <SiteBar />}
       <main className={s.main}>
         <article className={s.doc}>
           <h1 className={`${s.title} font-display`}>Privacy</h1>
@@ -52,7 +54,8 @@ export function PrivacyScreen() {
           <p>{mail}</p>
         </article>
       </main>
-      {config.phone === "new" && <BottomDock active={null} />}
+      <DocsFooter />
+      {config.phone === "new" && config.siteNav === "before" && <BottomDock active={null} />}
     </div>
   );
 }

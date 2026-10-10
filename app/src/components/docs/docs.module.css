@@ -1,5 +1,5 @@
 /* Docs: the app's tokens and faces (Erode for headlines, Apfel for text, the system's monospace for code), hairlines,
-   no new colors, nothing under 15 px. Desktop: chapters | text (68 characters a line) | On this page from 1200 px.
+   no new colors, nothing under 15 px. Desktop: chapters | text (68 characters a line) | On this page from 1100 px.
    Phones below 760 px: one column, the chapters behind a Contents button; tables and code scroll in their own box. */
 .screen {
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -8,6 +8,7 @@
   min-height: 100vh;
   background: var(--bg);
   color: var(--ink);
+  font-variant-numeric: lining-nums;
 }
 
 /* ---------- frame: chapters on the left, the page ---------- */
@@ -38,71 +39,15 @@
   /* the page itself never scrolls sideways: wide things scroll in their own boxes */
   overflow-x: clip;
 }
+/* 1100 to 1200 px: a slimmer chapter column, so the text keeps its measure with On this page beside it */
+@media (min-width: 1100px) and (max-width: 1199.98px) {
+  .frame {
+    grid-template-columns: 208px minmax(0, 1fr);
+    column-gap: 36px;
+  }
+}
 .bar {
   display: none;
-}
-
-/* ---------- the search field ---------- */
-.search {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.search > svg {
-  position: absolute;
-  left: 12px;
-  color: var(--mute);
-  pointer-events: none;
-}
-.search input {
-  width: 100%;
-  height: 40px;
-  padding: 0 38px 0 36px;
-  border: 0;
-  border-radius: var(--r-1);
-  background: var(--well);
-  box-shadow: inset 0 0 0 1px var(--line);
-  color: var(--ink);
-  font: inherit;
-  font-size: 16px;
-  appearance: none;
-  -webkit-appearance: none;
-}
-.search input::placeholder {
-  color: var(--mute-text);
-  opacity: 1;
-}
-.search input::-webkit-search-cancel-button {
-  -webkit-appearance: none;
-}
-.search input:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 0;
-}
-/* the "/" hint, for a keyboard and mouse only, while the field is empty and idle */
-.kbd {
-  position: absolute;
-  right: 9px;
-  min-width: 22px;
-  height: 24px;
-  display: none;
-  place-items: center;
-  font-family: var(--mono);
-  font-size: 15px;
-  line-height: 1;
-  color: var(--mute-text);
-  box-shadow: inset 0 0 0 1px var(--line-2);
-  border-radius: var(--r-1);
-  pointer-events: none;
-}
-@media (hover: hover) and (pointer: fine) {
-  .kbd {
-    display: grid;
-  }
-  .search input:focus ~ .kbd,
-  .search input:not(:placeholder-shown) ~ .kbd {
-    display: none;
-  }
 }
 
 /* ---------- the chapter list ---------- */
@@ -116,8 +61,7 @@
   color: var(--mute-text);
   margin-bottom: 6px;
 }
-.chapters ul,
-.hits ul {
+.chapters ul {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -153,7 +97,7 @@
   text-decoration: none;
   text-wrap: pretty;
 }
-@media (min-width: 1200px) {
+@media (min-width: 1100px) {
   .side .fold {
     display: none;
   }
@@ -166,51 +110,8 @@
 }
 /* the lists scroll in their own column, which would cut an outside ring */
 .chapters a:focus-visible,
-.hits a:focus-visible,
 .toc a:focus-visible {
   outline-offset: -2px;
-}
-
-/* search hits: the chapter, then where it matched */
-.hits {
-  display: grid;
-  gap: 4px;
-}
-.hit {
-  display: grid;
-  gap: 3px;
-  padding: 8px 0 8px 14px;
-  box-shadow: inset 1px 0 0 var(--line);
-  color: inherit;
-  text-decoration: none;
-}
-.hit b {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--ink);
-  line-height: 1.35;
-}
-.hit span {
-  font-size: 15px;
-  line-height: 1.4;
-  color: var(--mute-text);
-  overflow-wrap: anywhere;
-}
-@media (hover: hover) and (pointer: fine) {
-  .hit:hover {
-    box-shadow: inset 2px 0 0 var(--ink-2);
-  }
-}
-.mark {
-  background: none;
-  color: var(--ink);
-  font-weight: 500;
-}
-.none {
-  font-size: 16px;
-  color: var(--ink-2);
-  padding: 6px 0;
-  overflow-wrap: anywhere;
 }
 
 /* ---------- a chapter: the text, then On this page ---------- */
@@ -218,6 +119,12 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   padding: 40px 0 72px;
+}
+@media (min-width: 1100px) {
+  .doc {
+    grid-template-columns: minmax(0, 780px) 184px;
+    column-gap: 36px;
+  }
 }
 @media (min-width: 1200px) {
   .doc {
@@ -232,7 +139,7 @@
 .toc {
   display: none;
 }
-@media (min-width: 1200px) {
+@media (min-width: 1100px) {
   .toc {
     display: block;
     position: sticky;
@@ -277,6 +184,204 @@
   }
 }
 
+/* ---------- a chapter's head: the headline, the page actions beside it ---------- */
+/* the actions sit beside the headline when the column has room for both, and under it when it does not (a phone, or a
+   tablet with the chapter list open), measured on the column itself */
+.head {
+  container-type: inline-size;
+  /* the container is its own layer: lifted, so the open menu stays over anything positioned in the text below */
+  position: relative;
+  z-index: 2;
+  margin-bottom: 22px;
+}
+.headRow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+@container (min-width: 600px) {
+  .headRow {
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 32px;
+  }
+  /* level with the headline's first line */
+  .headRow > .actions {
+    margin-top: 6px;
+  }
+}
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.head .title h1 {
+  margin: 0;
+}
+
+.actions {
+  position: relative;
+  flex: none;
+}
+.actionsBar {
+  position: relative;
+  display: inline-flex;
+  border-radius: var(--r-1);
+}
+/* the hairline frame drawn over the two buttons, so a hovered button's tint never covers it */
+.actionsBar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-1);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  pointer-events: none;
+}
+.copy,
+.more {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.copy {
+  gap: 8px;
+  padding: 0 12px 0 11px;
+}
+.more {
+  justify-content: center;
+  width: 36px;
+  /* the hairline between the two buttons */
+  box-shadow: inset 1px 0 0 var(--line-2);
+}
+.more[aria-expanded="true"] {
+  background: var(--well);
+  color: var(--ink);
+}
+.copy[data-state="copied"] {
+  color: var(--ink);
+}
+.copy:focus-visible,
+.more:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .copy:hover,
+  .more:hover {
+    background: var(--well);
+    color: var(--ink);
+  }
+}
+.copyIcon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+/* the three labels share one cell, so the button keeps one width whatever it says */
+.copyLabel {
+  display: grid;
+}
+.copyLabel > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+.copyLabel > span[aria-hidden="true"] {
+  visibility: hidden;
+}
+
+/* the menu: a card under the buttons, over the text */
+.menu {
+  position: absolute;
+  z-index: 15;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(300px, calc(100vw - 32px));
+  padding: 4px;
+  border-radius: var(--r-1);
+  background: var(--card);
+  box-shadow:
+    inset 0 0 0 1px var(--line-2),
+    0 18px 40px -18px rgb(0 0 0 / 0.34);
+}
+/* under the headline (narrow column) the actions start at the left, so the menu opens from there */
+@container (max-width: 599.98px) {
+  .menu {
+    right: auto;
+    left: 0;
+  }
+}
+.menu[hidden] {
+  display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .menu:not([hidden]) {
+    animation: menuIn 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+}
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.menu a {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--r-1);
+  color: var(--ink);
+  text-decoration: none;
+}
+.menuIcon {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: start center;
+  padding-top: 2px;
+  color: var(--ink-2);
+}
+.menu b {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.menu a > span:not(.menuIcon) {
+  grid-column: 2;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--mute-text);
+}
+.menu a:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .menu a:hover {
+    background: var(--well);
+  }
+}
+
 /* ---------- the text (HTML from the markdown) ---------- */
 .prose {
   font-size: 17px;
@@ -311,20 +416,31 @@
   scroll-margin-top: calc(var(--nav-h) + var(--docs-pin) + 20px);
   text-wrap: balance;
 }
+/* sections: set apart by space and weight alone (no rule over every one), so a long chapter reads as one text */
 .prose h2 {
   font-size: 23px;
   font-weight: 500;
   line-height: 1.3;
   letter-spacing: -0.005em;
-  margin: 48px 0 14px;
-  padding-top: 26px;
-  box-shadow: inset 0 1px 0 var(--line);
+  margin: 52px 0 12px;
 }
 .prose h3 {
   font-size: 19px;
   font-weight: 500;
   line-height: 1.35;
-  margin: 32px 0 10px;
+  margin: 34px 0 8px;
+}
+/* the chapter opens on its headline and a lede: the first paragraph larger, in the second ink */
+.body > p:first-child,
+.prose > h1 + p {
+  font-size: 19px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: 60ch;
+  margin-bottom: 28px;
+}
+.body > p:first-child + h2 {
+  margin-top: 40px;
 }
 .prose h4 {
   font-size: 17px;
@@ -429,7 +545,7 @@
 }
 
 /* tables: hairline rules, tabular figures, their own sideways scroll when wider than the column */
-.prose :global(.table) {
+.prose :global(.tablebox) {
   margin: 4px 0 26px;
   overflow-x: auto;
   scrollbar-width: thin;
@@ -468,37 +584,55 @@
   overflow-wrap: normal;
   font-size: 15px;
 }
-.prose :global(.table):focus-visible,
+.prose :global(.tablebox):focus-visible,
 .prose pre:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
 
-/* ---------- after the text: the markdown, the code, previous and next ---------- */
+/* ---------- after the text: the page's links, then previous and next ---------- */
 .foot {
-  margin-top: 48px;
+  margin-top: 56px;
   display: grid;
-  gap: 28px;
-  max-width: 68ch;
+  gap: 32px;
 }
+/* the page's links on a hairline: its markdown and its file on GitHub, then the code it describes */
 .meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 24px;
+  display: grid;
+  gap: 10px;
+  padding-top: 20px;
+  box-shadow: inset 0 1px 0 var(--line);
   font-size: 15px;
   line-height: 1.5;
   color: var(--mute-text);
+}
+.metaLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 28px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 .meta a {
   color: var(--ink-2);
   text-decoration: underline;
   text-decoration-color: var(--line-2);
+  text-decoration-thickness: 1px;
   text-underline-offset: 3px;
+}
+.code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+.codeLabel {
+  margin-right: 2px;
 }
 .meta code {
   font-family: var(--mono);
   font-size: 15px;
-  color: var(--ink-2);
   overflow-wrap: anywhere;
 }
 @media (hover: hover) and (pointer: fine) {
@@ -507,44 +641,76 @@
     text-decoration-color: currentColor;
   }
 }
+
+/* previous and next: two square cards on hairlines, the whole card the link */
 .pager {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  padding-top: 20px;
-  box-shadow: inset 0 1px 0 var(--line);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 .prev,
 .next {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   align-content: start;
-  padding: 6px 0;
+  padding: 16px 20px 18px;
+  border-radius: var(--r-1);
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line-2);
   color: inherit;
   text-decoration: none;
+  transition: background-color 0.2s ease;
+}
+.prev {
+  grid-column: 1;
 }
 .next {
   grid-column: 2;
   text-align: right;
+  justify-items: end;
 }
-.prev span,
-.next span {
+.pagerWhich {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 15px;
+  line-height: 1.3;
   color: var(--mute-text);
+}
+.pagerArrow {
+  flex: none;
+  transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .prev b,
 .next b {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 500;
-  color: var(--ink);
   line-height: 1.35;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.prev:focus-visible,
+.next:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 @media (hover: hover) and (pointer: fine) {
-  .prev:hover b,
-  .next:hover b {
-    text-decoration: underline;
-    text-decoration-color: var(--line-2);
-    text-underline-offset: 3px;
+  .prev:hover,
+  .next:hover {
+    background: var(--well);
+  }
+  .prev:hover .pagerArrow {
+    transform: translateX(-3px);
+  }
+  .next:hover .pagerArrow {
+    transform: translateX(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prev,
+  .next,
+  .pagerArrow {
+    transition: none;
   }
 }
 
@@ -577,6 +743,103 @@
   max-width: 440px;
   margin-bottom: 36px;
 }
+/* the four ways in: the landing's panel grid, square. One hairline between the cells (the grid's gap over the
+   line colour), the frame's corners marked as the landing marks its frames, the whole cell the link */
+.ways {
+  --m: var(--line-2);
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-bottom: 44px;
+  background: var(--line);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.ways::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--m), var(--m)) left 5px top 0 / 1px 11px no-repeat,
+    linear-gradient(var(--m), var(--m)) left 0 top 5px / 11px 1px no-repeat,
+    linear-gradient(var(--m), var(--m)) right 5px top 0 / 1px 11px no-repeat,
+    linear-gradient(var(--m), var(--m)) right 0 top 5px / 11px 1px no-repeat,
+    linear-gradient(var(--m), var(--m)) left 5px bottom 0 / 1px 11px no-repeat,
+    linear-gradient(var(--m), var(--m)) left 0 bottom 5px / 11px 1px no-repeat,
+    linear-gradient(var(--m), var(--m)) right 5px bottom 0 / 1px 11px no-repeat,
+    linear-gradient(var(--m), var(--m)) right 0 bottom 5px / 11px 1px no-repeat;
+}
+.way {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+  min-height: 200px;
+  padding: 24px 22px 22px;
+  background: var(--bg);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 0.2s ease;
+}
+.way b {
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.way span {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+/* the chapter it opens, ending on the site's arrow */
+.way i {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  font-style: normal;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.way i::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  flex: none;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8h10M9 4l4 4-4 4'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8h10M9 4l4 4-4 4'/%3E%3C/svg%3E") center / contain no-repeat;
+  transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.way:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .way:hover {
+    background: var(--well);
+  }
+  .way:hover i::after {
+    transform: translateX(3px);
+  }
+}
+@media (max-width: 1023.98px) {
+  .ways {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 559.98px) {
+  .ways {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .way {
+    min-height: 0;
+  }
+}
+
 .homeGroup {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
@@ -641,6 +904,87 @@
   text-decoration: underline;
   text-decoration-color: var(--line-2);
   text-underline-offset: 3px;
+}
+
+/* ---------- the site footer (docs, the 404s, privacy): the landing's columns on the page's tokens ---------- */
+.site {
+  background: var(--bg);
+  color: var(--ink);
+  box-shadow: inset 0 1px 0 var(--line);
+  font-variant-numeric: lining-nums;
+}
+.siteIn {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 4fr);
+  gap: 44px 28px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 64px max(clamp(16px, 2.4vw, 32px), env(safe-area-inset-right)) calc(88px + env(safe-area-inset-bottom)) max(clamp(16px, 2.4vw, 32px), env(safe-area-inset-left));
+}
+.siteBrand {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+.siteHome {
+  justify-self: start;
+  color: var(--ink);
+  border-radius: var(--r-1);
+}
+.siteBrand p {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--mute-text);
+  max-width: 30ch;
+  text-wrap: pretty;
+}
+.siteCols {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 36px 28px;
+}
+.siteCol {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+.siteCol h2 {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.siteCol ul {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.siteCol a {
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--mute-text);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.siteCol a:focus-visible,
+.siteHome:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .siteCol a:hover {
+    color: var(--ink);
+  }
+}
+@media (max-width: 959.98px) {
+  .siteIn {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .siteCols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* ---------- the phone's Contents sheet (a modal dialog; only opened below 760 px) ---------- */
@@ -722,7 +1066,6 @@
   .chapter,
   .fold a,
   .toc a,
-  .hit,
   .entry,
   .prev,
   .next {
@@ -734,10 +1077,25 @@
     display: flex;
     align-items: center;
   }
-  .search input {
+  .meta a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .copy,
+  .more {
     height: 44px;
   }
-  .meta a {
+  .more {
+    width: 44px;
+  }
+  .menu a {
+    min-height: 44px;
+  }
+  .siteCol ul {
+    gap: 0;
+  }
+  .siteCol a {
     display: inline-flex;
     align-items: center;
     min-height: 44px;
@@ -805,12 +1163,16 @@
   }
   .prose h2 {
     font-size: 21px;
-    margin-top: 40px;
-    padding-top: 22px;
+    margin-top: 44px;
+  }
+  .body > p:first-child,
+  .prose > h1 + p {
+    font-size: 18px;
+    margin-bottom: 24px;
   }
   /* code and tables run to the screen's edges, so more of them shows before the sideways scroll */
   .prose pre,
-  .prose :global(.table) {
+  .prose :global(.tablebox) {
     margin-left: -16px;
     margin-right: -16px;
   }
@@ -819,12 +1181,11 @@
     padding: 14px 16px;
     box-shadow: inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line);
   }
-  .prose :global(.table) {
+  .prose :global(.tablebox) {
     padding: 0 16px;
   }
   .sheet .chapter,
-  .sheet .fold a,
-  .sheet .hit {
+  .sheet .fold a {
     min-height: 44px;
   }
   .sheet .chapter,
@@ -832,13 +1193,18 @@
     display: flex;
     align-items: center;
   }
+  /* previous and next: one card a row, the full width */
   .pager {
-    grid-template-columns: 1fr;
-    gap: 4px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
   }
+  .prev,
   .next {
     grid-column: 1;
-    text-align: left;
+  }
+  .siteIn {
+    padding-top: 48px;
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
   }
   .home {
     padding-top: 32px;

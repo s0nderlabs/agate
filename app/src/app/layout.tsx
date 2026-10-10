@@ -55,7 +55,9 @@ const origins = [SNAPSHOT, first(process.env.NEXT_PUBLIC_AGATE_GRAPHQL_URL), fir
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={apfel.variable}>
+    // suppressHydrationWarning (this element only): the static docs paint a saved dark theme's ground on <html> before
+    // React hydrates (DocsFrame's PREPAINT), so its style differs from the server's on purpose
+    <html lang="en" className={apfel.variable} suppressHydrationWarning>
       <head>
         {[...new Set(origins)].map((o) => (
           <link key={o} rel="preconnect" href={o} crossOrigin="anonymous" />

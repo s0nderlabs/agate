@@ -80,8 +80,8 @@ const HERO_ROWS: Row[] = [
     key: "intro",
     label: "Opening",
     options: [
-      ["fold", "Loading screen: the A folds, then the film"],
-      ["cell", "No loading screen, the cell breathes (before)"],
+      ["cell", "No loading screen: straight into the film"],
+      ["fold", "Loading screen: the A folds, then the film (before)"],
     ],
   },
   {
@@ -96,8 +96,8 @@ const HERO_ROWS: Row[] = [
     key: "chipColor",
     label: "Chip colour",
     options: [
-      ["silicon", "Silicon"],
       ["mono", "Monochrome"],
+      ["silicon", "Silicon (before)"],
       ["ink", "Ink"],
     ],
   },
@@ -105,8 +105,8 @@ const HERO_ROWS: Row[] = [
     key: "oldDays",
     label: "Older days",
     options: [
-      ["faded", "Faded"],
       ["full", "Not faded"],
+      ["faded", "Faded (before)"],
     ],
   },
   {
@@ -122,9 +122,9 @@ const HERO_ROWS: Row[] = [
     key: "navShape",
     label: "Top bar shape",
     options: [
-      ["pill", "Floating capsule"],
       ["center", "Links centred"],
-      ["split", "Split (before)"],
+      ["pill", "Floating capsule (before)"],
+      ["split", "Split"],
     ],
   },
   {
@@ -149,6 +149,27 @@ const HERO_ROWS: Row[] = [
     options: [
       ["docs", "Docs + Open app"],
       ["before", "Positions + Start trading (before)"],
+    ],
+  },
+];
+
+/** The site's own pages (docs, privacy): their top bar, shown first there. */
+const SITE_ROWS: Row[] = [
+  {
+    key: "siteNav",
+    label: "Top bar (site pages)",
+    options: [
+      ["bar", "The site's bar: the landing's links and Open app"],
+      ["pill", "A floating capsule"],
+      ["before", "The app's bar (before)"],
+    ],
+  },
+  {
+    key: "docsHome",
+    label: "Docs contents",
+    options: [
+      ["ways", "Four ways in, then the contents"],
+      ["before", "The contents only (before)"],
     ],
   },
 ];
@@ -397,6 +418,7 @@ export function MockDock() {
   const path = usePathname();
   // the landing is the site's home (the app moved to /app)
   const onLanding = path === "/";
+  const onSite = path.startsWith("/docs") || path === "/privacy";
   const open = config.dock === "open";
   const [hidden, setHidden] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
@@ -474,6 +496,7 @@ export function MockDock() {
             </>
           ) : (
             <>
+              {onSite && <Rows rows={SITE_ROWS} />}
               <Rows rows={STATE_ROWS.filter((r) => EVERYDAY.includes(r.key))} />
               <Fold title={`Options being judged (${DESIGN_ROWS.length})`}>
                 <Rows rows={DESIGN_ROWS} />

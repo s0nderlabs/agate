@@ -9,6 +9,10 @@ export type Group = (typeof GROUPS)[number];
 export const SITE = "https://agate.elpabl0.xyz";
 /** Links that leave docs/site (../judge.md, ../JUDGES.md) open the file on GitHub. */
 export const GITHUB = "https://github.com/s0nderlabs/agate";
+/** The branch the GitHub links read and edit ("Edit this page", the code a chapter describes). */
+export const GITHUB_BRANCH = "main";
+/** Where the chapters' markdown sits in the repo, for "Edit this page on GitHub". */
+export const DOCS_PATH = "docs/site";
 
 export interface ChapterMeta {
   slug: string;
@@ -48,10 +52,3 @@ export interface NavGroup {
   chapters: NavChapter[];
 }
 
-/** One chapter in the search index (/docs/search.json). */
-export interface SearchDoc {
-  slug: string;
-  title: string;
-  description: string;
-  sections: Section[];
-}

@@ -99,6 +99,12 @@ export interface MockConfig {
   aiUi: "tabs" | "held";
   /** the site's paid-every-day piece (Oct 10): ruled rows in a dark card, or the month as a grid */
   payUi: "rows" | "grid";
+  /** the site's pages (docs, privacy) under the landing's own bar, as a full-width bar or its floating capsule, or
+   *  under the app's bar (before) */
+  siteNav: "bar" | "pill" | "before";
+  /** the docs' contents page opening on four ways in (the app, an AI, the price, building on it) in the site's panel
+   *  grid, or the plain contents (before) */
+  docsHome: "ways" | "before";
 }
 
 /** The heroes being judged (Oct 8: of the ten styles 6 and 9 were kept, then animation related to gpu or
@@ -143,15 +149,16 @@ export type ConnectOutcome = (typeof CONNECT_OUTCOMES)[number];
 export const DISCONNECT_OUTCOMES = ["normal", "stopfail", "takebackfail"] as const;
 export type DisconnectOutcome = (typeof DISCONNECT_OUTCOMES)[number];
 
-/** Mock controls (the side panel and the states it sets): on in `next dev`, off in a production build.
- *  NEXT_PUBLIC_MOCK_CONTROLS=on or =off overrides either way; Next inlines it at build time. */
+/** Mock controls (the side panel and the states it sets): off in every build while the current look is locked, so a
+ *  dev build shows exactly what the hosted one shows. NEXT_PUBLIC_MOCK_CONTROLS=on brings them back; Next inlines it at
+ *  build time. */
 const flag = process.env.NEXT_PUBLIC_MOCK_CONTROLS;
-export const MOCK_CONTROLS = flag === "on" || (flag !== "off" && process.env.NODE_ENV !== "production");
+export const MOCK_CONTROLS = flag === "on";
 
 // source: example data by default while the live empty states are reviewed (flip to "live" once November lists);
 // a build without Mock controls is always live, so its links never carry ?source. pbar: filled, the research
 // pick (Oct 4: every persistent trade bar measured is filled; tint keeps meaning "picked side" inside the ticket)
-export const DEFAULT_CONFIG: MockConfig = { dfill: "deep", mode: "simple", theme: "light", auth: "out", data: "normal", gpu: "H100", source: MOCK_CONTROLS ? "example" : "live", dock: "closed", phone: "new", pbar: "fill", signin: "auto", ais: "none", connect: "normal", disc: "normal", when: "oct", holds: "none", months: "one", closeUi: MOCK_CONTROLS ? "tabs" : "before", candles: MOCK_CONTROLS ? "auto" : "before", positionsUi: MOCK_CONTROLS ? "market" : "before", indexUi: MOCK_CONTROLS ? "market" : "before", landing: "chipsfield", logo: "fold", wicks: "off", chipColor: "silicon", oldDays: "faded", boardCut: "off", navLinks: "docs", heroWords: "center", navShape: "pill", corners: "square", intro: "fold", chartMotion: "live", textIn: "settle", closeArt: "type", story: "site", turnAt: "beside", aiUi: "tabs", payUi: "rows" };
+export const DEFAULT_CONFIG: MockConfig = { dfill: "deep", mode: "simple", theme: "light", auth: "out", data: "normal", gpu: "H100", source: MOCK_CONTROLS ? "example" : "live", dock: "closed", phone: "new", pbar: "fill", signin: "auto", ais: "none", connect: "normal", disc: "normal", when: "oct", holds: "none", months: "one", closeUi: MOCK_CONTROLS ? "tabs" : "before", candles: MOCK_CONTROLS ? "auto" : "before", positionsUi: MOCK_CONTROLS ? "market" : "before", indexUi: MOCK_CONTROLS ? "market" : "before", landing: "chipsfield", logo: "fold", wicks: "off", chipColor: "mono", oldDays: "full", boardCut: "off", navLinks: "docs", heroWords: "center", navShape: "center", corners: "square", intro: "cell", chartMotion: "live", textIn: "settle", closeArt: "type", story: "site", turnAt: "beside", aiUi: "tabs", payUi: "rows", siteNav: "bar", docsHome: "ways" };
 
 export function parseConfig(sp: Record<string, string | string[] | undefined>): MockConfig {
   const pick = <T extends string>(k: string, allowed: readonly T[], d: T): T => {
@@ -199,6 +206,8 @@ export function parseConfig(sp: Record<string, string | string[] | undefined>): 
     turnAt: pick("turnAt", ["beside", "under"] as const, DEFAULT_CONFIG.turnAt),
     aiUi: pick("aiUi", ["tabs", "held"] as const, DEFAULT_CONFIG.aiUi),
     payUi: pick("payUi", ["rows", "grid"] as const, DEFAULT_CONFIG.payUi),
+    siteNav: pick("siteNav", ["bar", "pill", "before"] as const, DEFAULT_CONFIG.siteNav),
+    docsHome: pick("docsHome", ["ways", "before"] as const, DEFAULT_CONFIG.docsHome),
   };
   // a build without the controls (a hosted one) shows live data only: example numbers can never reach it from a link
   if (!MOCK_CONTROLS) all.source = "live";
@@ -210,7 +219,7 @@ export function parseConfig(sp: Record<string, string | string[] | undefined>): 
   // mark: the same in the top bar and in the loader
   return MOCK_CONTROLS
     ? all
-    : { ...all, dfill: D.dfill, data: D.data, dock: D.dock, phone: D.phone, pbar: D.pbar, signin: D.signin, ais: D.ais, connect: D.connect, disc: D.disc, when: D.when, holds: D.holds, months: D.months, closeUi: "before", candles: "before", positionsUi: "before", indexUi: "before", logo: D.logo, intro: D.intro, landing: D.landing, wicks: D.wicks, chipColor: D.chipColor, oldDays: D.oldDays, boardCut: D.boardCut, navLinks: D.navLinks, heroWords: D.heroWords, navShape: D.navShape, corners: D.corners, chartMotion: D.chartMotion, textIn: D.textIn, closeArt: D.closeArt, story: D.story, turnAt: D.turnAt, aiUi: D.aiUi, payUi: D.payUi };
+    : { ...all, dfill: D.dfill, data: D.data, dock: D.dock, phone: D.phone, pbar: D.pbar, signin: D.signin, ais: D.ais, connect: D.connect, disc: D.disc, when: D.when, holds: D.holds, months: D.months, closeUi: "before", candles: "before", positionsUi: "before", indexUi: "before", logo: D.logo, intro: D.intro, landing: D.landing, wicks: D.wicks, chipColor: D.chipColor, oldDays: D.oldDays, boardCut: D.boardCut, navLinks: D.navLinks, heroWords: D.heroWords, navShape: D.navShape, corners: D.corners, chartMotion: D.chartMotion, textIn: D.textIn, closeArt: D.closeArt, story: D.story, turnAt: D.turnAt, aiUi: D.aiUi, payUi: D.payUi, siteNav: D.siteNav, docsHome: D.docsHome };
 }
 
 /** A render-check tab (opened with ?agentcheck=1): it keeps its own wallets and pocket dollars, so it never touches a person's own. */
