@@ -25,6 +25,18 @@ const nextConfig: NextConfig = {
       ]),
     ];
   },
+  // the H100 film's frames (221 files a visit): public files are served "max-age=0, must-revalidate", which asks the
+  // server about every one on every visit. A day in the browser, and a week more of using the copy while it checks in
+  // the background; their addresses carry the render's name (frames.ts), so a new render is fetched fresh. Hosted
+  // builds only: a local server keeps its default, so a frame staged again shows on the next reload.
+  async headers() {
+    if (process.env.NODE_ENV !== "production") return [];
+    const cache = [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }];
+    return [
+      { source: "/landing/h100/:file*", headers: cache },
+      { source: "/landing/h100s/:file*", headers: cache },
+    ];
+  },
   // the developer API (docs/site/08-api.md) at the app's own address: /api/v1/... is agate's server's /v1/..., proxied
   async rewrites() {
     const server = process.env.NEXT_PUBLIC_AGATE_SERVER || "https://agate-1.tailf06dd7.ts.net";

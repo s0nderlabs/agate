@@ -2,7 +2,7 @@
 // The story below the chips hero (Oct 9).
 // One pinned stage, one camera. The scroll moves it, nothing plays on its own:
 //   1. the dive: the camera falls into the chip trading now on the hero's board, and lands on a real H100's die
-//   2. the H100: the die pulls back to its whole package and tilts up into view (56 rendered frames, scrubbed);
+//   2. the H100: the die pulls back to its whole package and tilts up into view (221 rendered frames, scrubbed);
 //      "An hour of an H100", today's price
 //   3. the clouds: the chip shrinks into one tile among the clouds that rent it, each with its own price; they rise and
 //      fall to their prices, and a line settles in the middle: Agate's one open price (the median, written onchain)
@@ -217,9 +217,9 @@ export function Story({ hero, site = false, turnAt = "beside", turn }: { hero: R
       },
       () => FRAME_W * kLand() * dpr,
     );
-    // the files come in once the hero has had the page to itself, or as soon as the story starts
+    // the film's first pass comes in once the hero has had the page to itself; the rest as soon as the story starts
     const idle = typeof window.requestIdleCallback === "function";
-    const idleId = idle ? window.requestIdleCallback(() => frames.load(), { timeout: 5000 }) : window.setTimeout(() => frames.load(), 3000);
+    const idleId = idle ? window.requestIdleCallback(() => frames.load(true), { timeout: 5000 }) : window.setTimeout(() => frames.load(true), 3000);
 
     const show = (el: HTMLElement | SVGElement | null | undefined, o: number, tf = "", keep = false) => {
       if (!el) return;
