@@ -16,7 +16,9 @@ source: 'docs/site'
 - **A DEMO label on testnet.** A day closes with one fresh source on testnet; a mainnet index would need at least
   three ([How the price is made](04-the-price.md)).
 - **One CRE node.** The primary writer runs in Chainlink's CRE simulator, so its agreement step is one node until a
-  deployment on Chainlink's network. The standby writer and the attester's countersign still apply.
+  deployment on Chainlink's network. The standby writer and the attester's countersign still apply. The simulator
+  also runs with its limits off, because CoreWeave's price page (437 KB) is bigger than CRE's 250 KB HTTP limit; on
+  Chainlink's network that page would go through Confidential HTTP (500 KB).
 - **Thin books.** Depth comes from Agate's own market maker. Outside traders are few so far.
 - **Three GPUs trade.** H100, H200 and B200 have monthly markets; B300, A100 and L40S have a daily price only.
 - **The venue.** Kuru's V1 order book on testnet lets anyone open a market; on mainnet, new Kuru markets are listed

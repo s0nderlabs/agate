@@ -20,6 +20,10 @@ HyperSync) and from Agate's indexer, as of Oct 9 2026.
   little and land fast.
 - **128 KB contracts.** `AgateIndex` and its libraries are built and tested against Monad's code size limit.
 
+**What we ran into.** Monad charges the gas limit, not the gas used, and limits measured on Ethereum were too low for
+some of Agate's calls. Agate's processes use gas limits measured on Monad (`ops/testnet/market-gas-limits.json`), kept
+tight because the limit is what gets billed.
+
 ## Chainlink CRE: the primary price writer
 
 A CRE workflow fetches every cloud's page through CRE's HTTP capability, the nodes agree on each parsed number, and the
@@ -42,6 +46,10 @@ Code: `wall/apps/writer-cre` (the workflow in `workflow/handler.ts`), `contracts
 - Since Oct 9 the live workflow reads the index before fetching and reads it back after writing. Its first live run,
   10:15 UTC: [`0x19516ae0...`](https://testnet.monadexplorer.com/tx/0x19516ae0dd2f5e30b9a2b752b56cffe05b90022dbeaccfc7bdcdab49b5a8a4cf).
 
+**What we ran into.** CoreWeave's price page (437 KB) is bigger than CRE's 250 KB HTTP limit, so the simulator runs
+with limits off. On Chainlink's network that page would go through Confidential HTTP (500 KB). The chain reads are
+batched under CRE's 5 kb limit, so they run unchanged there.
+
 ## Kuru: the order books
 
 Every month of every GPU has its own Kuru V1 order book against the test dollar. The lister creates it when the month
@@ -63,6 +71,10 @@ the book level by level. Code: `contracts/src/market/interfaces/IKuruRouter.sol`
   [`0x31376ac1...`](https://testnet.monadexplorer.com/tx/0x31376ac12f703f75881fa88f7adba1b56553f82f318c3ba04e5d4113c52bcacb) and the margin withdrawal
   [`0xdfdf5ecb...`](https://testnet.monadexplorer.com/tx/0xdfdf5ecb8368ac48f9c04b9d6a4a9cbbcafe198cfb563a76c75196f9b0d24298); the market maker requoting the H100
   book in one batch [`0x6e621d62...`](https://testnet.monadexplorer.com/tx/0x6e621d62ba2044dbadbeb9b7e7048db046fb60cba9d2d19c788c307fd627d6ed) (459 maker transactions so far).
+
+**What we ran into.** Kuru stopped open market creation on mainnet after its Sep 4 exploit, so Agate's books run on
+Kuru V1 testnet, where anyone can still open a market. We asked Kuru for a Spot V2 listing, and on Oct 9 Kuru agreed
+to list the November H100 token against its testnet USDC.
 
 ## Envio: the indexer
 
@@ -109,6 +121,10 @@ it on for Monad testnet. Code: `wallet/src/dynamic.ts`, `server/src/dynamic/`, `
 - **Transaction Review:** Agate's endpoint has received 7 review calls from Dynamic and refused each, because the
   request signature did not verify; it waits on Dynamic's side for Monad testnet.
 
+**What we ran into.** Dynamic's policy engine does not cover Monad yet (mainnet or testnet), so an AI's limits live
+onchain instead: a ZeroDev session key on its pocket (see below). We reported the gap to Dynamic on Oct 4; their
+policies can sit on top once Monad is supported.
+
 ## ZeroDev: smart accounts and gas
 
 Every person's main account and every AI pocket is a Kernel v3.1 smart account (ERC-4337, EntryPoint 0.7) with
@@ -128,6 +144,10 @@ Alchemy key locked to Agate's own domains, with the public RPC after it. Code: `
 own transactions, nonces and receipts through Alchemy, falling back to public RPCs on any outage or limit; the attester
 and keeper keep an Alchemy websocket open. Usage on Oct 8: 11.49M of the month's 22.2M compute units, about 48K a day,
 checked against the processes' own meter.
+
+**What we ran into.** Agate's first day ran every process through Alchemy and hit the month's compute cap in 7 hours.
+So the roles split: Alchemy carries every transaction and the live websocket, reads go to public RPCs, and each
+process meters its compute units against a daily budget.
 
 ## Code and data we build on
 
