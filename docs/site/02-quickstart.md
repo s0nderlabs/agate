@@ -54,7 +54,7 @@ cast call 0xC68687dd7d7b40281FB07E9006538aa45fAF3D98 \
 ```
 
 ```ts
-import { createAgateClient } from "@agate/client"; // in this repo; on npm it will be "agate-sdk"
+import { createAgateClient } from "@agate/client"; // the workspace package in this repo
 const agate = createAgateClient({ graphqlUrl: "https://agate-1.tailf06dd7.ts.net:8443/v1/graphql" });
 const h100 = await agate.getMarket("H100");
 console.log(h100.price, h100.sources);

@@ -9,14 +9,13 @@ source: 'client/src'
 
 # The library Agate's own app runs on.
 
-`@agate/client` (packaged for npm as `agate-sdk`, not yet published) is Agate's data and trading layer: every screen
+`@agate/client` (not on npm yet: use it from this repository) is Agate's data and trading layer: every screen
 of the app reads through it, and Agate's server builds every AI trade with it. One dependency,
 [viem](https://viem.sh). It works in Node 18+, browsers (any bundler) and Bun, and returns plain numbers: dollars per
 GPU-hour and GPU-hours, never raw units.
 
 ```sh
 bun install                    # at the repo root: the workspace package @agate/client
-# once on npm: npm install agate-sdk viem, and import from "agate-sdk" instead
 ```
 
 ## Create a client

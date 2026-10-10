@@ -29,4 +29,5 @@ source: 'docs/site'
   day survives an outage (late days are closed and carried), but the robots stop while it is down.
 - **Dynamic Transaction Review waits on Dynamic.** It is built on Agate's side; until Dynamic turns it on for Monad
   testnet, an AI pocket's limits are checked by Agate's server and the chain ([AI pockets](07-ai-pockets.md)).
-- **The SDK is not on npm yet.** It is built and tested as `agate-sdk`; for now, use it from this repository.
+- **The SDK is not on npm yet.** It is built and tested; for now, use it from this repository. Until it is published,
+  a package on npm that claims to be Agate's is not ours.
