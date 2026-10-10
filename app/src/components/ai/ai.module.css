@@ -5,34 +5,6 @@
   background: var(--bg);
   color: var(--ink);
 }
-.main {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 32px max(32px, env(safe-area-inset-right)) 48px max(32px, env(safe-area-inset-left));
-  display: grid;
-  gap: 28px;
-  align-content: start;
-}
-.head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px 24px;
-}
-.headText {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  max-width: 60ch;
-}
-.h1 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 30px;
-  line-height: 1.1;
-  letter-spacing: -0.01em;
-}
 .lead {
   font-size: 16px;
   color: var(--ink-2);
@@ -105,7 +77,7 @@
 .cols {
   display: grid;
   /* fixed-width actions, so the header row and every AI row share their columns */
-  grid-template-columns: minmax(110px, 1fr) minmax(140px, 1.1fr) minmax(64px, 0.6fr) minmax(96px, 0.8fr) minmax(150px, 1.1fr) 170px;
+  grid-template-columns: minmax(170px, 1.3fr) minmax(140px, 1.1fr) minmax(64px, 0.6fr) minmax(96px, 0.8fr) minmax(150px, 1.1fr) 170px;
   gap: 14px;
   align-items: center;
 }
@@ -123,8 +95,13 @@
 }
 .who {
   display: grid;
-  gap: 2px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 12px;
   min-width: 0;
+}
+.who > :first-child {
+  grid-row: span 2;
 }
 .name {
   font-size: 17px;
@@ -185,8 +162,9 @@
   width: 60%;
 }
 
-/* below 880 px the columns would crowd: each AI becomes a card, the whole card leads to its page */
-@media (max-width: 959.98px) {
+/* a list narrower than its columns (a phone, or the frame's list beside its 400 px column up to about 1300 px wide):
+   each AI becomes a card, the whole card leads to its page */
+@container ais (max-width: 899.98px) {
   .cols {
     display: none;
   }
@@ -197,10 +175,13 @@
     padding: 14px 0;
   }
   .who {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: baseline;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
     gap: 12px;
     grid-column: 1 / -1;
+  }
+  .who > :first-child {
+    grid-row: auto;
   }
   .fig {
     display: none;
@@ -239,15 +220,7 @@
   }
 }
 
-/* ---------- one AI: the pocket on the left, what it did on the right ---------- */
-.cardMain {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 16px max(32px, env(safe-area-inset-right)) 48px max(32px, env(safe-area-inset-left));
-  display: grid;
-  gap: 12px;
-  align-content: start;
-}
+/* ---------- one AI ---------- */
 .back {
   display: inline-flex;
   align-items: center;
@@ -263,51 +236,9 @@
     color: var(--ink);
   }
 }
-.grid {
-  display: grid;
-  gap: 0;
-  background: var(--bg);
-  box-shadow: 0 0 0 1px var(--line);
-  grid-template-columns: minmax(0, 1fr);
-}
-.grid > .panel + .panel {
-  box-shadow: inset 0 1px 0 var(--line);
-}
-.panel {
-  background: var(--bg);
-  padding: 24px;
-  min-width: 0;
-  display: grid;
-  gap: 24px;
-  align-content: start;
-}
-@media (min-width: 1100px) {
-  .grid {
-    grid-template-columns: 380px minmax(0, 1fr);
-  }
-  .grid > .panel + .panel {
-    box-shadow: inset 1px 0 0 var(--line);
-  }
-  .grid > .panel:first-child {
-    position: sticky;
-    top: calc(var(--nav-h) + 1px);
-    align-self: start;
-  }
-}
 .pocketHead {
   display: grid;
   gap: 6px;
-}
-.label {
-  font-size: 15px;
-  color: var(--ink-2);
-}
-.big {
-  font-family: var(--font-display);
-  font-weight: 300;
-  font-size: clamp(44px, 13vw, 56px);
-  line-height: 1;
-  font-feature-settings: "lnum", "tnum";
 }
 .stack {
   display: grid;
@@ -426,27 +357,6 @@
   .screen[data-phone="new"] {
     padding-bottom: calc(var(--dock-h, 0px) + env(safe-area-inset-bottom));
   }
-  .screen[data-phone="new"] .main {
-    padding: 20px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
-    gap: 22px;
-  }
-  .screen[data-phone="new"] .cardMain {
-    padding: 4px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
-  }
-  .screen[data-phone="new"] .grid {
-    box-shadow: none;
-  }
-  .screen[data-phone="new"] .grid > .panel + .panel {
-    box-shadow: inset 0 1px 0 var(--line);
-    padding-top: 24px;
-  }
-  .screen[data-phone="new"] .panel {
-    padding: 0 0 24px;
-  }
-  .screen[data-phone="new"] .head > :global(.ag-btn) {
-    width: 100%;
-    min-height: 44px;
-  }
   .screen[data-phone="new"] .tabs {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -494,5 +404,169 @@
   }
   .screen[data-phone="new"] .feedWhen {
     align-items: center;
+  }
+}
+
+/* ---------- Connected AIs in the market page's frame (Oct 10): the figures across the top, the AIs under them, and
+   the full-height column on the right with the way to add one. The panels and the header are the market page's own
+   classes (trade.module.css); one flat surface, the grid's colour showing through 1 px gaps as hairlines. ---------- */
+.frame {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  box-shadow: 0 -1px 0 var(--line);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "head" "list" "rail";
+}
+@media (min-width: 1100px) {
+  .frame {
+    flex: 1 1 0;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "head rail" "list rail";
+  }
+  .listPanel,
+  .rail {
+    position: relative;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-2) transparent;
+  }
+}
+.figs {
+  grid-area: head;
+}
+.figs dd small {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--mute);
+}
+.listPanel {
+  grid-area: list;
+  container: ais / inline-size;
+  display: grid;
+  align-content: start;
+  gap: 28px;
+}
+.rail {
+  grid-area: rail;
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+.panelH2 {
+  font-size: 17px;
+  font-weight: 500;
+}
+.railNote {
+  display: grid;
+  gap: 6px;
+  padding-top: 18px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.railNote h3 {
+  font-size: 15px;
+  font-weight: 500;
+}
+.railNote p {
+  font-size: 15px;
+  color: var(--mute-text);
+  text-wrap: pretty;
+}
+/* nothing to list yet: one card in the panel's middle, the apps' marks over the words */
+.invite {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 12px;
+  min-height: clamp(280px, 46vh, 520px);
+  max-width: 520px;
+  margin: 0 auto;
+  text-align: center;
+}
+.invite .actions {
+  justify-content: center;
+  margin-top: 6px;
+}
+.inviteTitle {
+  font-weight: 400;
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.appStack {
+  display: flex;
+  margin-bottom: 8px;
+}
+.appStack > * + * {
+  margin-left: -8px;
+}
+.appStack > * {
+  box-shadow: inset 0 0 0 1px var(--line), 0 0 0 3px var(--panel);
+}
+/* the header's four figures in one row, as the Index page lays its own; phones keep the market's two columns */
+@media (min-width: 601px) {
+  dl.stats {
+    grid-template-rows: auto;
+  }
+  dl.stats > div:nth-child(2) {
+    padding-left: 22px;
+    box-shadow: inset 1px 0 0 var(--line);
+  }
+  dl.stats > div:nth-child(2):not(:last-child) {
+    padding-right: 22px;
+  }
+}
+/* one AI's page: the way back and its name in a strip over the frame, as the market page's market row */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 52px;
+  padding: 0 var(--panel-pad);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.stripName {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.stripName::before {
+  content: "/";
+  margin-right: 14px;
+  color: var(--line-2);
+  font-weight: 400;
+}
+.frameOne {
+  display: grid;
+  flex: 1 1 0;
+  min-height: 0;
+}
+.ident {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+  min-width: 0;
+}
+.cardH1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+/* phones: the trade screen moves its header's figures into a panel of their own; these pages have none, so the
+   figures stay in the header, two to a row */
+@media (max-width: 639.98px) {
+  .screen[data-phone="new"] .figs dl.stats.stats {
+    display: grid;
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
   }
 }

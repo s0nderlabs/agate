@@ -172,7 +172,7 @@ export const SIGNIN_COPY = {
   notSetUp: "Sign in is not set up on this build.",
   google: "Google sign-in didn't finish. Try again, or use your email.",
   passkey: "Passkey sign-in didn't finish. Try again, or use your email.",
-  passkeyStopped: "No passkey signed you in. New here, or no passkey yet? Sign in with your email, then add one from your account.",
+  passkeyStopped: "No passkey signed you in. New here? Start once with Google or an email code; right after, you can add a passkey and use only that from then on.",
   passkeyUnknown: "That passkey isn't on an Agate account anymore. Sign in with your email or Google.",
   passkeyUnsupported: "This browser can't use passkeys. Sign in with your email.",
   addPasskey: "Couldn't add a passkey. Try again.",

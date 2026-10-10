@@ -318,7 +318,7 @@ export function TradeScreen() {
                 </dd>
               </div>
               {!loading && head.premText && head.insight && (
-                <div className={s.hsCell}>
+                <div className={s.hsCell} data-cell="against">
                   <dt className={s.pLabel}>
                     <Note label="Against the index" note={head.insight} />
                   </dt>

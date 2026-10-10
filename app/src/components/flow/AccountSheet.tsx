@@ -45,17 +45,14 @@ export function AddressRow({ label = "Your address" }: { label?: string }) {
   );
 }
 
-/** "Passkey": add one (the browser's own dialog) so "Sign in with a passkey" works next time, or Added. When Dynamic
- *  first wants "Confirm it's you" (after Google, a passkey, or a while after the code), a code goes to the email and
- *  is asked for under the rows. Nothing where the browser has no passkeys. The row goes in the rows and its note under
- *  them, so they come back apart. */
-export function usePasskeyRow() {
+/** Adding a passkey (the browser's own dialog), shared by the Account sheet's row and the offer at "You're set". When
+ *  Dynamic first wants "Confirm it's you" (after Google, a passkey, or a while after the code), a code goes to the
+ *  email and `phase` turns to "code" until it is entered. */
+export function usePasskeyAdd() {
   const account = useAccount();
-  const supported = usePasskeySupport();
   const [phase, setPhase] = useState<"idle" | "adding" | "code" | "checking">("idle");
   const [code, setCode] = useState("");
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
-  if (!supported || !account.ready) return { row: null, note: null };
   const add = async (withCode?: string) => {
     setPhase(withCode === undefined ? "adding" : "checking");
     setNote(null);
@@ -65,7 +62,7 @@ export function usePasskeyRow() {
         setPhase("code");
         return;
       }
-      setNote({ ok: true, text: "Passkey added. Next time, choose Sign in with a passkey." });
+      setNote({ ok: true, text: PASSKEY_ADDED });
       setPhase("idle");
     } catch (e) {
       const refused = (e as Error)?.name === "PasskeyCodeError";
@@ -74,8 +71,73 @@ export function usePasskeyRow() {
       setPhase(refused ? "code" : "idle");
     }
   };
+  const cancel = () => {
+    setPhase("idle");
+    setNote(null);
+  };
+  return { phase, code, setCode, note, add, cancel, busy: phase === "adding" || phase === "checking" };
+}
+
+/** Said once a passkey is added: how to use it, and the way out if it is ever lost (a lost passkey has no reset here). */
+export const PASSKEY_ADDED = "Passkey added. Next time, choose Sign in with a passkey. If you ever lose it, ask us to reset your account.";
+
+/** The code Dynamic asks for before a passkey can be added. */
+export function PasskeyCodeForm({ adder }: { adder: ReturnType<typeof usePasskeyAdd> }) {
+  const account = useAccount();
+  const { code, setCode, note, add, cancel, busy } = adder;
+  return (
+    <form
+      className="grid gap-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (isCode(code) && !busy) void add(code);
+      }}
+    >
+      <p className="ag-fine">To add a passkey, enter the 6-digit code we just sent to {account.email}.</p>
+      <input
+        className="ag-input ag-code"
+        aria-label="6-digit code"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        autoComplete="one-time-code"
+        enterKeyHint="done"
+        readOnly={busy}
+        aria-invalid={(!!note && !note.ok) || undefined}
+        value={code}
+        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+      />
+      {note && (
+        <p className="ag-err" role="status">
+          {note.text}
+        </p>
+      )}
+      <button className="ag-btn ag-btn--primary" type="submit" disabled={busy || !isCode(code)}>
+        {busy ? (
+          <>
+            <span className="ag-spinner" aria-hidden="true" />
+            Adding
+          </>
+        ) : (
+          "Add passkey"
+        )}
+      </button>
+      <button className="ag-btn ag-btn--quiet" type="button" disabled={busy} onClick={cancel}>
+        Cancel
+      </button>
+    </form>
+  );
+}
+
+/** "Passkey": add one so "Sign in with a passkey" works next time, or Added. The code Dynamic may ask for first goes
+ *  under the rows. Nothing where the browser has no passkeys. The row goes in the rows and its note under them, so
+ *  they come back apart. */
+export function usePasskeyRow() {
+  const account = useAccount();
+  const supported = usePasskeySupport();
+  const adder = usePasskeyAdd();
+  if (!supported || !account.ready) return { row: null, note: null };
+  const { phase, note, add, busy } = adder;
   const n = account.passkeys;
-  const busy = phase === "adding" || phase === "checking";
   if (phase === "code" || phase === "checking") {
     return {
       row: (
@@ -84,55 +146,7 @@ export function usePasskeyRow() {
           <span>Confirm it's you</span>
         </div>
       ),
-      note: (
-        <form
-          className="grid gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (isCode(code) && !busy) void add(code);
-          }}
-        >
-          <p className="ag-fine">To add a passkey, enter the 6-digit code we just sent to {account.email}.</p>
-          <input
-            className="ag-input ag-code"
-            aria-label="6-digit code"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            autoComplete="one-time-code"
-            enterKeyHint="done"
-            readOnly={busy}
-            aria-invalid={(!!note && !note.ok) || undefined}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          />
-          {note && (
-            <p className="ag-err" role="status">
-              {note.text}
-            </p>
-          )}
-          <button className="ag-btn ag-btn--primary" type="submit" disabled={busy || !isCode(code)}>
-            {busy ? (
-              <>
-                <span className="ag-spinner" aria-hidden="true" />
-                Adding
-              </>
-            ) : (
-              "Add passkey"
-            )}
-          </button>
-          <button
-            className="ag-btn ag-btn--quiet"
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              setPhase("idle");
-              setNote(null);
-            }}
-          >
-            Cancel
-          </button>
-        </form>
-      ),
+      note: <PasskeyCodeForm adder={adder} />,
     };
   }
   const value = busy ? (

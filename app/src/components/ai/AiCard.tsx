@@ -21,7 +21,9 @@ import { timeText, whenText } from "@/lib/data/derive";
 import { usd0 } from "@/lib/format";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { useNow } from "@/lib/ui/useNow";
-import { OFFLINE_LINE, useScreenTheme } from "./AisScreen";
+import { Invite, OFFLINE_LINE, useScreenTheme } from "./AisScreen";
+import { AppMark, appForLabel } from "./apps";
+import t from "@/components/trade/trade.module.css";
 import s from "./ai.module.css";
 
 function Back() {
@@ -44,59 +46,63 @@ export function AiCardScreen({ id }: { id: string }) {
   const grants = useGrants({ poll: true });
   const g = grants.data?.find((x) => x.id === id);
 
+  // every state but the card itself: one panel under the strip, its words in the middle
+  const alone = (node: React.ReactNode, busy = false) => (
+    <div className={s.frameOne} aria-busy={busy || undefined}>
+      <section className={`${t.panel} ${s.listPanel}`}>{node}</section>
+    </div>
+  );
   let body: React.ReactNode;
   if (!account.ready) {
-    body = (
-      <div className={s.main} style={{ padding: 0 }}>
-        <div className={s.headText}>
-          {/* the back link above already says "Connected AIs": the heading says what this page is */}
-          <h1 className={s.h1}>Sign in to see this AI</h1>
-          <p className={s.lead}>Each AI you connect has its own page: its pocket, its trades and your limits.</p>
-          <div className={s.actions}>
-            <button className="ag-btn ag-btn--primary" type="button" onClick={flow.openSignIn}>
-              Sign in
-            </button>
-          </div>
-        </div>
-      </div>
+    body = alone(
+      <Invite title="Sign in to see this AI" text="Each AI you connect has its own page: its pocket, its trades and your limits.">
+        <button className="ag-btn ag-btn--primary" type="button" onClick={flow.openSignIn}>
+          Sign in
+        </button>
+      </Invite>,
     );
   } else if (grants.isPending) {
-    body = (
-      <div className={s.grid} aria-busy="true">
-        <div className={s.panel}>
-          <span className={`${s.big} ag-skel ag-skel-on`}>$000</span>
-        </div>
-        <div className={s.panel}>
-          <span className="ag-skel ag-skel-on">Loading</span>
-        </div>
-      </div>
+    body = alone(
+      <div className={s.invite}>
+        <span className={`${s.inviteTitle} ag-skel ag-skel-on`}>Loading this AI</span>
+      </div>,
+      true,
     );
   } else if (!g) {
-    body = (
-      <div className={s.headText}>
-        <h1 className={s.h1}>{grants.isError ? "Can't load this AI" : "We can't find this AI"}</h1>
-        <p className={s.lead}>{grants.isError ? OFFLINE_LINE : "It may belong to another account."}</p>
-        {grants.isError && (
-          <div className={s.actions}>
-            <button className="ag-btn ag-btn--ghost" type="button" onClick={() => void grants.refetch()}>
-              Try now
-            </button>
-          </div>
+    body = alone(
+      <Invite title={grants.isError ? "Can't load this AI" : "We can't find this AI"} text={grants.isError ? OFFLINE_LINE : "It may belong to another account, or the link is from before it was disconnected."}>
+        {grants.isError ? (
+          <button className="ag-btn ag-btn--primary" type="button" onClick={() => void grants.refetch()}>
+            Try now
+          </button>
+        ) : (
+          <BackButton />
         )}
-      </div>
+      </Invite>,
     );
   } else body = <Card g={g} />;
 
   return (
-    <div className={`${s.screen} ${tone}`} data-phone={config.phone}>
+    <div className={`${t.screen} ${s.screen} ${tone}`} data-phone={config.phone}>
       <Notice />
       <NavBar active={null} />
-      <main className={s.cardMain}>
+      <div className={s.strip}>
         <Back />
-        {body}
-      </main>
+        {g && <span className={s.stripName}>{g.label}</span>}
+      </div>
+      <main className={t.main}>{body}</main>
       {config.phone === "new" && <BottomDock active={null} />}
     </div>
+  );
+}
+
+/** "Connected AIs" as a button, for a page with nothing else to show. */
+function BackButton() {
+  const q = useLinkQuery();
+  return (
+    <Link className="ag-btn ag-btn--ghost" href={`/app/ai${q}`}>
+      Connected AIs
+    </Link>
   );
 }
 
@@ -120,27 +126,103 @@ function Card({ g }: { g: Grant }) {
   const waiting = st === "active" ? (approvals.data ?? []).filter((a) => a.grantId === g.id && approvalOpen(a, now)) : [];
   const target = { pocket: g.pocket, ai: g.label, ended: st !== "active" };
 
+  // the end date is the header's last figure; the line under the name says only how it stands
+  const connectedLine = `Connected ${whenText(g.createdAt)}.${st === "ended" ? " Its permission has ended." : st === "disconnected" ? " Disconnected." : ""}`;
+  const sk = left === undefined && !pocket.isError ? "ag-skel ag-skel-on" : "";
+
   return (
-    <div className={s.grid}>
-      <section className={s.panel} aria-label={`${g.label}'s pocket`}>
-        <div className={s.pocketHead}>
-          <h1 className={s.h1}>{g.label}</h1>
-          <p className={s.quiet}>
-            {st === "active"
-              ? `Connected ${whenText(g.createdAt)}. Ends ${whenText(g.expiresAt)}.`
-              : st === "ended"
-                ? `Connected ${whenText(g.createdAt)}. Ended ${whenText(g.expiresAt)}.`
-                : `Connected ${whenText(g.createdAt)}. Disconnected${offAt ? ` ${whenText(offAt)}` : ""}.`}
-          </p>
+    <div className={s.frame}>
+      <section className={`${t.panel} ${t.headPanel} ${s.figs}`} aria-label={`${g.label}'s pocket`}>
+        <div className={t.hsRow}>
+          <div className={s.ident}>
+            <AppMark app={appForLabel(g.label)} name={g.label} size={48} />
+            <div className={s.pocketHead}>
+              <h1 className={s.cardH1}>{g.label}</h1>
+              <p className={s.quiet}>{connectedLine}</p>
+            </div>
+          </div>
+          <div className={t.priceBlock}>
+            <span className={t.pLabel}>In {g.label}'s pocket</span>
+            {pocket.isError ? (
+              <span className={s.err}>Can't read the pocket right now. Trying again.</span>
+            ) : (
+              <span className={`${t.bigPrice} font-display ${sk}`}>{left === undefined ? "$000" : usd0(left)}</span>
+            )}
+            <span className={t.pSub}>{`Moved in when connected: ${usd0(lim.budget)}`}</span>
+          </div>
+          <dl className={`${t.hsGrid} ${s.stats}`}>
+            <div>
+              <dt>Spent</dt>
+              <dd>{spent === null ? <small>Not yet shown</small> : <Num>{usd0(spent)}</Num>}</dd>
+            </div>
+            <div>
+              <dt>Most on one trade</dt>
+              <dd>
+                <Num>{usd0(lim.perTradeCap)}</Num>
+              </dd>
+            </div>
+            <div>
+              <dt>Trades in the last 24 hours</dt>
+              <dd>
+                <Num>{`${trades} of ${lim.tradesPerDay}`}</Num>
+              </dd>
+            </div>
+            <div>
+              <dt>{st === "active" ? "Ends" : "Ended"}</dt>
+              <dd>{whenText(st === "disconnected" && offAt ? offAt : g.expiresAt)}</dd>
+            </div>
+          </dl>
         </div>
-        <div className={s.pocketHead}>
-          <span className={s.label}>In {g.label}'s pocket</span>
-          {pocket.isError ? (
-            <span className={s.err}>Can't read the pocket right now. Trying again.</span>
+      </section>
+
+      <section className={`${t.panel} ${s.listPanel}`} aria-label={`What ${g.label} did`}>
+        {waiting.length > 0 && (
+          <section className={s.section} aria-labelledby="wait-h">
+            <h2 id="wait-h" className={s.panelH2}>
+              Waiting for you
+            </h2>
+            {waiting.map((a) => (
+              <Waiting key={a.id} a={a} ai={g.label} now={now} />
+            ))}
+          </section>
+        )}
+        <div className={s.tabs} role="tablist" aria-label={`${g.label}'s activity and positions`}>
+          <button type="button" role="tab" aria-selected={tab === "activity"} onClick={() => setTab("activity")}>
+            Activity
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "positions"} onClick={() => setTab("positions")}>
+            Positions ({positions.length})
+          </button>
+        </div>
+        <section className={s.section} data-tab="activity" data-shown={tab === "activity"} aria-labelledby="act-h">
+          <h2 id="act-h" className={`${s.h2} ${s.panelH2}`}>
+            Activity
+          </h2>
+          {activity.isError && <p className={s.err}>Can't load the activity right now. Trying again.</p>}
+          {activity.isPending ? (
+            <span className="ag-skel ag-skel-on">Loading the activity</span>
           ) : (
-            <span className={`${s.big} ${left === undefined ? "ag-skel ag-skel-on" : ""}`}>{left === undefined ? "$000" : usd0(left)}</span>
+            <Feed g={g} events={activity.data ?? []} />
           )}
-        </div>
+        </section>
+        <section className={s.section} data-tab="positions" data-shown={tab === "positions"} aria-labelledby="pos-h">
+          <h2 id="pos-h" className={`${s.h2} ${s.panelH2}`}>
+            Its positions
+          </h2>
+          {pocket.isPending ? (
+            <span className="ag-skel ag-skel-on">Loading its positions</span>
+          ) : positions.length ? (
+            <>
+              <p className={s.line}>Held by {g.label}, paying your account.</p>
+              <PositionCards positions={positions} lastFor={lastFor} closable={false} />
+            </>
+          ) : (
+            <p className={s.line}>{g.label} hasn't opened any positions yet.</p>
+          )}
+        </section>
+      </section>
+
+      <aside className={`${t.panel} ${s.rail}`} aria-label={`${g.label}'s pocket and limits`}>
         {st !== "active" && left !== undefined && (
           <div className={s.banner}>
             <span>
@@ -155,33 +237,23 @@ function Card({ g }: { g: Grant }) {
             )}
           </div>
         )}
+        {st === "active" && (
+          <div className={s.stack}>
+            <h2 className={s.panelH2}>Its pocket</h2>
+            {left !== undefined && left <= 0 && <p className={s.line}>The pocket is empty. Add test dollars to let {g.label} trade again.</p>}
+            <div className={s.pair}>
+              <button className="ag-btn ag-btn--ghost" type="button" onClick={() => flow.openPocket(target, "add")}>
+                Add test dollars
+              </button>
+              {left !== undefined && left > 0 && (
+                <button className="ag-btn ag-btn--ghost" type="button" onClick={() => flow.openPocket(target, "takeBack")}>
+                  Take back {usd0(left)}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="ag-rows">
-          <div>
-            <span>Moved in when connected</span>
-            <span>
-              <Num>{usd0(lim.budget)}</Num>
-            </span>
-          </div>
-          <div>
-            <span>Spent</span>
-            <span>{spent === null ? "Not yet shown" : <Num>{usd0(spent)}</Num>}</span>
-          </div>
-          <div>
-            <span>Most on one trade</span>
-            <span>
-              <Num>{usd0(lim.perTradeCap)}</Num>
-            </span>
-          </div>
-          <div>
-            <span>Trades in the last 24 hours</span>
-            <span>
-              <Num>{`${trades} of ${lim.tradesPerDay}`}</Num>
-            </span>
-          </div>
-          <div>
-            <span>{st === "active" ? "Ends" : "Ended"}</span>
-            <span>{whenText(st === "disconnected" && offAt ? offAt : g.expiresAt)}</span>
-          </div>
           <div>
             <span>Payouts go to</span>
             <span>Your account, {shortAddress(account.address)}</span>
@@ -197,73 +269,13 @@ function Card({ g }: { g: Grant }) {
             </span>
           </div>
         </div>
-        {st === "active" && (
-          <div className={s.stack}>
-            {left !== undefined && left <= 0 && <p className={s.line}>The pocket is empty. Add test dollars to let {g.label} trade again.</p>}
-            <div className={s.pair}>
-              <button className="ag-btn ag-btn--ghost" type="button" onClick={() => flow.openPocket(target, "add")}>
-                Add test dollars
-              </button>
-              {left !== undefined && left > 0 && (
-                <button className="ag-btn ag-btn--ghost" type="button" onClick={() => flow.openPocket(target, "takeBack")}>
-                  Take back {usd0(left)}
-                </button>
-              )}
-            </div>
-            <button type="button" className={`ag-textbtn ${s.textDown}`} style={{ minHeight: 44 }} onClick={() => flow.openDisconnect(g.id)}>
-              Disconnect {g.label}
-            </button>
-          </div>
-        )}
-      </section>
-
-      <div className={s.panel}>
-        {waiting.length > 0 && (
-          <section className={s.section} aria-labelledby="wait-h">
-            <h2 id="wait-h" className={s.h2}>
-              Waiting for you
-            </h2>
-            {waiting.map((a) => (
-              <Waiting key={a.id} a={a} ai={g.label} now={now} />
-            ))}
-          </section>
-        )}
         <Autopilot g={g} active={st === "active"} />
-        <div className={s.tabs} role="tablist" aria-label={`${g.label}'s activity and positions`}>
-          <button type="button" role="tab" aria-selected={tab === "activity"} onClick={() => setTab("activity")}>
-            Activity
+        {st === "active" && (
+          <button type="button" className={`ag-textbtn ${s.textDown}`} style={{ minHeight: 44, justifySelf: "start" }} onClick={() => flow.openDisconnect(g.id)}>
+            Disconnect {g.label}
           </button>
-          <button type="button" role="tab" aria-selected={tab === "positions"} onClick={() => setTab("positions")}>
-            Positions ({positions.length})
-          </button>
-        </div>
-        <section className={s.section} data-tab="activity" data-shown={tab === "activity"} aria-labelledby="act-h">
-          <h2 id="act-h" className={s.h2}>
-            Activity
-          </h2>
-          {activity.isError && <p className={s.err}>Can't load the activity right now. Trying again.</p>}
-          {activity.isPending ? (
-            <span className="ag-skel ag-skel-on">Loading the activity</span>
-          ) : (
-            <Feed g={g} events={activity.data ?? []} />
-          )}
-        </section>
-        <section className={s.section} data-tab="positions" data-shown={tab === "positions"} aria-labelledby="pos-h">
-          <h2 id="pos-h" className={s.h2}>
-            Its positions
-          </h2>
-          {pocket.isPending ? (
-            <span className="ag-skel ag-skel-on">Loading its positions</span>
-          ) : positions.length ? (
-            <>
-              <p className={s.line}>Held by {g.label}, paying your account.</p>
-              <PositionCards positions={positions} lastFor={lastFor} closable={false} />
-            </>
-          ) : (
-            <p className={s.line}>{g.label} hasn't opened any positions yet.</p>
-          )}
-        </section>
-      </div>
+        )}
+      </aside>
     </div>
   );
 }
@@ -346,7 +358,7 @@ function Autopilot({ g, active }: { g: Grant; active: boolean }) {
   if (!active && !list.length) return null;
   return (
     <section className={s.section} aria-labelledby="auto-h">
-      <h2 id="auto-h" className={s.h2}>
+      <h2 id="auto-h" className={s.panelH2}>
         Keep my hedge going
       </h2>
       <p className={s.line}>

@@ -255,6 +255,18 @@
   gap: 16px;
   padding: 24px 0;
 }
+/* an end page in a card on the ground, like the form's own frame */
+.wholeCard {
+  margin-top: 24px;
+  padding: 32px;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line);
+}
+@media (max-width: 639.98px) {
+  .wholeCard {
+    padding: 24px 20px;
+  }
+}
 .whole > :global(.ag-btn) {
   justify-self: start;
   min-height: 44px;

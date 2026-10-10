@@ -10,8 +10,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useFlow } from "@/components/markets/Flow";
 import { NavBar } from "@/components/shell/Shell";
 import { CopyButton } from "@/components/flow/Copy";
-import { Check, Steps, type StepRow } from "@/components/flow/Steps";
+import { Check, StateMark, Steps, type StepRow } from "@/components/flow/Steps";
 import { useScreenTheme } from "@/components/ai/AisScreen";
+import { AI_APPS, appForLabel, appOf } from "@/components/ai/apps";
+import { AppPicker, CodeLine } from "@/components/ai/HowTo";
 import { useAccount } from "@/lib/account";
 import { useAiBackend, useAiRefresh } from "@/lib/account/ai";
 import { clock, safeReturn } from "@/lib/account/aiView";
@@ -46,14 +48,13 @@ import { useModalFocus, usePasskeySupport } from "@/lib/ui/hooks";
 import { useHydrated, useNow } from "@/lib/ui/useNow";
 import c from "./connect.module.css";
 
-const WHICH = ["Claude", "ChatGPT", "Cursor"] as const;
 /** A step running longer than this says so. */
 const SLOW_MS = 15_000;
 
 /** A step that stopped says why in the console; the screen says it in plain words. */
 const logStep = (step: string, e: unknown) => console.warn(`[connect] ${step} failed`, e);
 
-export function ConnectScreen({ requestId }: { requestId: string | null }) {
+export function ConnectScreen({ requestId, app }: { requestId: string | null; app?: string | null }) {
   const { config } = useMock();
   const tone = useScreenTheme();
   const account = useAccount();
@@ -64,7 +65,7 @@ export function ConnectScreen({ requestId }: { requestId: string | null }) {
   const lane = requestId ? "oauth" : "inapp";
 
   // the machine, with a ref the running steps read so a late answer always meets the current state
-  const [s, setS] = useState<ConnectState>(() => connectStart(lane, lane === "oauth" ? "your AI" : "Claude"));
+  const [s, setS] = useState<ConnectState>(() => connectStart(lane, lane === "oauth" ? "your AI" : (appOf(app)?.name ?? "Claude")));
   const ref = useRef(s);
   const dispatch = useCallback((e: ConnectEvent) => {
     const next = connectReducer(ref.current, e);
@@ -305,7 +306,8 @@ export function ConnectScreen({ requestId }: { requestId: string | null }) {
   if (s.step === "ended" || s.step === "denied") {
     return (
       <Frame tone={tone} phone={config.phone}>
-        <div className={c.whole}>
+        <div className={`${c.whole} ${c.wholeCard}`}>
+          <StateMark kind={s.step === "ended" ? "ended" : "declined"} />
           {s.step === "ended" ? (
             <>
               <h1 className={c.h1}>{CONNECT_COPY.requestEnded}</h1>
@@ -592,33 +594,22 @@ function Fields(p: { s: ConnectState; t: Terms; lane: "oauth" | "inapp"; check: 
           <span className={c.fieldLabel} id="which-l">
             Which AI?
           </span>
-          <div className={`ag-seg ag-seg--tall ${c.which}`} role="group" aria-labelledby="which-l">
-            {WHICH.map((w) => (
-              <button
-                key={w}
-                type="button"
-                disabled={locked}
-                aria-pressed={!other && t.label === w}
-                onClick={() => {
-                  setOther(false);
-                  edit({ label: w });
-                }}
-              >
-                {w}
-              </button>
-            ))}
-            <button
-              type="button"
-              disabled={locked}
-              aria-pressed={other}
-              onClick={() => {
+          <AppPicker
+            labelledBy="which-l"
+            disabled={locked}
+            picked={AI_APPS.find((a) => a.name === t.label)?.id ?? null}
+            onPick={(a) => {
+              setOther(false);
+              edit({ label: a.name });
+            }}
+            other={{
+              on: other,
+              onPick: () => {
                 setOther(true);
                 edit({ label: "" });
-              }}
-            >
-              Other
-            </button>
-          </div>
+              },
+            }}
+          />
           {other && <input className="ag-input" aria-label="Its name" placeholder="Its name" enterKeyHint="done" maxLength={40} value={t.label} disabled={locked} onChange={(e) => edit({ label: e.target.value })} />}
         </div>
       )}
@@ -743,6 +734,30 @@ function Fields(p: { s: ConnectState; t: Terms; lane: "oauth" | "inapp"; check: 
   );
 }
 
+/** The connector link, shown once after connecting from here: where it goes in the app it was named after (the line
+ *  to run or paste, when the app takes one), else the bare link for any AI app. */
+function LinkFor({ name, url, claudeCode }: { name: string; url: string; claudeCode?: string | null }) {
+  const app = appForLabel(name);
+  const line = app?.line ? app.line(url) : null;
+  return (
+    <div className={c.link}>
+      <p className={c.lead}>{app ? `Add this to ${app.name}. ${app.paste}` : "Add this link to your AI app, where it takes a remote MCP server."}</p>
+      {line ? (
+        <CodeLine text={line} what="the line" label={`The line for ${app!.name}`} />
+      ) : (
+        <>
+          <input className="ag-input" readOnly aria-label="Your AI's link" value={url} onFocus={(e) => e.currentTarget.select()} />
+          <div className={c.linkActs}>
+            <CopyButton text={url} what="the link" />
+            {claudeCode && !app && <CopyButton text={claudeCode} label="Copy the Claude Code line" what="the Claude Code line" />}
+          </div>
+        </>
+      )}
+      <p className={c.fine}>Treat this link like a password: anyone with it can use this AI connection. It shows only once.</p>
+    </div>
+  );
+}
+
 const STEP_TEXT = (step: ConnectStep, name: string, budget: number, lane: "oauth" | "inapp", withDrip: boolean): { label: string; hint?: string } => {
   switch (step) {
     case "assistant":
@@ -773,15 +788,7 @@ function Progress({ s, name, onGetLink }: { s: ConnectState; name: string; onGet
         </p>
         {s.lane === "inapp" &&
           (s.connector ? (
-            <div className={c.link}>
-              <p className={c.lead}>Add this link to your AI app.</p>
-              <input className="ag-input" readOnly aria-label="Your AI's link" value={s.connector.url} onFocus={(e) => e.currentTarget.select()} />
-              <div className={c.linkActs}>
-                <CopyButton text={s.connector.url} what="the link" />
-                {s.connector.claudeCode && <CopyButton text={s.connector.claudeCode} label="Copy the Claude Code line" what="the Claude Code line" />}
-              </div>
-              <p className={c.fine}>Treat this link like a password: anyone with it can use this AI connection. It shows only once.</p>
-            </div>
+            <LinkFor name={name} url={s.connector.url} claudeCode={s.connector.claudeCode} />
           ) : s.linkFailed ? (
             <LinkAgain name={name} onGetLink={onGetLink} />
           ) : (

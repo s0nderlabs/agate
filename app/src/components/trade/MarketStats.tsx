@@ -16,6 +16,9 @@ import { Note } from "./Note";
  * date alone, the rest in the notes); otherwise two columns of two beside the prices. series: the ticket's month
  * (the first open one by default). loading: the figures are on their way (skeletons). A month not open yet has
  * nothing traded or held ("None yet"); a price-only GPU shows the next index price alone. */
+/** Pro's one-line header names its cells, so a narrower window can let the ones said elsewhere step out. */
+const CELL: Record<string, string> = { "Traded today": "traded", "Held open": "held", "Next index price": "next", "Trading closes": "closes" };
+
 export function HeadStats({ market, series: picked, row = false, loading = false }: { market: Market; series?: Series; row?: boolean; loading?: boolean }) {
   const uid = useId();
   // the ticket's month, else the first open one (a stand-in for a price-only GPU), its candles from the shared read
@@ -119,7 +122,7 @@ export function HeadStats({ market, series: picked, row = false, loading = false
   if (row)
     return shown.map((c, i) => (
       // data-stat: the phone header leaves these to the stats panel under the chart
-      <div key={c.label} className={s.hsCell} data-stat>
+      <div key={c.label} className={s.hsCell} data-stat data-cell={CELL[c.label]}>
         {cell(c, i)}
       </div>
     ));

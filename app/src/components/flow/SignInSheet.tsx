@@ -12,6 +12,7 @@ import { int, usd0 } from "@/lib/format";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { finePointer, usePasskeySupport } from "@/lib/ui/hooks";
 import { useNow } from "@/lib/ui/useNow";
+import { PasskeyCodeForm, usePasskeyAdd } from "./AccountSheet";
 import { DripButton } from "./DripButton";
 import { GoogleG, PasskeyMark } from "./Marks";
 import { Check, Steps } from "./Steps";
@@ -362,6 +363,7 @@ function Creating({ step, from, onFinished }: { step: SignInStep; from: SignInFr
         <Check size={44} />
         <h2 tabIndex={-1}>You're set</h2>
         <p>{usd0(account.balance)} in test dollars, ready to trade.</p>
+        <PasskeyOffer />
         <button className="ag-btn ag-btn--primary ag-btn--lg" type="button" onClick={onFinished}>
           {from === "trade" ? "Review trade" : from === "connect" || from === "approve" ? "Continue" : "Start trading"}
         </button>
@@ -400,5 +402,45 @@ function Creating({ step, from, onFinished }: { step: SignInStep; from: SignInFr
         )}
       </div>
     </>
+  );
+}
+
+/** At "You're set", once per new person: make a passkey the way back in. A passkey can't create an account (Dynamic
+ *  links one only to a person already signed in), so this is the first moment one can exist; from then on "Sign in
+ *  with a passkey" is all it takes. Hidden where the browser has no passkeys or the account already has one. */
+function PasskeyOffer() {
+  const account = useAccount();
+  const supported = usePasskeySupport();
+  const adder = usePasskeyAdd();
+  // latched: shown once the account is known to have none, and kept through adding one (the count then turns to 1)
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (account.passkeys === 0) setShown(true);
+  }, [account.passkeys]);
+  if (!supported || !shown) return null;
+  if (adder.phase === "code" || adder.phase === "checking") return <PasskeyCodeForm adder={adder} />;
+  const done = !!adder.note?.ok;
+  return (
+    <div className="ag-offer">
+      <PasskeyMark />
+      <div className="grid gap-1">
+        <b>{done ? "Passkey added" : "Sign in with a passkey next time"}</b>
+        <p className={adder.note && !adder.note.ok ? "ag-err" : undefined} role={adder.note ? "status" : undefined}>
+          {adder.note ? adder.note.text.replace(/^Passkey added\. /, "") : "Your fingerprint, face or device PIN instead of a code. It stays on this device."}
+        </p>
+      </div>
+      {!done && (
+        <button className="ag-btn ag-btn--ghost" type="button" disabled={adder.busy} onClick={() => void adder.add()}>
+          {adder.busy ? (
+            <>
+              <span className="ag-spinner" aria-hidden="true" />
+              Adding
+            </>
+          ) : (
+            "Add a passkey"
+          )}
+        </button>
+      )}
+    </div>
   );
 }

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useFlow } from "@/components/markets/Flow";
 import { NavBar } from "@/components/shell/Shell";
 import { DripButton } from "@/components/flow/DripButton";
-import { Check, Steps } from "@/components/flow/Steps";
+import { Check, StateMark, Steps } from "@/components/flow/Steps";
 import { Num } from "@/components/num/Num";
 import { useAccount } from "@/lib/account";
 import { useAiBackend, useAiRefresh, useApprovals, useGrants } from "@/lib/account/ai";
@@ -181,10 +181,10 @@ export function ApproveScreen({ id }: { id: string }) {
   };
 
   const aiHref = grant ? `/app/ai/${encodeURIComponent(grant.id)}${q}` : `/app/ai${q}`;
-  const whole = (h: string, p: string, more?: React.ReactNode, check = false) => (
+  const whole = (h: string, p: string, more?: React.ReactNode, mark: "check" | "ended" | "declined" | "missing" | null = null) => (
     <Frame tone={tone} phone={config.phone}>
-      <div className={c.whole}>
-        {check && <Check size={44} />}
+      <div className={`${c.whole} ${c.wholeCard}`}>
+        {mark === "check" ? <Check size={44} /> : mark && <StateMark kind={mark} />}
         <h1 className={c.h1}>{h}</h1>
         <p className={c.lead}>{p}</p>
         {more}
@@ -198,7 +198,7 @@ export function ApproveScreen({ id }: { id: string }) {
   if (!account.ready) {
     return (
       <Frame tone={tone} phone={config.phone}>
-        <div className={c.whole}>
+        <div className={`${c.whole} ${c.wholeCard}`}>
           <h1 className={c.h1}>An AI asked to go over its limit</h1>
           <p className={c.lead}>Sign in to see what it asks for and answer it. Nothing runs until you do.</p>
           <button className="ag-btn ag-btn--primary ag-btn--lg" type="button" style={{ justifySelf: "start" }} onClick={() => flow.signInFor({ from: "approve" })}>
@@ -209,10 +209,10 @@ export function ApproveScreen({ id }: { id: string }) {
     );
   }
   if (a.step === "loading") {
-    if (a.message) return whole("Can't load this request", `${a.message} Nothing was traded.`, <button className="ag-btn ag-btn--primary" type="button" style={{ justifySelf: "start" }} onClick={() => void approvals.refetch()}>Try again</button>);
+    if (a.message) return whole("Can't load this request", `${a.message} Nothing was traded.`, <button className="ag-btn ag-btn--primary" type="button" style={{ justifySelf: "start" }} onClick={() => void approvals.refetch()}>Try again</button>, "missing");
     return (
       <Frame tone={tone} phone={config.phone}>
-        <div className={c.whole} aria-busy="true">
+        <div className={`${c.whole} ${c.wholeCard}`} aria-busy="true">
           <h1 className={`${c.h1} ag-skel ag-skel-on`}>An AI wants to go over its limit</h1>
           <p className={`${c.lead} ag-skel ag-skel-on`}>Loading the request</p>
         </div>
@@ -220,18 +220,18 @@ export function ApproveScreen({ id }: { id: string }) {
     );
   }
   // each end page: the heading says what happened, the line under it only what is new
-  if (a.step === "notFound") return whole("We can't find this request", "It may belong to another account. Nothing was traded.");
+  if (a.step === "notFound") return whole("We can't find this request", "It may belong to another account, or the link is incomplete. Nothing was traded.", undefined, "missing");
   if (a.step === "expired") {
     // the server's reason first (it knows what ended it), then the AI's state as read here
     const reason = a.approval?.result?.reason;
     const off = reason === APPROVAL_ENDED_BY.disconnected ? "disconnected" : reason === APPROVAL_ENDED_BY.ended ? "ended" : grantOff;
     const why = off === "disconnected" ? `It ended when ${ai} was disconnected.` : off === "ended" ? `It ended when ${ai}'s permission ended.` : "It wasn't answered in time.";
-    return whole("This request has ended", `${why} Nothing was traded.`);
+    return whole("This request has ended", `${why} Nothing was traded.`, undefined, "ended");
   }
-  if (a.step === "declined") return whole("Declined", `${ai} will see it. Nothing was traded.`);
+  if (a.step === "declined") return whole("Declined", `${ai} will see it. Nothing was traded.`, undefined, "declined");
   if (a.step === "answered") {
     const how = a.approval.status === "done" ? "It ran from your account." : a.approval.status === "denied" ? "You declined it." : "It didn't go through. Nothing changed.";
-    return whole("This request was already answered", `${how} ${ai} can see the answer.`);
+    return whole("This request was already answered", `${how} ${ai} can see the answer.`, undefined, a.approval.status === "done" ? "check" : a.approval.status === "denied" ? "declined" : "ended");
   }
   if (a.step === "done") {
     return whole(
@@ -240,7 +240,7 @@ export function ApproveScreen({ id }: { id: string }) {
       <Link className="ag-btn ag-btn--primary" href={`/app/positions${q}`}>
         See your positions
       </Link>,
-      true,
+      "check",
     );
   }
 

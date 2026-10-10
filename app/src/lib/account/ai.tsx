@@ -10,7 +10,7 @@
 // @agate/wallet's fundPocketCalls (sent from the main account), the pocket client's transfer home,
 // ensureAssistantWallet, delegateAssistant, requestStepUp / confirmStepUp, createPocketPermission and revokeAssistant,
 // all through lib/account/dynamic.ts and main.ts. Until those land, live uses the pretend backend too.
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { MarketGpu } from "@/lib/mock/types";
 import { useMock } from "@/lib/mock/store";
@@ -192,6 +192,14 @@ export function useActivity(grantId?: string, opts: { poll?: boolean } = {}) {
 export function usePocket(pocket: string | null | undefined) {
   const { backend, enabled } = useAiBackend();
   return useQuery({ queryKey: ["live", "pocket", backend.key, pocket ?? ""], queryFn: () => backend.pocket(pocket!), enabled: enabled && !!pocket, refetchInterval: 60_000, staleTime: 10_000, retry: 1, retryDelay: 2_000 });
+}
+
+/** Several pockets at once (Connected AIs' figures), on the same cache entries as usePocket. */
+export function usePockets(pockets: string[]) {
+  const { backend, enabled } = useAiBackend();
+  return useQueries({
+    queries: pockets.map((pocket) => ({ queryKey: ["live", "pocket", backend.key, pocket], queryFn: () => backend.pocket(pocket), enabled: enabled && !!pocket, refetchInterval: 60_000, staleTime: 10_000, retry: 1, retryDelay: 2_000 })),
+  });
 }
 
 export function useApprovals(opts: { poll?: boolean } = {}) {

@@ -20,6 +20,23 @@ export function Check({ size = 20 }: { size?: number }) {
   );
 }
 
+/** An end page's quiet mark beside Check: a request that ended (a clock), one declined (a cross), one that can't be
+ *  found (a question). Neutral, never green or red: nothing happened. */
+export function StateMark({ kind, size = 44 }: { kind: "ended" | "declined" | "missing"; size?: number }) {
+  return (
+    <svg className="ag-state" viewBox="0 0 48 48" width={size} height={size} aria-hidden="true">
+      <circle cx="24" cy="24" r="22" />
+      {kind === "ended" ? (
+        <path d="M24 14v10l6 5" />
+      ) : kind === "declined" ? (
+        <path d="M17 17l14 14M31 17L17 31" />
+      ) : (
+        <path d="M19.5 19.5a4.5 4.5 0 1 1 6.6 4c-1.4.8-2.1 1.8-2.1 3.2V28M24 33.5v.5" />
+      )}
+    </svg>
+  );
+}
+
 const SPOKEN: Record<StepMark, string> = { done: "done", current: "now", waiting: "next", skipped: "already set up", failed: "stopped" };
 
 export function Steps({ rows, label }: { rows: StepRow[]; label?: string }) {

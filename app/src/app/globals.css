@@ -1162,3 +1162,121 @@ p[role="status"][tabindex="-1"]:focus-visible {
     font-size: max(16px, 1em);
   }
 }
+
+/* "You're set": the passkey offer, its mark, its two lines and its button in one quiet well */
+.ag-offer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px 14px;
+  background: var(--well);
+  border-radius: var(--r-1);
+  padding: 16px;
+}
+.ag-offer > svg {
+  margin-top: 1px;
+}
+.ag-offer b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.ag-offer p {
+  font-size: 15px;
+  text-wrap: pretty;
+}
+.ag-offer > .ag-btn {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* the AI apps as tiles: each app's mark and name; the picked one carries the ink edge */
+.ag-apps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px;
+}
+.ag-app {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 12px 8px 8px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: var(--well);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: box-shadow 0.15s ease, color 0.15s ease;
+}
+.ag-app > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ag-app:hover {
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--line-2);
+  }
+}
+.ag-app[aria-checked="true"] {
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+.ag-app:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ag-app:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.ag-appmark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r-1);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+}
+/* a line to paste or run: shown whole, wrapping, in the well */
+.ag-codeline {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--r-1);
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ag-codeline:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* an end page's neutral mark (StateMark): the well's circle, the mark in the second ink */
+.ag-state {
+  justify-self: start;
+}
+.ag-state circle {
+  fill: var(--well);
+}
+.ag-state path {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

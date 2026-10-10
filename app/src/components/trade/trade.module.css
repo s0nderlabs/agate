@@ -847,6 +847,7 @@ button.bookRow:focus-visible {
 .headPanel:has(> .hStrip) {
   padding-top: 14px;
   padding-bottom: 14px;
+  container-type: inline-size;
 }
 .hStrip {
   display: flex;
@@ -920,6 +921,39 @@ button.bookRow:focus-visible {
 .hsVal > em.down {
   color: var(--down);
 }
+/* Pro's one line of figures stays one line as the window narrows: first the gaps and the big figures come in, then
+   the figures said elsewhere step out (the next index price is on the Index page, what is held open is in the book's
+   depth, the month against the index is the two prices beside it); only below that does the line wrap. Desktop only:
+   the phone header keeps its own two columns. After the base rules, so it wins them. */
+@media (min-width: 1100px) {
+  @container (max-width: 1480px) {
+    .hStrip {
+      column-gap: 18px;
+    }
+    .hsCell::before {
+      left: -9px;
+    }
+    .hsVal > b {
+      font-size: 24px;
+    }
+  }
+  @container (max-width: 1340px) {
+    .hStrip > .hsCell[data-cell="next"] {
+      display: none;
+    }
+  }
+  @container (max-width: 1190px) {
+    .hStrip > .hsCell[data-cell="held"] {
+      display: none;
+    }
+  }
+  @container (max-width: 1040px) {
+    .hStrip > .hsCell[data-cell="against"] {
+      display: none;
+    }
+  }
+}
+
 
 /* recent trades under the book: the book's columns, newest first; the list takes the
    column's leftover height and scrolls, so it never makes the chart row taller */
