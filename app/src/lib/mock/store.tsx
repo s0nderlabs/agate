@@ -210,6 +210,11 @@ export function MockProvider({ initial, children }: { initial: MockConfig; child
   return <MockCtx.Provider value={value}>{children}</MockCtx.Provider>;
 }
 
+/** The mock state where a provider may be missing (brand marks render anywhere); null outside one. */
+export function useMockMaybe() {
+  return useContext(MockCtx);
+}
+
 export function useMock() {
   const c = useContext(MockCtx);
   if (!c) throw new Error("useMock outside MockProvider");

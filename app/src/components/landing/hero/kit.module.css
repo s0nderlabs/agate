@@ -1,0 +1,129 @@
+/* Hero round, shared parts (Oct 8 2026). One easing everywhere, the one from the larisamaarnold landing.
+   Each hero sets its own colours through --h-* tokens; the shared parts only read them. Nothing under 15px. */
+
+.hero {
+  --ease: cubic-bezier(.32, .72, 0, 1);
+  --gut: clamp(16px, 4vw, 56px);
+  --h-ink: #17171a;
+  --h-mute: #77766f;
+  --h-cta-bg: #17171a;
+  --h-cta-ink: #f6f5f1;
+  position: relative;
+  min-height: 100svh;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  /* Apfel's lining figures where it has them (Erode has only old-style figures: no lnum in Fontshare's cut) */
+  font-variant-numeric: lining-nums;
+  color: var(--h-ink);
+  display: grid;
+  /* one column the width of the screen: nothing inside may widen the hero past it */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+/* the top bar */
+.nav {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  padding: 22px var(--gut);
+  color: var(--h-ink);
+}
+.brand { color: inherit; display: block; }
+.links { display: flex; gap: 32px; margin-left: auto; }
+/* the light and dark switch and the button, together at the right */
+.end { display: flex; align-items: center; gap: 16px; }
+.links a { color: inherit; text-decoration: none; font-size: 16px; opacity: .72; transition: opacity .3s var(--ease); }
+.links a:hover { opacity: 1; }
+.navCta {
+  font-size: 16px; font-weight: 500; text-decoration: none; color: var(--h-cta-ink); background: var(--h-cta-bg);
+  box-sizing: border-box; height: 40px; display: inline-flex; align-items: center;
+  padding: 0 18px; border-radius: 999px; transition: transform .4s var(--ease), opacity .3s var(--ease);
+}
+.navCta:hover { transform: translateY(-1px); }
+/* the quiet one (the chips heroes): an outline, so the hero's own button is the only solid one on the screen */
+.navGhost {
+  font-size: 16px; font-weight: 500; text-decoration: none; color: inherit; background: none;
+  box-sizing: border-box; height: 40px; display: inline-flex; align-items: center;
+  padding: 0 17px; border-radius: 999px; border: 1px solid color-mix(in srgb, currentColor 26%, transparent);
+  transition: border-color .4s var(--ease), transform .4s var(--ease);
+}
+.navGhost:hover { border-color: currentColor; transform: translateY(-1px); }
+/* light or dark, beside the button (a 40 px target; the icon reads at link weight until hovered) */
+.theme {
+  width: 40px; height: 40px; display: grid; place-items: center; flex: none;
+  border: 0; border-radius: 999px; background: none; color: inherit; cursor: pointer;
+  opacity: .72; transition: opacity .3s var(--ease);
+}
+.theme:hover { opacity: 1; }
+.theme:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; opacity: 1; }
+/* the links on the page's centre line, the mark and the button at the edges */
+.nav[data-shape="center"] { display: grid; grid-template-columns: 1fr auto 1fr; }
+.nav[data-shape="center"] .links { margin: 0; }
+.nav[data-shape="center"] .end { justify-self: end; }
+/* the whole bar a capsule floating in the middle, over the picture: the page's ground behind glass, a hairline round */
+.nav[data-shape="pill"] {
+  justify-self: center; margin-top: 18px; padding: 7px 7px 7px 22px; gap: 36px; border-radius: 999px;
+  background: rgb(var(--h-ground, 20 20 19) / .6); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+.nav[data-shape="pill"] .links { margin-left: 0; }
+/* square, as the app: the app's own 2 px corner */
+.nav[data-corners="square"] .navCta, .nav[data-corners="square"] .navGhost { border-radius: 2px; }
+.nav[data-shape="pill"][data-corners="square"] { border-radius: 2px; padding-left: 20px; }
+.nav[data-shape="pill"] .end { gap: 8px; }
+@media (max-width: 760px) {
+  .links { display: none; }
+  .nav { justify-content: space-between; padding-block: 16px; }
+  .end { margin-left: auto; gap: 12px; }
+  .nav[data-shape="center"] { display: flex; }
+  .nav[data-shape="pill"] { justify-self: stretch; margin-inline: var(--gut); padding-block: 7px; }
+}
+
+/* the one button */
+.cta {
+  display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-size: 17px; font-weight: 500;
+  color: var(--h-cta-ink); background: var(--h-cta-bg); padding: 16px 24px; border-radius: 999px;
+  transition: transform .45s var(--ease), box-shadow .45s var(--ease);
+}
+.cta svg { transition: transform .45s var(--ease); }
+.cta:hover { transform: translateY(-2px); }
+.cta:hover svg { transform: translateX(3px); }
+
+/* the changing headline */
+.rot { display: grid; margin: 0; font: inherit; max-width: 100%; min-width: 0; }
+.rot .ln, .rot .li { max-width: 100%; }
+/* a shorter side sits at the bottom of the shared cell, so the line under the headline never floats away from it */
+.side { grid-area: 1 / 1; display: grid; align-content: end; }
+.ln { display: block; overflow: hidden; padding-bottom: .1em; margin-bottom: -.1em; }
+.li {
+  display: block;
+  transform: translateY(108%);
+  transition: transform 1s var(--ease) calc(var(--l) * 80ms);
+}
+.side[data-state="on"] .li { transform: none; }
+.side[data-state="out"] .li { transform: translateY(-108%); transition-duration: .75s; }
+.side[data-state="off"] .li { transition: none; }
+
+/* rolling digits */
+/* each window is a little taller than the type, so no figure is ever cut at the bottom */
+.roll { display: inline-flex; align-items: flex-start; white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; line-height: 1.12; }
+.rollChar { display: inline-block; height: 1.12em; line-height: 1.12; }
+.drum { display: inline-block; height: 1.12em; overflow: hidden; line-height: 1.12; }
+.strip {
+  display: flex; flex-direction: column;
+  transform: translateY(calc(var(--d) * -1.12em));
+  transition: transform 1.6s var(--ease) calc(var(--i) * 90ms);
+}
+.strip > span { display: block; height: 1.12em; line-height: 1.12; text-align: center; }
+
+/* the line that follows a hero's loop, one step at a time */
+.steps { margin: 0; display: grid; font-size: 21px; line-height: 1.35; letter-spacing: -.01em; max-width: 27ch; }
+.steps span { grid-area: 1 / 1; opacity: 0; transform: translateY(8px); transition: opacity .6s var(--ease), transform .8s var(--ease); }
+.steps span[data-on] { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .li, .strip, .steps span { transition-duration: .01s !important; }
+}

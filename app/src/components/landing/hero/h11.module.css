@@ -1,0 +1,31 @@
+.hero {
+  --h-ink: #eef1f8;
+  --h-mute: #7f879b;
+  --h-cta-bg: #eef1f8;
+  --h-cta-ink: #07080d;
+  background: #07080c;
+  isolation: isolate;
+}
+/* the picture: behind the whole hero on a wide screen, between the words and the note on a phone */
+.slot { position: absolute; inset: 0; z-index: -1; }
+.gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: auto; }
+.body {
+  display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr auto; gap: 40px;
+  padding: clamp(24px, 7vh, 110px) var(--gut) clamp(32px, 6vh, 72px);
+  pointer-events: none;
+}
+.body a { pointer-events: auto; }
+.copy { display: grid; gap: 26px; justify-items: start; align-self: center; max-width: 620px; }
+.h1 { margin: 0; font-size: clamp(44px, 5vw, 88px); line-height: 1; letter-spacing: -.035em; font-weight: 500; max-width: 11ch; text-wrap: balance; }
+.sub { font-size: 21px; line-height: 1.35; letter-spacing: -.01em; color: var(--h-ink); max-width: 28ch; }
+.q { color: var(--h-mute); }
+.stat { margin: 0; display: grid; gap: 6px; max-width: 36ch; }
+.stat b { font-family: var(--font-display); font-weight: 400; font-size: clamp(44px, 4.2vw, 68px); line-height: 1; letter-spacing: -.03em; }
+.stat span { font-size: 17px; line-height: 1.45; color: #a3abbd; }
+
+@media (max-width: 900px) {
+  .slot { position: relative; inset: auto; z-index: 0; height: 46svh; margin-inline: calc(-1 * var(--gut));
+    /* its own dark ground fades into the page's at both edges */
+    mask-image: linear-gradient(180deg, transparent, #000 16%, #000 86%, transparent); }
+  .body { grid-template-rows: auto auto auto; align-content: start; gap: 24px; padding-bottom: 40px; }
+}

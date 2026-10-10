@@ -1,0 +1,365 @@
+.page {
+  --g: clamp(16px, 4vw, 48px);
+  --w: min(1280px, 100% - 2 * var(--g));
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 17px;
+  overflow-x: clip;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 560px);
+  align-items: center;
+  gap: 48px 80px;
+  width: var(--w);
+  margin: 0 auto;
+  padding: clamp(40px, 8vh, 96px) 0 0;
+}
+.copy {
+  display: grid;
+  gap: 22px;
+}
+.title {
+  margin: 0;
+  font-size: clamp(46px, 5.4vw, 84px);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.lead {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 19px;
+  line-height: 1.5;
+}
+.facts {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 18px;
+}
+.facts li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.facts li::before {
+  content: "";
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--up);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.2 14.2-4-4 1.4-1.4 2.6 2.6 5.4-5.4 1.4 1.4-6.8 6.8Z'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.2 14.2-4-4 1.4-1.4 2.6 2.6 5.4-5.4 1.4 1.4-6.8 6.8Z'/></svg>") center / contain no-repeat;
+}
+
+/* the market card */
+.market {
+  display: grid;
+  gap: 20px;
+  padding: 30px;
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: var(--depth);
+}
+.q {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+.now {
+  display: grid;
+  gap: 6px;
+}
+.big {
+  font-size: clamp(64px, 6vw, 88px);
+  font-weight: 300;
+  line-height: 0.95;
+}
+.nowText {
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+.chartWrap {
+  position: relative;
+}
+.chart {
+  height: 170px;
+  color: var(--ink);
+}
+.flag {
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--well);
+  font-size: 15px;
+}
+.sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.long,
+.short {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 58px;
+  border-radius: 14px;
+  font-size: 18px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.long {
+  background: var(--up-fill);
+  color: var(--fill-ink);
+}
+.short {
+  background: var(--down-fill);
+  color: var(--fill-ink);
+}
+
+/* every GPU as a card */
+.more {
+  width: var(--w);
+  margin: clamp(100px, 14vh, 150px) auto 0;
+}
+.moreTitle,
+.ruleTitle,
+.howTitle,
+.doorsTitle {
+  margin: 0 0 32px;
+  font-size: clamp(34px, 3.6vw, 52px);
+  font-weight: 300;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card {
+  display: grid;
+  gap: 8px;
+  height: 100%;
+  padding: 22px 20px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: inherit;
+  text-decoration: none;
+  transition: box-shadow 0.15s ease;
+}
+@media (hover: hover) {
+  .card:hover {
+    box-shadow: inset 0 0 0 1px var(--line-2), var(--depth);
+  }
+}
+.cardName {
+  font-weight: 500;
+  font-size: 18px;
+}
+.cardPrice {
+  font-size: 40px;
+  font-weight: 300;
+  line-height: 1;
+}
+.cardNote {
+  color: var(--ink-2);
+  font-size: 16px;
+}
+
+/* the rule, as a designed card */
+.rule {
+  width: var(--w);
+  margin: clamp(100px, 14vh, 150px) auto 0;
+}
+.ruleCard {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 32px 64px;
+  padding: 36px;
+  border-radius: 24px;
+  background: var(--well);
+}
+.ruleText {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.5;
+}
+.ruleRows {
+  display: grid;
+  margin: 0;
+}
+.ruleRows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  box-shadow: inset 0 -1px 0 var(--line-2);
+}
+.ruleRows dt {
+  color: var(--ink-2);
+}
+.ruleRows dd {
+  margin: 0;
+  text-align: right;
+}
+
+.how,
+.doors {
+  width: var(--w);
+  margin: clamp(100px, 14vh, 150px) auto 0;
+}
+.steps,
+.doorList {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.step,
+.door {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 26px 22px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.stepNum {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--well);
+  font-weight: 500;
+}
+.stepTitle,
+.doorTitle {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 500;
+}
+.stepText,
+.doorText {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.proof {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px 64px;
+  width: var(--w);
+  margin: clamp(100px, 14vh, 150px) auto 0;
+  padding: 40px;
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.proofInner {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 16px;
+}
+.proofTitle {
+  margin: 0;
+  font-size: clamp(30px, 3vw, 44px);
+  font-weight: 300;
+  line-height: 1.1;
+}
+.proofText {
+  margin: 0 0 8px;
+  color: var(--ink-2);
+  font-size: 18px;
+}
+.stats {
+  display: grid;
+  margin: 0;
+}
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 16px 0;
+  box-shadow: inset 0 -1px 0 var(--line-2);
+}
+.stat dt {
+  color: var(--ink-2);
+}
+.stat dd {
+  margin: 0;
+  font-size: clamp(26px, 2.6vw, 38px);
+  font-weight: 300;
+}
+
+.close {
+  display: grid;
+  justify-items: center;
+  gap: 24px;
+  width: var(--w);
+  margin: 0 auto;
+  padding: clamp(100px, 14vh, 160px) 0;
+  text-align: center;
+}
+.closeTitle {
+  margin: 0;
+  max-width: 20ch;
+  font-size: clamp(38px, 4.6vw, 70px);
+  font-weight: 300;
+  line-height: 1.04;
+}
+
+@media (max-width: 1100px) {
+  .cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .steps,
+  .doorList {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 900px) {
+  .hero,
+  .ruleCard,
+  .proof {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .cards {
+    grid-template-columns: 1fr 1fr;
+  }
+  .steps,
+  .doorList {
+    grid-template-columns: 1fr;
+  }
+  .market,
+  .proof,
+  .ruleCard {
+    padding: 22px;
+  }
+  .flag {
+    position: static;
+    display: inline-block;
+    margin-top: 10px;
+  }
+}

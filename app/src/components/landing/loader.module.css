@@ -1,0 +1,31 @@
+/* The landing's loading screen: the page's own ground (the hero's, so the fade off reveals the same floor), the folded A
+   in its ink in the middle. It fades off with a small settle of the mark. */
+.loader {
+  --ground: #f6f5f1;
+  --ink: #17171a;
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: var(--ground);
+  transition: opacity .5s cubic-bezier(.32, .72, 0, 1);
+}
+.loader[data-tone="dark"] {
+  --ground: #141413;
+  --ink: #f2f0ea;
+}
+.mark {
+  width: min(clamp(120px, 20svh, 200px), 46vw);
+  aspect-ratio: 1;
+  height: auto;
+  overflow: visible;
+  transition: transform .5s cubic-bezier(.32, .72, 0, 1);
+}
+.mark polygon { fill: var(--ink); }
+.loader[data-state="leaving"] { opacity: 0; pointer-events: none; }
+.loader[data-state="leaving"] .mark { transform: scale(.94); }
+/* (reduced motion never gets it: the server's first paint already agrees) */
+@media (prefers-reduced-motion: reduce) {
+  .loader { display: none; }
+}

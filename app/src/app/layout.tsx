@@ -13,9 +13,14 @@ const apfel = localFont({
   display: "swap",
 });
 
+// metadataBase: the share image files (opengraph-image.jpg, twitter-image.jpg, the rendered H100 still with the turn's
+// line) resolve to the public site, never a preview deployment's address
 export const metadata: Metadata = {
+  metadataBase: new URL("https://agate.elpabl0.xyz"),
   title: "Agate",
   description: "An open onchain price for an hour of GPU time that anyone can trade, hedge or build on.",
+  openGraph: { type: "website", siteName: "Agate", title: "Agate", description: "Every GPU hour has a price. Now you can trade it." },
+  twitter: { card: "summary_large_image", title: "Agate", description: "Every GPU hour has a price. Now you can trade it." },
 };
 
 // cover: the page runs under the notch and home bar, and the dock and sheets pad themselves with the safe areas.

@@ -1,0 +1,50 @@
+/* Variant "Public" (the Oct 8 pick, public.com measured from the Oct 7 deep walk): a white page, a serif headline,
+   the real app staged big on a dark set, a live ticker, panels that hold real product crops cut off by their bottom
+   edge, then one black section with three ruled columns and the close. No bento. */
+
+.hero { padding-top: clamp(24px, 4vw, 56px); }
+.h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(54px, 7vw, 108px); line-height: 1; letter-spacing: -.025em; margin: 0; max-width: 15ch; text-wrap: balance; }
+.h1Q { opacity: .42; }
+.heroRow { display: flex; flex-wrap: wrap; gap: 20px 40px; align-items: center; justify-content: space-between; margin: clamp(28px, 3.4vw, 44px) 0 clamp(28px, 3.4vw, 40px); }
+.facts { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 0; padding: 0; list-style: none; font-size: 17px; }
+.facts li { display: inline-flex; align-items: center; gap: 10px; }
+.facts li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--lace-2); box-shadow: 0 0 0 4px var(--lace); }
+.heroCta { display: flex; align-items: center; gap: 20px; }
+.heroLine { font-size: 19px; color: var(--text-2); margin: 0; }
+
+.ticker { margin-top: clamp(28px, 3vw, 40px); }
+
+/* panels: grey rounded field, centred title, the product cut off by the bottom edge */
+.panels { display: grid; gap: 24px; }
+.panel { background: var(--paper-2); border-radius: 28px; overflow: hidden; display: grid; justify-items: center; text-align: center; gap: 18px; padding: clamp(48px, 6vw, 80px) clamp(16px, 4vw, 64px) 0; }
+.panelTitle { font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 4.4vw, 64px); line-height: 1.02; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+.panelBody { font-size: 19px; line-height: 1.45; color: var(--text-2); margin: 0; max-width: 46ch; text-wrap: pretty; }
+.panelLink { font-size: 17px; font-weight: 500; color: var(--text); text-decoration: none; display: inline-flex; gap: 8px; align-items: center; }
+.panelLink:hover { text-decoration: underline; text-underline-offset: 4px; }
+.shot { width: min(1040px, 100%); margin-top: clamp(20px, 2.4vw, 32px); border-radius: 16px 16px 0 0; overflow: hidden; box-shadow: 0 0 0 1px var(--hair), 0 30px 60px -30px rgb(0 0 0 / .28); }
+.shotAgent { width: min(860px, 100%); margin-top: clamp(20px, 2.4vw, 32px); }
+.shotAgent > * { border-radius: 18px 18px 0 0; }
+
+/* the black section: three ruled columns, then the close */
+.black { background: #0c0c0b; color: #f4f3ee; }
+.blackHead { font-family: var(--serif); font-weight: 400; font-size: clamp(44px, 5vw, 80px); line-height: 1.02; letter-spacing: -.02em; text-align: center; margin: 0 auto; max-width: 16ch; text-wrap: balance; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto auto 1fr; border-radius: 20px; box-shadow: inset 0 0 0 1px rgb(244 243 238 / .14); }
+.col { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 14px; padding: clamp(28px, 3vw, 40px); }
+.col + .col { box-shadow: inset 1px 0 0 rgb(244 243 238 / .14); }
+.col h3 { font-size: 21px; font-weight: 500; letter-spacing: -.015em; margin: 0; }
+.col p { font-size: 17px; line-height: 1.45; margin: 0; color: #c8c6bf; text-wrap: pretty; }
+.colArt { align-self: start; padding-top: 28px; }
+
+.close { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: clamp(32px, 6vw, 96px); align-items: center; }
+.closeHead { font-family: var(--serif); font-weight: 400; font-size: clamp(44px, 5vw, 80px); line-height: 1.02; letter-spacing: -.02em; margin: 0 0 20px; max-width: 13ch; text-wrap: balance; }
+.closeBody { font-size: 19px; line-height: 1.45; color: #c8c6bf; margin: 0 0 32px; max-width: 34ch; }
+.closePhone { position: relative; padding: 0 clamp(0px, 3vw, 48px); }
+.closePhone::before { content: ""; position: absolute; left: -10%; right: -10%; bottom: -8%; height: 40%; background: radial-gradient(50% 50% at 50% 50%, rgb(223 230 241 / .16), transparent 70%); pointer-events: none; }
+
+@media (max-width: 900px) {
+  .cols { grid-template-columns: 1fr; grid-template-rows: none; }
+  .col { grid-row: auto; grid-template-rows: none; }
+  .col + .col { box-shadow: inset 0 1px 0 rgb(244 243 238 / .14); }
+  .close { grid-template-columns: 1fr; justify-items: start; }
+  .closePhone { justify-self: center; }
+}

@@ -48,6 +48,56 @@
   --depth: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 2px rgb(23 23 26 / 0.05), 0 22px 44px -26px rgb(23 23 26 / 0.28);
   --band-fill: rgb(23 23 26 / 0.2);
 }
+/* the new mark being judged (Logo row): each layer's gradient ends, and the name's ink. Blue lace reads on both grounds
+   as it is; onyx lifts its rim on a dark one so the stone keeps its tones instead of reversing them */
+[data-pebble="lace"] {
+  --pb0a: #2f2d7c;
+  --pb0b: #4f55c7;
+  --pb1a: #7a93ed;
+  --pb1b: #9ab5f4;
+  --pb2a: #d2e3fd;
+  --pb2b: #edf3fe;
+  --pb-ink: #1d2152;
+}
+.tone-dark [data-pebble="lace"] {
+  --pb-ink: #e6eafc;
+}
+/* the folded A (Oct 9): every face and the name in the page's ink, the creases' gaps carry the
+   fold. Blue lace kept to compare: the slab deep indigo, the wing periwinkle and pale sky; on a dark ground the slab
+   lifts so it does not sink into it */
+[data-pebble="fold"] {
+  --fd0: var(--ink);
+  --fd1: var(--ink);
+  --fd2: var(--ink);
+  --pb-ink: var(--ink);
+}
+[data-pebble="foldlace"] {
+  --fd0: #2c2a6b;
+  --fd1: #8fa8e6;
+  --fd2: #cfdcf6;
+  --pb-ink: #1d2152;
+}
+.tone-dark [data-pebble="foldlace"],
+[data-tone="dark"] [data-pebble="foldlace"] {
+  --fd0: #4b4fb5;
+  --fd2: #d4e0f8;
+  --pb-ink: #e6eafc;
+}
+[data-pebble="onyx"] {
+  --pb0a: #202022;
+  --pb0b: #49484a;
+  --pb1a: #8d8a87;
+  --pb1b: #a09d99;
+  --pb2a: #f8f5f2;
+  --pb2b: #fdfbf9;
+  --pb-ink: var(--ink);
+}
+.tone-dark [data-pebble="onyx"] {
+  --pb0a: #3a3937;
+  --pb0b: #6c6a66;
+  --pb1a: #9a9791;
+  --pb1b: #bcb9b2;
+}
 .tone-dark {
   --bg: #141413;
   --card: #1c1b19;

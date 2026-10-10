@@ -1,0 +1,36 @@
+.hero {
+  --h-ink: #eef1f8;
+  --h-mute: #8f98ab;
+  --h-cta-bg: #eef1f8;
+  --h-cta-ink: #0b0e13;
+  background: #0b0e13;
+}
+.hero .sq { border-radius: 2px; }
+
+.body { position: relative; min-height: 0; }
+.scope { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* the channels fade out under the words on the left; the price channel below stays whole */
+.shade {
+  position: absolute; left: 0; top: 0; width: 62%; height: 76%; pointer-events: none;
+  background: linear-gradient(90deg, #0b0e13 0%, rgb(11 14 19 / .94) 34%, rgb(11 14 19 / 0) 100%);
+}
+.copy {
+  position: relative; z-index: 1; display: grid; justify-items: start; gap: 26px; max-width: min(640px, 100%);
+  padding: clamp(28px, 6vh, 72px) var(--gut) 0;
+}
+.h1 {
+  margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(46px, 6vw, 112px); line-height: .96;
+  letter-spacing: -.035em; color: #ffffff; animation: rise 1.2s var(--ease) .05s both;
+}
+.h1 span { display: block; white-space: nowrap; }
+.sub { margin: 0; font-size: 18px; line-height: 1.5; color: #b4bccb; }
+.sub span { display: block; }
+
+@keyframes rise { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
+:global([data-still]) .h1 { animation: none; }
+@media (prefers-reduced-motion: reduce) { .h1 { animation: none; } }
+
+@media (max-width: 900px) {
+  .shade { width: 100%; height: 72%; background: linear-gradient(180deg, #0b0e13 0%, rgb(11 14 19 / .9) 48%, rgb(11 14 19 / .35) 100%); }
+  .copy { gap: 20px; }
+}

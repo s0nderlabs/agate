@@ -1,0 +1,55 @@
+.hero {
+  --h-ink: #17181d;
+  --h-mute: #6b6c73;
+  --h-cta-bg: #17181d;
+  --h-cta-ink: #f3f2ee;
+  --paper: #f3f2ee;
+  --rule: rgb(23 24 29 / .55);
+  --m: 30px;
+  background: var(--paper);
+}
+/* square buttons in this direction */
+.hero .sq { border-radius: 2px; }
+
+.body { position: relative; min-height: 0; }
+.plot { position: absolute; inset: var(--m); width: calc(100% - 2 * var(--m)); height: calc(100% - 2 * var(--m)); display: block; }
+/* a drawing's border: an outer rule, the plot's own edge, the zone letters and numbers between them */
+.frame { position: absolute; inset: 10px; border: 1px solid var(--rule); pointer-events: none; }
+.frame::after { content: ""; position: absolute; inset: calc(var(--m) - 11px); border: 1px solid var(--rule); }
+.zonesX { position: absolute; left: var(--m); right: var(--m); top: 0; height: calc(var(--m) - 10px); display: flex; justify-content: space-around; align-items: center; }
+.zonesY { position: absolute; top: var(--m); bottom: var(--m); left: 0; width: calc(var(--m) - 10px); display: flex; flex-direction: column; justify-content: space-around; align-items: center; }
+.zonesX span, .zonesY span { font-size: 15px; line-height: 1; color: var(--h-mute); }
+
+/* the title block, flush in the bottom-right corner of the plot */
+.block {
+  position: absolute; right: var(--m); bottom: var(--m); width: min(760px, calc(100% - 2 * var(--m)));
+  display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-areas: "h h" "sub price" "go lock";
+  background: var(--paper); border-top: 1px solid var(--rule); border-left: 1px solid var(--rule);
+}
+.block > * { padding: 18px 22px; min-width: 0; }
+.h1 {
+  grid-area: h; margin: 0; padding: 22px 22px 24px; border-bottom: 1px solid var(--rule);
+  font-family: var(--font-display); font-weight: 400; font-size: clamp(40px, 4.4vw, 76px); line-height: .98; letter-spacing: -.03em; color: var(--h-ink);
+}
+.h1 span { display: block; white-space: nowrap; }
+.sub { grid-area: sub; margin: 0; font-size: 17px; line-height: 1.5; color: #3f4047; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.sub span { display: block; }
+.price { grid-area: price; display: grid; align-content: space-between; gap: 6px; border-bottom: 1px solid var(--rule); }
+.price span { font-size: 15px; color: var(--h-mute); }
+.price b { font-family: var(--font-display); font-weight: 400; font-size: clamp(40px, 3.4vw, 56px); line-height: 1; letter-spacing: -.02em; color: var(--h-ink); font-variant-numeric: lining-nums tabular-nums; }
+.go { grid-area: go; border-right: 1px solid var(--rule); display: flex; align-items: center; }
+.lock { grid-area: lock; display: flex; align-items: center; font-size: 15px; color: var(--h-mute); }
+
+@media (max-width: 900px) {
+  .hero { --m: 18px; }
+  .zonesX, .zonesY { display: none; }
+  .block { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "h h" "sub sub" "price go"; }
+  .sub { border-right: 0; }
+  .go { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .lock { display: none; }
+  .go :global(a) { white-space: nowrap; }
+  .block > * { padding: 14px 16px; }
+  .sub { font-size: 16px; }
+  .h1 span { white-space: normal; }
+}

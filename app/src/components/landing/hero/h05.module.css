@@ -1,0 +1,23 @@
+.hero {
+  --h-ink: #15161b;
+  --h-mute: #8b8d96;
+  --h-cta-bg: #15161b;
+  --h-cta-ink: #ffffff;
+  background: radial-gradient(80% 70% at 55% 72%, #ffffff 0%, #f1f2f6 55%, #e6e8ee 100%);
+}
+.body { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.copy {
+  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: clamp(24px, 5vw, 96px); align-items: end;
+  padding: clamp(16px, 4vh, 56px) var(--gut) 0;
+}
+.h1 { font-size: clamp(44px, 5vw, 86px); line-height: 1; letter-spacing: -.035em; font-weight: 500; }
+.q { color: var(--h-mute); }
+.side { display: grid; gap: 24px; justify-items: start; padding-bottom: .4em; }
+.core { margin: 0; font-size: 19px; line-height: 1.5; color: #575a66; max-width: 36ch; }
+.glass { position: relative; min-height: 420px; margin-top: clamp(-40px, -2vh, 0px); }
+.glass > * { height: 100% !important; position: absolute !important; inset: 0; }
+
+@media (max-width: 900px) {
+  .copy { grid-template-columns: 1fr; align-items: start; }
+  .glass { min-height: 380px; }
+}

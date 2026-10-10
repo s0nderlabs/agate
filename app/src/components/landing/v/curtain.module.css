@@ -1,0 +1,322 @@
+/* always dark: a stage, deliberately one look */
+.page {
+  --g: clamp(16px, 4vw, 48px);
+  --w: min(1360px, 100% - 2 * var(--g));
+  --soft: rgb(242 240 234 / 0.66);
+  background: #050506;
+  color: #f2f0ea;
+  font-size: 17px;
+  overflow-x: clip;
+}
+
+.hero {
+  position: relative;
+  min-height: min(100svh, 980px);
+  display: grid;
+  align-items: end;
+  overflow: hidden;
+}
+/* the curtain: uneven vertical folds of light, brightest on the right, fading to the floor */
+.curtain {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 55%, #050506 100%),
+    linear-gradient(90deg, #050506 0%, transparent 38%),
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 0) 0 70px, rgb(0 0 0 / 0.35) 92px, rgb(0 0 0 / 0) 130px, rgb(255 255 255 / 0.06) 171px, rgb(0 0 0 / 0) 211px),
+    repeating-linear-gradient(
+      90deg,
+      rgb(216 210 198 / 0.0) 0px,
+      rgb(216 210 198 / 0.22) 18px,
+      rgb(240 236 228 / 0.42) 30px,
+      rgb(150 146 138 / 0.12) 46px,
+      rgb(20 20 22 / 0.4) 62px,
+      rgb(200 196 186 / 0.3) 80px,
+      rgb(60 58 55 / 0.2) 104px,
+      rgb(216 210 198 / 0.0) 118px
+    ),
+    radial-gradient(70% 90% at 82% 30%, #6a6660, #1b1a19 70%);
+  filter: blur(7px) saturate(0.9);
+  transform: scale(1.04);
+}
+.heroGrid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px 64px;
+  width: var(--w);
+  margin: 0 auto;
+  padding: 160px 0 clamp(48px, 8vh, 88px);
+}
+.left {
+  display: grid;
+  align-content: end;
+  gap: 22px;
+  padding-top: 28px;
+  box-shadow: inset 0 1px 0 rgb(242 240 234 / 0.2);
+}
+.title {
+  margin: 0;
+  max-width: 16ch;
+  font-size: clamp(44px, 4.6vw, 72px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+.lead {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--soft);
+  font-size: 19px;
+  line-height: 1.5;
+}
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+.right {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding-top: 26px;
+  box-shadow: inset 0 4px 0 #f2f0ea;
+}
+.numLabel {
+  color: var(--soft);
+  font-size: 18px;
+}
+.big {
+  font-size: clamp(120px, 15vw, 230px);
+  font-weight: 300;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+}
+.right > span:nth-child(3) {
+  font-size: 18px;
+}
+.when {
+  margin-top: 26px;
+  padding-top: 16px;
+  color: var(--soft);
+  box-shadow: inset 0 1px 0 rgb(242 240 234 / 0.2);
+}
+
+/* the chart, real numbers */
+.chartSec {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 40px 64px;
+  width: var(--w);
+  margin: clamp(80px, 12vh, 140px) auto 0;
+}
+.chartBox {
+  display: grid;
+  gap: 12px;
+}
+.chart {
+  height: clamp(220px, 30vw, 380px);
+  color: #f2f0ea;
+}
+.axis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--soft);
+  font-size: 16px;
+}
+.chartCopy {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding-top: 26px;
+  box-shadow: inset 0 4px 0 #f2f0ea;
+}
+.chartCopy p {
+  margin: 0;
+  color: var(--soft);
+  font-size: 19px;
+  line-height: 1.5;
+}
+.chartTitle {
+  margin: 0;
+  font-size: clamp(56px, 6vw, 96px);
+  font-weight: 300;
+  line-height: 1;
+}
+.chartCopy .sides {
+  color: #f2f0ea;
+  font-size: 20px;
+}
+
+.how,
+.doors {
+  width: var(--w);
+  margin: clamp(100px, 14vh, 160px) auto 0;
+}
+.howTitle,
+.doorsTitle {
+  margin: 0 0 36px;
+  font-family: var(--font-sans);
+  font-size: clamp(32px, 3.2vw, 48px);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+.steps {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.step {
+  display: grid;
+  grid-template-columns: 120px 1fr 1.3fr;
+  align-items: baseline;
+  gap: 24px;
+  padding: 28px 0;
+  box-shadow: inset 0 1px 0 rgb(242 240 234 / 0.18);
+}
+.stepNum {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 300;
+  line-height: 1;
+}
+.stepTitle,
+.doorTitle {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+}
+.stepText,
+.doorText {
+  margin: 0;
+  color: var(--soft);
+  font-size: 18px;
+  line-height: 1.5;
+}
+.doorList {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.door {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 240px;
+  padding: 30px 26px;
+  background: rgb(242 240 234 / 0.05);
+}
+
+.proof {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px 64px;
+  width: var(--w);
+  margin: clamp(100px, 14vh, 160px) auto 0;
+  padding-top: 28px;
+  box-shadow: inset 0 4px 0 #f2f0ea;
+}
+.proofInner {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 18px;
+}
+.proofTitle {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(32px, 3.2vw, 48px);
+  font-weight: 500;
+  line-height: 1.1;
+}
+.proofText {
+  margin: 0 0 10px;
+  color: var(--soft);
+  font-size: 19px;
+}
+.stats {
+  display: grid;
+  margin: 0;
+}
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 20px;
+  padding: 18px 0;
+  box-shadow: inset 0 -1px 0 rgb(242 240 234 / 0.18);
+}
+.stat dt {
+  color: var(--soft);
+}
+.stat dd {
+  margin: 0;
+  font-size: clamp(30px, 3vw, 48px);
+  font-weight: 300;
+}
+
+.close {
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+  width: var(--w);
+  margin: 0 auto;
+  padding: clamp(110px, 16vh, 180px) 0;
+}
+.closeTitle {
+  margin: 0;
+  max-width: 18ch;
+  font-family: var(--font-sans);
+  font-size: clamp(40px, 5vw, 76px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+.closeText {
+  margin: 0 0 12px;
+  color: var(--soft);
+  font-size: 19px;
+}
+.foot {
+  box-shadow: inset 0 1px 0 rgb(242 240 234 / 0.18);
+}
+
+@media (max-width: 900px) {
+  .heroGrid,
+  .chartSec,
+  .proof {
+    grid-template-columns: 1fr;
+  }
+  .heroGrid {
+    padding-top: 120px;
+  }
+  .right {
+    order: -1;
+  }
+  .step {
+    grid-template-columns: 64px 1fr;
+  }
+  .stepText {
+    grid-column: 2;
+  }
+  .stepNum {
+    font-size: 40px;
+  }
+  .doorList {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .doorList {
+    grid-template-columns: 1fr;
+  }
+  .door {
+    min-height: 0;
+  }
+}

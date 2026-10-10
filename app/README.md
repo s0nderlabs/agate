@@ -20,6 +20,7 @@ bun run build
 - `/ai` your connected AIs, and how to add Agate to Claude or Claude Code; `/ai/<id>` one AI: its pocket, activity, Autopilot, add or take back dollars, disconnect
 - `/approve?request=<id>` an AI asked to go over its limit: see the trade and approve or decline it
 - `/docs` the documentation, from `../docs/site` (read when the app is built, so `docs/site` must ship with a deploy): a contents page, `/docs/<slug>` per chapter with its sidebar and "On this page", `/docs/raw/<slug>.md` each chapter as markdown, `/docs/search.json` for the search box, and `/llms.txt` and `/llms-full.txt` for agents
+- `/landing` the public site: the folded A loads into the hero film (chips sliding into the price chart), the camera dives into an H100 (`public/landing/h100`, frames scrubbed on scroll), then the market page: the jump, what makes Agate different, your AI, five clouds to one price, paid every day, build on the price, questions and the close (`src/components/landing/site/`). Its options are judged in Mock controls; a hosted build shows the picked ones. The link preview is `src/app/opengraph-image.jpg` and `twitter-image.jpg`
 
 The theme someone picks is kept in a cookie (`agate-theme`), read by every page on the server (`pageConfig` in `src/lib/mock/savedTheme.ts`), so a reload renders in it with no flash; a theme in the link still wins and is never saved.
 

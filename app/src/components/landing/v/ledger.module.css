@@ -1,0 +1,322 @@
+.page {
+  --g: clamp(16px, 4vw, 48px);
+  --w: min(1240px, 100% - 2 * var(--g));
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 17px;
+  overflow-x: clip;
+}
+.up {
+  color: var(--up);
+}
+.down {
+  color: var(--down);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  align-items: center;
+  gap: 48px 80px;
+  width: var(--w);
+  margin: 0 auto;
+  padding: clamp(48px, 10vh, 120px) 0 0;
+}
+.copy {
+  display: grid;
+  gap: 24px;
+}
+.title {
+  margin: 0;
+  font-size: clamp(48px, 5.6vw, 88px);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.lead {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 19px;
+  line-height: 1.5;
+}
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+/* the receipt: today's price, shown */
+.receipt {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  padding: 30px 32px;
+  background: var(--card);
+  box-shadow: var(--depth);
+  border-radius: 6px;
+  -webkit-mask: radial-gradient(circle 9px at 50% 100%, transparent 98%, #000) 0 0 / 26px 100% repeat-x;
+  mask: radial-gradient(circle 9px at 50% 100%, transparent 98%, #000) 0 0 / 26px 100% repeat-x;
+  padding-bottom: 40px;
+}
+.rHead {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding-bottom: 16px;
+  box-shadow: inset 0 -1px 0 var(--line-2);
+  color: var(--ink-2);
+}
+.rHead span:first-child {
+  color: var(--ink);
+  font-weight: 500;
+}
+.rows {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rows li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  margin: 0 -10px;
+  border-radius: 8px;
+  color: var(--ink-2);
+  font-size: 18px;
+}
+.rows li.mid {
+  background: var(--well);
+  color: var(--ink);
+  font-weight: 500;
+}
+.dots {
+  flex: 1;
+  height: 1px;
+  background: radial-gradient(circle, var(--line-2) 1px, transparent 1.5px) 0 0 / 6px 1px repeat-x;
+  transform: translateY(-4px);
+}
+.total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding-top: 18px;
+  box-shadow: inset 0 2px 0 var(--ink);
+}
+.totalNum {
+  font-size: 56px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+/* the worked example */
+.example {
+  width: var(--w);
+  margin: clamp(110px, 15vh, 170px) auto 0;
+}
+.exTitle {
+  max-width: 24ch;
+  margin: 0;
+  font-size: clamp(36px, 4.2vw, 64px);
+  font-weight: 300;
+  line-height: 1.06;
+}
+.exLead {
+  max-width: 56ch;
+  margin: 18px 0 0;
+  color: var(--ink-2);
+  font-size: 20px;
+  line-height: 1.5;
+}
+.outcomes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 44px 0 0;
+  padding: 0;
+  list-style: none;
+  box-shadow: inset 0 2px 0 var(--ink);
+}
+.outcome {
+  display: grid;
+  gap: 8px;
+  padding: 26px 26px 26px 0;
+}
+.outcome + .outcome {
+  padding-left: 26px;
+  box-shadow: inset 1px 0 0 var(--line-2);
+}
+.oLabel {
+  color: var(--ink-2);
+  font-size: 18px;
+}
+.oAvg {
+  font-size: clamp(44px, 4.4vw, 68px);
+  font-weight: 300;
+  line-height: 1;
+}
+.oMoney {
+  font-size: 24px;
+  font-weight: 500;
+}
+.exNote {
+  max-width: 70ch;
+  margin: 24px 0 0;
+  color: var(--ink-2);
+  font-size: 18px;
+  line-height: 1.55;
+}
+.exNote b {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.how,
+.doors {
+  width: var(--w);
+  margin: clamp(110px, 15vh, 170px) auto 0;
+}
+.howTitle,
+.doorsTitle {
+  margin: 0 0 32px;
+  font-size: clamp(36px, 4vw, 58px);
+  font-weight: 300;
+}
+.steps,
+.doorList {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0 64px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: s;
+}
+.step,
+.door {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 18px;
+  align-content: start;
+  padding: 24px 0;
+  box-shadow: inset 0 1px 0 var(--line-2);
+}
+.stepNum {
+  grid-row: span 2;
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1;
+  color: var(--ink-2);
+}
+.door {
+  grid-template-columns: 1fr;
+}
+.stepTitle,
+.doorTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+}
+.stepText,
+.doorText {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.proof {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px 80px;
+  width: var(--w);
+  margin: clamp(110px, 15vh, 170px) auto 0;
+  padding-top: 30px;
+  box-shadow: inset 0 2px 0 var(--ink);
+}
+.proofInner {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 16px;
+}
+.proofTitle {
+  margin: 0;
+  font-size: clamp(32px, 3.4vw, 50px);
+  font-weight: 300;
+  line-height: 1.08;
+}
+.proofText {
+  margin: 0 0 8px;
+  color: var(--ink-2);
+  font-size: 19px;
+}
+.stats {
+  display: grid;
+  margin: 0;
+}
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 18px 0;
+  box-shadow: inset 0 -1px 0 var(--line-2);
+}
+.stat dt {
+  color: var(--ink-2);
+}
+.stat dd {
+  margin: 0;
+  font-size: clamp(28px, 2.8vw, 42px);
+  font-weight: 300;
+}
+
+.close {
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+  width: var(--w);
+  margin: 0 auto;
+  padding: clamp(110px, 16vh, 180px) 0;
+}
+.closeTitle {
+  margin: 0;
+  max-width: 20ch;
+  font-size: clamp(40px, 5vw, 76px);
+  font-weight: 300;
+  line-height: 1.02;
+}
+.closeText {
+  margin: 0 0 12px;
+  color: var(--ink-2);
+  font-size: 19px;
+}
+
+@media (max-width: 900px) {
+  .hero,
+  .proof {
+    grid-template-columns: 1fr;
+  }
+  .steps,
+  .doorList {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .outcomes {
+    grid-template-columns: 1fr;
+  }
+  .outcome,
+  .outcome + .outcome {
+    padding: 20px 0;
+    box-shadow: inset 0 -1px 0 var(--line-2);
+  }
+  .receipt {
+    padding: 22px 20px 34px;
+  }
+}

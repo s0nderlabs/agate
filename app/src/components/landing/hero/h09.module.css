@@ -1,0 +1,30 @@
+.hero {
+  --h-ink: #eef2fa;
+  --h-mute: #7d869e;
+  --h-cta-bg: #dfe6f1;
+  --h-cta-ink: #0a0d18;
+  background: radial-gradient(90% 80% at 80% 90%, #121a33 0%, #0b0f1d 50%, #080a13 100%);
+}
+.field {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+  mask-image: linear-gradient(100deg, transparent 0%, rgb(0 0 0 / .25) 30%, #000 58%);
+}
+.body {
+  position: relative; z-index: 2; display: grid; grid-template-rows: 1fr auto; gap: 40px;
+  padding: clamp(24px, 6vh, 96px) var(--gut) clamp(32px, 6vh, 72px);
+}
+.copy { display: grid; gap: 28px; justify-items: start; align-self: center; }
+.h1 { font-size: clamp(44px, 5.2vw, 92px); line-height: 1; letter-spacing: -.035em; font-weight: 500; margin: 0; max-width: 12ch; text-wrap: balance; }
+/* the per-audience lines, now under the claim */
+.sub { font-size: 21px; line-height: 1.35; letter-spacing: -.01em; color: var(--h-ink); max-width: 28ch; }
+.q { color: var(--h-mute); }
+.core { margin: 0; font-size: 20px; line-height: 1.45; color: #a8b0c4; max-width: 30ch; }
+.stat { display: grid; gap: 6px; max-width: 34ch; }
+.stat b { font-family: var(--font-display); font-weight: 400; font-size: clamp(48px, 4.6vw, 72px); line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 17px; line-height: 1.45; color: #a8b0c4; }
+
+/* on a phone the field is its own band under the words, never behind them */
+@media (max-width: 760px) {
+  .field { top: auto; height: 34svh; mask-image: linear-gradient(180deg, transparent 0%, #000 45%); }
+  .body { padding-bottom: calc(34svh + 8px); grid-template-rows: auto auto; align-content: start; gap: 32px; }
+}

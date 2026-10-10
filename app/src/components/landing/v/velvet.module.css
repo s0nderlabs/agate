@@ -1,0 +1,374 @@
+.page {
+  --g: clamp(16px, 4vw, 48px);
+  --w: min(1280px, 100% - 2 * var(--g));
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 17px;
+  overflow-x: clip;
+}
+
+/* the scene: smoky velvet, folds lit from the upper left */
+.scene {
+  position: relative;
+  min-height: min(100svh, 1000px);
+  display: grid;
+  justify-items: center;
+  overflow: hidden;
+  background: #221f1c;
+  color: #f4f1ea;
+}
+.velvet {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(40% 55% at 18% 22%, rgb(214 196 176 / 0.34), transparent 70%),
+    radial-gradient(34% 40% at 86% 18%, rgb(190 172 152 / 0.22), transparent 70%),
+    radial-gradient(60% 50% at 70% 80%, rgb(160 142 124 / 0.2), transparent 70%),
+    radial-gradient(28% 70% at 50% 60%, rgb(0 0 0 / 0.35), transparent 70%),
+    linear-gradient(125deg, #3a332d 0%, #231f1b 40%, #2f2924 70%, #1a1714 100%);
+}
+/* (a filtered noise layer was here: it cost seconds of paint, so the velvet is gradients only) */
+.heroCopy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 30px;
+  padding: clamp(150px, 22vh, 220px) var(--g) 0;
+  text-align: center;
+}
+.title {
+  margin: 0;
+  max-width: 14ch;
+  font-size: clamp(48px, 6vw, 92px);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.025em;
+}
+.phone {
+  position: relative;
+  z-index: 1;
+  width: min(330px, 70vw);
+  margin-top: 56px;
+  margin-bottom: -180px;
+  transform: rotate(-7deg);
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.12), 0 60px 90px -20px rgb(0 0 0 / 0.7);
+}
+
+/* the four ways in, as card tiers */
+.tiers {
+  width: var(--w);
+  margin: clamp(100px, 14vh, 160px) auto 0;
+}
+.tiersTitle {
+  margin: 0 0 40px;
+  font-size: clamp(40px, 5vw, 76px);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  text-align: center;
+}
+.tierList {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tier {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  overflow: hidden;
+}
+.well {
+  display: grid;
+  place-items: center;
+  height: 220px;
+  padding: 24px;
+  background: var(--well);
+}
+.tierBody {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+  padding: 26px 24px 24px;
+}
+.tierBody h3 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+}
+.tierBody p {
+  margin: 0 0 14px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.tierBtn {
+  display: grid;
+  place-items: center;
+  min-height: 50px;
+  text-decoration: none;
+  font-size: 16px;
+}
+
+/* the objects in the wells */
+.objBrowser,
+.objCode {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  width: 100%;
+  max-width: 220px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--depth);
+}
+.objDots {
+  width: 38px;
+  height: 8px;
+  background: radial-gradient(circle, var(--line-2) 3px, transparent 3.5px) 0 0 / 13px 8px repeat-x;
+}
+.objBig {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 300;
+  line-height: 1;
+}
+.objPill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 15px;
+}
+.objCode span:not(.objBig) {
+  color: var(--ink-2);
+  font-size: 15px;
+}
+.objChat {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-width: 230px;
+  font-size: 15px;
+}
+.bubble,
+.bubbleMe {
+  padding: 10px 14px;
+  border-radius: 16px;
+  line-height: 1.35;
+}
+.bubble {
+  justify-self: end;
+  background: var(--ink);
+  color: var(--bg);
+  border-bottom-right-radius: 4px;
+}
+.bubbleMe {
+  background: var(--card);
+  box-shadow: var(--depth);
+  border-bottom-left-radius: 4px;
+}
+.objChain {
+  display: flex;
+}
+.objRing {
+  width: 74px;
+  height: 46px;
+  margin: 0 -12px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 9px var(--ink);
+  opacity: 0.85;
+}
+.objRing:nth-child(2) {
+  opacity: 0.5;
+}
+
+/* Plasma's 3-up stat box */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: var(--w);
+  margin: clamp(80px, 12vh, 140px) auto 0;
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.facts > div {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--ink-2);
+}
+.facts > div + div {
+  box-shadow: inset 1px 0 0 var(--line-2);
+}
+.factBig {
+  color: var(--ink);
+  font-size: clamp(56px, 6vw, 88px);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.how {
+  width: var(--w);
+  margin: clamp(100px, 14vh, 160px) auto 0;
+}
+.howTitle {
+  margin: 0 0 40px;
+  font-family: var(--font-sans);
+  font-size: clamp(40px, 5vw, 76px);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  text-align: center;
+}
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.step {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 28px 24px;
+  border-radius: 20px;
+  background: var(--well);
+}
+.stepNum {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 500;
+}
+.stepTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+}
+.stepText {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.dark {
+  margin-top: clamp(100px, 14vh, 160px);
+  background: #1d1a17;
+  color: #f4f1ea;
+}
+.proof {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 48px 80px;
+  width: var(--w);
+  margin: 0 auto;
+  padding: clamp(80px, 12vh, 140px) 0;
+}
+.proofInner {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 18px;
+}
+.proofTitle {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(34px, 3.8vw, 56px);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+.proofText {
+  margin: 0 0 10px;
+  color: var(--ink-2);
+  font-size: 19px;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-self: center;
+  margin: 0;
+  border-radius: 20px;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.stat {
+  display: grid;
+  gap: 8px;
+  padding: 26px 20px;
+}
+.stat + .stat {
+  box-shadow: inset 1px 0 0 var(--line-2);
+}
+.stat dt {
+  color: var(--ink-2);
+  font-size: 16px;
+}
+.stat dd {
+  margin: 0;
+  font-size: clamp(24px, 2.2vw, 34px);
+  font-weight: 300;
+}
+
+.close {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  width: var(--w);
+  margin: 0 auto;
+  padding: clamp(100px, 14vh, 160px) 0;
+  text-align: center;
+}
+.closeTitle {
+  margin: 0;
+  max-width: 18ch;
+  font-family: var(--font-sans);
+  font-size: clamp(40px, 5vw, 76px);
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+}
+.closeText {
+  margin: 0 0 12px;
+  color: var(--ink-2);
+  font-size: 19px;
+}
+
+@media (max-width: 1000px) {
+  .tierList,
+  .steps {
+    grid-template-columns: 1fr 1fr;
+  }
+  .proof {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .tierList,
+  .steps,
+  .facts,
+  .stats {
+    grid-template-columns: 1fr;
+  }
+  .facts > div + div,
+  .stat + .stat {
+    box-shadow: inset 0 1px 0 var(--line-2);
+  }
+  .phone {
+    margin-bottom: -120px;
+  }
+}

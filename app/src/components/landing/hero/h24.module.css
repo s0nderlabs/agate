@@ -1,0 +1,235 @@
+/* The opening, chips: a film first, words after. It follows the app's theme, on the app's own grounds (dark #141413,
+   light #f6f5f1), so the step into the app does not change the floor. */
+.hero {
+  --h-ground: 20 20 19;
+  --h-ink: #f2f0ea;
+  --h-head: #ffffff;
+  --h-mute: #918e86;
+  --h-cta-bg: #f2f0ea;
+  --h-cta-ink: #141413;
+  --h-line: rgb(242 240 234 / .16);
+  background: rgb(var(--h-ground));
+  isolation: isolate;
+  color-scheme: dark;
+}
+.hero[data-tone="light"] {
+  --h-ground: 246 245 241;
+  --h-ink: #17171a;
+  --h-head: #17171a;
+  --h-mute: #6a6963;
+  --h-cta-bg: #17171a;
+  --h-cta-ink: #f6f5f1;
+  --h-line: rgb(23 23 26 / .14);
+  color-scheme: light;
+}
+
+/* the picture fills the hero; the words come in over it once it has settled */
+.slot { position: absolute; inset: 0; z-index: 0; }
+.gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; }
+
+/* a little of the ground low on the left, where the headline lands, and under the top bar */
+.shade {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 55% at 0% 100%, rgb(var(--h-ground) / .85), rgb(var(--h-ground) / .45) 55%, rgb(var(--h-ground) / 0) 100%),
+    linear-gradient(180deg, rgb(var(--h-ground) / .7), rgb(var(--h-ground) / 0) 140px);
+  opacity: 0;
+  transition: opacity 1.2s var(--ease);
+}
+
+.body {
+  position: relative; z-index: 2; display: grid; gap: 34px; min-width: 0;
+  align-content: end; justify-items: start;
+  padding: 0 var(--gut) clamp(40px, 9vh, 104px);
+  pointer-events: none;
+}
+.body a { pointer-events: auto; }
+.h1 {
+  margin: 0; font-family: var(--font-display); font-weight: 400; line-height: 1; letter-spacing: -.035em;
+  font-size: clamp(46px, 7vw, 124px); color: var(--h-head);
+  text-shadow: 0 2px 40px rgb(var(--h-ground) / .5);
+}
+.h1 span { display: block; white-space: nowrap; }
+
+/* the wide layouts (Oct 9): a second, quieter button beside the first */
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; pointer-events: auto; }
+.ghost {
+  display: inline-flex; align-items: center; text-decoration: none; font-size: 17px; font-weight: 500;
+  color: var(--h-ink); padding: 15px 23px; border-radius: 999px; border: 1px solid var(--h-line);
+  transition: border-color .45s var(--ease), transform .45s var(--ease);
+}
+.ghost:hover { border-color: var(--h-ink); transform: translateY(-2px); }
+
+/* square, as the app: the app's own 2 px corner. The start button is a slab with its arrow in a cell of its own behind a hairline,
+   as a key on a terminal; the arrow steps on when pointed at. The docs button is a hairline square of the same height */
+.hero[data-corners="square"] .sq {
+  border-radius: 2px; height: 52px; padding: 0 0 0 22px; gap: 22px; font-size: 16px; letter-spacing: .005em;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .08);
+}
+.hero[data-corners="square"] .sq svg {
+  box-sizing: content-box; padding: 18px; flex: none;
+  border-left: 1px solid color-mix(in srgb, var(--h-cta-ink) 18%, transparent);
+}
+.hero[data-corners="square"] .sq:hover { transform: none; }
+.hero[data-corners="square"] .ghost { border-radius: 2px; height: 52px; padding: 0 22px; font-size: 16px; }
+.hero[data-corners="square"] .ghost:hover { transform: none; }
+/* round: the same button family as the page below (Oct 10): 52 px, 16 px */
+.hero[data-corners="round"] .sq { height: 52px; padding: 0 24px; font-size: 16px; }
+.hero[data-corners="round"] .ghost { height: 52px; padding: 0 22px; font-size: 16px; }
+
+/* landscape (and the field): the headline low on the left, over the faded half-month */
+.hero:is([data-layout="land"], [data-layout="field"]) .h1 { font-size: clamp(46px, 5.8vw, 108px); }
+.hero:is([data-layout="land"], [data-layout="field"]) .shade {
+  background:
+    radial-gradient(ellipse 52% 46% at 0% 100%, rgb(var(--h-ground) / .8), rgb(var(--h-ground) / .4) 55%, rgb(var(--h-ground) / 0) 100%),
+    linear-gradient(180deg, rgb(var(--h-ground) / .7), rgb(var(--h-ground) / 0) 140px),
+    linear-gradient(0deg, rgb(var(--h-ground) / .85), rgb(var(--h-ground) / 0) 120px);
+}
+/* the field when the board makes room for the words: no shade over the board (the chips behind the words and the top
+   bar are off), only its last rows sinking into the ground */
+.hero[data-cut="1"] .shade { background: linear-gradient(0deg, rgb(var(--h-ground) / .85), rgb(var(--h-ground) / 0) 120px); }
+/* the field's words up top: one line, the buttons under it, on
+   the left or centred; the chart is a band below */
+.hero:is([data-words="top"], [data-words="center"]) .body { align-content: start; padding-top: clamp(28px, 6vh, 72px); padding-bottom: 0; gap: 30px; }
+.hero:is([data-words="top"], [data-words="center"]) .h1 { font-size: clamp(44px, 5.6vw, 108px); white-space: nowrap; }
+.hero:is([data-words="top"], [data-words="center"]) .h1 span { display: inline; }
+.hero[data-words="center"] .body { justify-items: center; text-align: center; }
+.hero[data-words="center"] .actions { justify-content: center; }
+.hero[data-cut="0"][data-words="top"] .shade {
+  background:
+    radial-gradient(ellipse 64% 42% at 0% 0%, rgb(var(--h-ground) / .85), rgb(var(--h-ground) / .45) 55%, rgb(var(--h-ground) / 0) 100%),
+    linear-gradient(0deg, rgb(var(--h-ground) / .85), rgb(var(--h-ground) / 0) 120px);
+}
+.hero[data-cut="0"][data-words="center"] .shade {
+  background:
+    radial-gradient(ellipse 52% 40% at 50% 12%, rgb(var(--h-ground) / .88), rgb(var(--h-ground) / .5) 55%, rgb(var(--h-ground) / 0) 100%),
+    linear-gradient(0deg, rgb(var(--h-ground) / .85), rgb(var(--h-ground) / 0) 120px);
+}
+/* horizon: the headline up top on one line, the buttons under it */
+.hero[data-layout="horizon"] .body { align-content: start; padding-top: clamp(24px, 5vh, 64px); padding-bottom: 0; gap: 30px; }
+.hero[data-layout="horizon"] .h1 { font-size: clamp(44px, 5.6vw, 108px); white-space: nowrap; }
+.hero[data-layout="horizon"] .h1 span { display: inline; }
+.hero[data-layout="horizon"] .shade {
+  background:
+    radial-gradient(ellipse 64% 42% at 0% 0%, rgb(var(--h-ground) / .8), rgb(var(--h-ground) / .4) 55%, rgb(var(--h-ground) / 0) 100%),
+    linear-gradient(0deg, rgb(var(--h-ground) / .85), rgb(var(--h-ground) / 0) 120px);
+}
+
+/* the sheet (Direction 3's grid over the board): four columns; the words and the buttons, two windows; the price tape;
+   two windows and today's H100 price. Its cells are the page's ground with hairlines; the windows are open */
+.hero[data-layout="sheet"] .shade { display: none; }
+.hero[data-layout="sheet"] .nav { background: rgb(var(--h-ground)); border-bottom: 1px solid var(--h-line); }
+.sheet {
+  position: relative; z-index: 2; display: grid; min-height: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1.3fr) 56px minmax(0, 1fr);
+  grid-template-areas: "head head w1 w2" "tape tape tape tape" "w3 w3 w4 price";
+}
+.cell { position: relative; min-width: 0; border-left: 1px solid var(--h-line); border-top: 1px solid var(--h-line); }
+.shead { grid-area: head; border-left: 0; border-top: 0; }
+.sw1 { grid-area: w1; border-top: 0; }
+.sw2 { grid-area: w2; border-top: 0; }
+.sw3 { grid-area: w3; border-left: 0; }
+.sw4 { grid-area: w4; }
+.shead, .stape, .sprice { background: rgb(var(--h-ground)); }
+.shead { display: grid; align-content: space-between; gap: 32px; padding: clamp(28px, 5vh, 64px) var(--gut) clamp(28px, 4vh, 48px); }
+.sh1 {
+  margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(46px, 5.6vw, 104px); line-height: .96;
+  letter-spacing: -.035em; color: var(--h-head);
+}
+.sh1 span { display: block; white-space: nowrap; }
+.scopy { display: grid; gap: 28px; }
+.ssub { margin: 0; font-size: 19px; line-height: 1.5; color: var(--h-ink); opacity: .78; }
+.ssub span { display: block; }
+.sprice { grid-area: price; display: grid; align-content: space-between; gap: 10px; padding: 28px clamp(20px, 2vw, 36px) 32px; }
+.slabel { font-size: 15px; color: var(--h-mute); }
+.sbig { font-family: var(--font-display); font-weight: 400; font-size: clamp(56px, 5vw, 88px); line-height: 1; letter-spacing: -.03em; color: var(--h-head); font-variant-numeric: lining-nums tabular-nums; }
+/* every GPU's price, running slowly right to left */
+.stape { grid-area: tape; overflow: hidden; display: flex; align-items: center; border-left: 0; }
+.srun { display: flex; flex: none; gap: 56px; padding-left: 56px; white-space: nowrap; animation: run 48s linear infinite; }
+.tick { display: inline-flex; align-items: baseline; gap: 12px; font-size: 16px; font-variant-numeric: lining-nums tabular-nums; color: var(--h-ink); }
+.tick b { font-weight: 500; }
+.up { color: #1d7a4d; }
+.down { color: #b13a2e; }
+.flat { color: var(--h-mute); }
+.hero[data-tone="dark"] .up { color: #4cb886; }
+.hero[data-tone="dark"] .down { color: #e2695d; }
+@keyframes run { to { transform: translateX(-50%); } }
+:global([data-still]) .srun { animation: none; }
+@media (prefers-reduced-motion: reduce) { .srun { animation: none; } }
+/* while the film runs the sheet is not there yet: no ground in its cells, no hairlines, no words; then it lays itself
+   down over the board */
+.cell, .hero[data-layout="sheet"] .nav { transition: background-color 1s var(--ease), border-color 1s var(--ease); }
+.hero[data-shown="0"] .cell { background: transparent; border-color: transparent; }
+.hero[data-shown="0"][data-layout="sheet"] .nav { background: transparent; border-color: transparent; }
+.sh1, .scopy, .sprice > *, .srun { transition: opacity 1.1s var(--ease), transform 1.2s var(--ease); }
+.hero[data-shown="0"] .sh1, .hero[data-shown="0"] .scopy, .hero[data-shown="0"] .sprice > *, .hero[data-shown="0"] .srun { opacity: 0; transform: translateY(14px); }
+.hero[data-shown="1"] .scopy { transition-delay: .25s; }
+.hero[data-shown="1"] .sprice > *, .hero[data-shown="1"] .srun { transition-delay: .4s; }
+:global([data-still]) .cell, :global([data-still]) .sh1, :global([data-still]) .scopy, :global([data-still]) .sprice > * { transition: none !important; }
+@media (max-width: 900px) {
+  .sheet {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto minmax(220px, 1fr) 52px 180px;
+    grid-template-areas: "head head" "w1 w1" "tape tape" "w3 price";
+  }
+  .sw2, .sw4 { display: none; }
+  .sw1 { border-top: 1px solid var(--h-line); border-left: 0; }
+  .sprice { padding: 20px 16px; }
+  .sbig { font-size: 44px; }
+  .sh1 span { white-space: normal; }
+}
+
+/* hidden while the film runs (still laid out, so the picture can measure the headline and keep clear of it) */
+.nav, .h1, .cta, .actions {
+  transition: opacity 1.1s var(--ease), transform 1.2s var(--ease);
+}
+.hero[data-shown="0"] .nav { opacity: 0; transform: translateY(-10px); pointer-events: none; }
+.hero[data-shown="0"] .h1 { opacity: 0; transform: translateY(18px); }
+.hero[data-shown="0"] .cta, .hero[data-shown="0"] .actions { opacity: 0; transform: translateY(18px); pointer-events: none; }
+.hero[data-shown="1"] .shade { opacity: 1; }
+.hero[data-shown="1"] .h1 { transition-delay: .05s; }
+.hero[data-shown="1"] .cta, .hero[data-shown="1"] .actions { transition-delay: .3s; }
+.hero[data-shown="1"] .nav { transition-delay: .45s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nav, .h1, .cta, .actions, .shade { transition: none; }
+}
+/* a still frame (render checks, thumbnails) has no time for a transition to run */
+:global([data-still]) .nav, :global([data-still]) .h1, :global([data-still]) .cta, :global([data-still]) .actions, :global([data-still]) .shade { transition: none !important; }
+
+/* the words settle (Oct 10): before, the
+   headline, buttons and bar rose 18 px together on a curve that covers nearly all of it in the first half second, the
+   chart finished in the same moment, and the hero went from moving to still at once. Now each part of the headline,
+   then the buttons, then the bar arrive one after another on a long soft ease-out, a blur clearing as they land, so
+   the motion runs out gradually and the chart's live tape picks up while the bar is still easing in. */
+.hero[data-textin="settle"] .h1 { opacity: 1; transform: none; transition: none; }
+.hero[data-textin="settle"]:is([data-words="top"], [data-words="center"], [data-layout="horizon"]) .h1 span { display: inline-block; }
+.hero[data-textin="settle"] :is(.h1 span, .cta, .actions, .nav) {
+  transition: opacity 1.4s cubic-bezier(.22, 1, .36, 1), transform 2s cubic-bezier(.16, 1, .3, 1), filter 1.3s cubic-bezier(.22, 1, .36, 1);
+}
+.hero[data-textin="settle"][data-shown="0"] .h1 span { opacity: 0; transform: translateY(32px); filter: blur(10px); }
+.hero[data-textin="settle"][data-shown="0"] :is(.cta, .actions) { opacity: 0; transform: translateY(22px); filter: blur(6px); }
+.hero[data-textin="settle"][data-shown="0"] .nav { opacity: 0; transform: translateY(-12px); }
+.hero[data-textin="settle"][data-shown="1"] .h1 span + span { transition-delay: .16s; }
+.hero[data-textin="settle"][data-shown="1"] :is(.cta, .actions) { transition-delay: .45s; }
+.hero[data-textin="settle"][data-shown="1"] .nav { transition-delay: .75s; }
+@media (prefers-reduced-motion: reduce) {
+  .hero[data-textin="settle"] :is(.h1 span, .cta, .actions, .nav) { transition: none; }
+}
+:global([data-still]) .hero[data-textin="settle"] :is(.h1 span, .cta, .actions, .nav) { transition: none !important; }
+
+/* a phone: the chart above, the words below it (every layout) */
+@media (max-width: 759px) {
+  .shade, .hero[data-layout] .shade, .hero[data-cut][data-words] .shade {
+    background:
+      linear-gradient(0deg, rgb(var(--h-ground) / .95), rgb(var(--h-ground) / .7) 28%, rgb(var(--h-ground) / 0) 52%),
+      linear-gradient(180deg, rgb(var(--h-ground) / .7), rgb(var(--h-ground) / 0) 110px);
+  }
+  .hero[data-layout="horizon"] .body, .hero:is([data-words="top"], [data-words="center"]) .body { align-content: end; padding-top: 0; padding-bottom: clamp(40px, 9vh, 104px); }
+  .hero[data-layout="horizon"] .h1, .hero:is([data-words="top"], [data-words="center"]) .h1 { white-space: normal; }
+  .hero[data-layout="horizon"] .h1 span, .hero:is([data-words="top"], [data-words="center"]) .h1 span { display: block; }
+  .hero[data-textin="settle"]:is([data-words="top"], [data-words="center"], [data-layout="horizon"]) .h1 span { display: block; }
+  .hero[data-words="center"] .body { justify-items: start; text-align: left; }
+  .hero[data-words="center"] .actions { justify-content: start; }
+}

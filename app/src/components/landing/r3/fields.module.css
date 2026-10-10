@@ -1,0 +1,58 @@
+/* Variant 3, "Film and fields" (Robinhood grammar, measured): two voices (Erode serif for the statements, the grotesk
+   for everything else), the stone's lace blue used as whole FIELDS, a slow-drifting photo hero with glass price chips,
+   one radius (24) and zero shadows on the fields. */
+
+.bar { background: var(--lace); color: var(--lace-ink); text-align: center; font-size: 16px; padding: 11px 16px; }
+.bar b { font-weight: 500; }
+.navWrap { background: #0c0c0b; }
+
+.s1 { font-family: var(--serif); font-weight: 400; font-size: clamp(56px, 7.8vw, 116px); line-height: 1; letter-spacing: -.025em; margin: 0; text-wrap: balance; }
+.s2 { font-family: var(--serif); font-weight: 400; font-size: clamp(42px, 5vw, 76px); line-height: 1.02; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+
+.hero { position: relative; min-height: max(calc(100svh - 160px), 700px); background: #0c0c0b; color: #f4f3ee; overflow: hidden; display: grid; align-content: center; justify-items: center; text-align: center; padding-block: 72px 56px; }
+.heroImg { position: absolute; inset: 0; }
+.heroImg img { width: 100%; height: 100%; object-fit: cover; animation: drift 26s ease-in-out infinite alternate; }
+@keyframes drift { from { transform: scale(1.04) translate3d(0, 0, 0); } to { transform: scale(1.12) translate3d(-1.5%, -1%, 0); } }
+@media (prefers-reduced-motion: reduce) { .heroImg img { animation: none; } }
+.heroImg::after { content: ""; position: absolute; inset: 0; background: radial-gradient(70% 60% at 50% 45%, rgb(12 12 11 / .25), rgb(12 12 11 / .7)); }
+.heroCopy { position: relative; z-index: 2; display: grid; justify-items: center; gap: 22px; width: var(--w); }
+.heroH { text-align: center; }
+.heroLead { color: rgb(244 243 238 / .85); text-align: center; }
+
+/* glass price chips, running off both edges like a ticker */
+.chips { position: relative; z-index: 2; display: flex; gap: 16px; justify-content: center; margin-top: clamp(40px, 6vh, 72px); width: max-content; max-width: none; }
+.chip { width: 300px; height: 112px; border-radius: 22px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 0 26px; text-align: left; background: rgb(255 255 255 / .1); backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5); box-shadow: inset 0 1px 0 rgb(255 255 255 / .18), inset 0 0 0 1px rgb(255 255 255 / .08); }
+.chipGpu { font-size: 32px; font-weight: 500; letter-spacing: -.03em; }
+.chipPrice { font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; }
+.chipRange { grid-column: 1 / -1; position: relative; height: 3px; border-radius: 3px; background: rgb(255 255 255 / .16); margin-top: -6px; }
+.chipRange i { position: absolute; top: -4px; width: 11px; height: 11px; margin-left: -5px; border-radius: 50%; background: #f4f3ee; box-shadow: 0 0 0 3px rgb(255 255 255 / .2); }
+.chipCenter { background: rgb(255 255 255 / .16); display: grid; place-items: center; grid-template-columns: 1fr; }
+.chipFade { opacity: .55; }
+
+/* fields */
+.field { padding-block: clamp(80px, 10vw, 140px); }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 5vw, 96px); align-items: center; width: var(--w); margin-inline: auto; }
+.splitText { display: grid; gap: 22px; justify-items: start; max-width: 560px; }
+.phoneCol { display: grid; justify-items: center; }
+.photoCol { border-radius: 24px; }
+.center { display: grid; justify-items: center; text-align: center; gap: 22px; width: var(--w); margin-inline: auto; }
+.center h2 { text-align: center; }
+.black { background: #0c0c0b; color: #f4f3ee; }
+.warm { background: #1c1a16; color: #f4f3ee; }
+
+/* line-art trio */
+.trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; width: min(1040px, var(--w)); margin-inline: auto; }
+.trioItem { display: grid; justify-items: center; gap: 22px; text-align: center; }
+.trioItem svg { width: 120px; height: 120px; stroke: #f4f3ee; stroke-width: 1.25; fill: none; }
+.trioItem p { font-size: 20px; line-height: 1.4; margin: 0; max-width: 18ch; color: #e8e6df; }
+
+.closeCard { background: var(--card); color: var(--text); border-radius: 24px; padding: 28px 32px; display: grid; gap: 6px; text-align: left; width: min(520px, 100%); box-shadow: 0 1px 2px rgb(29 33 82 / .08), 0 24px 48px -28px rgb(29 33 82 / .35); }
+.closeCard b { font-size: 20px; font-weight: 500; }
+.closeCard span { font-size: 17px; color: var(--text-2); }
+
+@media (max-width: 900px) {
+  .split { grid-template-columns: 1fr; }
+  .trio { grid-template-columns: 1fr; }
+  .chip { width: 240px; height: 96px; padding: 0 20px; }
+  .chipGpu { font-size: 26px; }
+}

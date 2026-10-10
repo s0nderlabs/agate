@@ -1,0 +1,42 @@
+.hero {
+  --h-ink: #17181d;
+  --h-mute: #6c6a64;
+  --h-cta-bg: #17181d;
+  --h-cta-ink: #f2efe8;
+  background: #f2efe8;
+}
+.hero .sq { border-radius: 2px; }
+
+.body { display: grid; grid-template-rows: auto minmax(240px, 1fr) auto; min-height: 0; }
+/* the headline on one line across the top, the cloth across the middle, the rest along the bottom */
+.h1 {
+  margin: 0; padding: clamp(18px, 4vh, 48px) var(--gut) clamp(20px, 4vh, 44px);
+  font-family: var(--font-display); font-weight: 400; font-size: clamp(46px, 7.4vw, 138px); line-height: .95; letter-spacing: -.035em;
+  color: var(--h-ink); white-space: nowrap; animation: rise 1.2s var(--ease) .05s both;
+}
+.band { position: relative; min-height: 0; border-top: 1px solid rgb(23 24 29 / .2); border-bottom: 1px solid rgb(23 24 29 / .2); }
+.cloth { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.foot {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: clamp(24px, 4vw, 72px);
+  padding: clamp(20px, 3.4vh, 36px) var(--gut) clamp(24px, 4vh, 44px);
+}
+.sub { margin: 0; font-size: 18px; line-height: 1.5; color: #45443f; }
+.sub span { display: block; }
+.price { display: grid; gap: 4px; }
+.price span { font-size: 15px; color: var(--h-mute); }
+.price b { font-family: var(--font-display); font-weight: 400; font-size: 48px; line-height: 1; letter-spacing: -.02em; color: var(--h-ink); font-variant-numeric: lining-nums tabular-nums; }
+
+@keyframes rise { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
+:global([data-still]) .h1 { animation: none; }
+@media (prefers-reduced-motion: reduce) { .h1 { animation: none; } }
+
+@media (max-width: 900px) {
+  .h1 { white-space: normal; }
+  .h1 span { display: block; }
+  .body { grid-template-rows: auto minmax(220px, 1fr) auto; }
+  .foot { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "sub sub" "price cta"; align-items: end; gap: 20px; }
+  .sub { grid-area: sub; font-size: 17px; }
+  .price { grid-area: price; }
+  .cta { grid-area: cta; }
+  .price b { font-size: 40px; }
+}

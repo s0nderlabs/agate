@@ -1,0 +1,321 @@
+.page {
+  --g: clamp(16px, 4vw, 48px);
+  --w: min(1360px, 100% - 2 * var(--g));
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 17px;
+  overflow-x: clip;
+}
+
+.hero {
+  position: relative;
+  min-height: min(100svh, 940px);
+  display: grid;
+  align-items: end;
+  overflow: hidden;
+}
+/* daylight through blinds: soft slanted bars of light and shade on a warm wall */
+.light {
+  position: absolute;
+  inset: -10% -20%;
+  background:
+    linear-gradient(180deg, transparent 60%, var(--bg) 100%),
+    repeating-linear-gradient(104deg, rgb(255 251 240 / 0) 0 38px, rgb(255 251 240 / 0.85) 46px 74px, rgb(255 251 240 / 0) 84px 120px),
+    linear-gradient(115deg, #e8e3d8 0%, #f3efe6 45%, #e3ddd0 100%);
+  filter: blur(10px);
+  transform: skewY(-4deg);
+  opacity: 0.9;
+}
+:global(.tone-dark) .light {
+  background:
+    linear-gradient(180deg, transparent 60%, var(--bg) 100%),
+    repeating-linear-gradient(104deg, rgb(255 251 240 / 0) 0 38px, rgb(255 251 240 / 0.08) 46px 74px, rgb(255 251 240 / 0) 84px 120px),
+    linear-gradient(115deg, #1b1a18 0%, #24221f 45%, #191816 100%);
+}
+.heroGrid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px 64px;
+  width: var(--w);
+  margin: 0 auto;
+  padding: 160px 0 clamp(48px, 8vh, 88px);
+}
+.left {
+  display: grid;
+  align-content: end;
+  gap: 22px;
+}
+.title {
+  margin: 0;
+  max-width: 15ch;
+  font-size: clamp(44px, 4.8vw, 76px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+.lead {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 19px;
+  line-height: 1.5;
+}
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+.right {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding-top: 26px;
+  box-shadow: inset 0 4px 0 var(--ink);
+}
+.numLabel {
+  color: var(--ink-2);
+  font-size: 18px;
+}
+.big {
+  font-size: clamp(120px, 15vw, 230px);
+  font-weight: 300;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+}
+.right > span:last-child {
+  font-size: 18px;
+}
+
+/* the price board: six cells under one thick rule */
+.board {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  width: var(--w);
+  margin: clamp(72px, 10vh, 120px) auto 0;
+  box-shadow: inset 0 4px 0 var(--ink);
+}
+.cell {
+  display: grid;
+  gap: 6px;
+  padding: 26px 20px 26px 0;
+  box-shadow: inset -1px 0 0 var(--line-2);
+}
+.cell + .cell {
+  padding-left: 20px;
+}
+.cellName {
+  font-weight: 500;
+  font-size: 18px;
+}
+.cellPrice {
+  font-size: clamp(34px, 3.4vw, 52px);
+  font-weight: 300;
+  line-height: 1;
+}
+.cellNote {
+  color: var(--ink-2);
+  font-size: 16px;
+}
+
+.why,
+.how,
+.doors,
+.proof {
+  width: var(--w);
+  margin: clamp(100px, 14vh, 160px) auto 0;
+  padding-top: 28px;
+  box-shadow: inset 0 4px 0 var(--ink);
+}
+.whyInner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px 64px;
+}
+.whyTitle,
+.howTitle,
+.doorsTitle,
+.proofTitle {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(32px, 3.2vw, 48px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+}
+.whyText {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 20px;
+  line-height: 1.5;
+}
+.howTitle,
+.doorsTitle {
+  margin-bottom: 36px;
+}
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 40px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.step {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+.stepNum {
+  font-family: var(--font-display);
+  font-size: 64px;
+  font-weight: 300;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.stepTitle,
+.doorTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+}
+.stepText,
+.doorText {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.doorList {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.door {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 24px;
+  padding: 26px 0;
+  box-shadow: inset 0 -1px 0 var(--line-2);
+}
+.door:nth-child(odd) {
+  padding-right: 40px;
+}
+.door:nth-child(even) {
+  padding-left: 40px;
+  box-shadow: inset 0 -1px 0 var(--line-2), inset 1px 0 0 var(--line-2);
+}
+
+.proof {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px 64px;
+}
+.proofInner {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 18px;
+}
+.proofText {
+  margin: 0 0 10px;
+  color: var(--ink-2);
+  font-size: 19px;
+}
+.stats {
+  display: grid;
+  margin: 0;
+}
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 20px;
+  padding: 18px 0;
+  box-shadow: inset 0 -1px 0 var(--line-2);
+}
+.stat dt {
+  color: var(--ink-2);
+}
+.stat dd {
+  margin: 0;
+  font-size: clamp(30px, 3vw, 48px);
+  font-weight: 300;
+}
+
+.close {
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+  width: var(--w);
+  margin: 0 auto;
+  padding: clamp(110px, 16vh, 180px) 0;
+}
+.closeTitle {
+  margin: 0;
+  max-width: 18ch;
+  font-family: var(--font-sans);
+  font-size: clamp(40px, 5vw, 76px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+.closeText {
+  margin: 0 0 12px;
+  color: var(--ink-2);
+  font-size: 19px;
+}
+
+@media (max-width: 1000px) {
+  .board {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .cell:nth-child(4) {
+    padding-left: 0;
+  }
+  .steps {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 900px) {
+  .heroGrid,
+  .whyInner,
+  .proof {
+    grid-template-columns: 1fr;
+  }
+  .heroGrid {
+    padding-top: 120px;
+  }
+  .right {
+    order: -1;
+  }
+  .doorList {
+    grid-template-columns: 1fr;
+  }
+  .door,
+  .door:nth-child(odd),
+  .door:nth-child(even) {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 22px 0;
+    box-shadow: inset 0 -1px 0 var(--line-2);
+  }
+}
+@media (max-width: 560px) {
+  .board {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cell,
+  .cell + .cell {
+    padding: 20px 12px 20px 0;
+  }
+  .cell:nth-child(even) {
+    padding-left: 14px;
+  }
+  .steps {
+    grid-template-columns: 1fr;
+  }
+}

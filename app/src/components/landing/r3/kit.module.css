@@ -1,0 +1,141 @@
+/* Landing round 3: the shared Agate skin and motion vocabulary (Oct 8 2026, after
+   the reference study: WHOOP, Plasma One, Robinhood, Mercury measured). Stance: Precise, Calm, Trustworthy.
+   Neutrals are the app's own warm set; the accent is the blue lace of the stone, used as a FIELD, never as a
+   saturated button. One easing everywhere. Nothing under 15px. */
+
+.r3 {
+  --paper: #f6f5f1;
+  --paper-2: #efeee9;
+  --card: #fdfdfb;
+  --text: #17171a;
+  --text-2: #4b4a46;
+  --mute: #6f6e68;
+  --ink: #121211;
+  --ink-2: #1b1b19;
+  --on-ink: #f4f3ee;
+  --on-ink-2: #b9b7b0;
+  --lace: #dfe6f1;
+  --lace-2: #c9d5ea;
+  --lace-ink: #1d2152;
+  --hair: rgb(23 23 26 / 0.1);
+  --hair-ink: rgb(244 243 238 / 0.12);
+  --up: #1d7a4d;
+  --down: #b13a2e;
+  --ease: cubic-bezier(.32, .72, 0, 1);
+  --w: min(1240px, 100% - 2 * clamp(16px, 4vw, 48px));
+  --display: var(--font-sans);
+  --serif: var(--font-display);
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+:global(.tone-dark) .r3, .r3 :global(.tone-dark),
+.r3:global(.tone-dark) {
+  --paper: #141413;
+  --paper-2: #1b1a18;
+  --card: #1e1d1b;
+  --text: #f2f0ea;
+  --text-2: #c8c6bf;
+  --mute: #9a978f;
+  --ink: #0c0c0b;
+  --ink-2: #191917;
+  --lace: #1c2233;
+  --lace-2: #26304a;
+  --lace-ink: #dfe6f8;
+  --hair: rgb(242 240 234 / 0.1);
+  --up: #4cb886;
+  --down: #e2695d;
+}
+
+/* containers + chapters */
+.wrap { width: var(--w); margin-inline: auto; }
+.ink { background: var(--ink); color: var(--on-ink); }
+.laceField { background: var(--lace); color: var(--lace-ink); }
+.paper2 { background: var(--paper-2); }
+.sp { height: clamp(64px, 9vw, 120px); }
+.spS { height: clamp(32px, 4.5vw, 56px); }
+
+/* type: a display cluster (tight) and a body cluster (open), with nothing in between */
+.d1 { font-family: var(--display); font-weight: 500; font-size: clamp(52px, 7.6vw, 112px); line-height: .9; letter-spacing: -.04em; margin: 0; text-wrap: balance; }
+.d2 { font-family: var(--display); font-weight: 500; font-size: clamp(44px, 6.4vw, 96px); line-height: .92; letter-spacing: -.038em; margin: 0; max-width: 16ch; text-wrap: balance; }
+.d3 { font-family: var(--display); font-weight: 500; font-size: clamp(32px, 3.6vw, 52px); line-height: 1; letter-spacing: -.03em; margin: 0; text-wrap: balance; }
+.serif { font-family: var(--serif); font-weight: 400; letter-spacing: -.02em; }
+.lead { font-size: clamp(18px, 1.5vw, 22px); line-height: 1.4; letter-spacing: -.01em; margin: 0; max-width: 38ch; text-wrap: pretty; }
+.body { font-size: 17px; line-height: 1.5; margin: 0; max-width: 46ch; color: var(--text-2); text-wrap: pretty; }
+.ink .body { color: var(--on-ink-2); }
+.muted { color: var(--mute); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* buttons: one shape (r14), ink fill primary, hairline secondary; hover = colour inversion only */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 52px; padding: 0 26px; border-radius: 14px; font-size: 16px; font-weight: 500; letter-spacing: -.005em; text-decoration: none; white-space: nowrap; transition: background-color .2s ease, color .2s ease, border-color .2s ease, transform .16s ease; }
+.btn:active { transform: scale(.97); }
+.btnInk { background: var(--text); color: var(--paper); }
+.btnInk:hover { background: var(--text-2); }
+.btnLine { box-shadow: inset 0 0 0 1px currentColor; color: inherit; }
+.btnLine:hover { background: var(--text); color: var(--paper); box-shadow: none; }
+.btnPaper { background: var(--on-ink); color: #121211; }
+.btnPaper:hover { background: #fff; }
+.btnGhostLight { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .5); color: #fff; }
+.btnGhostLight:hover { background: #fff; color: #121211; box-shadow: none; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+
+/* the rotating headline: every side stacked in one grid cell (no layout shift), each line rises through a mask */
+.rot { display: grid; margin: 0; }
+.rotSide { grid-area: 1 / 1; display: block; }
+.rotQ { opacity: .5; }
+.ln { display: block; overflow: hidden; padding: .04em 0 .12em; margin: -.04em 0 -.12em; }
+.li { display: block; transform: translateY(110%); transition: transform .95s var(--ease) calc(var(--l, 0) * 80ms); }
+.rotSide[data-state="on"] .li { transform: none; }
+.rotSide[data-state="out"] .li { transform: translateY(-110%); transition-duration: .7s; transition-delay: calc(var(--l, 0) * 50ms); }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* reveal vocabulary: varied by CONTENT TYPE, never per section */
+.rvType .li { transform: translateY(110%); }
+.rvType.in .li { transform: none; }
+.r3 [data-rv="fade"] { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .8s var(--ease); }
+.r3 [data-rv="fade"].in { opacity: 1; transform: none; }
+.r3 [data-rv="media"] { opacity: 0; transform: scale(1.05); transition: opacity .8s ease, transform 1.1s var(--ease); }
+.r3 [data-rv="media"].in { opacity: 1; transform: none; }
+.r3 [data-rv="set"] > * { opacity: 0; transform: translateY(22px); transition: opacity .55s ease calc(var(--i, 0) * 60ms), transform .8s var(--ease) calc(var(--i, 0) * 60ms); }
+.r3 [data-rv="set"].in > * { opacity: 1; transform: none; }
+.still [data-rv], .still [data-rv] > *, .still .li { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .r3 .li, .r3 [data-rv], .r3 [data-rv] > * { transition: opacity .3s ease !important; transform: none !important; }
+}
+
+/* photos: one rounded frame, parallax travel inside it */
+.photo { position: relative; overflow: hidden; border-radius: 28px; background: var(--ink-2); }
+.photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.px img { transform: translate3d(0, var(--py, 0px), 0) scale(1.14); will-change: transform; }
+@media (prefers-reduced-motion: reduce) { .px img { transform: none; } }
+
+/* the real app inside a frame (macro crops, phones): same-origin iframe, never interactive */
+.appFrame { position: relative; overflow: hidden; }
+.appFrame iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; pointer-events: none; background: var(--paper); }
+.dof { position: absolute; inset: 0; pointer-events: none; backdrop-filter: blur(5px) saturate(1.1); -webkit-backdrop-filter: blur(5px) saturate(1.1);
+  mask-image: radial-gradient(ellipse 58% 62% at var(--fx, 50%) var(--fy, 45%), transparent 52%, #000 100%);
+  -webkit-mask-image: radial-gradient(ellipse 58% 62% at var(--fx, 50%) var(--fy, 45%), transparent 52%, #000 100%); }
+
+/* a phone: titanium edge, one radius family */
+.phone { position: relative; width: var(--pw, 300px); aspect-ratio: 393 / 852; border-radius: calc(var(--pw, 300px) * .16); padding: calc(var(--pw, 300px) * .035); background: linear-gradient(145deg, #3a3a3c, #1a1a1b 40%, #2c2c2e); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08), 0 2px 4px rgb(0 0 0 / .25), 0 40px 80px -30px rgb(0 0 0 / .55); }
+.phoneScreen { position: relative; width: 100%; height: 100%; border-radius: calc(var(--pw, 300px) * .13); overflow: hidden; background: var(--paper); }
+
+/* nav */
+.nav { position: relative; z-index: 5; width: var(--w); margin-inline: auto; display: flex; align-items: center; gap: 32px; height: 88px; }
+.navLinks { display: flex; gap: 28px; margin-left: auto; font-size: 16px; }
+.navLinks a { color: inherit; text-decoration: none; opacity: .82; }
+.navLinks a:hover { opacity: 1; }
+@media (max-width: 760px) { .navLinks { display: none; } .nav { height: 72px; } .nav .btn { margin-left: auto; height: 44px; padding: 0 18px; } }
+
+/* sticky centred CTA: appears after the hero, steps aside at the close */
+.sticky { position: fixed; left: 50%; bottom: 22px; z-index: 40; translate: -50% 16px; opacity: 0; pointer-events: none; transition: opacity .45s ease, translate .6s var(--ease); box-shadow: 0 1px 2px rgb(0 0 0 / .18), 0 18px 40px -16px rgb(0 0 0 / .45); }
+.stickyOn { opacity: 1; translate: -50% 0; pointer-events: auto; }
+
+/* footer */
+.foot { padding: 56px 0 40px; }
+.footRow { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: center; justify-content: space-between; }
+.footLinks { display: flex; gap: 24px; font-size: 16px; }
+.footLinks a { color: inherit; text-decoration: none; opacity: .75; }
+.footNote { font-size: 15px; opacity: .6; margin: 28px 0 0; }

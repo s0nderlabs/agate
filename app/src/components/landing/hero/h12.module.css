@@ -1,0 +1,40 @@
+.hero {
+  --h-ink: #f1f1f4;
+  --h-mute: #80818c;
+  --h-cta-bg: #f1f1f4;
+  --h-cta-ink: #060608;
+  background: #040405;
+  isolation: isolate;
+}
+/* the picture: behind the whole hero on a wide screen, between the words and the note on a phone */
+.slot { position: absolute; inset: 0; z-index: -1; }
+.gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; pointer-events: auto; }
+.body {
+  display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr auto; gap: 40px;
+  padding: clamp(24px, 7vh, 110px) var(--gut) clamp(32px, 6vh, 72px);
+  pointer-events: none;
+}
+.body a { pointer-events: auto; }
+.copy { display: grid; gap: 26px; justify-items: start; align-self: center; max-width: 620px; }
+.h1 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(46px, 5.4vw, 96px); line-height: .98; letter-spacing: -.03em; max-width: 11ch; text-wrap: balance; }
+.sub { font-size: 21px; line-height: 1.35; letter-spacing: -.01em; color: var(--h-ink); max-width: 28ch; }
+.q { color: var(--h-mute); }
+.note { margin: 0; max-width: 34ch; font-size: 17px; line-height: 1.45; color: #9a9ba6; }
+
+/* what the pointed-at die is */
+.tip {
+  position: absolute; z-index: 3; pointer-events: none; display: grid; gap: 2px; padding: 12px 16px; border-radius: 14px;
+  transform: translate(18px, -50%); background: rgb(14 15 20 / .82); backdrop-filter: blur(10px);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / .1), 0 20px 40px -20px rgb(0 0 0 / .8);
+  opacity: 0; transition: opacity .25s var(--ease);
+}
+.tip[data-on] { opacity: 1; }
+.tip b { font-size: 17px; font-weight: 500; color: #f1f1f4; }
+.tip span { font-size: 15px; color: #a6a7b2; white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .slot { position: relative; inset: auto; z-index: 0; height: 46svh; margin-inline: calc(-1 * var(--gut));
+    /* its own dark ground fades into the page's at both edges */
+    mask-image: linear-gradient(180deg, transparent, #000 16%, #000 86%, transparent); }
+  .body { grid-template-rows: auto auto auto; align-content: start; gap: 24px; padding-bottom: 40px; }
+}

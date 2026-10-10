@@ -1,0 +1,339 @@
+/* The landing kit: the bar, the footer, buttons, and the staged objects (slice, line, laptop, phone). Pages bring
+   their own grammar; everything here reads at normal size (no eyebrows, no micro labels). */
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.up {
+  color: var(--up);
+}
+.down {
+  color: var(--down);
+}
+.flat {
+  color: var(--ink-2);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 28px;
+  text-decoration: none;
+  font-size: 17px;
+}
+
+/* the bar */
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  width: min(1280px, 100% - 2 * clamp(16px, 4vw, 48px));
+  margin: 0 auto;
+  min-height: 84px;
+  color: var(--ink);
+}
+.navFloat {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 3;
+}
+.brand {
+  display: flex;
+  color: inherit;
+}
+.links {
+  display: flex;
+  gap: 28px;
+  margin-left: auto;
+  font-size: 16px;
+}
+.links a {
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.8;
+}
+.links a:hover {
+  opacity: 1;
+}
+.navCta {
+  min-height: 44px;
+  padding: 0 20px;
+  font-size: 16px;
+}
+
+/* the footer */
+.foot {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 20px 40px;
+  width: min(1280px, 100% - 2 * clamp(16px, 4vw, 48px));
+  margin: 0 auto;
+  padding: 48px 0 56px;
+  color: var(--ink);
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.foot p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 16px;
+}
+.footLinks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 24px;
+  font-size: 16px;
+}
+.footLinks a {
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+/* the price line */
+.line {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.area {
+  fill: currentColor;
+  opacity: 0.07;
+}
+.dot {
+  fill: currentColor;
+}
+.bandLine {
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-dasharray: 4 6;
+  opacity: 0.35;
+  vector-effect: non-scaling-stroke;
+}
+
+/* the slice */
+.slice {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* the laptop and phone screens are always the light app, whatever scene they sit in */
+.app,
+.phone {
+  --ink: #17171a;
+  --ink-2: #4b4a46;
+  --line: rgb(23 23 26 / 0.09);
+  --up: #1d7a4d;
+  --down: #b13a2e;
+}
+
+/* the laptop screen: the app as an object */
+.app {
+  --a-bg: #f6f5f1;
+  --a-card: #fdfdfb;
+  --a-ink: #17171a;
+  --a-ink2: #4b4a46;
+  --a-line: rgb(23 23 26 / 0.09);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: var(--a-bg);
+  color: var(--a-ink);
+  border-radius: 14px;
+  overflow: hidden;
+  font-size: 15px;
+  container-type: inline-size;
+}
+.appBar {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 14px 22px;
+  box-shadow: inset 0 -1px 0 var(--a-line);
+  --stone-o: #17171a;
+  --stone-m: #8b8a86;
+  --stone-c: #fbfaf7;
+}
+.appTabs {
+  display: flex;
+  gap: 20px;
+  margin-left: auto;
+  color: var(--a-ink2);
+}
+.appTabs b {
+  color: var(--a-ink);
+  font-weight: 500;
+}
+.appBody {
+  display: grid;
+  grid-template-columns: 1fr 32%;
+  min-height: 0;
+}
+.appMain {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  padding: 20px 22px;
+  min-height: 0;
+}
+.appHead {
+  display: flex;
+  gap: 40px;
+}
+.appHead > div {
+  display: grid;
+  gap: 2px;
+}
+.appLabel {
+  color: var(--a-ink2, var(--ink-2));
+  font-size: 15px;
+}
+.appBig {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(26px, 4.4cqi, 40px);
+  line-height: 1.05;
+}
+.appChart {
+  align-self: end;
+  height: 100%;
+  color: var(--a-ink);
+}
+.appTicket {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 20px 20px;
+  background: var(--a-card);
+  box-shadow: inset 1px 0 0 var(--a-line);
+}
+.appSides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.appLong,
+.appShort {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+.appLong {
+  background: rgb(29 122 77 / 0.12);
+  color: #1d7a4d;
+}
+.appShort {
+  box-shadow: inset 0 0 0 1px var(--a-line, var(--line));
+  color: #b13a2e;
+}
+.appRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.appCheck {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--a-ink);
+}
+.appBtn {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  border-radius: 999px;
+  background: var(--a-ink);
+  color: var(--a-bg);
+  font-weight: 500;
+}
+
+/* the phone */
+.phone {
+  --a-bg: #f6f5f1;
+  --a-ink: #17171a;
+  --a-ink2: #4b4a46;
+  --a-line: rgb(23 23 26 / 0.12);
+  width: 300px;
+  max-width: 100%;
+  aspect-ratio: 300 / 620;
+  padding: 11px;
+  border-radius: 48px;
+  background: linear-gradient(145deg, #2a2a2c, #0c0c0d 55%, #1d1d1f);
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.12), 0 40px 80px -30px rgb(0 0 0 / 0.55);
+}
+.phoneScreen {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  height: 100%;
+  padding: 22px 20px;
+  border-radius: 38px;
+  background: var(--a-bg);
+  color: var(--a-ink);
+  overflow: hidden;
+}
+.phoneTime {
+  font-weight: 500;
+  font-size: 15px;
+  margin-bottom: 18px;
+}
+.phoneBig {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 48px;
+  line-height: 1.05;
+}
+.phoneChart {
+  margin: 18px 0 10px;
+  height: 150px;
+  color: var(--a-ink);
+}
+.phoneSides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+@media (max-width: 760px) {
+  .links {
+    display: none;
+  }
+  .nav {
+    justify-content: space-between;
+    min-height: 68px;
+  }
+  .navCta {
+    min-height: 40px;
+    padding: 0 16px;
+    font-size: 15px;
+  }
+  .foot {
+    grid-template-columns: 1fr;
+  }
+  .footLinks {
+    justify-content: flex-start;
+  }
+}
+
+.soon {
+  font-family: var(--font-sans);
+  font-size: 0.5em;
+  color: var(--ink-2);
+}

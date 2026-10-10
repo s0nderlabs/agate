@@ -1,0 +1,62 @@
+/* Variant 2, "One object" (Plasma One grammar, measured): a photo hero with a centred statement and the product rising
+   from its edge; then ONE object pinned at the centre while the reader scrolls through four sides, a stepper on the
+   left and one huge claim on the right; a centred statement with the glass columns; slow price marquees; big numbers. */
+
+.hero { position: relative; min-height: max(100svh, 760px); color: #f4f3ee; background: #0c0c0b; overflow: hidden; display: flex; flex-direction: column; }
+.heroImg { position: absolute; inset: 0; }
+.heroImg img { width: 100%; height: 100%; object-fit: cover; }
+.heroImg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgb(12 12 11 / .55), rgb(12 12 11 / .25) 40%, rgb(12 12 11 / .55) 100%); }
+.heroCopy { position: relative; z-index: 2; text-align: center; display: grid; justify-items: center; gap: 22px; padding-top: clamp(36px, 6vh, 72px); width: var(--w); margin-inline: auto; }
+.heroH { text-align: center; }
+.heroH > span > span { margin-inline: auto; }
+.heroLead { color: rgb(244 243 238 / .82); text-align: center; }
+.heroPhone { position: relative; z-index: 2; margin: clamp(40px, 6vh, 64px) auto 0; margin-bottom: -180px; }
+
+/* the pinned stepper */
+.pin { position: relative; height: 400vh; }
+.pinStage { position: sticky; top: 0; height: 100svh; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: clamp(24px, 4vw, 72px); width: var(--w); margin-inline: auto; }
+.pills { display: grid; gap: 10px; justify-items: start; }
+.pill { font: inherit; font-size: 17px; padding: 12px 20px; border-radius: 99px; border: 0; background: rgb(23 23 26 / .05); color: var(--text-2); cursor: pointer; transition: background-color .3s ease, color .3s ease; }
+.pill:hover { color: var(--text); }
+.pillOn { background: var(--lace); color: var(--lace-ink); }
+.claims { position: relative; min-height: 420px; }
+.claim { position: absolute; inset: 0; display: grid; align-content: center; gap: 18px; opacity: 0; transform: translateY(24px); transition: opacity .5s ease, transform .8s var(--ease); pointer-events: none; }
+.claimOn { opacity: 1; transform: none; pointer-events: auto; }
+.claimN { font-size: clamp(72px, 9vw, 136px); font-weight: 500; letter-spacing: -.055em; line-height: .9; font-variant-numeric: tabular-nums; }
+.claimL { font-size: clamp(19px, 1.6vw, 24px); line-height: 1.35; letter-spacing: -.01em; margin: 0; max-width: 18ch; }
+.phoneWrap { position: relative; }
+.ring { position: absolute; border-radius: 16px; box-shadow: 0 0 0 3px var(--lace-ink), 0 0 0 9px rgb(201 213 234 / .55); opacity: 0; transition: opacity .4s ease, left .7s var(--ease), top .7s var(--ease), width .7s var(--ease), height .7s var(--ease); pointer-events: none; }
+.ringOn { opacity: 1; }
+
+/* the statement and the glass object */
+.statement { text-align: center; display: grid; justify-items: center; gap: 22px; }
+.statement h2 { margin-inline: auto; text-align: center; }
+.glass { width: var(--w); margin-inline: auto; }
+
+/* marquees: slow, linear, masked at the edges */
+.marquee { overflow: hidden; mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent); -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent); }
+.track { display: flex; width: max-content; gap: 64px; padding-block: 10px; animation: run 48s linear infinite; }
+.track2 { animation-duration: 60s; animation-direction: reverse; }
+.item { font-size: clamp(36px, 4.4vw, 64px); font-weight: 500; letter-spacing: -.04em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.item span { color: var(--mute); }
+@keyframes run { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .track { animation: none; } }
+
+/* three big numbers */
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.big { display: grid; gap: 14px; align-content: start; padding-top: 28px; box-shadow: inset 0 1px 0 var(--hair); }
+.bigN { font-size: clamp(64px, 7vw, 112px); font-weight: 500; letter-spacing: -.055em; line-height: .9; }
+.bigL { font-size: 19px; line-height: 1.4; margin: 0; color: var(--text-2); max-width: 22ch; }
+
+.closeSec { text-align: center; display: grid; justify-items: center; gap: 22px; }
+.closeSec h2 { margin-inline: auto; text-align: center; }
+
+@media (max-width: 900px) {
+  .pin { height: auto; }
+  .pinStage { position: relative; height: auto; grid-template-columns: 1fr; justify-items: center; padding-block: 64px; }
+  .pills { grid-auto-flow: column; justify-items: center; overflow-x: auto; max-width: 100%; }
+  .claims { min-height: 300px; width: 100%; }
+  .claim { text-align: center; justify-items: center; }
+  .three { grid-template-columns: 1fr; }
+  .heroPhone { margin-bottom: -260px; }
+}

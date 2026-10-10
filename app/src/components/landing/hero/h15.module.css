@@ -1,0 +1,90 @@
+.hero {
+  --h-ink: #eef1f8;
+  --h-mute: #8a91a3;
+  --h-cta-bg: #eef1f8;
+  --h-cta-ink: #050609;
+  background: #050609;
+  isolation: isolate;
+}
+
+/* the picture fills the hero; the words sit over it */
+.slot { position: absolute; inset: 0; z-index: 0; }
+.gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* shade that keeps the words readable: under the top bar, round the edges, and behind the headline where it sits */
+.shade {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgb(5 6 9 / .82), rgb(5 6 9 / 0) 150px),
+    radial-gradient(ellipse 75% 75% at 50% 50%, rgb(5 6 9 / 0) 55%, rgb(5 6 9 / .55) 100%);
+}
+.hero[data-title="middle"] .shade {
+  background:
+    radial-gradient(ellipse 36% 30% at 50% 50%, rgb(5 6 9 / .74), rgb(5 6 9 / .42) 55%, rgb(5 6 9 / 0) 100%),
+    linear-gradient(180deg, rgb(5 6 9 / .82), rgb(5 6 9 / 0) 150px),
+    radial-gradient(ellipse 75% 75% at 50% 50%, rgb(5 6 9 / 0) 55%, rgb(5 6 9 / .55) 100%);
+}
+.hero[data-title="low"] .shade {
+  background:
+    radial-gradient(ellipse 58% 56% at 0% 100%, rgb(5 6 9 / .92), rgb(5 6 9 / .7) 50%, rgb(5 6 9 / 0) 100%),
+    linear-gradient(0deg, rgb(5 6 9 / .7), rgb(5 6 9 / 0) 40%),
+    linear-gradient(180deg, rgb(5 6 9 / .82), rgb(5 6 9 / 0) 150px),
+    radial-gradient(ellipse 75% 75% at 50% 50%, rgb(5 6 9 / 0) 55%, rgb(5 6 9 / .55) 100%);
+}
+
+.body {
+  position: relative; z-index: 2; display: grid; gap: 34px; min-width: 0;
+  padding: 0 var(--gut) clamp(40px, 9vh, 104px);
+  pointer-events: none;
+}
+.body a { pointer-events: auto; }
+.hero[data-title="middle"] .body { align-content: center; justify-items: center; text-align: center; padding-bottom: 76px; }
+.hero[data-title="low"] .body { align-content: end; justify-items: start; }
+.hero[data-title="low"] .h1 { font-size: clamp(46px, 7vw, 124px); }
+
+.h1 {
+  margin: 0; font-family: var(--font-display); font-weight: 400; line-height: 1; letter-spacing: -.035em;
+  font-size: clamp(46px, 8.4vw, 150px); color: #ffffff;
+  text-shadow: 0 2px 40px rgb(5 6 9 / .5);
+  animation: rise 1.4s var(--ease) .15s both;
+}
+.h1 span { display: block; white-space: nowrap; }
+.cta { animation: rise 1.4s var(--ease) .4s both; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px); }
+}
+:global([data-still]) .h1, :global([data-still]) .cta { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .h1, .cta { animation: none; }
+}
+
+/* the light look: ink lit on paper; the same shade, in paper */
+.hero[data-tone="light"] {
+  --h-ink: #14151a;
+  --h-mute: #6b6d75;
+  --h-cta-bg: #14151a;
+  --h-cta-ink: #f4f3ef;
+  background: #f4f3ef;
+}
+.hero[data-tone="light"] .h1 { color: #14151a; text-shadow: none; }
+.hero[data-tone="light"][data-title="low"] .shade {
+  background:
+    radial-gradient(ellipse 58% 56% at 0% 100%, rgb(244 243 239 / .94), rgb(244 243 239 / .72) 50%, rgb(244 243 239 / 0) 100%),
+    linear-gradient(0deg, rgb(244 243 239 / .7), rgb(244 243 239 / 0) 40%),
+    linear-gradient(180deg, rgb(244 243 239 / .85), rgb(244 243 239 / 0) 150px);
+}
+
+@media (max-width: 900px) {
+  .hero[data-title="middle"] .body { padding-bottom: 64px; }
+  .hero[data-tone="light"][data-title="low"] .shade {
+    background:
+      linear-gradient(0deg, rgb(244 243 239 / .94), rgb(244 243 239 / .6) 26%, rgb(244 243 239 / 0) 50%),
+      linear-gradient(180deg, rgb(244 243 239 / .85), rgb(244 243 239 / 0) 120px);
+  }
+  .hero[data-title="low"] .shade {
+    background:
+      linear-gradient(0deg, rgb(5 6 9 / .92), rgb(5 6 9 / .6) 26%, rgb(5 6 9 / 0) 50%),
+      linear-gradient(180deg, rgb(5 6 9 / .82), rgb(5 6 9 / 0) 120px);
+  }
+}
