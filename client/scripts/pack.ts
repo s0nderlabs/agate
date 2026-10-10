@@ -11,7 +11,9 @@ import { join } from "node:path";
 const root = join(import.meta.dir, "..");
 const out = join(root, "dist/pkg");
 const src = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version: string; dependencies: Record<string, string>; exports: Record<string, string> };
-const name = process.env.AGATE_NPM_NAME || "agate-sdk";
+/** README.npm.md names the package by this default; a build under another name rewrites it there */
+const DEFAULT_NAME = "agate-sdk";
+const name = process.env.AGATE_NPM_NAME || DEFAULT_NAME;
 
 rmSync(join(root, "dist"), { recursive: true, force: true });
 await $`bunx tsc -p ${join(root, "tsconfig.build.json")}`.cwd(root);
@@ -45,7 +47,7 @@ writeFileSync(
     2,
   ) + "\n",
 );
-copyFileSync(join(root, "README.npm.md"), join(out, "README.md"));
+writeFileSync(join(out, "README.md"), readFileSync(join(root, "README.npm.md"), "utf8").replaceAll(DEFAULT_NAME, name));
 copyFileSync(join(root, "../LICENSE"), join(out, "LICENSE"));
 
 console.log(`built ${name}@${src.version} in dist/pkg`);

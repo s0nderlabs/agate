@@ -4,7 +4,7 @@ title: Limits, stated
 description: What Agate is not yet, said plainly.
 group: Background
 order: 16
-source: 'docs/site'
+source: 'contracts/src, server/src/grants.ts, wallet/src/allowed.ts, wall/apps'
 ---
 
 # What Agate is not, yet.
@@ -29,5 +29,41 @@ source: 'docs/site'
   day survives an outage (late days are closed and carried), but the robots stop while it is down.
 - **Dynamic Transaction Review waits on Dynamic.** It is built on Agate's side; until Dynamic turns it on for Monad
   testnet, an AI pocket's limits are checked by Agate's server and the chain ([AI pockets](07-ai-pockets.md)).
+- **An AI connection's end date depends on how it connected.** Past the end date a connector URL still answers
+  reads (its trade tools are gone), while an OAuth connection stops answering within the hour, because its token is
+  not renewed. Either way, connecting again with a new end date restores it.
 - **The SDK is not on npm yet.** It is built and tested; for now, use it from this repository. Until it is published,
   a package on npm that claims to be Agate's is not ours.
+
+## Who can do what
+
+Every role is its own key, and no key can type a price: the index computes each day from stored readings, and
+nobody can edit a recorded day. The contracts have no proxy, no pause and no upgrade.
+
+| Who | Can | Cannot | Enforced in |
+|---|---|---|---|
+| a writer (CRE primary, standby) | post its own hourly readings; close a day from them | post for the other writer, write a price, change a final day | `AgateIndex` (`postReport`, `closeDay`) |
+| the attester | countersign a changed day, or select the other writer's record of it | write a value; veto | `attest` |
+| a guardian (a person) | veto a day before it is final; suspend a writer; countersign | type a price; act on a final day; appoint anyone | `veto`, `suspend`, `attest` |
+| the index owner | register a new GPU (at once, append-only); queue a change of writer, attester, guardian, forwarder, owner, a source's dates or a reader, applied only after the 48-hour public queue | change a recorded day; skip the queue | `registerGpu`, `queue`, `execute`, `queueReaderSwap` |
+| anyone | close or carry a due day; list the current or next month once its reference days are final; create its Kuru market; claim any pay-me-daily position's payout, which always goes to that position's payee | choose a band; settle or redeem someone else's tokens; send a payout anywhere else | `AgateIndex`, `AgateFactory`, `AgateSeries` |
+| the factory | no owner at all | anything an owner could | `AgateFactory` |
+| `marketAdmin` | record a replacement market for a month (a Kuru-made one on V1) | touch money, prices or positions | `attachMarket` |
+| the test dollar's minter | mint test dollars (testnet only) | anything else | `AgateDollar` |
+| the market maker, lister, payer, keeper | quote, list, pay daily positions, close days: what anyone may do, with their own keys | take a position's money; set a price | their keys can call only public functions |
+| Agate's server | sign an AI's trades with the Assistant, inside the pocket's limits | move the main account's money; exceed the session key's limits | `server/src/grants.ts`, the pocket's session key |
+| a leaked connector URL | trade that one pocket inside its limits until disconnected | reach the main account; raise a limit; trade after a disconnect | the session key; Disconnect ends the URL |
+
+## What is public
+
+Everything onchain is public on Monad: every reading, every day's price and its sources, every position, every
+pocket's trades, every order in the book. Your account's address is visible to anyone who looks; your email is not
+(it stays with Dynamic and Agate's server).
+
+## What is not built yet
+
+Beyond the limits above (one CRE node, no outside audit, Transaction Review, the SDK off npm):
+
+- Kuru Spot V2 books for the app (the market maker is ready to quote them).
+- A recovery path for a lost passkey, and backup codes.
+- A claim and Collect button for signed-in accounts in the app (the SDK and the contracts already do it).

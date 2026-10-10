@@ -16,12 +16,18 @@ server and again by the chain itself ([AI pockets and limits](07-ai-pockets.md))
 
 ## Two ways to connect
 
-- **OAuth 2.1 (sign in from the app):** add `https://agate-1.tailf06dd7.ts.net/mcp` as a remote MCP server. The app
-  registers itself, opens Agate's **Allow** page, and you sign in and set a budget, a cap per trade, trades a day and
-  an end date. Discovery: `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server`.
+Agate's MCP server is at **`https://agate-1.tailf06dd7.ts.net/mcp`**. That is the address of Agate's own server
+(published through Tailscale Funnel), not of the app: the app at `agate.elpabl0.xyz` does not proxy MCP, and the
+OAuth tokens are issued for this exact address, so add it as written. Every address Agate uses is in
+[Contracts and addresses](12-contracts.md#endpoints).
+
+- **OAuth 2.1 (sign in from the app):** add the address above as a remote MCP server. The app registers itself, opens
+  Agate's **Allow** page (`https://agate.elpabl0.xyz/app/connect?request=<id>`), and you sign in and set a budget, a
+  cap per trade, trades a day and an end date. Discovery: `/.well-known/oauth-protected-resource/mcp` and
+  `/.well-known/oauth-authorization-server` on the same host.
 - **Connector URL:** on Agate's **AI** page, connect an AI and copy the private URL it shows once. Add that URL as a
   remote MCP server; no further sign-in. Treat it like a password: anyone with it can use that connection until you
-  disconnect it.
+  disconnect it (connect again for a new one).
 
 ## Per app
 
@@ -39,6 +45,35 @@ Checked against the live server on Oct 8 2026 (Claude in use since Oct 4):
 
 A Claude Code plugin with the Agate skill is in `agents/claude-plugin` (set `AGATE_MCP_URL`).
 
+What the two CLIs print (Oct 10 2026, in a fresh config):
+
+```text
+$ claude mcp add --transport http agate https://agate-1.tailf06dd7.ts.net/mcp
+Added HTTP MCP server agate with URL: https://agate-1.tailf06dd7.ts.net/mcp to local config
+$ claude mcp list
+agate: https://agate-1.tailf06dd7.ts.net/mcp (HTTP) - ! Needs authentication
+```
+
+"Needs authentication" is expected: in Claude Code, `/mcp`, then **agate**, opens the Allow page in your browser.
+
+```text
+$ codex mcp add agate --url https://agate-1.tailf06dd7.ts.net/mcp
+Added global MCP server 'agate'.
+Detected OAuth support. Starting OAuth flow…
+Authorize `agate` by opening this URL in your browser:
+https://agate-1.tailf06dd7.ts.net/authorize?response_type=code&client_id=agt_client_...&scope=mcp
+```
+
+Opening that URL leads to Agate's Allow page; once you allow, `codex mcp list` shows the server as logged in.
+
+Any other client that speaks Streamable HTTP takes the same two fields:
+
+```json
+{ "mcpServers": { "agate": { "type": "http", "url": "https://agate-1.tailf06dd7.ts.net/mcp" } } }
+```
+
+In Claude Code the tools then show as `mcp__agate__get_prices`, `mcp__agate__open_long` and so on.
+
 ## Then ask
 
 - "What's the H100 price on Agate, and where does it come from?"
@@ -47,7 +82,17 @@ A Claude Code plugin with the Agate skill is in `agents/claude-plugin` (set `AGA
 - "Keep my H100 hedge going into next month."
 
 Every trade shows on the **AI** page with its transaction, and above the cap the AI sends you an approval link
-instead of trading. The tools: [MCP tools](11-mcp-tools.md).
+instead of trading. The tools: [MCP tools](11-mcp-tools.md). A guide written for the agent itself:
+[For agents](18-agents.md).
+
+## If it fails
+
+| What you see | Why | What to do |
+|---|---|---|
+| reads work, trade tools are missing | a connector URL past its end date | connect again with a new end date |
+| the Allow page opens on an old address | an app saved the address from before Oct 10 | nothing: it redirects to `/app/connect` by itself |
+
+Every `401` and `429` the server answers, and every refusal rule: [Errors](17-errors.md#mcp-connection).
 
 ## Disconnect
 

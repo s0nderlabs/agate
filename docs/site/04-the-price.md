@@ -121,7 +121,8 @@ Days are UTC days. Each cloud's page is read once an hour (24 readings a day) by
 
 Each monthly market reads the index's final day prices for that month. Each day's price is kept inside the month's
 floor and ceiling, and the month's token pays the average of those 30 (or 28 to 31) days. The floor and ceiling are
-set when the month is listed, from the index's recent final days: half and twice the reference price.
+fixed when the month is listed, from five final days of the index: the rule and a worked example are in
+[The monthly market](05-the-market.md#the-floor-and-the-ceiling).
 
 ## 8. Check it yourself
 
@@ -131,6 +132,59 @@ set when the month is listed, from the index's recent final days: half and twice
   it counted); `Attested`, `Vetoed`, `RecordReplaced` and `DayCarried` record every check.
 - **API:** `GET /v1/prices/{gpu}` gives each source's price beside the median, and the daily history.
 - **Code:** the readers and the recipe in `wall/packages/sources`, the contract in `contracts/src`.
+
+One real day, H100 on Oct 9 2026 (day id 20735), checked from a terminal:
+
+```sh
+curl -s https://agate.elpabl0.xyz/api/v1/prices/H100 | jq -c '[.date, .price, [.sources[] | [.company, .price]]]'
+```
+
+```text
+["2026-10-09",3.99,[["Verda",3.92],["Nebius",4.5],["Lambda",3.99],["CoreWeave",6.16],["Civo",2.99],["Hyperstack",null]]]
+```
+
+Five companies counted (Hyperstack is the panel's reserve, not counted that day). Sorted, their day prices are $2.99,
+$3.92, **$3.99**, $4.50, $6.16: the median is $3.99. The contract says the same:
+
+```sh
+cast call 0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36 "finalFix(bytes32,uint32)(bool,uint32,uint8,uint8,bool,bool)" \
+  0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955 20735 --rpc-url https://testnet-rpc.monad.xyz
+```
+
+```text
+true
+3990000 [3.99e6]
+2
+4
+false
+false
+```
+
+Final (`true`), $3.99 (millionths of a dollar), status `2` (DEGRADED, see below), 4 companies fresh (enough clean readings that day), 1 held (counted at its last good day price, rule 3 above), not
+late, not incomplete. The day was
+closed by the CRE writer in transaction
+[`0x67a75408...`](https://testnet.monadexplorer.com/tx/0x67a754089eb2117e7b76a17c6c58467178322d66b6771804631245f35aefef87)
+(block 69,688,641), whose `DayClosed` and `RecordSlots` events carry the same numbers per source.
+
+| `status` | Name | Meaning |
+|---|---|---|
+| 0 | NONE | no record |
+| 1 | FULL | 5 or more companies fresh |
+| 2 | DEGRADED | 3 or 4 companies fresh |
+| 3 | DEMO | fewer than 3 (allowed only on testnet) |
+| 4 | CARRIED | no usable data: the day before's price, carried |
+
+Each GPU's `gpuId` is the keccak256 of its spec string (H100: `cast keccak "H100-SXM/on-demand-list/neocloud/v1"`),
+checked at deploy (`contracts/script/DeployIndex.s.sol`); the six, from `contracts/script/config/testnet-production.json`:
+
+| GPU | `gpuId` |
+|---|---|
+| H100 | `0x12aa97fa8c2e1cc1914a2e4d86b36c7b36fdccec7c4caacb5f202ccc6d9be955` |
+| H200 | `0xf7b3c4797305bd1433be196119ae5d6df4a433cffbf8d02c22048cc3a487b30d` |
+| B200 | `0x0a5bf357b491308f9e8b00f22d9d58b1c984046be5b4a94a21a59038b996dd27` |
+| B300 | `0x08c6236b69837cbbc194f0e5543b52ec92d53b309e164e1139b0076f2151b07f` |
+| A100 | `0x32422c52fa2c8e908a3d943000e08e47ac121b194f11f4d58f0149ef008418de` |
+| L40S | `0x5d0a54c25c386ef135340ebc802b2bc2538004e5538d436114a5b3c9398b30e4` |
 
 ## 9. Limits, stated
 

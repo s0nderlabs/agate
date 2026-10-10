@@ -10,7 +10,9 @@ source: 'README.md'
 # What Agate stands on, where to find it in the code, and proof that it runs.
 
 Every transaction below is on Monad testnet and opens in the explorer. Counts are from the chain (read through Envio
-HyperSync) and from Agate's indexer, as of Oct 9 2026.
+HyperSync) and from Agate's indexer, as of Oct 9 2026; they only grow. The indexer's own count, live:
+`curl -s https://agate-1.tailf06dd7.ts.net:8443/v1/graphql -H 'content-type: application/json' -d '{"query":"{ chain_metadata { num_events_processed } }"}'`
+(14,997 events on Oct 10).
 
 ## Monad
 
@@ -74,7 +76,8 @@ the book level by level. Code: `contracts/src/market/interfaces/IKuruRouter.sol`
 
 **What we ran into.** Kuru stopped open market creation on mainnet after its Sep 4 exploit, so Agate's books run on
 Kuru V1 testnet, where anyone can still open a market. We asked Kuru for a Spot V2 listing, and on Oct 9 Kuru agreed
-to list the November H100 token against its testnet USDC.
+to list the November H100 token against its testnet USDC. Agate's market maker can already quote Spot V2 books
+beside V1 (`wall/apps/marketmaker`); it starts quoting there once that book is listed. The app trades on V1.
 
 ## Envio: the indexer
 
@@ -83,9 +86,11 @@ positions, payouts, daily prices, trades and candles over GraphQL. It runs on En
 app asks Envio Cloud first. Code: `indexer/` (`config.yaml`, `schema.graphql`).
 
 **Proof.**
-- Hosted on Envio Cloud (project `s0nderlabs/agate`, redeployed on every push to main):
-  `https://indexer.dev.hyperindex.xyz/4b2eb56/v1/graphql`. A copy runs on Agate's server:
-  `https://agate-1.tailf06dd7.ts.net:8443/v1/graphql`. Both had processed 13,253 events, caught up to the chain head.
+- Hosted on Envio Cloud (project `s0nderlabs/agate`, a development deployment redeployed when the indexer changes):
+  `https://indexer.dev.hyperindex.xyz/4b2eb56/v1/graphql`. The path carries the deployment's id, so it changes with
+  each redeploy. A copy runs on Agate's server at a fixed address, the one to use from your own code:
+  `https://agate-1.tailf06dd7.ts.net:8443/v1/graphql`. Both had processed 13,253 events by Oct 9, caught up to the
+  chain head.
 - 41 events across the index, the factories, every series, the router, the test dollar and Kuru; 29 entities; each
   Kuru book is registered from the factory's `MarketRecorded` event as it is created (`indexer/src/handlers/factory.ts:125`),
   and a block handler keeps each month's clock (`indexer/src/handlers/clock.ts`).

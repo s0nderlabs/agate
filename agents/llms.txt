@@ -15,5 +15,8 @@
 - [Server API](server/API.md): the app-facing API (Connect your AI, approvals, activity).
 - [How the price is made](docs/site/04-the-price.md): sources, daily formula, countersign, carried days, 48 h notice.
 - [Onchain feeds](docs/site/09-onchain.md): the index contract and a Chainlink-style feed per GPU on Monad testnet.
+- [For agents](docs/site/18-agents.md): what an agent may do, what goes back to the person, the trade recipe.
+- [MCP tools](docs/site/11-mcp-tools.md): every tool's parameters, answers and refusals.
+- [Errors and fixes](docs/site/17-errors.md): every error with its exact words and what to do.
 - [Developer API](docs/site/08-api.md): public read-only market data under /v1 (prices with sources, history, months, books, trades, candles), no key.
 - [Wallets](wallet/README.md): main account, Assistant, pocket; measured timings on Monad testnet.

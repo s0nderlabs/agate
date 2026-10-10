@@ -28,7 +28,10 @@ One feed per GPU, `src/examples/AgatePriceFeed.sol`, deployed Oct 8 2026 (`contr
 
 - `latestRoundData()`: the newest **final** day. `answer` is US dollars per GPU-hour with **6 decimals**
   (`3990000` = $3.99), `roundId` is the index's day id, `startedAt` the day's start, `updatedAt` when it became final.
-- `getRoundData(day)`: any final day; reverts for a day with no final price.
+- `getRoundData(day)`: any final day; reverts with `NoFinalPrice()` for a day with no final price.
+- A carried day answers with the carried price, but its `updatedAt` is when a price was last really computed (the
+  newest computed final day before it), not when it was carried, so a staleness check like the one below catches a run
+  of carried days.
 - `decimals()` is 6, `description()` names the GPU.
 
 A contract that values something in GPU-hours, for example a loan backed by GPU rental income:
@@ -57,15 +60,38 @@ cast call 0xC68687dd7d7b40281FB07E9006538aa45fAF3D98 "latestRoundData()(uint80,i
   --rpc-url https://testnet-rpc.monad.xyz
 ```
 
+```text
+20735 [2.073e4]
+3990000 [3.99e6]
+1791504000 [1.791e9]
+1791615640 [1.791e9]
+20735 [2.073e4]
+```
+
+Round 20735 is the day id: days since Jan 1 1970, so Oct 9 2026. `3990000` with 6 decimals is $3.99 per GPU-hour.
+`1791504000` is the day's start (Oct 9 00:00 UTC) and `1791615640` when it became final (Oct 10 07:00:40 UTC).
+
+From TypeScript, with viem alone:
+
+```ts
+import { createPublicClient, http, parseAbi } from "viem";
+
+const feed = parseAbi(["function latestRoundData() view returns (uint80, int256, uint256, uint256, uint80)"]);
+const pub = createPublicClient({ transport: http("https://testnet-rpc.monad.xyz") });
+const [day, answer] = await pub.readContract({ address: "0xC68687dd7d7b40281FB07E9006538aa45fAF3D98", abi: feed, functionName: "latestRoundData" });
+console.log(Number(day), Number(answer) / 1e6); // 20735 3.99
+```
+
 ## The index itself
 
 [`AgateIndex` at `0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36`](https://testnet.monadexplorer.com/address/0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36)
-(interface `contracts/src/interfaces/IAgateIndex.sol`). Each GPU is a `gpuId` (listed in
-`contracts/script/config/testnet-production.json`); days are UTC day ids (`dayId(timestamp)`).
+(interface `contracts/src/interfaces/IAgateIndex.sol`). Each GPU is a `gpuId` (every one is listed in
+[How the price is made](04-the-price.md#8-check-it-yourself)); days are UTC day ids (`dayId(timestamp)`).
 
 - `finalFix(gpuId, day)` returns `(ok, value, status, fresh, late, incomplete)`: the day's final price in millionths of
-  a dollar, its status (FULL, DEGRADED, DEMO or CARRIED) and how many companies were fresh. This is what the monthly
-  markets settle on.
+  a dollar, its status (`1` FULL, `2` DEGRADED, `3` DEMO, `4` CARRIED) and how many companies were fresh. This is what
+  the monthly markets settle on. A worked call with its output:
+  [Check it yourself](04-the-price.md#8-check-it-yourself).
 - `record(gpuId, day)` returns the whole record (who wrote it, when it was posted, final and countersigned).
 - Events: `DayClosed`, `RecordSlots` (each source's day price), `Attested`, `RecordReplaced`, `Vetoed`, `DayCarried`.
 

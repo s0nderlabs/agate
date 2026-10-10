@@ -9,7 +9,8 @@ source: 'package.json, bunfig.toml'
 
 # Clone it, install it, run every test.
 
-Needs [Bun](https://bun.sh) and, for the contracts, [Foundry](https://getfoundry.sh).
+Needs [Bun](https://bun.sh) 1.3 or newer and, for the contracts, [Foundry](https://getfoundry.sh). The indexer's
+hosted build uses pnpm 10.32.0 (`indexer/pnpm-lock.yaml`); locally `bun` installs it.
 
 ```sh
 git clone https://github.com/s0nderlabs/agate && cd agate
@@ -40,6 +41,8 @@ Every TypeScript package also has `bun run typecheck`.
 - **On a fork of Monad testnet:** `cd client && bun run e2e:fork` runs every user flow through a month's end: test
   dollars, Long, Short, pay me daily, limit orders placed and cancelled (also as smart-account call batches), the
   daily claim, the close, the settle, the redeem.
+- **Reads on the live testnet:** `cd client && bun run e2e:live` runs every read against the live chain (no
+  transaction).
 - **On the live testnet:** `bun run e2e/run.ts testnet` (in `client/`) runs a guarded real-user journey on a
   fast-clock demo month, whose month lasts five hours.
 - **The wall:** `cd wall && bun run e2e/scripts/run.ts` runs each scenario on its own local chain with the real
@@ -51,6 +54,7 @@ Fork tests read `MONAD_FORK_URL`; without it they skip.
 
 ## Running locally
 
-`cd app && bun dev` starts the app on example data or the live testnet (`NEXT_PUBLIC_*` settings in `app/README.md`).
+`cd app && bun dev` starts the site on http://localhost:3000, with the app at http://localhost:3000/app and the docs
+at http://localhost:3000/docs, on example data or the live testnet (`NEXT_PUBLIC_*` settings in `app/README.md`).
 The operator kit (`ops/testnet/`) starts every process in tmux against testnet; its runbook covers keys, gas and the
 demo session.

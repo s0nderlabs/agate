@@ -9,7 +9,7 @@
 An open onchain price for GPU-hours that anyone, whether a person, an app or an agent, can trade, hedge or build on.</p>
 
 <p align="center">
-  <a href="https://agate.elpabl0.xyz">App</a> ·
+  <a href="https://agate.elpabl0.xyz/app">App</a> ·
   <a href="https://agate.elpabl0.xyz/docs">Docs</a> ·
   <a href="docs/site/">Docs as markdown</a> ·
   <a href="https://agate.elpabl0.xyz/api/v1/prices">API</a> ·
@@ -30,7 +30,7 @@ inside limits the person sets; developers read the same price from an API, an SD
 
 <br>
 
-**Try it (three minutes).** Open https://agate.elpabl0.xyz, sign in with an email code or Google (the first sign-in
+**Try it (three minutes).** Open https://agate.elpabl0.xyz/app, sign in with an email code or Google (the first sign-in
 adds 10,000 test dollars), go Long $100 on H100 November 2026, go Short with **Pay me daily**, close either, then open
 the Index page to see every cloud's price beside the median. The full walk-through, with an AI connection:
 [`JUDGES.md`](JUDGES.md).

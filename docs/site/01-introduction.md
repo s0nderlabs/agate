@@ -40,7 +40,8 @@ Everything runs on Monad testnet with free test dollars, since Oct 4 2026:
 - the daily price for six GPUs, onchain, with its sources ([How the price is made](04-the-price.md));
 - the November 2026 markets for H100, H200 and B200 on Kuru, with a market maker quoting both sides
   ([The monthly market](05-the-market.md));
-- the app at https://agate.elpabl0.xyz ([Quickstart](02-quickstart.md));
+- the app at https://agate.elpabl0.xyz/app, with the site at https://agate.elpabl0.xyz and these docs at
+  https://agate.elpabl0.xyz/docs ([Quickstart](02-quickstart.md));
 - AI agents trading from their own pockets through MCP ([Connect an AI](03-connect-an-ai.md));
 - the developer API at https://agate.elpabl0.xyz/api/v1 ([Developer API](08-api.md)) and a price feed per GPU for
   contracts ([Onchain](09-onchain.md)).
@@ -49,7 +50,7 @@ Test dollars and tokens have no monetary value. What a real-money version needs 
 
 ## How the docs are organized
 
-Five groups. **Get started**: this page, a three-minute tour of the app, and connecting an AI. **Concepts**: how the
+Five groups. **Get started**: this page, a three-minute tour of the app (at `/app`), connecting an AI, and a page for AI agents. **Concepts**: how the
 price is made, how the monthly market works, accounts, and AI pockets. **Reference**: the API, onchain reading, the
-SDK, the MCP tools and the contracts. **Operate**: the architecture and how to run and test Agate yourself.
-**Background**: what Agate is built on, and its limits.
+SDK, the MCP tools, the contracts, every address, and every error. **Operate**: the architecture and how to run and test Agate yourself.
+**Background**: what Agate is built on, its limits, and a glossary.

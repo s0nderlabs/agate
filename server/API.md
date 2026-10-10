@@ -37,7 +37,7 @@ sends `Authorization: Bearer <Dynamic session JWT>` (`sessionToken(client)` from
    - **Connector URL** (any app that adds a remote MCP server: Claude Code, Claude.ai, Codex, Hermes, OpenClaw,
      Cursor; per-app steps in `agents/AGENTS.md`): `POST /api/grants/:id/connector` ->
      `{ url, claudeCode, note }`. Shown once; asking again replaces it. Treat it like a password.
-   - **OAuth** (the AI app starts it): the app gets a browser at `/connect?request=<id>` (the Allow page). Call
+   - **OAuth** (the AI app starts it): the app gets a browser at `<app base>/connect?request=<id>` (the Allow page; `AGATE_APP_BASE`, `https://agate.elpabl0.xyz/app` live). Call
      `GET /api/oauth/requests/:id` -> `{ clientName, redirectHost, expiresAt }`; after the person allows and the
      connection exists, `POST /api/oauth/requests/:id/approve { grantId }` -> `{ redirect }`: navigate there. Deny:
      `POST /api/oauth/requests/:id/deny` -> `{ redirect }`.
@@ -90,7 +90,7 @@ and `canDelegate(client)` says whether it is still held.
 
 ## Approval card (a trade an AI asked for above its cap)
 
-The AI sends the person `/approve?request=<id>`.
+The AI sends the person `<app base>/approve?request=<id>`.
 - `GET /api/approvals` -> the person's approvals `{ id, grantId, action, params, summary, note, status, expiresAt, result }`
   (pending ones expire after 15 minutes, or at once when their AI is disconnected or passes its end date; those carry
   `result.reason`: "the AI was disconnected" or "the AI's permission ended").

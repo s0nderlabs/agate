@@ -34,12 +34,16 @@ sent and the app says so.
 ## Step-up
 
 Sensitive actions (connecting a new AI, delegating the Assistant) ask the person to confirm again with a code or a
-passkey. Signing in works with an email code or Google alone; a passkey is optional.
+passkey. Signing in works with an email code or Google alone; a passkey is optional, added from the Account sheet
+after the first sign-in (it signs in an existing person, never a new one). Once a person has a passkey, every
+confirmation goes through it instead of a code.
 
 ## Test dollars
 
-The test dollar (tUSD, 6 decimals) has an open faucet: 10,000 a day per account, taken automatically at the first
-sign-in. Pocket budgets move from the main account to the pocket and back.
+The test dollar (tUSD, 6 decimals) has an open faucet: 10,000 per account every 24 hours of real time, counted from
+that account's last drip (`dripPeriod` is 86,400 s on `AgateDollar`), not per calendar day. The app takes the first
+drip at the first sign-in. Too soon, the faucet refuses with `DripTooSoon` and the app says when the next one opens.
+Pocket budgets move from the main account to the pocket and back.
 
 ## Measured on Monad testnet (Oct 4 2026, n = 1 to 3 each)
 

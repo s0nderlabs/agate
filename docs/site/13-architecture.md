@@ -42,13 +42,37 @@ source: 'ops/testnet/RUNBOOK.md, ops/server'
 | Akash traded-price reader (comparison only) | server | `wall/apps/akash` |
 | indexer (Envio HyperIndex) and its read-only public door | server, and Envio Cloud | `indexer/`, `ops/server/graphql-proxy.ts` |
 | Agate server: MCP, OAuth, approvals, autopilot, markets snapshot, `/v1` | server | `server/` |
-| web app | Vercel | `app/` |
+| web app: the site at `/`, the trading app at `/app`, the docs at `/docs`, the API at `/api/v1` (proxied to the Agate server) | Vercel | `app/` |
 | guardian | a person's command line | `wall/apps/guardian` |
 
 The server is one Linux machine (Ubuntu 24.04) that starts the whole stack at boot in one tmux session
 (`ops/server/stack.sh`, a systemd unit); Tailscale Funnel publishes the Agate server (443) and the indexer's door
-(8443). The local half runs the roles that should not share a machine with the primary. A role never runs on both:
+(8443, POST only). Every address in full: [Contracts and addresses](12-contracts.md#endpoints). The local half runs the roles that should not share a machine with the primary. A role never runs on both:
 each machine lists the roles the other one owns. Operating it: `ops/testnet/RUNBOOK.md`.
+
+## A day on the clock (UTC)
+
+| When | What runs |
+|---|---|
+| every hour, 3 to 30 minutes into the hour | both writers read every cloud's page and post the hour's readings |
+| 01:00 | the day before closes: the contract computes its price from one writer's readings |
+| about 07:00 | the day becomes final, or waits for the attester's countersign if anything changed |
+| after final | the payer syncs each month's series and pays daily positions; the market maker requotes |
+| 00:00 on the 1st | a new month starts paying; the lister opens the next month once its five reference days are final |
+| 24 hours after a day ends | a day still without a quorum is carried at the day before's price |
+
+## When something stops
+
+| What stops | What happens | What comes back by itself |
+|---|---|---|
+| the server | the primary writer, attester, keeper, maker, payer and the Agate server stop; the standby writer keeps posting, so days still close | everything starts again at boot (systemd); late days close and are carried if needed |
+| the second machine | the standby writer stops; the primary writes alone | the standby catches up on its next hour |
+| one public RPC | reads move to the next RPC in the list | yes |
+| Alchemy's daily budget | an alert at 80% and at 100%; from 100% the processes send through the public RPCs instead | at 00:00 UTC |
+| a cloud's page | its readings fail, it is held at its last day price for up to 5 days, then leaves the median | on its first good day |
+| Envio Cloud | the app reads the server's own indexer, the next address in its list | yes |
+
+The wall's chaos tests run each of these on a local chain ([Build and test](14-develop.md#end-to-end)).
 
 ## Keys and transactions
 

@@ -4,13 +4,13 @@ agate makes the price of compute tradable: an open onchain price for renting a G
 on it that anyone (a person, an app or an AI agent) can trade to lock that price in. Everything runs on Monad testnet
 with free test dollars.
 
-**Open:** https://agate.elpabl0.xyz (phone or desktop)
+**Open:** https://agate.elpabl0.xyz/app (phone or desktop)
 
 ## 1. Sign in (30 seconds)
 
 - Tap **Sign in** and use your email (a code arrives) or Google. No wallet, no extension, no gas: your account is
   created for you and network fees are on agate.
-- The first sign-in adds **10,000 test dollars** (about 6 seconds). You can take 10,000 more each day.
+- The first sign-in adds **10,000 test dollars** (about 6 seconds). You can take 10,000 more 24 hours later.
 - No inbox to hand? The portal's access instructions give a test login that works without one.
 
 ## 2. Trade (2 minutes)

@@ -115,9 +115,31 @@ Long buys the token; going Short locks the ceiling and sells it. `GET /v1/market
 
 ## Errors
 
-`{ "error": "..." }` with `400` (a bad GPU or month), `404` (no such month on sale), `429` (over the limit) or `503`
-(the chain or the indexer could not be read; try again shortly, see `retry-after`). Trades and candles answer
-`503`, never an empty list, while the indexer is unreachable.
+Every error from a known endpoint is JSON, `{ "error": "<sentence>" }`, with one of these statuses (a path the API
+does not have, such as `/v1/price`, answers a plain-text `404 Not Found`, so check the status before parsing):
+
+| Status | `error` | Where | `retry-after` |
+|---|---|---|---|
+| `400` | `gpu must be one of H100, H200, B200, B300, A100, L40S` | any `{gpu}` path | |
+| `400` | `month is YYYY-MM, for example 2026-11` | any `{month}` path | |
+| `404` | `<gpu> has no <month> market on sale (see /v1/markets)` | `/v1/markets/{gpu}/{month}` and below | |
+| `404` | `no <gpu> price yet` | `/v1/prices/{gpu}` | |
+| `429` | `over 120 requests a minute; wait a minute` (`over 1200` through the app's address) | everywhere | `60` |
+| `503` | `the markets could not be read right now; try again shortly` | prices, markets, books | `10` |
+| `503` | `trades could not be read right now; try again shortly` | `/trades` | `15` |
+| `503` | `candles could not be read right now; try again shortly` | `/candles` | `60` |
+| `503` | `{ "ok": false, "error": "the markets could not be read right now" }` | `/v1/status` | `10` |
+
+Trades and candles answer `503`, never an empty list, while the indexer is unreachable. Wait the `retry-after`
+seconds, then ask again. CORS is open (`*`, GET only), so a browser page anywhere can call the API.
+
+```sh
+curl -s https://agate.elpabl0.xyz/api/v1/markets/H100/2026-12
+```
+
+```text
+{"error":"H100 has no 2026-12 market on sale (see /v1/markets)"}
+```
 
 ## Other ways in
 
