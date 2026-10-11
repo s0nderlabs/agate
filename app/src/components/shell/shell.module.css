@@ -57,6 +57,12 @@
   color: var(--ink);
   display: block;
 }
+/* the lockup and the testnet tag beside it */
+.brandRow {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
 .links {
   margin-left: auto;
   display: none;
@@ -293,10 +299,14 @@
    Positions, Index, More, then the balance or Sign in. Search, Docs, Simple | Pro and the theme wait for the full bar
    at 1024 px; Simple | Pro also heads the ticket, and both it and the theme are in More. */
 @media (min-width: 640px) and (max-width: 1023.98px) {
-  /* 20 px between the places (26 in the full bar), so a six-figure balance still fits on one line at 640 px */
+  /* 16 px between the places (26 in the full bar) and after the testnet tag, so a six-figure balance still fits on
+     one line at 640 px */
+  :global([data-phone="new"]) .nav {
+    gap: 16px;
+  }
   :global([data-phone="new"]) .links {
     display: flex;
-    gap: 20px;
+    gap: 16px;
   }
   :global([data-phone="new"]) .acctBal {
     white-space: nowrap;
@@ -315,7 +325,7 @@
     min-height: 44px;
   }
   :global([data-phone="new"]) .right {
-    margin-left: 8px;
+    margin-left: 4px;
   }
 }
 

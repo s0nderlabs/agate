@@ -84,7 +84,8 @@
 .capRow[data-lay="center"] > div { justify-items: center; }
 .capRow[data-lay="center"] .lede { max-width: 44ch; }
 .capRow[data-lay="center"] .link { justify-self: center; }
-.capRow[data-lay="price"] { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+/* two columns only where the row is wide; below 960 px every row is one column */
+@media (min-width: 961px) { .capRow[data-lay="price"] { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); } }
 .capRow[data-lay="price"] > div:first-child { gap: 22px; }
 .capRow[data-lay="price"] .h2 { max-width: 15ch; }
 /* today's price as the other half of the head */

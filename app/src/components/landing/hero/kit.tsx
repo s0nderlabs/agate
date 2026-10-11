@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Lockup } from "@/components/brand/Logo";
+import { TestnetTag } from "@/components/brand/Testnet";
 import { stillMode, useLabData, type LabGpu } from "@/components/lab/data";
 import { useMarkets } from "@/lib/data/hooks";
 import { usd } from "@/lib/format";
@@ -208,9 +209,12 @@ export function Nav({ dark = false, className = "", cta = "", theme = false, lin
   const docs = links === "docs";
   return (
     <header className={`${k.nav} ${dark ? "tone-dark" : ""} ${className}`} data-shape={shape} data-corners={corners}>
-      <Link href={to("/")} aria-label="Agate" className={k.brand}>
-        <Lockup height={28} wcase="title" />
-      </Link>
+      <div className={k.brandRow}>
+        <Link href={to("/")} aria-label="Agate" className={k.brand}>
+          <Lockup height={28} wcase="title" />
+        </Link>
+        <TestnetTag href={to("/docs/limits")} />
+      </div>
       <nav className={k.links} aria-label="Agate">
         <Link href={to("/app")}>Markets</Link>
         <Link href={to("/app/gpu-index")}>Index</Link>

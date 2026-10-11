@@ -32,6 +32,8 @@
   color: var(--h-ink);
 }
 .brand { color: inherit; display: block; }
+/* the lockup and the testnet tag beside it */
+.brandRow { display: flex; align-items: center; min-width: 0; }
 .links { display: flex; gap: 32px; margin-left: auto; }
 /* the light and dark switch and the button, together at the right */
 .end { display: flex; align-items: center; gap: 16px; }
@@ -78,7 +80,8 @@
 .nav[data-shape="pill"] .end { gap: 8px; }
 @media (max-width: 760px) {
   .links { display: none; }
-  .nav { justify-content: space-between; padding-block: 16px; }
+  /* 16 px between the lockup (with its testnet tag) and the controls, so the row fits a 360 px phone */
+  .nav { justify-content: space-between; padding-block: 16px; gap: 16px; }
   .end { margin-left: auto; gap: 12px; }
   .nav[data-shape="center"] { display: flex; }
   .nav[data-shape="pill"] { justify-self: stretch; margin-inline: var(--gut); padding-block: 7px; }

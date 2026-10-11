@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Lockup } from "@/components/brand/Logo";
+import { TestnetTag } from "@/components/brand/Testnet";
 import { Avatar, avatarLetter } from "@/components/flow/Marks";
 import { Num } from "@/components/num/Num";
 import { useFlow } from "@/components/markets/Flow";
@@ -165,9 +166,12 @@ export function NavBar({ active = "markets", site = false }: { active?: "markets
   ];
   return (
     <header className={s.nav}>
-      <Link href={site ? `/${linkQuery}` : `${PLACES.markets}${linkQuery}`} className={s.brand} aria-label={site ? "Agate home" : "Agate markets"}>
-        <Lockup height={28} size="l" wcase="title" />
-      </Link>
+      <div className={s.brandRow}>
+        <Link href={site ? `/${linkQuery}` : `${PLACES.markets}${linkQuery}`} className={s.brand} aria-label={site ? "Agate home" : "Agate markets"}>
+          <Lockup height={28} size="l" wcase="title" />
+        </Link>
+        <TestnetTag href={`/docs/limits${linkQuery}`} />
+      </div>
       <nav className={s.links} aria-label="Main">
         {/* no search button: six GPUs need none (the chips under the bar pick one), and a button that does nothing is
             worse than none (agate's Oct 8 test pass found it dead) */}

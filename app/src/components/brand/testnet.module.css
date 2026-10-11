@@ -1,0 +1,62 @@
+/* The testnet tag (Testnet.tsx): | Testnet. It takes its bar's own ink (currentColor), so one rule reads on the app's
+   bar, the site's bar and over the landing's film, light or dark: the hairline at 24% of that ink, the word at 60%
+   (full on hover), 12 px either side of the rule, on the wordmark's baseline. 15 px (the floor; the bar's links are
+   16). It carries its own space from the wordmark, so a bar only lays the two side by side. */
+.tag {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 26px;
+  margin-left: 12px;
+  padding-left: 13px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 450;
+  line-height: 1;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  color: inherit;
+  text-decoration: none;
+}
+.tag::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: color-mix(in srgb, currentColor 24%, transparent);
+}
+/* a finger-sized target around it */
+.tag::after {
+  content: "";
+  position: absolute;
+  inset: -9px -4px;
+}
+.tag > span {
+  color: color-mix(in srgb, currentColor 60%, transparent);
+  transition: color 0.2s ease;
+}
+.tag:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tag:hover > span {
+    color: inherit;
+  }
+}
+/* under 360 px no bar has room for it beside the wordmark and its own controls */
+@media (max-width: 359.98px) {
+  .tag {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tag > span {
+    transition: none;
+  }
+}
