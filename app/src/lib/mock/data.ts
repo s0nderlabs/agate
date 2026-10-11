@@ -2,11 +2,10 @@
 // Oct 2 reads); everything before our own record (Sep 30) is example history and marked so. getMarket builds the
 // client's full Market shape (@agate/client), so example and live data read the same on every screen; the example
 // source (lib/data/example.ts) serves it.
-import type { Comparison, Gpu, Market, MarketGpu, PanelSlot, Series, SourceReading } from "./types";
+import type { Gpu, Market, MarketGpu, PanelSlot, Series, SourceReading } from "./types";
 import { indexHistory, novCandles } from "./market";
 import { median } from "@/lib/peers";
 
-export type { Comparison } from "./types";
 export { median, peersFor, type PeerPrice } from "@/lib/peers";
 
 /** The three GPUs with monthly markets (the strip's tabs). */
@@ -191,12 +190,5 @@ export function getMarket(gpu: Gpu, state: DataState = "normal"): Market {
     panel,
   };
 }
-
-/** Shown beside our index for H100 only; display only, never used to pay. */
-export const COMPARISON: Comparison[] = [
-  { name: "Agate index", price: 3.99, kind: "ours", note: "Posted prices from five clouds, onchain on Monad. This is the one that pays.", asOf: "Oct 2" },
-  { name: "Ornn", price: 2.79, kind: "traded-private", note: "Traded prices, private data. Shown with credit, display only.", asOf: "Oct 9" },
-  { name: "Akash", price: 2.6, kind: "traded-onchain", note: "Real rentals on Akash's own chain: 35 leases, 3 sellers. Display only.", asOf: "Oct 2" },
-];
 
 export const MONTH_LABEL: Record<string, string> = { "2026-11": "November", "2026-12": "December" };

@@ -22,11 +22,3 @@ export type {
   Wallet,
 } from "@agate/client/types";
 
-/** Traded prices we show beside ours, display only (the app's own; the client has no peer prices). */
-export interface Comparison {
-  name: string;
-  price: number;
-  kind: "ours" | "traded-private" | "traded-onchain";
-  note: string;
-  asOf: string;
-}

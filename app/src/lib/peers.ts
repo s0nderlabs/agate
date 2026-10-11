@@ -11,7 +11,7 @@ export function median(xs: number[]): number {
 
 /** Traded prices beside ours, per GPU (display only). Ornn agreed Oct 1 2026 to H100, H200 and B200 shown beside
  * the index with credit and a link: the values of its free daily index (api.ornnai.com/api/daily-index/all), last
- * read Oct 11 2026 for the day of Oct 9. Akash: the
+ * read Oct 11 2026 for the day of Oct 10. Akash: the
  * Oct 1 chain read found H200 listed (2 providers, 40 GPUs at $4.45) but none rented, and no B200: no traded price.
  * The price-only GPUs (B300, A100, L40S) have no peers yet. */
 export interface PeerPrice {
@@ -22,11 +22,10 @@ export interface PeerPrice {
   asOf: string;
 }
 
-const ORNN: Partial<Record<Gpu, PeerPrice>> = {
-  H100: { name: "Ornn", kind: "traded-private", price: 2.79, note: "Traded prices, private data. Shown with credit, display only.", asOf: "Oct 9" },
-  H200: { name: "Ornn", kind: "traded-private", price: 5.7, note: "Traded prices, private data. Shown with credit, display only.", asOf: "Oct 9" },
-  B200: { name: "Ornn", kind: "traded-private", price: 7.46, note: "Traded prices, private data. Shown with credit, display only.", asOf: "Oct 9" },
-};
+/** Ornn's daily index: the day it is for (UTC), and its value per GPU. A re-read changes these four only. */
+const ORNN_DAY = "Oct 10";
+const ornn = (price: number): PeerPrice => ({ name: "Ornn", kind: "traded-private", price, note: "Traded prices, private data. Shown with credit, display only.", asOf: ORNN_DAY });
+const ORNN: Partial<Record<Gpu, PeerPrice>> = { H100: ornn(2.67), H200: ornn(5.91), B200: ornn(7.53) };
 const AKASH: Partial<Record<Gpu, PeerPrice>> = {
   H100: { name: "Akash", kind: "traded-onchain", price: 2.6, note: "Real rentals on Akash's own chain: 35 leases, 3 sellers. Display only.", asOf: "Oct 2" },
   H200: { name: "Akash", kind: "traded-onchain", price: null, note: "40 H200 listed at $4.45, none rented yet. Display only.", asOf: "Oct 1" },
