@@ -361,6 +361,12 @@ export class OAuthStore {
     return r;
   }
 
+  /** The connection an access token was minted for, live or not (so a revoked token can be told why). */
+  cardOfAccessToken(accessToken: string): string | null {
+    const r = this.db.query(`SELECT card_id FROM oauth_tokens WHERE access_hash = $h`).get({ h: hashSecret(accessToken) }) as { card_id: string } | null;
+    return r?.card_id ?? null;
+  }
+
   /** Refresh lookup WITHOUT liveness filtering, the caller distinguishes "live"
    * (rotate) from "revoked" (reuse -> kill the family) from "expired" (plain reject). */
   getByRefreshToken(refreshToken: string): OAuthTokenRow | null {

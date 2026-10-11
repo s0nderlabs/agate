@@ -209,6 +209,19 @@ describe("HTTP lanes and OAuth", () => {
       headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...(auth ? { authorization: `Bearer ${auth}` } : {}) },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
     });
+  const call = (app: ReturnType<typeof mk>["app"], path: string, method: string, id?: number, auth?: string) =>
+    app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...(auth ? { authorization: `Bearer ${auth}` } : {}) },
+      body: JSON.stringify({ jsonrpc: "2.0", ...(id === undefined ? {} : { id }), method, params: { name: "open_long", arguments: {} } }),
+    });
+  /** The refusal a tool call on a disconnected connection gets, as the AI reads it */
+  const refusedAsDisconnected = async (r: Response, id: number) => {
+    expect(r.status).toBe(200);
+    const body = (await r.json()) as { id: number; result: { isError: boolean; content: { text: string }[] } };
+    expect([body.id, body.result.isError]).toEqual([id, true]);
+    expect(JSON.parse(body.result.content[0]?.text ?? "")).toEqual({ status: "refused", rule: "grant_revoked", detail: "this AI connection was disconnected: connect it again from Agate" });
+  };
   const tools = async (r: Response) => {
     const t = await r.text();
     const line = t.split("\n").find((l) => l.startsWith("data:"));
@@ -326,9 +339,14 @@ describe("HTTP lanes and OAuth", () => {
     const tok = (await (await app.request("/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "authorization_code", code: cb.searchParams.get("code")!, code_verifier: verifier, client_id: reg.client_id, redirect_uri: "http://localhost:7777/cb" }) })).json()) as { access_token: string; refresh_token: string };
     expect(tok.access_token.startsWith("agt_at_")).toBe(true);
     expect(await tools(await rpc(app, "/mcp", tok.access_token))).toContain("my_limits");
-    // the person disconnects: the token dies with the connection
+    // the person disconnects: the token dies with the connection, a tool call on it is told why, the rest re-advertises OAuth
     await app.request("/api/grants/g-1/disconnect", { method: "POST", headers: { authorization: "Bearer good" } });
-    expect((await rpc(app, "/mcp", tok.access_token)).status).toBe(401);
+    const dead = await rpc(app, "/mcp", tok.access_token);
+    expect(dead.status).toBe(401);
+    expect(dead.headers.get("www-authenticate")).toContain("resource_metadata=");
+    await refusedAsDisconnected(await call(app, "/mcp", "tools/call", 9, tok.access_token), 9);
+    // a token that is merely unknown stays the plain 401
+    expect((await call(app, "/mcp", "tools/call", 1, "agt_at_nope")).status).toBe(401);
   });
 
   test("a disconnected connector URL says it was disconnected; a wrong one stays unknown", async () => {
@@ -345,6 +363,26 @@ describe("HTTP lanes and OAuth", () => {
     expect(((await (await rpc(app, `/c/${secret}/mcp`)).json()) as { error: string }).error).toBe("this AI connection was disconnected: connect it again from Agate");
     const wrong = await rpc(app, `/c/agt_c_${"x".repeat(43)}/mcp`);
     expect(((await wrong.json()) as { error: string }).error).toBe("unknown connection");
+  });
+
+  test("a tool call on a disconnected URL is a refusal the AI reads; connecting on it stays a 401", async () => {
+    const { store, app } = mk();
+    store.putGrant(grantRow());
+    const secret = store.newConnectorSecret("g-1");
+    await app.request("/api/grants/g-1/disconnect", { method: "POST", headers: { authorization: "Bearer good" } });
+    const path = `/c/${secret}/mcp`;
+    await refusedAsDisconnected(await call(app, path, "tools/call", 7), 7);
+    for (const m of ["initialize", "tools/list"]) expect((await call(app, path, m, 1)).status).toBe(401);
+    expect((await call(app, path, "tools/call")).status).toBe(401); // a notification has no id to answer
+    expect((await call(app, "/c/agt_c_nope/mcp", "tools/call", 1)).status).toBe(401);
+  });
+
+  test("a revoked connection reached by a live URL is refused the same way", async () => {
+    const { store, app } = mk();
+    store.putGrant(grantRow({ status: "revoked" }));
+    const secret = store.newConnectorSecret("g-1");
+    await refusedAsDisconnected(await call(app, `/c/${secret}/mcp`, "tools/call", 2), 2);
+    expect((await call(app, `/c/${secret}/mcp`, "tools/list", 3)).status).toBe(401);
   });
 
   test("redirect policy: custom schemes are an allowlist, so script, local-file and OS-handler schemes never pass", () => {

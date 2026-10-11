@@ -58,9 +58,9 @@ What the server answers before any tool runs (`server/src/mcp/routes.ts`):
 | Status | `error` | Why | What to do |
 |---|---|---|---|
 | `401` | `missing credential` | no token and no connector URL | sign in (OAuth) or use the connector URL |
-| `401` | `invalid or expired access token` | the OAuth token ended, the connection passed its end date, or the person disconnected it (a disconnect revokes every token) | sign in again (`/mcp` in Claude Code, `codex mcp login agate`); after a disconnect the person connects you again |
+| `401` | `invalid or expired access token` | the OAuth token ended or the connection passed its end date | sign in again (`/mcp` in Claude Code, `codex mcp login agate`) |
 | `401` | `unknown connection` | the connector URL is wrong | the person copies the URL again from the AI page |
-| `401` | `this AI connection was disconnected: connect it again from Agate` | the person disconnected this connection (its URL is replaced) | the person connects the AI again from Agate |
+| `401` | `this AI connection was disconnected: connect it again from Agate` | the person disconnected this connection (its URL is replaced and its OAuth tokens revoked); a tool call on it gets this sentence as the `grant_revoked` refusal instead (status `200`), since AI apps show a `401` as a connection error | the person connects the AI again from Agate |
 | `405` | `method not allowed` | a GET on the MCP address | MCP clients POST; this is not a page to open |
 | `413` | `payload too large` | a request body over the limit | send less in one call |
 | `429` | `rate limit exceeded for this connection` | more than 240 requests a minute on one connection | slow down |

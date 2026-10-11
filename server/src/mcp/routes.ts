@@ -11,7 +11,7 @@ import { resourceMetadataUrl, acceptedResources, envInt } from "../oauth/routes.
 import { ACCESS_TOKEN_PREFIX, type OAuthStore } from "../oauth/store.ts";
 import { clientIp, RateLimiter } from "../ratelimit.ts";
 import type { GrantRow } from "../store.ts";
-import { buildMcpServer, type McpDeps } from "./server.ts";
+import { buildMcpServer, type McpDeps, refusal } from "./server.ts";
 
 const MAX_BODY_BYTES = 1 << 20;
 /** What a disconnected connection answers, on either lane */
@@ -30,6 +30,20 @@ export function mcpRoutes(deps: McpDeps, oauth: OAuthStore): Hono {
     return c.json({ error }, 401);
   };
 
+  // A tool call on a disconnected connection gets an ordinary tool result (the grant_revoked refusal) instead of a 401:
+  // MCP clients show a 401 as "can't reach the server" and never pass its body to the model. Everything else keeps
+  // the 401, so a fresh connect on a dead URL still fails as one.
+  const disconnected = async (c: Context, advertise: boolean) => {
+    let msg: { jsonrpc?: unknown; method?: unknown; id?: unknown } | null = null;
+    try {
+      const body = await c.req.text();
+      if (body.length <= MAX_BODY_BYTES) msg = JSON.parse(body);
+    } catch {}
+    if (c.req.method === "POST" && msg?.jsonrpc === "2.0" && msg.method === "tools/call" && (typeof msg.id === "string" || typeof msg.id === "number"))
+      return c.json({ jsonrpc: "2.0", id: msg.id, result: refusal("grant_revoked", DISCONNECTED) });
+    return unauthorized(c, DISCONNECTED, advertise);
+  };
+
   const serve = async (c: Context, credential: string | undefined, oauthLane: boolean) => {
     const len = Number(c.req.header("content-length") ?? 0);
     if (len > MAX_BODY_BYTES) return c.json({ error: "payload too large" }, 413, { Connection: "close" });
@@ -44,21 +58,20 @@ export function mcpRoutes(deps: McpDeps, oauth: OAuthStore): Hono {
       const row = oauth.getByAccessToken(credential);
       grant = row && (!row.resource || acceptedResources().includes(row.resource)) ? deps.store.grant(row.card_id) : null;
       miss = "invalid or expired access token";
+      // a token a disconnect revoked is told so, like an ended connector URL (a token dead for any other reason is not)
+      const card = grant ? null : oauth.cardOfAccessToken(credential);
+      ended = card !== null && deps.store.grant(card)?.status === "revoked";
     } else {
       grant = deps.store.grantByConnector(credential);
-      // a URL a disconnect ended answers why, so the AI app can say "you were disconnected", not a connection error
+      // a URL a disconnect ended is told so, not lumped in with an unknown one
       ended = !grant && deps.store.isEndedConnector(credential);
-      if (ended) miss = DISCONNECTED;
     }
+    // a retried ended URL is not a guess: it keeps its answer instead of counting toward the bad-secret limit
+    if (ended || grant?.status === "revoked") return disconnected(c, oauthLane);
     if (!grant) {
       await drain(c);
-      // a retried ended URL is not a guess: it keeps its answer instead of counting toward the bad-secret limit
-      if (!ended && !badSecret.allow(clientIp(c), Date.now())) return c.json({ error: "too many requests" }, 429);
+      if (!badSecret.allow(clientIp(c), Date.now())) return c.json({ error: "too many requests" }, 429);
       return unauthorized(c, miss, oauthLane);
-    }
-    if (grant.status === "revoked") {
-      await drain(c);
-      return unauthorized(c, DISCONNECTED, oauthLane);
     }
     if (c.req.method === "GET") return c.json({ error: "method not allowed" }, 405, { Allow: "POST, DELETE" });
     if (c.req.method === "POST" && !perGrant.allow(grant.id, Date.now())) {

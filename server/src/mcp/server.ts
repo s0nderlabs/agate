@@ -47,7 +47,7 @@ const INSTRUCTIONS = [
 
 type ToolResult = { content: Array<{ type: "text"; text: string }>; isError?: boolean };
 const ok = (data: unknown): ToolResult => ({ content: [{ type: "text", text: JSON.stringify(data, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2) }] });
-const refusal = (rule: string, detail: string, extra: Record<string, unknown> = {}): ToolResult => ({ content: [{ type: "text", text: JSON.stringify({ status: "refused", rule, detail, ...extra }, null, 2) }], isError: true });
+export const refusal = (rule: string, detail: string, extra: Record<string, unknown> = {}): ToolResult => ({ content: [{ type: "text", text: JSON.stringify({ status: "refused", rule, detail, ...extra }, null, 2) }], isError: true });
 /** A tool's number as the plain decimal the client parses (no exponent, no float noise past 6 decimals). */
 const num = (x: number) => x.toFixed(6).replace(/\.?0+$/, "");
 const failed = (message: string): ToolResult => ({ content: [{ type: "text", text: JSON.stringify({ status: "error", message }, null, 2) }], isError: true });
