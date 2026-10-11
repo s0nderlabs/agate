@@ -272,8 +272,8 @@ export interface Account {
   /** the older passkey sign-in: a passkey added to an email or Google account from the account sheet (the browser's
    *  own dialog); it never signs up a new person */
   startPasskey: () => void;
-  /** passkey-first sign-up is switched on (for the build, or this tab with ?pk=1); the sheet then offers "Continue
-   *  with a passkey" instead of the older sign-in */
+  /** passkey-first sign-up is switched on (by the build, unless this tab chose with ?pk=1 or ?pk=0); the sheet then
+   *  offers "Continue with a passkey" instead of the older sign-in */
   passkeyFirst: boolean;
   /** fetches the passkey ceremonies as the sign-in sheet opens, so the tap opens the browser's dialog at once (Safari
    *  wants it straight after the tap); again when 4 minutes old */

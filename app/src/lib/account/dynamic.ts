@@ -22,21 +22,20 @@ export const REAL_CONFIGURED = ZERODEV_RPC.length > 0;
 export const AGATE_SERVER = (process.env.NEXT_PUBLIC_AGATE_SERVER ?? "").replace(/\/+$/, "");
 
 const PASSKEY_FIRST_KEY = "agate-passkey-first-v1";
+const PASSKEY_FIRST_BUILT = process.env.NEXT_PUBLIC_PASSKEY_FIRST === "on" || process.env.NEXT_PUBLIC_PASSKEY_FIRST === "1";
 
 /** Passkey-first sign-up ("Continue with a passkey" makes a new account): on for a build with
- *  NEXT_PUBLIC_PASSKEY_FIRST=on, or for one tab opened with ?pk=1 (kept for that tab; ?pk=0 ends it). Read in the
- *  browser only. */
+ *  NEXT_PUBLIC_PASSKEY_FIRST=on. One tab can still pick for itself: ?pk=1 turns it on, ?pk=0 turns it off, and the
+ *  choice is kept for that tab whatever the build says. Read in the browser only. */
 export function passkeyFirstOn(): boolean {
-  const flag = process.env.NEXT_PUBLIC_PASSKEY_FIRST;
-  if (flag === "on" || flag === "1") return true;
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined") return PASSKEY_FIRST_BUILT;
   try {
     const q = new URLSearchParams(window.location.search).get("pk");
-    if (q === "1") sessionStorage.setItem(PASSKEY_FIRST_KEY, "1");
-    else if (q === "0") sessionStorage.removeItem(PASSKEY_FIRST_KEY);
-    return sessionStorage.getItem(PASSKEY_FIRST_KEY) === "1";
+    if (q === "1" || q === "0") sessionStorage.setItem(PASSKEY_FIRST_KEY, q);
+    const kept = sessionStorage.getItem(PASSKEY_FIRST_KEY);
+    return kept === null ? PASSKEY_FIRST_BUILT : kept === "1";
   } catch {
-    return false;
+    return PASSKEY_FIRST_BUILT;
   }
 }
 

@@ -117,8 +117,8 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
   // signed up with a passkey alone (no email, no Dynamic passkey); this browser used an Agate passkey before
   const [passkeyAccount, setPasskeyAccount] = useState(false);
   const [passkeyHint, setPasskeyHint] = useState<boolean | null>(null);
-  // passkey-first sign-up, read once in the browser (a build flag, or ?pk=1 for this tab); the sheet also checks the
-  // browser has passkeys
+  // passkey-first sign-up, read once in the browser (the build flag, unless this tab chose with ?pk=1 or ?pk=0); the
+  // sheet also checks the browser has passkeys
   const [passkeyFirst, setPasskeyFirst] = useState(false);
   useEffect(() => {
     setPasskeyFirst(active && passkeyFirstOn() && !!AGATE_SERVER);

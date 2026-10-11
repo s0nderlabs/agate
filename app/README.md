@@ -44,7 +44,7 @@ Picked and shown in every build: Close from the panel (Open | Close tabs over th
 | `NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID` | `@agate/wallet`'s sandbox | The Dynamic environment the real sign-in uses. |
 | `NEXT_PUBLIC_AGATE_SERVER` | unset | Agate's server (`../server`), for Connect your AI, the AI pages and approvals on the real account. Unset, every server call reads as offline. |
 | `NEXT_PUBLIC_GOOGLE_SIGNIN` | unset | `on` shows "Continue with Google" on the real sign-in (on in the hosted app since Oct 6). The practice sign-in always shows it. |
-| `NEXT_PUBLIC_PASSKEY_FIRST` | unset | `on` turns on passkey-first sign-up: "Continue with a passkey" signs in or makes a new account with Agate's own passkeys (needs `NEXT_PUBLIC_AGATE_SERVER`; passkeys work only on agate.elpabl0.xyz). Unset, one tab can try it with `?pk=1` (kept for that tab, `?pk=0` ends it). |
+| `NEXT_PUBLIC_PASSKEY_FIRST` | unset (`on` in production) | `on` turns on passkey-first sign-up: "Continue with a passkey" signs in or makes a new account with Agate's own passkeys (needs `NEXT_PUBLIC_AGATE_SERVER`; passkeys work only on agate.elpabl0.xyz). Either way one tab can pick for itself: `?pk=1` turns it on, `?pk=0` turns it off, kept for that tab. |
 | `AGATE_WALL_HOME` | `~/.agate-wall` | Server side: where `/api/akash` reads the shared Akash robot's `akash/akash-traded.json` (`../wall/apps/akash`) for the Akash price beside the index. Without the file the dated reading stays. |
 | `AGATE_AKASH_URL` | unset | Server side: a URL serving that same `akash-traded.json`, for a hosted build with no robot folder (Vercel). Set, it replaces the folder read; a good reading is kept ten minutes, and a URL that does not answer within five seconds counts as no reading. |
 
