@@ -6,13 +6,13 @@ import { type Address, encodeFunctionData, erc20Abi } from "viem";
 import { getAgate } from "@/lib/data/agate";
 import type { AiBackend } from "./ai";
 import { serverApi, type Transport } from "./api";
-import { dynNow, getDynamic, getWalletLib, type WalletLib } from "./dynamic";
+import { AGATE_SERVER, dynNow, getDynamic, getWalletLib, type WalletLib } from "./dynamic";
 import { StepUpNeeded, type PocketRead } from "./fakeServer";
 import { sendCalls } from "./main";
 import type { PlanCall } from "./types";
 
 /** Agate's server (literal process.env read, inlined at build time). Unset: every server call reads as offline. */
-export const AGATE_SERVER = (process.env.NEXT_PUBLIC_AGATE_SERVER ?? "").replace(/\/+$/, "");
+export { AGATE_SERVER };
 
 /** The link AI apps add: the resource in the server's protected-resource metadata, which is public, so it is read
  *  without signing in (and without loading the sign-in stack). */
@@ -140,7 +140,10 @@ export function realAiBackend(o: { owner: string; address: string; onMoved: () =
         }),
       stepUpSend: async () => {
         const { lib, client } = await assistantOf();
-        // an account with a passkey confirms with it: Dynamic then refuses an email code for any step-up
+        // an account made with a passkey has no email and no Dynamic passkey (its count reads 0): it confirms with its
+        // own passkey, so this comes first; an account with a Dynamic passkey confirms with it too (Dynamic then
+        // refuses an email code for any step-up)
+        if (lib.isAgatePasskeyAccount(client)) return "passkey";
         if ((await lib.passkeyCount(client).catch(() => 0)) > 0) return "passkey";
         const email = client.user?.email;
         if (!email) throw new Error("no email on this account");
@@ -149,7 +152,8 @@ export function realAiBackend(o: { owner: string; address: string; onMoved: () =
       },
       stepUpPasskey: async () => {
         const { lib, client } = await assistantOf();
-        await lib.confirmWithPasskey(client, ["wallet:delegate"]);
+        if (lib.isAgatePasskeyAccount(client)) await lib.confirmWithAgatePasskey(client, AGATE_SERVER, "wallet:delegate");
+        else await lib.confirmWithPasskey(client, ["wallet:delegate"]);
       },
       stepUpVerify: async (code) => {
         const { lib, client } = await assistantOf();

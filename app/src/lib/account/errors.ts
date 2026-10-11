@@ -5,7 +5,7 @@
 import { monthLong, whenText } from "@/lib/data/derive";
 import { usd, usd0 } from "@/lib/format";
 import { showHours } from "@/lib/size";
-import { type CodeProblem, DRIP, type LimitOrder, type Order } from "./types";
+import { type CodeProblem, DRIP, type LimitOrder, type Order, type PasskeyFailure, type PasskeyFailureCode } from "./types";
 
 /** A trade's quote now, as a refused plan found it (@agate/client's WriteError.quote, FreshQuote). */
 export interface FreshQuote {
@@ -467,8 +467,51 @@ export function passkeyProblemOf(e: unknown): "passkey" | "passkeyStopped" | "pa
   return "passkey";
 }
 
+/** The wallet package's AgatePasskeyError code, when e is one (passkey-first sign-up and its "Confirm it's you"). */
+export function agatePasskeyCode(e: unknown): PasskeyFailureCode | null {
+  const x = (e ?? {}) as { name?: unknown; code?: unknown };
+  return x.name === "AgatePasskeyError" && typeof x.code === "string" && PASSKEY_CODES.includes(x.code) ? (x.code as PasskeyFailureCode) : null;
+}
+/** every code once: a code the wallet adds fails the compile here until it has its words */
+const PASSKEY_CODE_SET: Record<PasskeyFailureCode, true> = { unsupported: true, cancelled: true, exists: true, unknown_passkey: true, expired: true, rate_limited: true, signups_paused: true, rejected: true, dynamic: true, service: true };
+const PASSKEY_CODES = Object.keys(PASSKEY_CODE_SET);
+
+/** "Continue with a passkey" did not finish: the line under the button, by why and which way it was going. The choices
+ *  after it are the sheet's (a cancelled sign-in never makes an account by itself). */
+export function passkeyFirstText(f: PasskeyFailure): string {
+  switch (f.code) {
+    case "cancelled":
+      return f.mode === "signin" ? "No passkey signed you in." : "No passkey was made.";
+    case "exists":
+      return "This device already has a passkey for Agate. Sign in with it.";
+    case "unknown_passkey":
+      return "This passkey is from the older sign-in, where a passkey was added to an email or Google account.";
+    case "expired":
+      return "That took too long. Try again.";
+    case "rate_limited":
+      return "Too many tries from this network. Wait a minute, then try again.";
+    case "signups_paused":
+      return "New passkey accounts are paused for today. Use Google or your email instead.";
+    case "rejected":
+      return "Agate couldn't accept that passkey. Try again.";
+    case "dynamic":
+      return "Your passkey worked, but sign-in didn't finish. Try again.";
+    case "service":
+      return "Agate can't be reached right now. Try again in a moment.";
+    case "unsupported":
+      return "This browser can't use passkeys. Use Google or your email instead.";
+  }
+}
+
 /** "Confirm it's you" with a passkey (Connect's step-up) did not confirm: why, in the sheet's words. */
 export function passkeyConfirmText(e: unknown): string {
+  // a passkey account's own passkey (Agate checks it, then Dynamic)
+  const c = agatePasskeyCode(e);
+  if (c === "service") return "Agate can't be reached right now. Try again in a moment.";
+  if (c === "dynamic") return "Your passkey worked, but it didn't finish. Try again.";
+  if (c === "rate_limited" || c === "expired") return passkeyFirstText({ code: c, mode: "signin" });
+  if (c === "unsupported") return "This browser can't use passkeys. Open Agate in a browser that can, then connect your AI.";
+  if (c) return "Your passkey didn't confirm it. Try again, or Cancel.";
   const p = passkeyProblemOf(e);
   if (p === "passkeyUnsupported") return "This browser can't use passkeys. Open Agate in a browser that can, then connect your AI.";
   if (p === "service") return SIGNIN_COPY.service;

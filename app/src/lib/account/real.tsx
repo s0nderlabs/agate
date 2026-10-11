@@ -10,14 +10,18 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import type { UserOperationReceipt } from "viem/account-abstraction";
 import { getAgate } from "@/lib/data/agate";
 import type { Gpu } from "@/lib/mock/types";
-import { getDynamic, googlePending, markGoogle, readHint, REAL_CONFIGURED, writeHint, type Dyn, type Hint } from "./dynamic";
-import { codeProblemOf, passkeyProblemOf, sendCodeProblemOf, SIGNIN_COPY } from "./errors";
+import { AGATE_SERVER, dynNow, getDynamic, googlePending, markGoogle, passkeyFirstOn, readHint, REAL_CONFIGURED, writeHint, type Dyn, type Hint } from "./dynamic";
+import { agatePasskeyCode, codeProblemOf, passkeyFirstText, passkeyProblemOf, sendCodeProblemOf, SIGNIN_COPY } from "./errors";
 import { canStart, cleanCode, GETTING_READY_MS, isCode, ordersAfter, refreshDue, restingKey, RESTORE_PATIENCE_MS, SIGNED_OUT, signInReducer, toAccountStep, withoutResting, type SignInState } from "./machine";
 import { forgetClients, mainAddressOf, sendCalls } from "./main";
 import type { Position } from "@/lib/mock/types";
-import type { Account, AccountPlan, DoneResult, LimitDone, LimitOrder, LimitPlan, OnStep, Order, RestingOrder, SignInStep, TradeAction } from "./types";
+import type { Account, AccountPlan, DoneResult, LimitDone, LimitOrder, LimitPlan, OnStep, Order, PasskeyFailure, PasskeyMode, RestingOrder, SignInStep, TradeAction } from "./types";
 
 type EmailOtp = Awaited<ReturnType<Dyn["lib"]["startEmailSignIn"]>>;
+type PasskeyPrepared = Awaited<ReturnType<Dyn["lib"]["preparePasskey"]>>;
+
+/** Prepared passkey ceremonies are fetched again past this (the wallet package stops using them at 4 minutes). */
+const PREPARED_FRESH_MS = 3.5 * 60_000;
 
 /** Google's way back is finished once per page, whatever Strict Mode's double effects do. */
 let googleFinish: Promise<boolean> | null = null;
@@ -110,8 +114,17 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
   const [who, setWho] = useState<Hint | null>(null);
   // the Dynamic client is up (it loads only for a hint, Google's way back, or the sign-in sheet)
   const [dynUp, setDynUp] = useState(false);
-  const live = useRef({ m, who });
-  live.current = { m, who };
+  // signed up with a passkey alone (no email, no Dynamic passkey); this browser used an Agate passkey before
+  const [passkeyAccount, setPasskeyAccount] = useState(false);
+  const [passkeyHint, setPasskeyHint] = useState<boolean | null>(null);
+  // passkey-first sign-up, read once in the browser (a build flag, or ?pk=1 for this tab); the sheet also checks the
+  // browser has passkeys
+  const [passkeyFirst, setPasskeyFirst] = useState(false);
+  useEffect(() => {
+    setPasskeyFirst(active && passkeyFirstOn() && !!AGATE_SERVER);
+  }, [active]);
+  const live = useRef({ m, who, passkeyFirst });
+  live.current = { m, who, passkeyFirst };
 
   // every new run (a code sent, a code checked, a setup) bumps run, so a late answer from an earlier one does nothing
   const run = useRef(0);
@@ -163,6 +176,7 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
   const forget = useCallback(() => {
     writeHint(null);
     setWho(null);
+    setPasskeyAccount(false);
     forgetClients();
     qc.removeQueries({ queryKey: ["live", "wallet"] });
     qc.removeQueries({ queryKey: ["live", "orders"] });
@@ -177,7 +191,8 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
     if (!ws) return null;
     const owner = ws.main.address;
     const address = await mainAddressOf(owner);
-    const h: Hint = { owner, address, email: client.user?.email ?? null };
+    // a passkey account carries a placeholder address Dynamic requires, nobody's mailbox: never shown
+    const h: Hint = { owner, address, email: lib.shownEmail(client) };
     writeHint(h);
     setWho(h);
     return h;
@@ -233,7 +248,7 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
     async (d: Dyn, via: "verified" | "restored") => {
       const user = !!d.client.user && !!d.lib.sessionToken(d.client);
       const ws = user ? d.lib.wallets(d.client) : null;
-      const email = d.client.user?.email ?? undefined;
+      const email = d.lib.shownEmail(d.client) ?? undefined;
       if (!user) {
         if (via === "restored") {
           forget();
@@ -241,6 +256,7 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
         }
         return;
       }
+      setPasskeyAccount(d.lib.isAgatePasskeyAccount(d.client));
       if (ws) await settle(d);
       dispatch(via === "restored" ? { type: "restored", user: true, wallet: !!ws, email, at: Date.now() } : { type: "verified", wallet: !!ws, email, at: Date.now() });
       if (!ws) void setUp(d);
@@ -317,7 +333,10 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
       if (gone) return;
       off = lib.onSessionEvent(client, (e) => {
         if (e.kind !== "signed-out") return;
-        if (live.current.m.status === "signingOut") return;
+        const at = live.current.m;
+        if (at.status === "signingOut") return;
+        // a passkey sign-in signs the one before it out itself, just before it signs in
+        if (at.status === "verifying" && at.via === "passkey") return;
         nextRun();
         forget();
         dispatch({ type: "loggedOut", reason: e.reason });
@@ -458,7 +477,10 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
         try {
           await d.lib.startPasskeySignIn(d.client);
         } catch (e) {
-          if (r === run.current) dispatch({ type: "passkeyFailed", message: SIGNIN_COPY[passkeyProblemOf(e)] });
+          // with passkey-first on, a new person has "Continue with a passkey", so the older line's advice does not apply
+          const problem = passkeyProblemOf(e);
+          const message = problem === "passkeyStopped" && live.current.passkeyFirst ? SIGNIN_COPY.passkey : SIGNIN_COPY[problem];
+          if (r === run.current) dispatch({ type: "passkeyFailed", message });
           return;
         }
         if (r !== run.current) return;
@@ -473,6 +495,90 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
       }
     })();
   }, [dyn, nextRun, signedIn]);
+
+  // ===== passkey-first: "Continue with a passkey" signs in or makes a new account (agate's own passkeys) =====
+
+  // the two ceremonies, fetched as the sheet opens so the tap opens the browser's dialog with no wait (Safari wants
+  // the dialog straight after the tap); used once, then fetched again
+  const prepared = useRef<PasskeyPrepared | null>(null);
+  const preparing = useRef(false);
+  // this browser has an Agate passkey though the wallet's own note of it is missing (storage cleared, say): the
+  // dialog said so ("exists"), or one worked before Dynamic finished; the main button then signs in
+  const knownPasskey = useRef(false);
+  const preparePasskey = useCallback(() => {
+    if (!live.current.passkeyFirst || preparing.current) return;
+    const p = prepared.current;
+    if (p && Date.now() - p.at < PREPARED_FRESH_MS) return;
+    preparing.current = true;
+    void (async () => {
+      try {
+        const d = await dyn();
+        setPasskeyHint(d.lib.hasPasskeyHint() || knownPasskey.current);
+        prepared.current = await d.lib.preparePasskey(AGATE_SERVER);
+      } catch {
+        // the tap then fetches its own
+        prepared.current = null;
+      } finally {
+        preparing.current = false;
+      }
+    })();
+  }, [dyn]);
+
+  const continuePasskey = useCallback(
+    (want: "auto" | PasskeyMode = "auto") => {
+      if (!canStart(live.current.m)) return;
+      const r = nextRun();
+      dispatch({ type: "open" });
+      // auto: sign in where this browser used an Agate passkey before, else a new account
+      const modeOf = (d: Dyn | null): PasskeyMode => (want !== "auto" ? want : (d?.lib.hasPasskeyHint() ?? false) || knownPasskey.current ? "signin" : "create");
+      // the sheet locks at the tap (a second tap, Google or Not now can't start another way in meanwhile); the mode is
+      // set again once the library has read this browser's note
+      const now = dynNow();
+      dispatch({ type: "passkey", mode: modeOf(now) });
+      const go = async (d: Dyn) => {
+        if (r !== run.current) return;
+        setDynUp(true);
+        // a session already here (another tab signed in) is taken as it is, never signed out for a new account
+        if (d.client.user && d.lib.sessionToken(d.client)) {
+          try {
+            await signedIn(d, "verified");
+          } catch {
+            if (r === run.current) dispatch({ type: "passkeyFailed", message: SIGNIN_COPY.service });
+          }
+          return;
+        }
+        const mode = modeOf(d);
+        dispatch({ type: "passkey", mode });
+        const p = prepared.current ?? undefined;
+        prepared.current = null;
+        try {
+          await d.lib.continueWithPasskey(d.client, AGATE_SERVER, { mode, prepared: p });
+        } catch (e) {
+          const failure: PasskeyFailure = { code: agatePasskeyCode(e) ?? "service", mode };
+          // a passkey that exists here, or one that worked before Dynamic finished, signs in next time
+          if (failure.code === "exists" || failure.code === "dynamic") {
+            knownPasskey.current = true;
+            setPasskeyHint(true);
+          }
+          if (r === run.current) dispatch({ type: "passkeyFailed", message: passkeyFirstText(failure), failure });
+          return;
+        }
+        setPasskeyHint(true);
+        if (r !== run.current) return;
+        try {
+          // a new account has no wallet yet: signedIn sets it up as after an email sign-up (wallet, first dollars)
+          await signedIn(d, "verified");
+        } catch {
+          await d.lib.signOut(d.client).catch(() => {});
+          if (r === run.current) dispatch({ type: "passkeyFailed", message: SIGNIN_COPY.service });
+        }
+      };
+      // straight from the tap when the library is up, so nothing waits before the browser's dialog
+      if (now) void go(now);
+      else void dyn().then(go, () => r === run.current && dispatch({ type: "passkeyFailed", message: SIGNIN_COPY.init }));
+    },
+    [dyn, nextRun, signedIn],
+  );
 
   const retry = useCallback(() => {
     const at = live.current.m;
@@ -516,7 +622,8 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
       const d = await getDynamic();
       return d.lib.passkeyCount(d.client);
     },
-    enabled: ready && dynUp,
+    // an account made with a passkey never has one of Dynamic's
+    enabled: ready && dynUp && !passkeyAccount,
     staleTime: Infinity,
     retry: 1,
   });
@@ -539,7 +646,7 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
         // a person who has a passkey confirms with it (Dynamic refuses a code then): its dialog, then the new one's
         if ((await d.lib.passkeyCount(d.client).catch(() => 0)) > 0) await d.lib.confirmWithPasskey(d.client, ["credential:link"]);
         else {
-          const email = d.client.user?.email ?? h.email;
+          const email = d.lib.shownEmail(d.client) ?? h.email;
           if (!email) throw new Error("no email to confirm with");
           passkeyOtp.current = await d.lib.requestStepUp(d.client, email);
           return "code";
@@ -662,6 +769,11 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
       otherEmail,
       startGoogle,
       startPasskey,
+      passkeyFirst,
+      preparePasskey,
+      continuePasskey,
+      passkeyHint,
+      passkeyAccount,
       // a count that can't be read offers "Add a passkey" (a second one is harmless) rather than a skeleton for good
       passkeys: passkeys.data ?? (passkeys.isError ? 0 : null),
       addPasskey,
@@ -676,6 +788,6 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
       planLimit,
       sendLimit,
     }),
-    [signIn, ready, email, who, address, w, wallet.isPending, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, passkeys.data, passkeys.isError, addPasskey, retry, cancelSignIn, signOut, drip, plan, collect, send, orders.data, planLimit, sendLimit],
+    [signIn, ready, email, who, address, w, wallet.isPending, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, passkeyFirst, preparePasskey, continuePasskey, passkeyHint, passkeyAccount, passkeys.data, passkeys.isError, addPasskey, retry, cancelSignIn, signOut, drip, plan, collect, send, orders.data, planLimit, sendLimit],
   );
 }

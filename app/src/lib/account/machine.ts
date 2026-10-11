@@ -6,7 +6,7 @@
 import type { Position } from "@/lib/mock/types";
 import { floorCents, floorHours } from "@/lib/size";
 import { CONNECT_COPY, COPY, type ConnectProblem, type DisconnectAt, type FreshQuote, type Refusal, type RefusalAction } from "./errors";
-import { type AccountPlan, type CodeProblem, type CreatingPart, DRIP, type DoneResult, type LimitDone, type LimitOrder, type LimitPlan, type Order, type RestingOrder, type SendStep, type SignInErrorAt, type SignInStep, type SignInVia } from "./types";
+import { type AccountPlan, type CodeProblem, type CreatingPart, DRIP, type DoneResult, type LimitDone, type LimitOrder, type LimitPlan, type Order, type RestingOrder, type SendStep, type PasskeyFailure, type PasskeyMode, type SignInErrorAt, type SignInStep, type SignInVia } from "./types";
 
 const ceilCents = (d: number) => Math.ceil(Math.round(d * 1e6) / 1e4) / 100;
 
@@ -39,7 +39,7 @@ export type SignInState =
   /** resent: a new code went out, so the one before no longer works */
   | { status: "codeSent"; email: string; sentAt: number; resent: boolean; problem?: CodeProblem }
   /** sentAt and resent keep the code step to return to when the code is refused; via passkey: the browser's dialog */
-  | { status: "verifying"; email: string; via: SignInVia; sentAt?: number; resent?: boolean }
+  | { status: "verifying"; email: string; via: SignInVia; sentAt?: number; resent?: boolean; passkeyMode?: PasskeyMode }
   /** left for Google; signing in with Google while signed in links instead, so it never starts from ready */
   | { status: "googleRedirect" }
   /** once per new person: the wallet, then the first 10,000 test dollars */
@@ -47,7 +47,7 @@ export type SignInState =
   /** writes are allowed only here; firstDripFailed: set up, but the first test dollars did not arrive */
   | { status: "ready"; email?: string; firstDripFailed?: boolean }
   | { status: "signingOut" }
-  | { status: "error"; at: SignInErrorAt; message: string; email?: string }
+  | { status: "error"; at: SignInErrorAt; message: string; email?: string; passkey?: PasskeyFailure }
   /** the session ended by itself (expired, or signed out elsewhere): the Notice says so */
   | { status: "sessionEnded"; email?: string };
 
@@ -74,10 +74,10 @@ export type SignInEvent =
   /** on load, the URL is Google's way back */
   | { type: "googleReturned" }
   | { type: "googleFailed"; message: string }
-  /** a passkey instead of a code: the browser's dialog is up */
-  | { type: "passkey" }
-  /** the dialog was closed, or no passkey signed in */
-  | { type: "passkeyFailed"; message: string }
+  /** a passkey instead of a code: the browser's dialog is up (mode: saving a new one, or picking one) */
+  | { type: "passkey"; mode?: PasskeyMode }
+  /** the dialog was closed, or no passkey signed in; failure: a passkey-first attempt's reason and way */
+  | { type: "passkeyFailed"; message: string; failure?: PasskeyFailure }
   | { type: "walletMade"; at: number }
   | { type: "walletFailed"; message: string }
   | { type: "dripped" }
@@ -174,9 +174,10 @@ export function signInReducer(s: SignInState, e: SignInEvent): SignInState {
     case "googleFailed":
       return s.status === "googleRedirect" || (s.status === "verifying" && s.via === "google") ? { status: "error", at: "google", message: e.message } : s;
     case "passkey":
-      return canStart(s) ? { status: "verifying", email: "", via: "passkey" } : s;
+      if (s.status === "verifying" && s.via === "passkey") return e.mode && e.mode !== s.passkeyMode ? { ...s, passkeyMode: e.mode } : s;
+      return canStart(s) ? { status: "verifying", email: "", via: "passkey", passkeyMode: e.mode } : s;
     case "passkeyFailed":
-      return s.status === "verifying" && s.via === "passkey" ? { status: "error", at: "passkey", message: e.message } : s;
+      return s.status === "verifying" && s.via === "passkey" ? { status: "error", at: "passkey", message: e.message, passkey: e.failure } : s;
     case "walletMade":
       return s.status === "creating" && s.part === "wallet" ? { ...s, part: "dollars", startedAt: e.at } : s;
     case "walletFailed":
@@ -218,7 +219,7 @@ export function toAccountStep(s: SignInState): SignInStep {
     case "codeSent":
       return { status: "codeSent", email: s.email, sentAt: s.sentAt, resent: s.resent, problem: s.problem };
     case "verifying":
-      return { status: "verifying", email: s.email, via: s.via };
+      return { status: "verifying", email: s.email, via: s.via, passkeyMode: s.passkeyMode };
     case "googleRedirect":
       return { status: "verifying", email: "", via: "google" };
     case "creating":
@@ -228,7 +229,7 @@ export function toAccountStep(s: SignInState): SignInStep {
     case "signingOut":
       return { status: "signingOut" };
     case "error":
-      return { status: "error", at: s.at, message: s.message, email: s.email };
+      return { status: "error", at: s.at, message: s.message, email: s.email, passkey: s.passkey };
   }
 }
 

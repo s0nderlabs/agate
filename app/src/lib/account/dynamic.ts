@@ -18,6 +18,28 @@ export interface Dyn {
 export const ZERODEV_RPC = process.env.NEXT_PUBLIC_ZERODEV_RPC ?? "";
 export const REAL_CONFIGURED = ZERODEV_RPC.length > 0;
 
+/** Agate's own server: the AI link, OAuth, pockets and passkey accounts. */
+export const AGATE_SERVER = (process.env.NEXT_PUBLIC_AGATE_SERVER ?? "").replace(/\/+$/, "");
+
+const PASSKEY_FIRST_KEY = "agate-passkey-first-v1";
+
+/** Passkey-first sign-up ("Continue with a passkey" makes a new account): on for a build with
+ *  NEXT_PUBLIC_PASSKEY_FIRST=on, or for one tab opened with ?pk=1 (kept for that tab; ?pk=0 ends it). Read in the
+ *  browser only. */
+export function passkeyFirstOn(): boolean {
+  const flag = process.env.NEXT_PUBLIC_PASSKEY_FIRST;
+  if (flag === "on" || flag === "1") return true;
+  if (typeof window === "undefined") return false;
+  try {
+    const q = new URLSearchParams(window.location.search).get("pk");
+    if (q === "1") sessionStorage.setItem(PASSKEY_FIRST_KEY, "1");
+    else if (q === "0") sessionStorage.removeItem(PASSKEY_FIRST_KEY);
+    return sessionStorage.getItem(PASSKEY_FIRST_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 let dyn: Promise<Dyn> | null = null;
 let loaded: Dyn | null = null;
 

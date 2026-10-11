@@ -22,6 +22,21 @@ export type SignInErrorAt = "init" | "sendCode" | "verify" | "google" | "passkey
 /** How a sign-in is being checked: a code, Google's way back, or a passkey in the browser's own dialog. */
 export type SignInVia = "code" | "google" | "passkey";
 
+/** "Continue with a passkey": sign in with one made before, or make a new account with a new one. */
+export type PasskeyMode = "signin" | "create";
+
+/** Why a passkey sign-in or sign-up did not finish: the wallet package's AgatePasskeyError codes (a type only, nothing
+ *  is bundled). cancelled: the browser's dialog was closed or no passkey was picked (it cannot tell which);
+ *  unknown_passkey: a passkey that is not Agate's own, most likely one added to an email account before (the older
+ *  sign-in takes it). */
+export type PasskeyFailureCode = import("@agate/wallet/dynamic").PasskeyErrorCode;
+
+/** A passkey attempt that failed: why, and which way it was going, so the sheet offers the right next step. */
+export interface PasskeyFailure {
+  code: PasskeyFailureCode;
+  mode: PasskeyMode;
+}
+
 /** The sign-in machine's step, with what that step carries (spec 3.1). */
 export type SignInStep =
   /** email: kept in the field after "Use a different email" */
@@ -31,13 +46,15 @@ export type SignInStep =
   | { status: "sendingCode"; email: string; resend: boolean }
   /** resent: a new code went out, so the one before no longer works */
   | { status: "codeSent"; email: string; sentAt: number; resent: boolean; problem?: CodeProblem }
-  | { status: "verifying"; email: string; via: SignInVia }
+  /** passkeyMode: which dialog the browser shows (saving a new passkey, or picking one) */
+  | { status: "verifying"; email: string; via: SignInVia; passkeyMode?: PasskeyMode }
   /** once per new person: the wallet, then the first drip */
   | { status: "creating"; email: string; part: CreatingPart; startedAt: number }
   /** firstDripFailed: the account is ready but the first test dollars did not arrive */
   | { status: "ready"; firstDripFailed?: boolean }
   | { status: "signingOut" }
-  | { status: "error"; at: SignInErrorAt; message: string; email?: string };
+  /** passkey: a passkey attempt's failure, for the choices that follow it */
+  | { status: "error"; at: SignInErrorAt; message: string; email?: string; passkey?: PasskeyFailure };
 
 /** A decimal string: every amount handed to the client's plan builders (never a JS number). */
 export type Decimal = string;
@@ -252,8 +269,23 @@ export interface Account {
   otherEmail: () => void;
   /** Google instead of a code. Signing in with Google while signed in links instead, so sign out first */
   startGoogle: () => void;
-  /** a passkey added earlier instead of a code (the browser's own dialog); a passkey never signs up a new person */
+  /** the older passkey sign-in: a passkey added to an email or Google account from the account sheet (the browser's
+   *  own dialog); it never signs up a new person */
   startPasskey: () => void;
+  /** passkey-first sign-up is switched on (for the build, or this tab with ?pk=1); the sheet then offers "Continue
+   *  with a passkey" instead of the older sign-in */
+  passkeyFirst: boolean;
+  /** fetches the passkey ceremonies as the sign-in sheet opens, so the tap opens the browser's dialog at once (Safari
+   *  wants it straight after the tap); again when 4 minutes old */
+  preparePasskey: () => void;
+  /** "Continue with a passkey": "auto" signs in when this browser used an Agate passkey before and otherwise makes a
+   *  new account (then set up like an email sign-up); "signin" for "I already have a passkey", "create" for "Make a
+   *  new passkey". A failure lands in the error step with its PasskeyFailure */
+  continuePasskey: (mode?: "auto" | PasskeyMode) => void;
+  /** this browser used an Agate passkey before; null until known */
+  passkeyHint: boolean | null;
+  /** signed up with a passkey alone: no email to show, no Dynamic passkey to add, and the passkey is the only way in */
+  passkeyAccount: boolean;
   /** passkeys on this account once signed in; null while unknown */
   passkeys: number | null;
   /** adds a passkey for next time (the browser's own dialog). "code": Dynamic first wants a fresh "Confirm it's you"

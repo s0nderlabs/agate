@@ -1026,3 +1026,35 @@ describe("approval", () => {
     expect(approvalOrder({ ...long, action: "open_short", params: { gpu: "H100", month: "2026-11", gpu_hours: -1 } })).toBeNull();
   });
 });
+
+describe("passkey-first sign-in", () => {
+  const choosing = signInReducer(SIGNED_OUT, { type: "open" });
+
+  test("the dialog says which way it goes, and the step shows it", () => {
+    const making = signInReducer(choosing, { type: "passkey", mode: "create" });
+    expect(making).toEqual({ status: "verifying", email: "", via: "passkey", passkeyMode: "create" });
+    expect(toAccountStep(making)).toEqual({ status: "verifying", email: "", via: "passkey", passkeyMode: "create" });
+  });
+
+  test("a failure keeps its reason and way for the choices that follow", () => {
+    const signing = signInReducer(choosing, { type: "passkey", mode: "signin" });
+    const failed = signInReducer(signing, { type: "passkeyFailed", message: "No passkey signed you in.", failure: { code: "cancelled", mode: "signin" } });
+    expect(failed).toEqual({ status: "error", at: "passkey", message: "No passkey signed you in.", passkey: { code: "cancelled", mode: "signin" } });
+    expect(toAccountStep(failed)).toMatchObject({ status: "error", passkey: { code: "cancelled", mode: "signin" } });
+    // a choice after it starts a new attempt from the error step
+    expect(signInReducer(failed, { type: "passkey", mode: "create" })).toMatchObject({ status: "verifying", passkeyMode: "create" });
+  });
+
+  test("the tap locks the sheet at once; the mode is set again once known, and a second tap starts nothing", () => {
+    const tapped = signInReducer(choosing, { type: "passkey", mode: "create" });
+    expect(signInReducer(tapped, { type: "passkey", mode: "signin" })).toMatchObject({ status: "verifying", passkeyMode: "signin" });
+    expect(signInReducer(tapped, { type: "passkey", mode: "create" })).toBe(tapped);
+    expect(signInReducer(tapped, { type: "google" })).toBe(tapped);
+    expect(signInReducer(tapped, { type: "close" })).toBe(tapped);
+  });
+
+  test("a new account from a passkey goes on to the setup, with no email", () => {
+    const making = signInReducer(choosing, { type: "passkey", mode: "create" });
+    expect(signInReducer(making, { type: "verified", wallet: false, at: 5 })).toEqual({ status: "creating", email: "", part: "wallet", startedAt: 5 });
+  });
+});

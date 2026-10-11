@@ -47,6 +47,8 @@ function setsUp(outcome: SignInOutcome, w: Wallet) {
   return true;
 }
 
+const noop = () => {};
+
 export function usePretendAccount(): Account {
   const store = useMock();
   const { wallet, config } = store;
@@ -450,6 +452,12 @@ export function usePretendAccount(): Account {
       otherEmail,
       startGoogle,
       startPasskey,
+      // passkey-first sign-up runs on Agate's server only: the pretend account keeps the older passkey sign-in
+      passkeyFirst: false,
+      preparePasskey: noop,
+      continuePasskey: startPasskey,
+      passkeyHint: null,
+      passkeyAccount: false,
       passkeys: ready ? passkeys : null,
       addPasskey,
       retry,

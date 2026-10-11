@@ -501,3 +501,32 @@ describe("the copy keeps the house rules", () => {
     }
   });
 });
+
+describe("passkey-first failures", () => {
+  const err = (code: string) => Object.assign(new Error("x"), { name: "AgatePasskeyError", code });
+
+  test("only the wallet package's codes are read", async () => {
+    const { agatePasskeyCode } = await import("./errors");
+    expect(agatePasskeyCode(err("cancelled"))).toBe("cancelled");
+    expect(agatePasskeyCode(err("unknown_passkey"))).toBe("unknown_passkey");
+    expect(agatePasskeyCode(err("something_else"))).toBeNull();
+    expect(agatePasskeyCode(Object.assign(new Error("x"), { code: "cancelled" }))).toBeNull();
+    expect(agatePasskeyCode(null)).toBeNull();
+  });
+
+  test("every code has its own plain line, and a cancel says which way it went", async () => {
+    const { passkeyFirstText } = await import("./errors");
+    const codes = ["unsupported", "cancelled", "exists", "unknown_passkey", "expired", "rate_limited", "signups_paused", "rejected", "dynamic", "service"] as const;
+    const lines = codes.map((code) => passkeyFirstText({ code, mode: "create" }));
+    expect(new Set(lines).size).toBe(codes.length);
+    for (const l of lines) expect(l).not.toMatch(/\u2014/);
+    expect(passkeyFirstText({ code: "cancelled", mode: "signin" })).toBe("No passkey signed you in.");
+    expect(passkeyFirstText({ code: "cancelled", mode: "create" })).toBe("No passkey was made.");
+  });
+
+  test("Confirm it's you with an account's own passkey", async () => {
+    const { passkeyConfirmText } = await import("./errors");
+    expect(passkeyConfirmText(err("cancelled"))).toBe("Your passkey didn't confirm it. Try again, or Cancel.");
+    expect(passkeyConfirmText(err("service"))).toBe("Agate can't be reached right now. Try again in a moment.");
+  });
+});

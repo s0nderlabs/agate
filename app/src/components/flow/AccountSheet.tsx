@@ -21,7 +21,7 @@ export function AccountHead() {
   return (
     <>
       <h2>{usd0(account.balance)}</h2>
-      <p>Test dollars, signed in as {account.email}.</p>
+      <p>{account.email ? `Test dollars, signed in as ${account.email}.` : account.passkeyAccount ? "Test dollars, signed in with your passkey." : "Test dollars."}</p>
       <DripButton />
     </>
   );
@@ -136,6 +136,17 @@ export function usePasskeyRow() {
   const supported = usePasskeySupport();
   const adder = usePasskeyAdd();
   if (!supported || !account.ready) return { row: null, note: null };
+  // an account made with a passkey: that passkey is its way in, and Dynamic's own passkeys are not added to it
+  if (account.passkeyAccount)
+    return {
+      row: (
+        <div>
+          <span>Passkey</span>
+          <span>Your way in</span>
+        </div>
+      ),
+      note: null,
+    };
   const { phase, note, add, busy } = adder;
   const n = account.passkeys;
   if (phase === "code" || phase === "checking") {

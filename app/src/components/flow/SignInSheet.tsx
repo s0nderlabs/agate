@@ -1,5 +1,6 @@
 "use client";
-// The sign-in sheet (wallet spec 4, screens 1 to 3): an email for a 6-digit code (or Google, or a passkey added from the
+// The sign-in sheet (wallet spec 4, screens 1 to 3): an email for a 6-digit code (or Google, or a passkey: with
+// passkey-first on, "Continue with a passkey" signs in or makes a new account; otherwise the passkey added from the
 // account), the code, then, once per new person, "Setting up your account" with the first 10,000 test dollars. Every
 // step is the account's sign-in machine (machine.ts) as useAccount() reports it; this sheet only shows it and sends
 // the person's taps back.
@@ -7,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAccount } from "@/lib/account";
 import { codeProblemText, SIGNIN_COPY } from "@/lib/account/errors";
 import { cleanCode, creatingSlow, isEmail, resendWait } from "@/lib/account/machine";
-import { DRIP, type SignInStep } from "@/lib/account/types";
+import { DRIP, type PasskeyFailure, type SignInStep } from "@/lib/account/types";
 import { int, usd0 } from "@/lib/format";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { finePointer, usePasskeySupport } from "@/lib/ui/hooks";
@@ -70,11 +71,13 @@ export function SignInSheet({ from, ai, onFinished, onClose }: { from: SignInFro
       </div>
     );
   } else if (step.status === "verifying" && step.via === "passkey") {
+    // the browser's own dialog is up: saving a new passkey, or picking one saved before
+    const making = step.passkeyMode === "create";
     body = (
       <div className="grid justify-items-center gap-4 py-6 text-center">
         <span className="ag-spinner" />
-        <h2 tabIndex={-1}>Use your passkey</h2>
-        <p>Your browser asks for the passkey you saved for Agate.</p>
+        <h2 tabIndex={-1}>{making ? "Make your passkey" : "Use your passkey"}</h2>
+        <p>{making ? "Your browser asks to save a passkey for Agate. Use your fingerprint, face or device PIN." : "Your browser asks for the passkey you saved for Agate."}</p>
       </div>
     );
   } else if (step.status === "codeSent" || step.status === "verifying" || (step.status === "sendingCode" && step.resend)) {
@@ -125,6 +128,19 @@ function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignIn
   const failed = step.status === "error" && !viaProvider ? step.message : null;
   const title = from === "trade" ? "Sign in to trade" : from === "connect" ? `Sign in to connect ${ai ?? "your AI"}` : "Sign in";
   const google = account.kind === "pretend" || GOOGLE;
+  // passkey-first: one button that signs in or makes a new account, its ceremonies fetched while the sheet is open
+  const pkFirst = account.passkeyFirst && passkeys;
+  const { preparePasskey } = account;
+  useEffect(() => {
+    if (!pkFirst) return;
+    preparePasskey();
+    // fetched again only once the last ones are old (they last 4 minutes)
+    const id = window.setInterval(preparePasskey, 60_000);
+    return () => window.clearInterval(id);
+  }, [pkFirst, preparePasskey]);
+  const pkFailed = step.status === "error" && step.at === "passkey" ? step.passkey : undefined;
+  const emailField = useRef<HTMLInputElement>(null);
+  const toEmail = () => emailField.current?.focus();
   // the way most apps lay it out: the one-tap ways first, each with its own mark, then "or" and the email
   return (
     <form
@@ -155,16 +171,32 @@ function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignIn
                 Continue with Google
               </button>
             )}
-            {passkeys && (
-              <button className="ag-btn ag-btn--ghost ag-btn--lg ag-provider" type="button" disabled={sending || !account.configured} onClick={() => account.startPasskey()}>
+            {pkFirst ? (
+              <button className="ag-btn ag-btn--ghost ag-btn--lg ag-provider" type="button" disabled={sending || !account.configured} onClick={() => account.continuePasskey()}>
                 <PasskeyMark />
-                Sign in with a passkey
+                Continue with a passkey
               </button>
+            ) : (
+              passkeys && (
+                <button className="ag-btn ag-btn--ghost ag-btn--lg ag-provider" type="button" disabled={sending || !account.configured} onClick={() => account.startPasskey()}>
+                  <PasskeyMark />
+                  Sign in with a passkey
+                </button>
+              )
             )}
-            {viaProvider && (
-              <p className="ag-err" role="alert">
-                {step.message}
-              </p>
+            {viaProvider &&
+              (pkFailed ? (
+                <PasskeyNext failure={pkFailed} message={step.message} onEmail={toEmail} />
+              ) : (
+                <p className="ag-err" role="alert">
+                  {step.message}
+                </p>
+              ))}
+            {/* a new browser with a passkey synced from another device: the button would make a new account here */}
+            {pkFirst && !pkFailed && account.passkeyHint !== true && (
+              <button type="button" className="ag-textbtn" style={{ justifySelf: "center" }} disabled={sending} onClick={() => account.continuePasskey("signin")}>
+                I already have a passkey
+              </button>
             )}
           </div>
           <div className="ag-or" role="separator" aria-label="or">
@@ -177,6 +209,7 @@ function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignIn
           Email
         </label>
         <input
+          ref={emailField}
           id="email"
           className="ag-input"
           type="email"
@@ -363,7 +396,7 @@ function Creating({ step, from, onFinished }: { step: SignInStep; from: SignInFr
         <Check size={44} />
         <h2 tabIndex={-1}>You're set</h2>
         <p>{usd0(account.balance)} in test dollars, ready to trade.</p>
-        <PasskeyOffer />
+        {account.passkeyAccount ? <PasskeyOnly /> : <PasskeyOffer />}
         <button className="ag-btn ag-btn--primary ag-btn--lg" type="button" onClick={onFinished}>
           {from === "trade" ? "Review trade" : from === "connect" || from === "approve" ? "Continue" : "Start trading"}
         </button>
@@ -380,7 +413,7 @@ function Creating({ step, from, onFinished }: { step: SignInStep; from: SignInFr
       <Steps
         label="Setting up"
         rows={[
-          { key: "in", label: `Signed in as ${email}`, mark: "done" },
+          { key: "in", label: email ? `Signed in as ${email}` : account.passkeyAccount ? "Signed in with your passkey" : "Signed in", mark: "done" },
           { key: "wallet", label: "Making your wallet", hint: "About 10 seconds. Dynamic makes its key in parts, so no single party holds all of it.", mark: failed ? "failed" : part === "wallet" ? "current" : "done" },
           { key: "dollars", label: `Adding your ${int(DRIP)} free test dollars`, hint: "About 6 seconds on Monad's test network. Network fees are on Agate.", mark: failed || part === "wallet" ? "waiting" : "current" },
         ]}
@@ -417,7 +450,8 @@ function PasskeyOffer() {
   useEffect(() => {
     if (account.passkeys === 0) setShown(true);
   }, [account.passkeys]);
-  if (!supported || !shown) return null;
+  // an account made with a passkey has its way in already (and Dynamic's own passkeys are not for it)
+  if (!supported || !shown || account.passkeyAccount) return null;
   if (adder.phase === "code" || adder.phase === "checking") return <PasskeyCodeForm adder={adder} />;
   const done = !!adder.note?.ok;
   return (
@@ -441,6 +475,87 @@ function PasskeyOffer() {
           )}
         </button>
       )}
+    </div>
+  );
+}
+
+/** "You're set" for an account made with a passkey: said plainly, since there is no email to fall back on. */
+function PasskeyOnly() {
+  return (
+    <div className="ag-offer">
+      <PasskeyMark />
+      <div className="grid gap-1">
+        <b>Your passkey is your way in</b>
+        <p>It's the only way into this account, so keep it. A passkey saved to iCloud Keychain or Google Password Manager comes with you to your other devices. If you lose it, this account and its test dollars are gone.</p>
+      </div>
+    </div>
+  );
+}
+
+/** What can follow a passkey attempt that did not finish. A cancelled sign-in never makes an account by itself: the
+ *  browser can't tell a closed dialog from "no passkey here", so the person chooses. */
+function PasskeyNext({ failure, message, onEmail }: { failure: PasskeyFailure; message: string; onEmail: () => void }) {
+  const account = useAccount();
+  const again = (mode: "signin" | "create") => () => account.continuePasskey(mode);
+  const email = (
+    <button type="button" className="ag-textbtn" onClick={onEmail}>
+      Use your email instead
+    </button>
+  );
+  let main: { label: string; run: () => void } | null = null;
+  let more: React.ReactNode = null;
+  switch (failure.code) {
+    case "cancelled":
+      if (failure.mode === "signin") {
+        main = { label: "Try again or use my phone", run: again("signin") };
+        more = (
+          <>
+            <button type="button" className="ag-textbtn" onClick={again("create")}>
+              Make a new passkey
+            </button>
+            {email}
+          </>
+        );
+      } else {
+        main = { label: "Try again", run: again("create") };
+        more = (
+          <>
+            <button type="button" className="ag-textbtn" onClick={again("signin")}>
+              I already have a passkey
+            </button>
+            {email}
+          </>
+        );
+      }
+      break;
+    case "exists":
+      main = { label: "Sign in with it", run: again("signin") };
+      break;
+    case "unknown_passkey":
+      // a passkey added to an email or Google account before: the older sign-in takes it, on a fresh tap
+      main = { label: "Continue", run: () => account.startPasskey() };
+      more = email;
+      break;
+    case "signups_paused":
+    case "unsupported":
+      more = email;
+      break;
+    default:
+      // a passkey that worked before Dynamic finished made the account: the next tap signs in
+      main = { label: "Try again", run: again(failure.code === "dynamic" ? "signin" : failure.mode) };
+      more = email;
+  }
+  return (
+    <div className="grid gap-[10px]">
+      <p className="ag-err" role="alert">
+        {message}
+      </p>
+      {main && (
+        <button className="ag-btn ag-btn--ghost" type="button" onClick={main.run}>
+          {main.label}
+        </button>
+      )}
+      {more && <div className="ag-textrow">{more}</div>}
     </div>
   );
 }
