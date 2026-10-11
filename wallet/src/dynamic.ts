@@ -21,18 +21,23 @@ import {
   onEvent,
   refreshAuth,
   registerPasskey,
+  requestExternalAuthElevatedToken,
+  SandboxMaximumThresholdReachedError,
   sendEmailOTP,
+  signInWithExternalJwt,
   signInWithPasskey,
   signInWithSocialRedirect,
   switchActiveNetwork,
   unlinkSocialAccount,
   verifyOTP,
 } from "@dynamic-labs-sdk/client";
+import { getSessionKeys } from "@dynamic-labs-sdk/client/core";
 import { createWaasWalletAccounts, delegateWaasKeyShares, getChainsMissingWaasWalletAccounts, hasDelegatedAccess, isWaasWalletAccount, revokeWaasDelegation } from "@dynamic-labs-sdk/client/waas";
 import type { EvmWalletAccount } from "@dynamic-labs-sdk/evm";
 import { createWalletClientForWalletAccount } from "@dynamic-labs-sdk/evm/viem";
 import { addWaasEvmExtension } from "@dynamic-labs-sdk/evm/waas";
 import { addZerodevExtension } from "@dynamic-labs-sdk/zerodev";
+import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import type { Address, LocalAccount } from "viem";
 import { toAccount } from "viem/accounts";
 import { monadTestnet } from "./chain.ts";
@@ -146,6 +151,214 @@ export function canAddPasskey(client: DynamicClient): boolean {
 export async function passkeyCount(client: DynamicClient): Promise<number> {
   return (await getPasskeys(client)).length;
 }
+
+// ------------------------------------------------------------------ passkey accounts (a passkey alone, no email)
+
+/** "Continue with a passkey": sign up or sign in with a passkey alone. These are agate's passkeys, checked by agate's
+ *  server, which answers a JWT that lives two minutes; Dynamic turns it into a normal session (Bring Your Own Auth),
+ *  and the main wallet and test dollars follow as for any sign-up. startPasskeySignIn and addPasskey above stay for
+ *  people who added a Dynamic passkey to an email or Google account; a passkey account never has one.
+ *  `server` is agate's server base (AGATE_SERVER). Every failure is an AgatePasskeyError with a code. */
+
+export type PasskeyCeremony = { ceremonyId: string; options: unknown };
+/** a sign-in and a sign-up ceremony fetched when the sheet opens, so the tap opens the browser's dialog at once.
+ *  Each is used once (the functions below mark the object spent) and is not used after 4 minutes. */
+export type PasskeyPrepared = { signin: PasskeyCeremony; register: PasskeyCeremony | null; signupClosed: boolean; at: number };
+export type PasskeyResult = { sub: string; created: boolean };
+export type PasskeyErrorCode =
+  /** this browser has no passkeys */
+  | "unsupported"
+  /** the browser's dialog was closed, or no passkey was picked (the two cannot be told apart) */
+  | "cancelled"
+  /** this passkey already has an account: sign in instead */
+  | "exists"
+  /** not one of agate's passkeys: most likely an older Dynamic passkey (offer startPasskeySignIn) */
+  | "unknown_passkey"
+  /** the request ended (5 minutes): try again */
+  | "expired"
+  | "rate_limited"
+  /** new passkey accounts are paused for today: email or Google still work */
+  | "signups_paused"
+  /** agate refused the passkey (not verified, wrong account, ...) */
+  | "rejected"
+  /** the passkey checked out but Dynamic did not finish the sign-in or the step-up */
+  | "dynamic"
+  /** agate's server could not be reached or failed */
+  | "service";
+
+export class AgatePasskeyError extends Error {
+  override name = "AgatePasskeyError";
+  constructor(
+    readonly code: PasskeyErrorCode,
+    message: string,
+    readonly status?: number,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+  }
+}
+
+const PREPARED_MS = 4 * 60_000;
+const HINT_KEY = "agate-passkey-v1";
+
+export async function passkeySupport(): Promise<{ webauthn: boolean; autofill: boolean }> {
+  return { webauthn: browserSupportsWebAuthn(), autofill: browserSupportsWebAuthn() && (await browserSupportsWebAuthnAutofill()) };
+}
+
+/** True when this browser made or used an agate passkey before (kept through sign-out): "Continue" then signs in
+ *  first instead of making a new account. */
+export function hasPasskeyHint(): boolean {
+  try {
+    return Boolean(globalThis.localStorage?.getItem(HINT_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function writeHint(): void {
+  try {
+    globalThis.localStorage?.setItem(HINT_KEY, JSON.stringify({ at: Date.now() }));
+  } catch {
+    // storage blocked (a private window): the next tap asks to create again
+  }
+}
+
+/** agate's codes that the app tells apart; any other refusal is "rejected" */
+const SERVER_CODES = new Set<string>(["unknown_passkey", "expired", "signups_paused", "exists", "rate_limited"] satisfies PasskeyErrorCode[]);
+
+async function agatePost<T>(server: string, path: string, body: unknown, token?: string | null): Promise<T> {
+  let r: Response;
+  try {
+    r = await fetch(`${server.replace(/\/+$/, "")}${path}`, {
+      method: "POST",
+      credentials: "omit",
+      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new AgatePasskeyError("service", "Agate's server could not be reached", undefined, { cause: e });
+  }
+  const j = (await r.json().catch(() => null)) as { error?: string; code?: string } | null;
+  if (r.ok && j) return j as T;
+  const code: PasskeyErrorCode = r.status === 429 ? "rate_limited" : j?.code && SERVER_CODES.has(j.code) ? (j.code as PasskeyErrorCode) : r.status >= 500 || !j ? "service" : "rejected";
+  throw new AgatePasskeyError(code, j?.error ?? `Agate's server answered ${r.status}`, r.status);
+}
+
+function fromBrowser(e: unknown): AgatePasskeyError {
+  const { name, code } = (e ?? {}) as { name?: string; code?: string };
+  if (name === "NotAllowedError" || name === "AbortError" || code === "ERROR_CEREMONY_ABORTED") return new AgatePasskeyError("cancelled", "The passkey dialog was closed.", undefined, { cause: e });
+  if (name === "InvalidStateError" || code === "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED") return new AgatePasskeyError("exists", "This device already has a passkey for Agate: sign in instead.", undefined, { cause: e });
+  return new AgatePasskeyError("unsupported", "This browser could not use a passkey.", undefined, { cause: e });
+}
+
+function fromDynamic(e: unknown): AgatePasskeyError {
+  if (e instanceof SandboxMaximumThresholdReachedError) return new AgatePasskeyError("signups_paused", "New accounts are paused right now: try email or Google later.", undefined, { cause: e });
+  return new AgatePasskeyError("dynamic", "Your passkey worked, but sign-in didn't finish. Try again.", undefined, { cause: e });
+}
+
+function needWebAuthn(): void {
+  if (!browserSupportsWebAuthn()) throw new AgatePasskeyError("unsupported", "This browser has no passkeys: use email or Google.");
+}
+
+/** the browser's dialog, its failures named */
+async function dialog<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (e) {
+    throw fromBrowser(e);
+  }
+}
+
+/** agate checks the dialog's answer and hands back a JWT, which goes to Dynamic once */
+async function finishPasskey(client: DynamicClient, server: string, path: "/api/passkey/register" | "/api/passkey/signin", ceremonyId: string, response: unknown, created: boolean): Promise<PasskeyResult> {
+  const { externalJwt, sub } = await agatePost<{ externalJwt: string; sub: string }>(server, path, { ceremonyId, response });
+  // before Dynamic: if its step fails, the account exists and the next tap signs in instead of making another
+  writeHint();
+  await intoDynamic(client, externalJwt);
+  return { sub, created };
+}
+
+/** Fetches a sign-in and a sign-up ceremony (call when the sheet opens, and again when the result is 4 minutes old). */
+export async function preparePasskey(server: string): Promise<PasskeyPrepared> {
+  return { ...(await agatePost<Omit<PasskeyPrepared, "at">>(server, "/api/passkey/options", {})), at: Date.now() };
+}
+
+/** the prepared ceremonies if still usable, and marks them spent either way */
+function takePrepared(p?: PasskeyPrepared): PasskeyPrepared | undefined {
+  if (!p) return undefined;
+  const usable = Date.now() - p.at < PREPARED_MS;
+  p.at = 0;
+  return usable ? p : undefined;
+}
+
+/** The session key Dynamic signs its requests with: a sign-out drops it and makes the next one in the background, so
+ *  wait for it rather than sign in without one (the token would then carry no session key). */
+async function sessionPublicKey(client: DynamicClient): Promise<string | undefined> {
+  for (let i = 0; i < 60 && !getSessionKeys(client); i++) await new Promise((r) => setTimeout(r, 50));
+  return getSessionKeys(client)?.publicKey;
+}
+
+/** Hands agate's JWT to Dynamic (once: it is never retried, stored or logged). Someone else signed in is signed out
+ *  first, after the browser's dialog, so a closed dialog leaves them signed in. */
+async function intoDynamic(client: DynamicClient, externalJwt: string): Promise<void> {
+  try {
+    if (client.user) await logout(client);
+    await signInWithExternalJwt({ externalJwt, sessionPublicKey: await sessionPublicKey(client) }, client);
+  } catch (e) {
+    throw fromDynamic(e);
+  }
+}
+
+/** A new account from a new passkey: one browser dialog, then a Dynamic session (then ensureMainWallet as for any
+ *  sign-up). */
+export async function createAccountWithPasskey(client: DynamicClient, server: string, prepared?: PasskeyPrepared): Promise<PasskeyResult> {
+  needWebAuthn();
+  const p = takePrepared(prepared) ?? (await preparePasskey(server));
+  const reg = p.register;
+  if (!reg) throw new AgatePasskeyError("signups_paused", "New passkey accounts are paused for today: use email or Google.");
+  const response = await dialog(() => startRegistration({ optionsJSON: reg.options as never }));
+  return finishPasskey(client, server, "/api/passkey/register", reg.ceremonyId, response, true);
+}
+
+/** Signs in with a passkey made here before (the browser offers the ones saved for this site, synced ones too). */
+export async function signInWithAgatePasskey(client: DynamicClient, server: string, prepared?: PasskeyPrepared): Promise<PasskeyResult> {
+  needWebAuthn();
+  const p = takePrepared(prepared) ?? (await preparePasskey(server));
+  const response = await dialog(() => startAuthentication({ optionsJSON: p.signin.options as never }));
+  return finishPasskey(client, server, "/api/passkey/signin", p.signin.ceremonyId, response, false);
+}
+
+/** The one button: signs in when this browser used an agate passkey before, else makes a new account. "I already
+ *  have a passkey" passes mode "signin" (a new browser with a synced passkey). */
+export function continueWithPasskey(client: DynamicClient, server: string, opts: { mode?: "auto" | "signin" | "create"; prepared?: PasskeyPrepared } = {}): Promise<PasskeyResult> {
+  const mode = opts.mode === "signin" || opts.mode === "create" ? opts.mode : hasPasskeyHint() ? "signin" : "create";
+  return mode === "signin" ? signInWithAgatePasskey(client, server, opts.prepared) : createAccountWithPasskey(client, server, opts.prepared);
+}
+
+/** True for a person who signed up with a passkey alone: "Confirm it's you" then uses confirmWithAgatePasskey (they
+ *  have no email for a code and no Dynamic passkey). */
+export function isAgatePasskeyAccount(client: DynamicClient): boolean {
+  return Boolean(client.user?.verifiedCredentials?.some((c) => String(c.format) === "externalUser"));
+}
+
+/** "Confirm it's you" for a passkey account: the browser's dialog with this account's passkeys only, then Dynamic
+ *  grants `scope` (wallet:delegate before connecting an AI, so canDelegate turns true; credential:link before adding
+ *  an email). */
+export async function confirmWithAgatePasskey(client: DynamicClient, server: string, scope: "wallet:delegate" | "credential:link"): Promise<void> {
+  needWebAuthn();
+  const token = sessionToken(client);
+  if (!token) throw new AgatePasskeyError("rejected", "Sign in first.");
+  const o = await agatePost<PasskeyCeremony>(server, "/api/passkey/stepup/options", { scope }, token);
+  const response = await dialog(() => startAuthentication({ optionsJSON: o.options as never }));
+  const { externalJwt } = await agatePost<{ externalJwt: string }>(server, "/api/passkey/stepup", { ceremonyId: o.ceremonyId, response }, token);
+  try {
+    await requestExternalAuthElevatedToken({ externalJwt }, client);
+  } catch (e) {
+    throw fromDynamic(e);
+  }
+}
+
+// ------------------------------------------------------------------ session
 
 /** The user's Dynamic session JWT, for agate's own API (verified there against Dynamic's JWKS). */
 export function sessionToken(client: DynamicClient): string | null {

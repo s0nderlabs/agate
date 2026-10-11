@@ -88,6 +88,38 @@ scope (SDK 1.38 drops requestedScopes on sign-in), so the first delegation alway
 (`requestStepUp` + `confirmStepUp`, or `confirmWithPasskey` once the person has a passkey); the scope is short-lived
 and `canDelegate(client)` says whether it is still held.
 
+## Passkey accounts (a passkey alone, no email)
+
+agate's server runs the WebAuthn ceremonies (`src/passkey/`, rp id `agate.elpabl0.xyz`) and, once a passkey checks
+out, answers a JWT that lives 2 minutes (ES256, `iss` https://agate.elpabl0.xyz, `aud` the Dynamic environment id,
+`sub` the account `pk_...`); the app hands it to Dynamic (Bring Your Own Auth), which opens a normal session with an
+`externalUser` credential whose public identifier is that `sub`. Call them through `@agate/wallet/dynamic`, not
+directly. Errors are `{ error: "<sentence>", code }`.
+
+- `GET /.well-known/agate-jwks.json` (no auth): the public key Dynamic checks those JWTs with.
+- `POST /api/passkey/options` (no auth; the request's `Origin` must be in `AGATE_PASSKEY_ORIGINS`, default
+  `https://agate.elpabl0.xyz=agate.elpabl0.xyz`) -> `{ signin: { ceremonyId, options }, register: { ceremonyId,
+  options } | null, signupClosed }`. Each ceremony is single use and lives 5 minutes.
+- `POST /api/passkey/register { ceremonyId, response }` -> `201 { externalJwt, sub }`: a new account.
+- `POST /api/passkey/signin { ceremonyId, response }` -> `{ externalJwt, sub }`. `404 unknown_passkey`: not one of
+  agate's passkeys (most likely a Dynamic passkey added to an email account: offer `startPasskeySignIn`).
+- `POST /api/passkey/stepup/options { scope }` (Bearer) and `POST /api/passkey/stepup { ceremonyId, response }`
+  (Bearer) -> `{ externalJwt, scope, expiresAt }` for `wallet:delegate` or `credential:link` (anything else is
+  `scope_not_allowed`); the account binds to its first Dynamic user, another one is `dynamic_mismatch`.
+
+Codes: `origin_not_allowed`, `rate_limited` (options 30 a minute, sign-ins 20 a minute, new accounts 5 an hour per
+address, failed tries not counted; step-ups 10 a minute per person), `signups_paused` (once
+`AGATE_PASSKEY_SIGNUPS_PER_DAY`, default 150, accounts were made in the last 24 hours), `bad_request`, `expired`, `not_verified`, `not_discoverable`, `exists`, `unknown_passkey`,
+`scope_not_allowed`, `not_a_passkey_account`, `dynamic_mismatch`; `413` over 16 KB.
+
+From `@agate/wallet/dynamic`: `preparePasskey(server)` when the sheet opens (so the tap opens the dialog at once),
+`continueWithPasskey(client, server, { mode, prepared })` for the one button (signs in when this browser used an agate
+passkey before, else makes an account; `mode: "signin"` for "I already have a passkey"), `createAccountWithPasskey`,
+`signInWithAgatePasskey`, `isAgatePasskeyAccount(client)`, `confirmWithAgatePasskey(client, server, scope)` for
+"Confirm it's you", `hasPasskeyHint()`, `passkeySupport()`. Every failure is an `AgatePasskeyError` whose `code` is
+`unsupported`, `cancelled` (the dialog was closed, or no passkey picked), `exists`, `unknown_passkey`, `expired`,
+`rate_limited`, `signups_paused`, `rejected`, `dynamic` (the passkey worked, Dynamic did not finish) or `service`.
+
 ## Approval card (a trade an AI asked for above its cap)
 
 The AI sends the person `<app base>/approve?request=<id>`.

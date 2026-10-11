@@ -4,7 +4,7 @@
 // nothing. Nothing in this file logs a value.
 import { Database } from "bun:sqlite";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Address, Hex } from "viem";
 import { HOME, ensureHome } from "./config.ts";
@@ -160,6 +160,20 @@ export class Store {
     this.db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 3000; PRAGMA foreign_keys = ON;");
     this.sealer = sealer ?? new Sealer(path === ":memory:" ? randomBytes(32) : storeKey());
     this.migrate();
+  }
+
+  /** A consistent copy of the whole database (VACUUM INTO, safe while it is in use) at
+   *  dir/agate-server-YYYY-MM-DD.db, mode 600, keeping the newest `keep` copies. Passkey accounts exist only here,
+   *  so the server takes one a minute after start and then daily. Returns the file. */
+  backup(dir = join(HOME, "backups"), keep = 7, now = Date.now()): string {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const f = join(dir, `agate-server-${new Date(now).toISOString().slice(0, 10)}.db`);
+    rmSync(f, { force: true });
+    this.db.query("VACUUM INTO ?").run(f);
+    chmodSync(f, 0o600);
+    const copies = readdirSync(dir).filter((n) => /^agate-server-\d{4}-\d{2}-\d{2}\.db$/.test(n)).sort();
+    for (const n of copies.slice(0, Math.max(0, copies.length - keep))) rmSync(join(dir, n));
+    return f;
   }
 
   private addColumn(table: string, col: string, ddl: string) {

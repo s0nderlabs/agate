@@ -16,6 +16,7 @@
     "@dynamic-labs-wallet/node-evm": "1.1.28",
     "@hono/mcp": "0.3.2",
     "@modelcontextprotocol/sdk": "1.32.0",
+    "@simplewebauthn/server": "14.0.3",
     "@zerodev/ecdsa-validator": "5.4.9",
     "@zerodev/permissions": "5.5.8",
     "@zerodev/sdk": "5.4.37",

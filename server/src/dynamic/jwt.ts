@@ -10,9 +10,12 @@ export type DynamicUser = {
   /** lowercase address -> the wallet's Dynamic id (the walletId webhooks and delegation use), when present */
   wallets: Map<string, { id: string | null; name: string | null; provider: string | null }>;
   scopes: string[];
+  /** the passkey account's sub when this person signed up with a passkey alone (Bring Your Own Auth: Dynamic keeps
+   *  agate's sub as an externalUser credential); null for email and Google accounts */
+  externalSub: string | null;
 };
 
-type Credential = { address?: string; chain?: string; id?: string; wallet_name?: string; wallet_provider?: string; format?: string; email?: string };
+type Credential = { address?: string; chain?: string; id?: string; wallet_name?: string; wallet_provider?: string; format?: string; email?: string; public_identifier?: string };
 
 export function jwtVerifier(environmentId: string, opts: { jwksUrl?: string; now?: () => number } = {}) {
   const jwks = createRemoteJWKSet(new URL(opts.jwksUrl ?? `https://app.dynamicauth.com/api/v0/sdk/${environmentId}/.well-known/jwks`), { cooldownDuration: 60_000, cacheMaxAge: 3_600_000 });
@@ -29,14 +32,16 @@ export function toUser(p: JWTPayload & Record<string, unknown>, environmentId: s
   const creds = (p.verified_credentials ?? []) as Credential[];
   const wallets = new Map<string, { id: string | null; name: string | null; provider: string | null }>();
   let email: string | null = (p.email as string) ?? null;
+  let externalSub: string | null = null;
   for (const c of creds) {
     if (c.format === "blockchain" && c.address && (c.chain ?? "eip155").toLowerCase().includes("eip155")) {
       wallets.set(c.address.toLowerCase(), { id: c.id ?? null, name: c.wallet_name ?? null, provider: c.wallet_provider ?? null });
     }
     if (c.format === "email" && c.email && !email) email = c.email;
+    if (c.format === "externalUser" && c.public_identifier && !externalSub) externalSub = c.public_identifier;
   }
   const scopes = typeof p.scope === "string" ? p.scope.split(" ") : Array.isArray(p.scopes) ? (p.scopes as string[]) : [];
-  return { userId: p.sub, email, wallets, scopes };
+  return { userId: p.sub, email, wallets, scopes, externalSub };
 }
 
 export function owns(u: DynamicUser, address: Address): boolean {

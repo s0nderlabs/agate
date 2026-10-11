@@ -5,7 +5,7 @@
 S=$(/bin/sh "$(cd "$(dirname "$0")/../../ops/testnet" && pwd)/dev-session.sh")
 W=dyn-server
 ENVS=(-e AGATE_LAB=${AGATE_LAB:-0})
-for v in AGATE_PUBLIC_BASE AGATE_APP_BASE AGATE_APP_ORIGINS AGATE_EXTRA_ROUTERS AGATE_FACTORY AGATE_DEPLOYMENTS_FILE AGATE_GRAPHQL_URL MONAD_RPC_URL; do
+for v in AGATE_PUBLIC_BASE AGATE_APP_BASE AGATE_APP_ORIGINS AGATE_EXTRA_ROUTERS AGATE_FACTORY AGATE_DEPLOYMENTS_FILE AGATE_GRAPHQL_URL MONAD_RPC_URL AGATE_PASSKEY_ORIGINS AGATE_BYOA_ISS AGATE_BYOA_AUD AGATE_PASSKEY_SIGNUPS_PER_DAY; do
   [ -n "${(P)v}" ] && ENVS+=(-e "$v=${(P)v}")
 done
 tmux list-windows -t "=$S" -F '#{window_name}' | grep -qx $W && tmux kill-window -t "=$S:$W"

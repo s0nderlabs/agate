@@ -66,4 +66,3 @@ Beyond the limits above (one CRE node, no outside audit, Transaction Review, the
 
 - Kuru Spot V2 books for the app (the market maker is ready to quote them).
 - A recovery path for a lost passkey, and backup codes.
-- A claim and Collect button for signed-in accounts in the app (the SDK and the contracts already do it).

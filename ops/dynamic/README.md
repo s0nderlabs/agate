@@ -30,6 +30,26 @@ sign-up, several per chain (the main wallet and the Assistant); delegated access
 on signed transactions; no device registration; Transaction Review off with failure policy ALLOW until Dynamic's
 proxy for it works on 10143 (asked them on Oct 4 2026).
 
+## Passkey accounts (Bring Your Own Auth)
+
+A person can sign up with a passkey alone. agate's server checks the passkey and signs a JWT with the key in
+`~/.agate-dynamic/byoa-es256.pem` (P-256, made on first use, mode 600, never printed); Dynamic checks it against
+`${PUBLIC_BASE}/.well-known/agate-jwks.json` and creates the person with an `externalUser` credential. The setting is
+`settings.security.externalAuth` in `sandbox.json` (`iss` https://agate.elpabl0.xyz, `aud` the environment id,
+`jwksUrl`, `assumeEmailVerified` false, `stepUpEnabled` true), written with `env.ts apply --settings`.
+
+- Kill switch: `externalAuth.enabled` false (then `apply --settings`). New passkey sign-ins and step-ups stop; email
+  and Google keep working; passkey accounts cannot sign in until it is back on.
+- The key: losing or replacing it is harmless. The next key is served at the same address and JWTs live 2 minutes;
+  accounts are keyed by their `sub`, not by the key.
+- The database: `agate-server.db` maps each passkey to its account (tables `passkey_accounts`,
+  `passkey_credentials`; public keys only). Losing it orphans every passkey account. The server copies it a minute
+  after start and then daily to `~/.agate-dynamic/backups/agate-server-YYYY-MM-DD.db` (mode 600, the last 7 kept);
+  the copies sit on the same disk, so copy one off the server before a rebuild. To restore: stop the server, put the
+  copy back as `agate-server.db` (no `-wal` or `-shm` files beside it), start it.
+- A passkey account that lost its passkey: synced passkeys (iCloud Keychain, Google Password Manager) cover most
+  cases; check another device first. There is no email to fall back on, so the account and its test dollars are lost.
+
 ## A person lost their passkey
 
 What still works: signing in (email code or Google) and trading, since neither needs a step-up. What is blocked:

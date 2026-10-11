@@ -83,8 +83,8 @@ everything at the end:
   $13.37 a day on 100 GPU-hours.
 
 Over the month it adds up to the same as waiting for the end. A daily payer bot sends each day's payments; anyone can
-also claim, with the SDK's `claim` and `claimDaily` or the series contract's `claim` (the app's **Positions** gets a
-claim and Collect button for signed-in accounts before the first month ends on Dec 1). An order that rests in the book (a limit that does not fill at once) is paid at the month's end, not daily.
+also claim, with the SDK's `claim` and `claimDaily`, the series contract's `claim`, or **Collect** on a holding in
+the app's **Positions** (a daily share waiting, or a final month's payout). An order that rests in the book (a limit that does not fill at once) is paid at the month's end, not daily.
 
 ## Closing early and limit orders
 

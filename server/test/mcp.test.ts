@@ -173,7 +173,7 @@ describe("trades", () => {
 });
 
 describe("HTTP lanes and OAuth", () => {
-  const user: DynamicUser = { userId: "u-1", email: null, wallets: new Map(), scopes: [] };
+  const user: DynamicUser = { userId: "u-1", email: null, wallets: new Map(), scopes: [], externalSub: null };
   const mk = () => {
     const store = new Store(":memory:");
     const app = publicApp({ store, log: () => {}, verifyUser: async (t) => (t === "good" ? { ...user, wallets: new Map() } : Promise.reject(new Error("bad"))), agateClient: () => ({}) as never });

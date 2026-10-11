@@ -20,6 +20,7 @@
     "@dynamic-labs-sdk/client": "1.38.0",
     "@dynamic-labs-sdk/evm": "1.38.0",
     "@dynamic-labs-sdk/zerodev": "1.38.0",
+    "@simplewebauthn/browser": "13.1.0",
     "@zerodev/ecdsa-validator": "5.4.9",
     "@zerodev/permissions": "5.5.8",
     "@zerodev/sdk": "5.4.37",

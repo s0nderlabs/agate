@@ -16,6 +16,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { mcpRoutes } from "./mcp/routes.ts";
 import { appendRedirectParams, oauthRoutes, publicBase, redirectUriAllowed } from "./oauth/routes.ts";
 import { OAuthStore } from "./oauth/store.ts";
+import { byoaKeys } from "./passkey/keys.ts";
+import { passkeyOrigins, passkeyRoutes } from "./passkey/routes.ts";
+import { PasskeyStore } from "./passkey/store.ts";
 import { ed25519Signer } from "./dynamic/hmac.ts";
 import { checkHmac } from "./dynamic/hmac.ts";
 import { decide, type ReviewRequest } from "./dynamic/review.ts";
@@ -52,6 +55,10 @@ export type AppDeps = {
   agateClient?: () => AgateClient;
   /** the markets snapshot behind GET /api/markets (default: read through agateClient) */
   snapshots?: SnapshotCache;
+  /** passkey accounts: the sign-in key (default HOME/byoa-es256.pem), origin -> rp id, and the clock */
+  byoaKeyPem?: () => string;
+  passkeyOrigins?: Map<string, string>;
+  passkeyNow?: () => number;
 };
 
 /** The market reader the MCP tools use: the factory in AGATE_FACTORY ("real" by default), deployments from
@@ -94,6 +101,16 @@ export function publicApp(deps: AppDeps): Hono {
   const serverWallets = deps.serverWallets ?? (() => new Set([...deps.store.serverWalletIds(), ...(secret("AGATE_SERVER_WALLET_IDS", "server-wallets.env") ?? "").split(",").filter(Boolean)]));
   const limitsOf = deps.limitsOf ?? grantLimits;
   const verifyUser = deps.verifyUser ?? jwtVerifier(cfg.environmentId);
+  const authed = async (c: Context): Promise<DynamicUser | Response> => {
+    const m = c.req.header("authorization")?.match(/^Bearer\s+(.+)$/i);
+    if (!m) return c.json({ error: "sign in first" }, 401);
+    try {
+      return await verifyUser(m[1]!);
+    } catch (e) {
+      log({ event: "api.auth.rejected", error: (e as Error).message.slice(0, 120) });
+      return c.json({ error: "session not valid: sign in again" }, 401);
+    }
+  };
   const oauth = new OAuthStore(deps.store.db);
   const agate = deps.agateClient ?? (() => marketClient(cfg));
   app.route("/", oauthRoutes({ store: deps.store }, oauth));
@@ -101,6 +118,8 @@ export function publicApp(deps: AppDeps): Hono {
   const origins = (process.env.AGATE_APP_ORIGINS ?? "http://localhost:5174,http://127.0.0.1:5174,http://localhost:3317,http://127.0.0.1:3317").split(",").filter(Boolean);
   let signer: ((b: string) => string) | null | undefined;
   app.use("/api/*", cors({ origin: origins, allowHeaders: ["authorization", "content-type"], allowMethods: ["GET", "POST"], maxAge: 600 }));
+  // passkey accounts (passkey/routes.ts); after the cors line, so its preflight and headers apply
+  app.route("/", passkeyRoutes({ store: new PasskeyStore(deps.store.db), keys: byoaKeys({ pem: deps.byoaKeyPem, aud: process.env.AGATE_BYOA_AUD ?? cfg.environmentId, now: deps.passkeyNow }), authed, log, origins: deps.passkeyOrigins ?? passkeyOrigins(), now: deps.passkeyNow }));
 
   app.get("/health", (c) => c.json({ ok: true }));
 
@@ -184,18 +203,7 @@ export function publicApp(deps: AppDeps): Hono {
     return new Response(body, { status: 200, headers });
   });
 
-  // ---------------------------------------------------------------- the app's API (Dynamic session JWT)
-
-  const authed = async (c: Context): Promise<DynamicUser | Response> => {
-    const m = c.req.header("authorization")?.match(/^Bearer\s+(.+)$/i);
-    if (!m) return c.json({ error: "sign in first" }, 401);
-    try {
-      return await verifyUser(m[1]!);
-    } catch (e) {
-      log({ event: "api.auth.rejected", error: (e as Error).message.slice(0, 120) });
-      return c.json({ error: "session not valid: sign in again" }, 401);
-    }
-  };
+  // ---------------------------------------------------------------- the app's API (Dynamic session JWT, authed above)
 
   app.get("/api/me", async (c) => {
     const u = await authed(c);

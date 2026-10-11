@@ -1,4 +1,5 @@
 // agate server entry: bun run src/index.ts (runs in a tmux window).
+import { basename } from "node:path";
 import { config } from "./config.ts";
 import { internalApp, logger, marketClient, publicApp } from "./app.ts";
 import { startAutopilot } from "./autopilot.ts";
@@ -14,6 +15,16 @@ const internalPort = Number(process.env.AGATE_INTERNAL_PORT ?? 5192);
 Bun.serve({ hostname: config.host, port: config.port, idleTimeout: Math.min(255, Math.ceil(config.intentTtlMs / 1000) + 30), fetch: publicApp({ store, log }).fetch });
 Bun.serve({ hostname: "127.0.0.1", port: internalPort, fetch: internalApp({ store, log }).fetch });
 setInterval(() => store.pruneIntents(), 600_000).unref();
+// a daily copy of the database in HOME/backups (the last 7 kept): passkey accounts exist only in it
+const backup = () => {
+  try {
+    log({ event: "db.backup", file: basename(store.backup()) });
+  } catch (e) {
+    log({ event: "db.backup.failed", error: (e as Error).message });
+  }
+};
+setTimeout(backup, 60_000).unref();
+setInterval(backup, 86_400_000).unref();
 // standing orders ("keep my hedge going"); AGATE_AUTOPILOT=0 turns the loop off
 if (process.env.AGATE_AUTOPILOT !== "0") startAutopilot({ store, client: () => marketClient(), log });
 
