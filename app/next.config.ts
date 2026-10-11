@@ -14,10 +14,12 @@ const nextConfig: NextConfig = {
   // page and a Markets click did nothing). Old links still land on it. Oct 10: the site at the root, the app under /app; every
   // old app address (the server's /connect?request= and /approve?request= links, guides, bookmarks) lands on its new
   // one with its query. They stay; "not permanent" only keeps browsers from caching them. A bare path has its own rule:
-  // "/p/:rest*" alone also matches "/p", but on Vercel it sends "/app/p/" and then strips the slash (two hops).
+  // "/p/:rest*" alone also matches "/p", but on Vercel it sends "/app/p/" and then strips the slash (two hops). Oct 11:
+  // How Agate works moved into the docs as their first chapter.
   async redirects() {
     return [
       { source: "/index", destination: "/app/gpu-index", permanent: false },
+      { source: "/app/how", destination: "/docs/how-agate-works", permanent: false },
       { source: "/landing", destination: "/", permanent: false },
       ...["positions", "gpu-index", "ai", "connect", "approve"].flatMap((p) => [
         { source: `/${p}`, destination: `/app/${p}`, permanent: false },

@@ -1,6 +1,6 @@
 "use client";
-// The docs' frame, kept across chapters (the /docs layout): the site's top bar, then on a chapter the groups and
-// chapters on the left under the search button, and the page. Below 760 px the left column leaves for a Contents
+// The docs' frame, kept across chapters (the /docs layout): the site's top bar, then the groups and chapters on the
+// left under the search button, and the page (the contents page or a chapter). Below 760 px the left column leaves for a Contents
 // button that opens the same list as a sheet. The search itself is a dialog (SearchPalette).
 // The pages are static, so the theme and a link's mock states are applied here in the browser. The theme is the
 // link's, else the reader's saved pick, else the reader's system setting: an inline script paints it before the first
@@ -8,7 +8,7 @@
 // following the system until the reader picks one with the switch (that pick is saved, as on every page).
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { useScreenTheme } from "@/components/ai/AisScreen";
+import { useScreenTheme } from "@/components/ai/shared";
 import { BottomDock } from "@/components/shell/Dock";
 import { NavBar } from "@/components/shell/Shell";
 import { SiteBar } from "@/components/site/SiteBar";
@@ -151,8 +151,8 @@ export function DocsFrame({ nav, children }: { nav: NavGroup[]; children: React.
       <div className={`${s.screen} ${tone}`} data-phone={config.phone} suppressHydrationWarning>
         {serverHtml && <script dangerouslySetInnerHTML={{ __html: PREPAINT }} />}
         {config.siteNav === "before" ? <NavBar active="docs" site /> : <SiteBar current="docs" />}
-        {slug ? (
-          <div className={s.frame}>
+        {/* the contents page and every chapter share one frame, so going from one to the other moves nothing but the page */}
+        <div className={s.frame}>
             <aside className={s.side} ref={side} aria-label="Docs">
               <SearchButton />
               <ChapterList nav={nav} current={slug} />
@@ -195,10 +195,7 @@ export function DocsFrame({ nav, children }: { nav: NavGroup[]; children: React.
               </div>
             </dialog>
             <div className={s.page}>{children}</div>
-          </div>
-        ) : (
-          children
-        )}
+        </div>
         <DocsFooter />
         <SearchPalette nav={nav} />
         {/* the app's bottom tabs belong to the app: only under the app's bar (before) */}

@@ -522,6 +522,9 @@ describe("passkey-first failures", () => {
     for (const l of lines) expect(l).not.toMatch(/\u2014/);
     expect(passkeyFirstText({ code: "cancelled", mode: "signin" })).toBe("No passkey signed you in.");
     expect(passkeyFirstText({ code: "cancelled", mode: "create" })).toBe("No passkey was made.");
+    // the hourly cap on new accounts per network has its own line; the per-minute one keeps its own
+    expect(passkeyFirstText({ code: "rate_limited", mode: "create", hourly: true })).toBe("Too many new accounts from this network. Try again in an hour.");
+    expect(passkeyFirstText({ code: "rate_limited", mode: "create" })).toBe("Too many tries from this network. Wait a minute, then try again.");
   });
 
   test("Confirm it's you with an account's own passkey", async () => {

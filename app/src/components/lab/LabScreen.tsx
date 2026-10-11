@@ -4,7 +4,7 @@
 // the six GPUs, the November market, the GPU-hours open, the AI approval flow and the real app. Live testnet data by
 // default; light and dark from Mock controls. Nothing generated.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useScreenTheme } from "@/components/ai/AisScreen";
+import { useScreenTheme } from "@/components/ai/shared";
 import { usd } from "@/lib/format";
 import { useMock } from "@/lib/mock/store";
 import { AgentFlow } from "./AgentFlow";

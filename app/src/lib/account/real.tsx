@@ -554,7 +554,9 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
         try {
           await d.lib.continueWithPasskey(d.client, AGATE_SERVER, { mode, prepared: p });
         } catch (e) {
-          const failure: PasskeyFailure = { code: agatePasskeyCode(e) ?? "service", mode };
+          const code = agatePasskeyCode(e) ?? "service";
+          // the server names the hourly cap on new accounts per network in its answer
+          const failure: PasskeyFailure = { code, mode, hourly: code === "rate_limited" && /new accounts/i.test(String((e as Error)?.message ?? "")) };
           // a passkey that exists here, or one that worked before Dynamic finished, signs in next time
           if (failure.code === "exists" || failure.code === "dynamic") {
             knownPasskey.current = true;

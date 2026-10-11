@@ -2,7 +2,7 @@
 // The privacy page Google's sign-in consent screen points at (Oct 6 2026). The words are agate's, kept as written
 // (only the name capitalised, as everywhere in the app); a change here is a change to the published policy, so
 // update "Last updated" with it. Plain text, no tracking, both themes.
-import { useScreenTheme } from "@/components/ai/AisScreen";
+import { useScreenTheme } from "@/components/ai/shared";
 import { BottomDock } from "@/components/shell/Dock";
 import { NavBar } from "@/components/shell/Shell";
 import { DocsFooter } from "@/components/docs/DocsFooter";

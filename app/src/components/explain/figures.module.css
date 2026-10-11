@@ -1,0 +1,670 @@
+/* Pictures that explain Agate (figures.tsx): flat cards on the docs' hairlines, the app's tokens in both themes, 2 px
+   corners, Apfel for words and numbers (numbers 500, tabular). Nothing under 15 px. The drawings stretch to their card;
+   every word sits in HTML over them. */
+.fig {
+  margin: 24px 0 8px;
+}
+.box {
+  position: relative;
+  padding: 24px clamp(18px, 3vw, 28px);
+  border-radius: var(--r-1);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+/* inside a docs chapter the text's own rules (lists, paragraphs) must not reach the drawings */
+.fig .box :is(p, ul, ol, li, dl, dd) {
+  margin: 0;
+  padding: 0;
+}
+.fig .box :is(ul, ol) {
+  list-style: none;
+}
+.fig .box li::marker {
+  content: none;
+}
+.fig figcaption.cap {
+  margin: 10px 0 0;
+}
+.cap {
+  margin-top: 10px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--mute-text);
+  text-wrap: pretty;
+}
+.upText {
+  color: var(--up);
+}
+
+/* ---------- the clouds ---------- */
+.clouds {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(84px, 112px) minmax(0, 1fr) 64px;
+  column-gap: 16px;
+}
+.cloud {
+  display: contents;
+}
+.cloudName,
+.cloudPrice {
+  padding: 9px 0;
+  font-size: 16px;
+  line-height: 1.3;
+}
+.cloudName {
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cloudPrice {
+  font-weight: 500;
+  text-align: right;
+  color: var(--ink-2);
+}
+.track {
+  position: relative;
+  align-self: stretch;
+  min-height: 16px;
+}
+.track::before {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 1px;
+  background: var(--line-2);
+}
+.track i {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1.5px var(--mute);
+}
+.cloud[data-mid] .cloudName,
+.cloud[data-mid] .cloudPrice {
+  color: var(--ink);
+  font-weight: 500;
+}
+.cloud[data-mid] .track i {
+  width: 13px;
+  height: 13px;
+  margin: -6.5px 0 0 -6.5px;
+  background: var(--ink);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+/* the middle, down every row: each row's track draws its piece at the same place, so the pieces join */
+.cloud:not([data-total]) .track::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--mid);
+  border-left: 1px dashed color-mix(in srgb, var(--ink) 40%, transparent);
+}
+.cloud[data-total] .cloudName,
+.cloud[data-total] .cloudPrice {
+  margin-top: 6px;
+  padding-top: 14px;
+  box-shadow: inset 0 1px 0 var(--line);
+  color: var(--ink);
+  font-weight: 500;
+}
+.cloud[data-total] .cloudPrice {
+  font-size: 18px;
+}
+.cloud[data-total] .track {
+  margin-top: 6px;
+  align-self: stretch;
+  height: auto;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.cloud[data-total] .track::before {
+  display: none;
+}
+.track em {
+  position: absolute;
+  left: var(--mid);
+  top: 14px;
+  transform: translateX(-50%);
+  font-style: normal;
+  font-size: 15px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* ---------- a month ---------- */
+.month {
+  display: grid;
+  gap: 14px;
+}
+.monthPlot {
+  position: relative;
+  height: 96px;
+  margin: 8px 0 4px;
+}
+.monthSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.monthLine {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.avgLine {
+  stroke: var(--up);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+.monthDot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+.avgTag {
+  position: absolute;
+  transform: translate(14px, -50%);
+  padding: 3px 8px;
+  border-radius: var(--r-1);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  font-size: 15px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.avgTag b {
+  margin-left: 4px;
+  font-weight: 500;
+  color: var(--up);
+}
+.days {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 3px;
+}
+.days span {
+  height: 10px;
+  border-radius: 1px;
+  background: var(--well);
+}
+.days span[data-on] {
+  background: var(--ink);
+}
+.daysKey {
+  display: flex;
+  justify-content: space-between;
+  font-size: 15px;
+  color: var(--mute-text);
+}
+
+/* ---------- Long or Short ---------- */
+.payoff {
+  --tone: var(--up);
+  display: grid;
+  gap: 14px;
+}
+.payHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 220px;
+  max-width: 100%;
+  border-radius: var(--r-1);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  overflow: hidden;
+}
+.seg button {
+  height: 40px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.seg button + button {
+  box-shadow: inset 1px 0 0 var(--line-2);
+}
+.seg button[data-side="long"][aria-pressed="true"] {
+  background: color-mix(in oklch, var(--up) 13%, transparent);
+  color: var(--up);
+}
+.seg button[data-side="short"][aria-pressed="true"] {
+  background: color-mix(in oklch, var(--down) 12%, transparent);
+  color: var(--down);
+}
+.seg button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+.payWho {
+  font-size: 16px;
+  color: var(--ink-2);
+}
+.payPlot {
+  position: relative;
+  height: clamp(170px, 26vw, 230px);
+  margin-top: 6px;
+}
+.paySvg {
+  position: absolute;
+  pointer-events: none;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.win {
+  fill: color-mix(in oklch, var(--up) 14%, transparent);
+}
+.lose {
+  fill: color-mix(in oklch, var(--down) 12%, transparent);
+}
+.paidLine {
+  stroke: var(--mute);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.backLine {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.nowLine {
+  stroke: var(--line-2);
+  stroke-width: 1;
+}
+.nowDot {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 4px var(--card);
+}
+.nowDot[data-tone="up"] {
+  background: var(--up);
+}
+.nowDot[data-tone="down"] {
+  background: var(--down);
+}
+.paidTag {
+  position: absolute;
+  left: 0;
+  transform: translateY(calc(-100% - 6px));
+  font-size: 15px;
+  color: var(--mute-text);
+}
+.paidTag[data-low] {
+  transform: translateY(6px);
+}
+.paidTag b {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+/* the slider covers the plot, unseen: the drawn line, dot and knob show where it is */
+.range {
+  position: absolute;
+  inset: 0 0 -18px;
+  z-index: 2;
+  width: 100%;
+  height: calc(100% + 18px);
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  touch-action: pan-y;
+}
+.knob {
+  position: absolute;
+  bottom: -18px;
+  width: 14px;
+  height: 22px;
+  margin-left: -7px;
+  border-radius: var(--r-1);
+  background: var(--ink);
+  box-shadow: 0 0 0 3px var(--card);
+  pointer-events: none;
+}
+.knob::before {
+  content: "";
+  position: absolute;
+  inset: 6px 5px;
+  border-left: 1px solid var(--card);
+  border-right: 1px solid var(--card);
+}
+.range:focus-visible ~ .knob {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+.payAxis {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  font-size: 15px;
+  color: var(--mute-text);
+}
+.payRead {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 4px 0 0;
+  padding-top: 14px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+/* each value on the cell's foot, so the three line up when a label takes two lines */
+.payRead > div {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  align-items: end;
+  gap: 2px;
+}
+.payRead dt {
+  font-size: 15px;
+  color: var(--mute-text);
+}
+.payRead dd {
+  margin: 0;
+  font-size: clamp(22px, 2.6vw, 28px);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.payRead dd[data-tone="up"] {
+  color: var(--up);
+}
+.payRead dd[data-tone="down"] {
+  color: var(--down);
+}
+
+/* ---------- fully backed ---------- */
+.backed {
+  display: grid;
+  gap: 16px;
+}
+.backedHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 16px;
+  color: var(--ink-2);
+}
+.backedHead b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.bar {
+  display: flex;
+  min-height: 68px;
+  border-radius: var(--r-1);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.bar > span {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 14px;
+}
+.bar em {
+  font-style: normal;
+  font-size: 15px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bar b {
+  font-size: 18px;
+  font-weight: 500;
+}
+.barLong {
+  flex: none;
+  background: color-mix(in oklch, var(--up) 14%, transparent);
+  box-shadow: inset -1px 0 0 var(--line-2);
+}
+.barLong b {
+  color: var(--up);
+}
+.barShort {
+  flex: 1;
+  background: color-mix(in oklch, var(--down) 10%, transparent);
+}
+.barShort b {
+  color: var(--down);
+}
+.box .losses {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.losses li {
+  display: grid;
+  gap: 2px;
+}
+.losses span,
+.losses small {
+  font-size: 15px;
+  color: var(--mute-text);
+}
+.losses b {
+  font-size: 22px;
+  font-weight: 500;
+}
+
+/* ---------- paid every day ---------- */
+.daily {
+  display: grid;
+  gap: 16px;
+}
+.dailyRows {
+  display: grid;
+  gap: 6px;
+}
+.dailyRows > div,
+.dailyTotal {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 16px;
+  color: var(--ink-2);
+}
+.dailyRows b,
+.dailyTotal b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.dailyRows b.upText {
+  color: var(--up);
+}
+.cal {
+  display: grid;
+  gap: 4px;
+}
+.cal span {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1 / 0.82;
+  border-radius: var(--r-1);
+  background: color-mix(in oklch, var(--up) 12%, transparent);
+  box-shadow: inset 0 -2px 0 color-mix(in oklch, var(--up) 55%, transparent);
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.dailyTotal {
+  padding-top: 12px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.dailyTotal b {
+  font-size: 18px;
+}
+
+/* ---------- close any time ---------- */
+.close {
+  display: grid;
+}
+.close > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  font-size: 16px;
+  color: var(--ink-2);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.close b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.closeKeep b {
+  font-size: 20px;
+}
+.close b.upText {
+  color: var(--up);
+}
+.closeNote {
+  margin-top: 12px;
+  font-size: 15px;
+  color: var(--mute-text);
+}
+
+/* ---------- flows: an account, an AI's pocket ---------- */
+.flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0 10px;
+}
+.node {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--r-1);
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.node b {
+  font-size: 16px;
+  font-weight: 500;
+}
+.node span {
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--mute-text);
+}
+.arrow {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 72px;
+}
+.arrow::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 6px;
+  top: 50%;
+  height: 1px;
+  background: var(--line-2);
+}
+.arrow::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: calc(50% - 4px);
+  border: 4px solid transparent;
+  border-left: 6px solid var(--mute);
+  border-right: 0;
+}
+.arrow span {
+  position: relative;
+  transform: translateY(-14px);
+  font-size: 15px;
+  color: var(--mute-text);
+  white-space: nowrap;
+}
+.returnLine {
+  grid-column: 1 / -1;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border-radius: var(--r-1);
+  background: color-mix(in oklch, var(--up) 10%, transparent);
+  font-size: 15px;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+/* ---------- narrow: a phone, or a narrow column ---------- */
+@media (max-width: 640px) {
+  .box {
+    padding: 18px 16px;
+  }
+  .payRead dd {
+    font-size: 22px;
+  }
+  .box .losses {
+    grid-template-columns: 1fr;
+  }
+  /* the two shares' words may take two lines in a narrow bar */
+  .bar em {
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.3;
+  }
+  .bar > span {
+    padding: 10px 12px;
+  }
+  .flow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .arrow {
+    min-height: 44px;
+    min-width: 0;
+  }
+  .arrow::before {
+    left: 50%;
+    right: auto;
+    top: 0;
+    bottom: 6px;
+    width: 1px;
+    height: auto;
+  }
+  .arrow::after {
+    left: calc(50% - 4px);
+    right: auto;
+    top: auto;
+    bottom: 0;
+    border: 4px solid transparent;
+    border-top: 6px solid var(--mute);
+    border-bottom: 0;
+  }
+  .arrow span {
+    transform: translateX(calc(50% + 14px));
+  }
+  .cal span {
+    font-size: 15px;
+  }
+}

@@ -3,6 +3,7 @@
 // flat frontmatter; docs/site/README.md is the repo's index, not a page.
 import fs from "node:fs";
 import path from "node:path";
+import { HOW_NAV } from "./explainer";
 import { chapterMeta, parseFrontmatter, renderChapter, rewriteMarkdownLinks, type FileMap } from "./markdown";
 import { GROUPS, SITE, type ChapterMeta, type Heading, type NavGroup, type Section } from "./types";
 
@@ -51,11 +52,18 @@ export function getChapters(): Chapter[] {
   return cache;
 }
 
+/** A chapter with its neighbours in reading order; the first one follows How Agate works, which opens the docs. */
 export function getChapter(slug: string) {
   const all = getChapters();
   const i = all.findIndex((c) => c.slug === slug);
   if (i < 0) return null;
-  return { chapter: all[i], prev: all[i - 1] ?? null, next: all[i + 1] ?? null };
+  const prev: { slug: string; title: string } | null = all[i - 1] ?? (i === 0 ? HOW_NAV : null);
+  return { chapter: all[i], prev, next: all[i + 1] ?? null };
+}
+
+/** The chapter after How Agate works: the first one the docs' files hold. */
+export function firstChapter() {
+  return getChapters()[0] ?? null;
 }
 
 /** The sidebar: the groups in order, each chapter with its H2s. */
@@ -63,9 +71,13 @@ export function getNav(): NavGroup[] {
   const all = getChapters();
   return GROUPS.map((group) => ({
     group,
-    chapters: all
-      .filter((c) => c.group === group)
-      .map((c) => ({ slug: c.slug, title: c.title, description: c.description, sections: c.toc.filter((h) => h.depth === 2).map(({ id, text }) => ({ id, text })) })),
+    chapters: [
+      // How Agate works opens Get started
+      ...(group === "Get started" ? [HOW_NAV] : []),
+      ...all
+        .filter((c) => c.group === group)
+        .map((c) => ({ slug: c.slug, title: c.title, description: c.description, sections: c.toc.filter((h) => h.depth === 2).map(({ id, text }) => ({ id, text })) })),
+    ],
   })).filter((g) => g.chapters.length > 0);
 }
 
@@ -80,7 +92,8 @@ export function llmsIndex(): string {
   ];
   for (const g of getNav()) {
     lines.push("", `## ${g.group}`, "");
-    for (const c of g.chapters) lines.push(`- [${c.title}](${SITE}/docs/${c.slug}): ${c.description}`);
+    // How Agate works is pictures on live numbers with no markdown of its own: the files below say the same in words
+    for (const c of g.chapters) if (c.slug !== HOW_NAV.slug) lines.push(`- [${c.title}](${SITE}/docs/${c.slug}): ${c.description}`);
   }
   return lines.join("\n") + "\n";
 }

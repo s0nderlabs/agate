@@ -1,0 +1,432 @@
+/* Connected AIs, enhanced in place: the market frame and its panels stay (ai.module.css, trade.module.css); these are
+   what each AI's row gains (its pocket, its trades and its time, drawn by shared.tsx's gauges), the recent activity under the
+   AIs, the numbered steps on the right and the facts under an empty page. The app's tokens only, square corners. */
+
+/* the header's end date: the date under "N days left", quiet */
+.ddSub {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--mute-text);
+}
+
+/* ---------- each AI: who it is and its actions on one line, its three figures under it ---------- */
+.ais {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.ai {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px 20px;
+  padding: 18px 0 22px;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.who {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 14px;
+  min-width: 0;
+}
+.who > :nth-child(1) {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+.who > :nth-child(2) {
+  grid-column: 2;
+  grid-row: 1;
+}
+.who > :nth-child(3) {
+  grid-column: 2;
+  grid-row: 2;
+}
+.chev {
+  display: none;
+}
+.name {
+  justify-self: start;
+  max-width: 100%;
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (hover: hover) and (pointer: fine) {
+  .name:hover {
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 4px;
+  }
+}
+/* an over-cap request waiting: said in ink, with a square before it */
+.asks {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.asks::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--ink);
+}
+.acts {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.acts > :global(.ag-btn) {
+  min-height: 44px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+/* the three figures, under the name, a hairline between them as in the header */
+.cells {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-left: 58px;
+}
+.cell {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 22px;
+}
+.cell + .cell {
+  box-shadow: inset 1px 0 0 var(--line);
+}
+.cell:first-child {
+  padding-left: 0;
+}
+.cell:last-child {
+  padding-right: 0;
+}
+.cellK {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.cellV {
+  justify-self: start;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.cellV small {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--mute-text);
+}
+.cellSub {
+  font-size: 15px;
+  color: var(--mute-text);
+  text-wrap: pretty;
+}
+
+/* an ended AI: one line, what is left in its pocket and the way to take it back */
+.ended {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+.ended .who > :first-child {
+  opacity: 0.6;
+}
+.endedLine {
+  font-size: 16px;
+  color: var(--ink-2);
+}
+
+.skel {
+  display: grid;
+  gap: 16px;
+  padding: 18px 0 22px;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.skel > span:first-child {
+  height: 44px;
+  width: 40%;
+}
+.skel > span:last-child {
+  height: 72px;
+  margin-left: 58px;
+}
+
+/* a narrow list (a phone, or the list beside the right column below about 1100 px): each AI is a card that leads to
+   its page; its figures stack, label and number on one line, the picture under them. Disconnect lives on its page. */
+@container ais (max-width: 639.98px) {
+  .ai,
+  .ended {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px 0 20px;
+  }
+  .chev {
+    display: block;
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    color: var(--mute-text);
+  }
+  .name::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  .acts {
+    display: none;
+  }
+  .ended .acts {
+    display: flex;
+    justify-content: flex-start;
+    position: relative;
+    z-index: 1;
+  }
+  .ended .acts > :not([data-keep]) {
+    display: none;
+  }
+  .ended .acts:not(:has([data-keep])) {
+    display: none;
+  }
+  .cells {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    margin-left: 0;
+  }
+  .cell,
+  .cell:first-child,
+  .cell:last-child {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 6px 12px;
+    padding: 0;
+  }
+  .cell + .cell {
+    box-shadow: none;
+  }
+  .cell > * {
+    grid-column: 1 / -1;
+  }
+  .cell > .cellK {
+    grid-column: 1;
+  }
+  .cell > .cellV {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    font-size: 17px;
+  }
+  .skel > span:last-child {
+    margin-left: 0;
+  }
+}
+
+/* ---------- what the AIs did lately ---------- */
+.recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.recent > li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  padding: 12px 0;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.recent > li > :global(.ag-appmark) {
+  margin-top: 1px;
+}
+/* the line's first link (the AI's name) reads as a name, not a link */
+.recentMeta a:first-child {
+  font-weight: 500;
+  text-decoration: none;
+}
+
+/* ---------- nothing connected yet: what each AI gets, as three figures with their pictures ---------- */
+.empty {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 32px;
+}
+/* the way in stays the panel's centre of attention, a little shorter so what each AI gets shows under it */
+.empty > :first-child {
+  min-height: clamp(240px, 32vh, 380px);
+}
+.gets {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+}
+.gets .cells {
+  margin-left: 0;
+  padding: 18px 0 4px;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.getK {
+  font-size: 17px;
+  font-weight: 500;
+}
+@container ais (max-width: 639.98px) {
+  .gets .cells {
+    gap: 20px;
+  }
+  .gets .cell > * {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- adding an AI: three numbered steps, a hairline joining their numbers ---------- */
+.add {
+  display: grid;
+  gap: 16px;
+}
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 14px;
+  padding-bottom: 24px;
+}
+.step:last-child {
+  padding-bottom: 0;
+}
+.step::before {
+  content: "";
+  position: absolute;
+  left: 13.5px;
+  top: 36px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--line-2);
+}
+.step:last-child::before {
+  display: none;
+}
+.stepN {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-1);
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+}
+.stepBody {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding-top: 3px;
+}
+.stepH {
+  font-size: 16px;
+  font-weight: 500;
+}
+.stepP {
+  font-size: 15px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.stepBtn {
+  justify-self: start;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+/* the line to paste, with its Copy button inside the field */
+.field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 6px 10px;
+  min-height: 52px;
+  padding: 6px 6px 6px 14px;
+  border-radius: var(--r-1);
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+/* the line itself is the app's code line (.ag-codeline: type, wrapping, focus); inside the field it drops its own box */
+.field > .fieldText {
+  padding: 8px 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.fieldCopy {
+  min-height: 40px;
+  padding: 0 14px;
+  background: var(--panel);
+}
+@media (pointer: coarse) {
+  .fieldCopy {
+    min-height: 44px;
+  }
+}
+
+/* what an AI can and can never do, a mark before each */
+.can {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.can > li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  font-size: 15px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.canMark {
+  margin-top: 3px;
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.6;
+  stroke-linecap: square;
+}
+
+/* the header's figures keep their label and number together at the top of a cell taller than its neighbours, and
+   every figure but the last keeps its right padding */
+.stats > div {
+  align-content: start;
+}
+@media (min-width: 601px) {
+  dl.stats > div:not(:last-child) {
+    padding-right: 22px;
+  }
+}
+

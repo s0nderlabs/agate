@@ -489,7 +489,7 @@ export function passkeyFirstText(f: PasskeyFailure): string {
     case "expired":
       return "That took too long. Try again.";
     case "rate_limited":
-      return "Too many tries from this network. Wait a minute, then try again.";
+      return f.hourly ? "Too many new accounts from this network. Try again in an hour." : "Too many tries from this network. Wait a minute, then try again.";
     case "signups_paused":
       return "New passkey accounts are paused for today. Use Google or your email instead.";
     case "rejected":

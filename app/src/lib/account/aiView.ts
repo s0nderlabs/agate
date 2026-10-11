@@ -40,9 +40,11 @@ export function statusText(g: Grant, events: ActivityEvent[] | undefined, now = 
  *  An autopilot roll goes through the same path, so its pocket.trade is what counts, never autopilot.rolled. */
 const isTrade = (e: ActivityEvent) => e.name === "pocket.trade";
 
-/** Trades counted against "trades a day": the AI's own and the autopilot's rolls, over the last 24 hours. */
-export function tradesIn24h(grantId: string, events: ActivityEvent[] | undefined, now = Date.now()) {
-  return (events ?? []).filter((e) => e.grantId === grantId && now - e.at < 86_400_000 && isTrade(e)).length;
+/** Trades counted against "trades a day": the AI's own and the autopilot's rolls, over the last 24 hours. Null while
+ *  the activity is not read (loading, or Agate's server unreachable): never a guessed 0. */
+export function tradesIn24h(grantId: string, events: ActivityEvent[] | undefined, now = Date.now()): number | null {
+  if (!events) return null;
+  return events.filter((e) => e.grantId === grantId && now - e.at < 86_400_000 && isTrade(e)).length;
 }
 
 /** A pocket.trade's or approval's summary: the server nests it under detail.summary. */
@@ -246,4 +248,40 @@ export function safeReturn(url: string | undefined | null): string | null {
   } catch {
     return null;
   }
+}
+
+// ===== how much of a connection is left, as both AI pages say it =====
+
+/** A share kept between 0 and 1 (0 for anything not a number). */
+export const clamp01 = (v: number) => (Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0);
+
+/** "6 days left", "5 hours left", "Under an hour left"; null once the time has passed. */
+export function timeLeftText(iso: string, now: number): string | null {
+  const ms = Date.parse(iso) - now;
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const days = Math.floor(ms / 86_400_000);
+  if (days >= 1) return `${days} ${days === 1 ? "day" : "days"} left`;
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours >= 1) return `${hours} ${hours === 1 ? "hour" : "hours"} left`;
+  return "Under an hour left";
+}
+
+/** The share of a connection's time still to run, from when it was connected to its end date. */
+export function timeLeftShare(g: Grant, now: number) {
+  const from = Date.parse(g.createdAt);
+  const to = Date.parse(g.expiresAt);
+  return to > from ? clamp01((to - now) / (to - from)) : 0;
+}
+
+/** What a pocket is measured against: what moved in when it was connected, while no more than that is in it. Once
+ *  more is in it (dollars added, a refund, a sale back into the pocket) only what is left is said, never a guessed total. */
+export function givenOf(g: Grant, left: number | undefined) {
+  const { budget } = limitsOf(g);
+  return left !== undefined && left > budget + 0.005 ? null : budget;
+}
+
+/** The trades it may still make right now, in words. */
+export function tradesLeftText(used: number, of: number) {
+  const n = Math.max(0, of - used);
+  return n > 0 ? `It can make ${n} more now.` : "It can trade again once one is 24 hours old.";
 }

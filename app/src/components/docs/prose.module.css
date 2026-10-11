@@ -1,6 +1,6 @@
 /* The docs' rich text, layered on the base prose rules in docs.module.css: highlighted code blocks with a header row
-   and Copy, callouts, a link beside each H2 and H3 (and a brief tint on the one a #link lands on), an arrow on links
-   that leave the docs, and framed tables. Every color is the app's tokens (or a mix of two of them), so the dark tone
+   and Copy, callouts, a # link beside each H2 and H3 (a click copies it, with a still "Link copied" note and no
+   motion), an arrow on links that leave the docs, and framed tables. Every color is the app's tokens (or a mix of two of them), so the dark tone
    (.tone-dark on the docs root) turns the whole of it over at once. Square corners, hairlines, nothing under 15 px.
    The HTML comes from the markdown at build time, so its class names are global here. */
 
@@ -215,18 +215,13 @@
   background: var(--bg);
 }
 
-/* ---------- heading links: a # after each H2 and H3, shown on hover or keyboard focus ---------- */
-.prose h2,
-.prose h3 {
-  position: relative;
-  isolation: isolate;
-}
+/* ---------- heading links: a # after each H2 and H3, always there in a quiet ink, full ink on hover or focus ---------- */
 .prose :global(a.anchor) {
   padding-left: 0.3em;
   font-weight: 400;
   color: var(--mute);
   text-decoration: none;
-  opacity: 0;
+  opacity: 0.55;
   -webkit-user-select: none;
   user-select: none;
   transition:
@@ -251,46 +246,41 @@
     color: var(--ink);
   }
 }
-/* landing on a heading by its #link tints it for a moment (a still tint, no fade, when motion is reduced) */
-.prose h2::after,
-.prose h3::after {
-  content: "";
+/* a click on the # copies the section's link: the # in full ink and "Link copied" beside it for a moment */
+.prose :global(a.anchor) {
+  position: relative;
+}
+.prose :global(a.anchor[data-copied]) {
+  opacity: 1;
+  color: var(--ink);
+}
+.prose :global(a.anchor[data-copied])::after {
+  content: "Link copied";
   position: absolute;
-  z-index: -1;
-  inset: -4px -10px -4px;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 3px 8px;
   border-radius: var(--r-1);
-  background: var(--line-2);
-  opacity: 0;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.3;
+  color: var(--ink);
+  white-space: nowrap;
   pointer-events: none;
+  z-index: 1;
 }
-.prose h2::after {
-  /* below the hairline that opens an H2 */
-  top: 18px;
+/* no room beside the # (its line ends near the column's edge, as on a phone): the note goes under it, its right edge
+   on the #'s, so it stays inside the column */
+.prose :global(a.anchor[data-copied="under"])::after {
+  left: auto;
+  right: 0;
+  top: calc(100% + 6px);
+  transform: none;
 }
-.prose h2:target::after,
-.prose h3:target::after,
-.prose h2[data-arrived]::after,
-.prose h3[data-arrived]::after {
-  animation: arrive 1.6s ease-out;
-}
-@keyframes arrive {
-  0%,
-  30% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-@keyframes arrive-still {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
 /* ---------- links that leave the docs: an arrow glued to the last character, so it never wraps alone ---------- */
 .prose :global(span.ext-tail) {
   white-space: nowrap;
@@ -364,32 +354,11 @@
   .prose :global(figure.code) > pre {
     border-radius: 0;
   }
-  .prose h2::after {
-    top: 14px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .prose :global(a.anchor) {
     transition: none;
   }
-  .prose h2:target::after,
-  .prose h3:target::after,
-  .prose h2[data-arrived]::after,
-  .prose h3[data-arrived]::after {
-    animation: arrive-still 1.6s steps(1, end);
-  }
 }
 
-/* the copy announcements: read out by a screen reader, never drawn */
-.live {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}

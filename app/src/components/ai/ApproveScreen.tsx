@@ -35,7 +35,7 @@ import { usd, usd0 } from "@/lib/format";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { showHours } from "@/lib/size";
 import { useNow } from "@/lib/ui/useNow";
-import { useScreenTheme } from "./AisScreen";
+import { useScreenTheme } from "./shared";
 import c from "@/components/connect/connect.module.css";
 
 type Trade = TradeState<ApprovalView>;

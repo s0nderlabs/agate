@@ -303,7 +303,6 @@
   }
   :global([data-phone="new"]) .links > .icon,
   :global([data-phone="new"]) .link[data-place="docs"],
-  :global([data-phone="new"]) .link[data-place="how"],
   :global([data-phone="new"]) .mode,
   :global([data-phone="new"]) .right > .icon {
     display: none;

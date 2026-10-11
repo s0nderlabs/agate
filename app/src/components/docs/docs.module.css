@@ -715,33 +715,50 @@
 }
 
 /* ---------- /docs: the contents ---------- */
+/* in the chapters' frame, where a chapter's text and its On this page sit: the headline and lede set as a chapter's,
+   so opening a chapter from here moves nothing but the words */
 .home {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 56px max(clamp(16px, 2.4vw, 32px), env(safe-area-inset-right)) 80px max(clamp(16px, 2.4vw, 32px), env(safe-area-inset-left));
+  container-type: inline-size;
+  max-width: 1060px;
+  padding: 40px 0 72px;
 }
 .homeHead {
   display: grid;
-  gap: 14px;
+  gap: 24px;
   max-width: 60ch;
-  margin-bottom: 32px;
+  margin-bottom: 36px;
 }
 .homeTitle {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: clamp(38px, 4.6vw, 54px);
-  line-height: 1.05;
-  letter-spacing: -0.015em;
+  font-size: clamp(32px, 3.2vw, 42px);
+  line-height: 1.12;
+  letter-spacing: -0.012em;
+  font-feature-settings: "lnum";
 }
 .lead {
-  font-size: 18px;
+  font-size: 19px;
   line-height: 1.55;
   color: var(--ink-2);
   text-wrap: pretty;
 }
+.homeStart {
+  font-size: 17px;
+  color: var(--ink-2);
+}
+.homeStart a {
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--line-2);
+}
+.homeStart a:hover {
+  text-decoration-color: currentColor;
+}
+/* the search sits in the chapter list beside the page; only a phone, where that list hides, shows it here */
 .homeSearch {
-  max-width: 440px;
-  margin-bottom: 36px;
+  display: none;
 }
 /* the four ways in: the landing's panel grid, square. One hairline between the cells (the grid's gap over the
    line colour), the frame's corners marked as the landing marks its frames, the whole cell the link */
@@ -826,12 +843,12 @@
     transform: translateX(3px);
   }
 }
-@media (max-width: 1023.98px) {
+@container (max-width: 860px) {
   .ways {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-@media (max-width: 559.98px) {
+@container (max-width: 520px) {
   .ways {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -842,7 +859,7 @@
 
 .homeGroup {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 200px minmax(0, 1fr);
   column-gap: 40px;
   padding: 26px 0 22px;
   box-shadow: inset 0 1px 0 var(--line);
@@ -1207,8 +1224,7 @@
     padding-bottom: calc(64px + env(safe-area-inset-bottom));
   }
   .home {
-    padding-top: 32px;
-    padding-bottom: 56px;
+    padding: 28px 0 48px;
   }
   .homeGroup {
     grid-template-columns: 1fr;
@@ -1221,7 +1237,7 @@
     padding: 0 0 6px;
   }
   .homeSearch {
-    max-width: none;
+    display: block;
     margin-bottom: 24px;
   }
 }
@@ -1239,4 +1255,21 @@
   .screen[data-phone="new"] {
     padding-bottom: calc(var(--dock-h, 0px) + env(safe-area-inset-bottom));
   }
+}
+/* a narrow page column (a tablet with the chapter list open): each group's name over its chapters */
+@container (max-width: 640px) {
+  .homeGroup {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 22px 0 16px;
+  }
+  .homeGroup > :not(.homeGroupName) {
+    grid-column: 1;
+  }
+  .homeGroupName {
+    padding: 0 0 6px;
+  }
+}
+/* a chapter's picture, set in its text (DocFigures): the text column's width */
+.figSlot {
+  margin: 4px 0 28px;
 }

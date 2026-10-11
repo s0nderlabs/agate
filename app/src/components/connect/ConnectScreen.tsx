@@ -11,7 +11,7 @@ import { useFlow } from "@/components/markets/Flow";
 import { NavBar } from "@/components/shell/Shell";
 import { CopyButton } from "@/components/flow/Copy";
 import { Check, StateMark, Steps, type StepRow } from "@/components/flow/Steps";
-import { useScreenTheme } from "@/components/ai/AisScreen";
+import { useScreenTheme } from "@/components/ai/shared";
 import { AI_APPS, appForLabel, appOf } from "@/components/ai/apps";
 import { AppPicker, CodeLine } from "@/components/ai/HowTo";
 import { useAccount } from "@/lib/account";

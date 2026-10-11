@@ -54,6 +54,18 @@ async function twice<T>(f: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Dynamic's key steps take about 6 seconds. One that never answers (seen in a private window, where no request even
+ *  goes out) fails after this, so the step says it stopped and offers Try again instead of waiting forever. */
+const KEY_STEP_MS = 45_000;
+
+function inTime<T>(p: Promise<T>, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, fail) => {
+    timer = setTimeout(() => fail(Object.assign(new Error(`${what} took longer than ${KEY_STEP_MS / 1000} s`), { name: "TimedOut" })), KEY_STEP_MS);
+  });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 const reverted = () => Object.assign(new Error("the operation landed and reverted"), { name: "WriteError", reason: "reverted", stage: "receipt" });
 const units = (dollars: number) => BigInt(Math.round(dollars * 1e6));
 
@@ -117,27 +129,33 @@ export function realAiBackend(o: { owner: string; address: string; onMoved: () =
         return { hasAssistant: !!a, address: a?.address ?? null, delegated: false, canDelegate: d ? d.lib.canDelegate(d.client) : false };
       },
       ensureAssistant: () =>
-        twice(async () => {
-          const { lib, client } = await assistantOf();
-          return (await lib.ensureAssistantWallet(client)).address;
-        }),
+        inTime(
+          twice(async () => {
+            const { lib, client } = await assistantOf();
+            return (await lib.ensureAssistantWallet(client)).address;
+          }),
+          "making the trading key",
+        ),
       delegate: () =>
-        twice(async () => {
-          const { lib, client, ws } = await assistantOf();
-          if (!ws.assistant) throw new Error("make the trading key first");
-          // delegating needs a fresh code's scope; without it Dynamic answers 403, so ask for the code first
-          if (!lib.canDelegate(client)) throw new StepUpNeeded();
-          // this step runs only when Agate's server holds no share of the key. Dynamic may still count it delegated
-          // (its message to Agate never arrived, say while the server was unreachable), and delegating again would then
-          // do nothing: switch it off first, so Dynamic sends the share once more. No AI can be trading on a key Agate
-          // never got, so nothing stops. A failed switch-off stops here (the key would still count as delegated), and
-          // Dynamic asks for a fresh code after one: the step then comes back and only delegates.
-          if (lib.isDelegated(client, ws.assistant)) {
-            await lib.revokeAssistant(client, ws.assistant);
+        inTime(
+          twice(async () => {
+            const { lib, client, ws } = await assistantOf();
+            if (!ws.assistant) throw new Error("make the trading key first");
+            // delegating needs a fresh code's scope; without it Dynamic answers 403, so ask for the code first
             if (!lib.canDelegate(client)) throw new StepUpNeeded();
-          }
-          await lib.delegateAssistant(client, ws.assistant);
-        }),
+            // this step runs only when Agate's server holds no share of the key. Dynamic may still count it delegated
+            // (its message to Agate never arrived, say while the server was unreachable), and delegating again would then
+            // do nothing: switch it off first, so Dynamic sends the share once more. No AI can be trading on a key Agate
+            // never got, so nothing stops. A failed switch-off stops here (the key would still count as delegated), and
+            // Dynamic asks for a fresh code after one: the step then comes back and only delegates.
+            if (lib.isDelegated(client, ws.assistant)) {
+              await lib.revokeAssistant(client, ws.assistant);
+              if (!lib.canDelegate(client)) throw new StepUpNeeded();
+            }
+            await lib.delegateAssistant(client, ws.assistant);
+          }),
+          "letting Agate use the trading key",
+        ),
       stepUpSend: async () => {
         const { lib, client } = await assistantOf();
         // an account made with a passkey has no email and no Dynamic passkey (its count reads 0): it confirms with its

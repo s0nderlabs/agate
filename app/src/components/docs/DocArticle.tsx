@@ -9,11 +9,14 @@ import { DOCS_PATH, GITHUB, GITHUB_BRANCH, type Heading } from "@/lib/docs/types
 import { useLinkQuery } from "@/lib/mock/store";
 import { docHref } from "./ChapterList";
 import { CodeCopy } from "./CodeCopy";
+import { useSay } from "@/lib/ui/useSay";
+import { isPlainClick, onHeadingLink } from "./anchorCopy";
+import { DocFigures } from "./DocFigures";
 import { PageActions } from "./PageActions";
 import s from "./docs.module.css";
 import p from "./prose.module.css";
 
-type Near = { slug: string; title: string } | null;
+export type Near = { slug: string; title: string } | null;
 
 /** The chapter's leading H1 apart from the rest, so the page actions can sit beside it (no title when it has none). */
 function splitTitle(html: string): { title: string | null; body: string } {
@@ -41,7 +44,7 @@ function Arrow({ back = false }: { back?: boolean }) {
 
 /** The section being read: the last heading whose anchor position has scrolled past (the bottom of the page counts
  *  as the last one). Read on scroll, at most once a frame. */
-function useReading(ids: string[]) {
+export function useReading(ids: string[]) {
   const [active, setActive] = useState<string | null>(ids[0] ?? null);
   const key = ids.join(" ");
   useEffect(() => {
@@ -77,6 +80,54 @@ function useReading(ids: string[]) {
   return active;
 }
 
+/** The foot of a chapter: the chapters before and after it, as two cards. */
+export function Pager({ prev, next, q }: { prev: Near; next: Near; q: string }) {
+  if (!prev && !next) return null;
+  return (
+    <nav className={s.pager} aria-label="More chapters">
+      {prev && (
+        <Link className={s.prev} href={docHref(prev.slug, null, q)} rel="prev">
+          <span className={s.pagerWhich}>
+            <Arrow back />
+            Previous
+          </span>
+          <b>{prev.title}</b>
+        </Link>
+      )}
+      {next && (
+        <Link className={s.next} href={docHref(next.slug, null, q)} rel="next">
+          <span className={s.pagerWhich}>
+            Next
+            <Arrow />
+          </span>
+          <b>{next.title}</b>
+        </Link>
+      )}
+    </nav>
+  );
+}
+
+/** On this page: the chapter's sections, the one being read marked. */
+export function Toc({ items, active }: { items: { id: string; text: string; depth: number }[]; active: string | null }) {
+  if (!items.length) return null;
+  return (
+    <nav className={s.toc} aria-labelledby="docs-toc">
+      <p className={s.tocHead} id="docs-toc">
+        On this page
+      </p>
+      <ul>
+        {items.map((h) => (
+          <li key={h.id} data-depth={h.depth}>
+            <a href={`#${h.id}`} aria-current={active === h.id ? "location" : undefined}>
+              {h.text}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
 export function DocArticle({ slug, file, html, toc, source, prev, next }: { slug: string; file: string; html: string; toc: Heading[]; source: string[]; prev: Near; next: Near }) {
   const router = useRouter();
   const linkQuery = useLinkQuery();
@@ -108,9 +159,12 @@ export function DocArticle({ slug, file, html, toc, source, prev, next }: { slug
     return () => ro.disconnect();
   }, [html]);
 
-  // links between chapters go through the router (no reload), keeping the link's mock states like the rest of the app
+  // a heading's # copies the section's link; links between chapters go through the router (no reload), keeping the
+  // link's mock states like the rest of the app
+  const [said, say] = useSay();
   const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (onHeadingLink(e, say)) return;
+    if (!isPlainClick(e)) return;
     const a = (e.target as HTMLElement).closest("a");
     const href = a?.getAttribute("href") ?? "";
     if (!/^\/docs\/[a-z0-9-]+(#.*)?$/.test(href)) return;
@@ -131,7 +185,12 @@ export function DocArticle({ slug, file, html, toc, source, prev, next }: { slug
           </div>
         </header>
         <div className={`${s.prose} ${p.prose} ${s.body}`} ref={body} onClick={onClick} dangerouslySetInnerHTML={{ __html: parts.body }} />
-        <CodeCopy />
+        <DocFigures slug={slug} root={body} html={parts.body} />
+        {/* one region reads out both copies: a code block's and a heading's # */}
+        <span className="sr-only" role="status" aria-live="polite">
+          {said}
+        </span>
+        <CodeCopy say={say} />
         <footer className={s.foot}>
           <div className={s.meta}>
             <ul className={s.metaLinks}>
@@ -156,46 +215,10 @@ export function DocArticle({ slug, file, html, toc, source, prev, next }: { slug
               </p>
             )}
           </div>
-          {(prev || next) && (
-            <nav className={s.pager} aria-label="More chapters">
-              {prev && (
-                <Link className={s.prev} href={docHref(prev.slug, null, linkQuery)} rel="prev">
-                  <span className={s.pagerWhich}>
-                    <Arrow back />
-                    Previous
-                  </span>
-                  <b>{prev.title}</b>
-                </Link>
-              )}
-              {next && (
-                <Link className={s.next} href={docHref(next.slug, null, linkQuery)} rel="next">
-                  <span className={s.pagerWhich}>
-                    Next
-                    <Arrow />
-                  </span>
-                  <b>{next.title}</b>
-                </Link>
-              )}
-            </nav>
-          )}
+          <Pager prev={prev} next={next} q={linkQuery} />
         </footer>
       </article>
-      {toc.length > 0 && (
-        <nav className={s.toc} aria-labelledby="docs-toc">
-          <p className={s.tocHead} id="docs-toc">
-            On this page
-          </p>
-          <ul>
-            {toc.map((h) => (
-              <li key={h.id} data-depth={h.depth}>
-                <a href={`#${h.id}`} aria-current={active === h.id ? "location" : undefined}>
-                  {h.text}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      )}
+      <Toc items={toc} active={active} />
     </main>
   );
 }

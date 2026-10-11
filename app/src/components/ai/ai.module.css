@@ -55,9 +55,6 @@
 .banner > :global(.ag-btn) {
   min-height: 44px;
 }
-.down {
-  color: var(--down);
-}
 .textDown {
   color: var(--down);
 }
@@ -65,159 +62,9 @@
   text-decoration-color: color-mix(in oklch, var(--down) 40%, transparent);
 }
 
-/* ---------- the list of AIs ---------- */
-.list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  box-shadow: inset 0 1px 0 var(--line);
-}
-.row,
-.cols {
-  display: grid;
-  /* fixed-width actions, so the header row and every AI row share their columns */
-  grid-template-columns: minmax(170px, 1.3fr) minmax(140px, 1.1fr) minmax(64px, 0.6fr) minmax(96px, 0.8fr) minmax(150px, 1.1fr) 170px;
-  gap: 14px;
-  align-items: center;
-}
-.cols {
-  font-size: 15px;
-  color: var(--ink-2);
-  padding: 0 0 10px;
-  align-items: end;
-}
-.row {
-  position: relative;
-  min-height: 72px;
-  padding: 12px 0;
-  box-shadow: inset 0 -1px 0 var(--line);
-}
-.who {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 2px 12px;
-  min-width: 0;
-}
-.who > :first-child {
-  grid-row: span 2;
-}
-.name {
-  font-size: 17px;
-  font-weight: 500;
-  color: var(--ink);
-  text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .status {
   font-size: 15px;
   color: var(--mute-text);
-}
-.fig {
-  font-size: 17px;
-  min-width: 0;
-}
-.fig[data-k="ends"] {
-  white-space: nowrap;
-}
-.fig small {
-  font-size: 15px;
-  color: var(--mute-text);
-}
-.fig .k {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-.rowActs {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  justify-content: flex-end;
-}
-.rowActs > :global(.ag-btn) {
-  min-height: 44px;
-  padding: 0 16px;
-  display: inline-flex;
-  align-items: center;
-  text-decoration: none;
-}
-.cardLines {
-  display: none;
-}
-.skelRow {
-  height: 72px;
-  box-shadow: inset 0 -1px 0 var(--line);
-  display: grid;
-  align-items: center;
-}
-.skelRow > span {
-  height: 22px;
-  width: 60%;
-}
-
-/* a list narrower than its columns (a phone, or the frame's list beside its 400 px column up to about 1300 px wide):
-   each AI becomes a card, the whole card leads to its page */
-@container ais (max-width: 899.98px) {
-  .cols {
-    display: none;
-  }
-  .row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 4px 12px;
-    min-height: 52px;
-    padding: 14px 0;
-  }
-  .who {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 12px;
-    grid-column: 1 / -1;
-  }
-  .who > :first-child {
-    grid-row: auto;
-  }
-  .fig {
-    display: none;
-  }
-  .cardLines {
-    display: grid;
-    gap: 2px;
-    grid-column: 1 / -1;
-  }
-  .cardLines > :first-child {
-    font-size: 15px;
-    color: var(--ink-2);
-  }
-  .cardLines > :last-child {
-    font-size: 15px;
-    color: var(--mute-text);
-  }
-  /* the name's link covers the card; Disconnect lives on the AI's own page */
-  .name::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-  }
-  .rowActs {
-    display: none;
-  }
-  .ended .rowActs {
-    display: flex;
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-    position: relative;
-    z-index: 1;
-  }
-  .ended .rowActs > :not([data-keep]) {
-    display: none;
-  }
 }
 
 /* ---------- one AI ---------- */
@@ -278,72 +125,6 @@
   font-size: 16px;
   text-wrap: pretty;
 }
-.feed {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  box-shadow: inset 0 1px 0 var(--line);
-}
-.feed > li {
-  min-height: 56px;
-  padding: 10px 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 16px;
-  align-items: baseline;
-  box-shadow: inset 0 -1px 0 var(--line);
-}
-.feedText {
-  font-size: 16px;
-  text-wrap: pretty;
-}
-.feed > li[data-quiet] .feedText {
-  color: var(--ink-2);
-}
-.feedAmt {
-  font-size: 17px;
-  text-align: right;
-}
-.feedWhen {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 14px;
-  font-size: 15px;
-  color: var(--mute-text);
-}
-.feedWhen a {
-  color: var(--ink-2);
-}
-.autos {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  box-shadow: inset 0 1px 0 var(--line);
-}
-.autos > li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 16px;
-  align-items: center;
-  min-height: 56px;
-  padding: 10px 0;
-  box-shadow: inset 0 -1px 0 var(--line);
-}
-.autos > li > div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-.autos b {
-  font-weight: 500;
-}
-.autos > li > :global(.ag-btn) {
-  min-height: 44px;
-  padding: 0 16px;
-}
 .tabs {
   display: none;
 }
@@ -385,25 +166,6 @@
   }
   .screen[data-phone="new"] .stack > :global(.ag-textbtn) {
     justify-content: center;
-  }
-  .screen[data-phone="new"] .feedWhen a {
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-  }
-  .screen[data-phone="new"] .feedWhen {
-    align-items: center;
-  }
-}
-/* a touch tablet: the activity's Explorer links get the phone's 44 px too */
-@media (pointer: coarse) {
-  .screen[data-phone="new"] .feedWhen a {
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-  }
-  .screen[data-phone="new"] .feedWhen {
-    align-items: center;
   }
 }
 
@@ -470,11 +232,6 @@
 .railNote h3 {
   font-size: 15px;
   font-weight: 500;
-}
-.railNote p {
-  font-size: 15px;
-  color: var(--mute-text);
-  text-wrap: pretty;
 }
 /* nothing to list yet: one card in the panel's middle, the apps' marks over the words */
 .invite {
@@ -574,5 +331,94 @@
 @media (max-width: 639.98px) {
   .ident {
     flex-basis: 100%;
+  }
+}
+
+/* ---------- the small pictures both AI pages draw (shared.tsx): a gauge and a tally, 6 px tall ---------- */
+.meter {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+  overflow: hidden;
+}
+.meter > i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 1px;
+  background: var(--ink-2);
+  transition: width 0.4s ease;
+}
+.tally {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 3px;
+  height: 6px;
+}
+.tally > i {
+  border-radius: 1px;
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.tally > i[data-on] {
+  background: var(--ink-2);
+  box-shadow: none;
+}
+
+/* ---------- an activity line, as both AI pages list it: its words and amount, then when and its Explorer link ---------- */
+.actBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 16px;
+  min-width: 0;
+}
+.actText {
+  font-size: 16px;
+  text-wrap: pretty;
+}
+:is([data-quiet], [data-kind="quiet"]) > .actBody > .actText {
+  color: var(--ink-2);
+}
+.actAmt {
+  font-size: 17px;
+  font-weight: 500;
+  text-align: right;
+}
+.actMeta {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+  font-size: 15px;
+  color: var(--mute-text);
+}
+.actMeta a {
+  color: var(--ink-2);
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 3px;
+}
+/* a phone or a touch screen: its links get a 44 px target */
+@media (max-width: 639.98px), (pointer: coarse) {
+  .actMeta a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* phones: the market header's two columns are for two prices; on the AI pages the pocket figure takes the whole width
+   and the four figures sit under it, two to a row, so none of them is squeezed or clipped */
+@media (max-width: 639.98px) {
+  [data-phone="new"] .wideHead > * {
+    grid-column: 1 / -1;
+  }
+  [data-phone="new"] section > .wideHead.wideHead {
+    row-gap: 18px;
   }
 }

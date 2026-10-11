@@ -1,5 +1,5 @@
 import { AppProviders } from "@/components/app/AppProviders";
-import { AiCardScreen } from "@/components/ai/AiCard";
+import { OneAi } from "@/components/ai/OneAi";
 import { pageConfig } from "@/lib/mock/savedTheme";
 
 export default async function AiPage({ params, searchParams }: PageProps<"/app/ai/[id]">) {
@@ -7,7 +7,7 @@ export default async function AiPage({ params, searchParams }: PageProps<"/app/a
   const initial = await pageConfig(sp);
   return (
     <AppProviders initial={initial}>
-      <AiCardScreen id={decodeURIComponent(id)} />
+      <OneAi id={decodeURIComponent(id)} />
     </AppProviders>
   );
 }

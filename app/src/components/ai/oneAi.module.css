@@ -1,0 +1,263 @@
+/* One AI's page, enhanced in place: the market frame and its panels stay (ai.module.css, trade.module.css); the gauge
+   and tally are shared with Connected AIs (ai.module.css, drawn by shared.tsx). These are the header's pictures and notes, the timeline, the
+   next step with no positions, the payouts and address card, and the hedge switches. Tokens only, square corners. */
+
+/* ---------- the header ---------- */
+/* the pocket's gauge sits under its figure, as wide as the block, never narrower than a short figure */
+.pocketBlock {
+  min-width: 220px;
+}
+.stats > div {
+  align-content: start;
+}
+/* every figure but the last keeps its right padding, so a picture never runs into the next hairline */
+@media (min-width: 601px) {
+  dl.stats > div:not(:last-child) {
+    padding-right: 22px;
+  }
+}
+.ddPic {
+  display: block;
+  min-width: 120px;
+  margin-top: 8px;
+}
+.ddSub {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--mute-text);
+  white-space: normal;
+  text-wrap: pretty;
+}
+
+/* ---------- what it did, as a timeline by day ---------- */
+.tl {
+  display: grid;
+  gap: 20px;
+}
+.tlDay {
+  display: grid;
+  gap: 8px;
+}
+.tlDayH {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-2);
+  padding-bottom: 8px;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.tlList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.tlList > li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 6px 0 14px;
+}
+/* the line from one mark down to the next; each mark sits on its own ground, so the line passes behind it */
+.tlList > li::before {
+  content: "";
+  position: absolute;
+  left: 9.5px;
+  top: 22px;
+  bottom: -13px;
+  width: 1px;
+  background: var(--line-2);
+}
+.tlList > li:last-child::before {
+  display: none;
+}
+.tlDot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  margin: 7.5px 0 0 6px;
+  border-radius: 1px;
+  background: var(--ink-2);
+}
+.tlList > li[data-kind="trade"] .tlDot {
+  width: 10px;
+  height: 10px;
+  margin: 6.5px 0 0 5px;
+  background: var(--ink);
+}
+.tlList > li[data-kind="quiet"] .tlDot {
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1.5px var(--mute-text);
+}
+/* ---------- no positions yet: the next step, in a quiet well ---------- */
+.next {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 18px;
+  border-radius: var(--r-1);
+  background: var(--well);
+}
+.nextH {
+  font-size: 16px;
+  font-weight: 500;
+}
+.nextBtn {
+  margin-top: 6px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  background: var(--panel);
+}
+
+/* ---------- where the money goes: payouts and the pocket's address, label over value ---------- */
+.where {
+  display: grid;
+  padding: 2px 16px;
+  border-radius: var(--r-1);
+  background: var(--well);
+}
+.whereRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 12px 0;
+}
+.whereRow + .whereRow {
+  box-shadow: inset 0 1px 0 var(--line);
+}
+.whereK {
+  grid-column: 1 / -1;
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.whereV {
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+.whereActs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px 16px;
+}
+.whereActs > :global(.ag-input) {
+  flex-basis: 100%;
+}
+@media (max-width: 639.98px) {
+  .whereActs > :global(.ag-textbtn) {
+    min-height: 44px;
+  }
+}
+
+/* ---------- keep my hedge going: a switch per GPU ---------- */
+.autos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  box-shadow: inset 0 1px 0 var(--line);
+}
+/* the GPU and its switch on one line, what it does (or did) under them across the whole width */
+.autos > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 16px;
+  padding: 6px 0 12px;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.autoName {
+  font-size: 16px;
+  font-weight: 500;
+}
+.autoLine {
+  grid-column: 1 / -1;
+  margin-top: -4px;
+}
+.autos > li > .switchWord {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 0 0 8px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.switch > i {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  border-radius: 2px;
+  background: var(--well);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.switch > i::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 1px;
+  background: var(--panel);
+  box-shadow: var(--lift), inset 0 0 0 1px var(--line-2);
+  transition: transform 0.18s ease;
+}
+.switch[aria-checked="true"] > i {
+  background: var(--ink);
+  box-shadow: none;
+}
+.switch[aria-checked="true"] > i::after {
+  transform: translateX(16px);
+  box-shadow: none;
+}
+.switch:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.switch:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.switchWord {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+.switch[aria-checked="true"] .switchWord,
+.autos > li[data-on] > .switchWord {
+  color: var(--ink);
+  font-weight: 500;
+}
+@media (hover: hover) and (pointer: fine) {
+  .switch:not(:disabled):hover > i {
+    box-shadow: inset 0 0 0 1px var(--ink-2);
+  }
+  .switch[aria-checked="true"]:not(:disabled):hover > i {
+    box-shadow: none;
+  }
+}
+
+/* phones: the name, then the pocket with its gauge across the whole width (ai.module.css .wideHead), then the four
+   figures two to a row */
+@media (max-width: 639.98px) {
+  [data-phone="new"] .pocketBlock {
+    min-width: 0;
+  }
+}

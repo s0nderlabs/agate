@@ -1,4 +1,5 @@
 import { getChapters } from "@/lib/docs/content";
+import { HOW_SOURCE } from "@/lib/docs/explainer";
 import { buildSearchIndex } from "@/lib/docs/search";
 
 // The docs search's index: one entry per chapter and one per H2 and H3 section, each text cut near 600 characters.
@@ -6,5 +7,5 @@ import { buildSearchIndex } from "@/lib/docs/search";
 export const dynamic = "force-static";
 
 export function GET() {
-  return Response.json(buildSearchIndex(getChapters()));
+  return Response.json(buildSearchIndex([HOW_SOURCE, ...getChapters()]));
 }

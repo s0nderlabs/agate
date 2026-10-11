@@ -35,6 +35,8 @@ export type PasskeyFailureCode = import("@agate/wallet/dynamic").PasskeyErrorCod
 export interface PasskeyFailure {
   code: PasskeyFailureCode;
   mode: PasskeyMode;
+  /** rate_limited by the cap on new accounts per network (an hour), not the per-minute one */
+  hourly?: boolean;
 }
 
 /** The sign-in machine's step, with what that step carries (spec 3.1). */

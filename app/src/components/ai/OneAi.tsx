@@ -1,7 +1,9 @@
 "use client";
-// One AI (/ai/[id], wallet spec 10.3, screen 10): its pocket and limits on the left; on the right a request waiting
-// for the person, "Keep my hedge going" per GPU, what it did (trades, refusals with the rule in plain words, rolls,
-// autopilot events, approvals) and the positions its pocket holds, which keep paying the person's account.
+// One AI's page (/app/ai/<id>), in the market frame: the strip with the way back, the figures across the top, what it
+// did under them, its pocket and limits in the column on the right. Its pocket shows
+// as a gauge of what is left of what moved in, its trades as a tally of what it may make, its time as a gauge to the
+// end date; what it did reads as a timeline by day; with no positions yet, the next step; "Keep my hedge going" is a
+// switch per GPU with one line each; the payouts and the pocket's address sit in one tidy card.
 import Link from "next/link";
 import { useState } from "react";
 import { useFlow } from "@/components/markets/Flow";
@@ -12,19 +14,21 @@ import { CopyButton } from "@/components/flow/Copy";
 import { PositionCards } from "@/components/trade/ProParts";
 import { useAccount } from "@/lib/account";
 import { ROLL_GPUS, useActivity, useAiBackend, useAiRefresh, useApprovals, useGrants, usePocket, useStandingOrders } from "@/lib/account/ai";
-import { activityLine, approvalWhat, clock, explorerAddress, explorerTx, grantState, limitsOf, shortAddress, spentOf, tradesIn24h, disconnectedAt } from "@/lib/account/aiView";
-import type { ApprovalView, Grant, StandingOrder } from "@/lib/account/api";
+import { activityLine, approvalWhat, clock, disconnectedAt, explorerAddress, explorerTx, givenOf, grantState, limitsOf, shortAddress, spentOf, timeLeftShare, timeLeftText, tradesIn24h, tradesLeftText } from "@/lib/account/aiView";
+import type { ActivityEvent, ApprovalView, Grant, StandingOrder } from "@/lib/account/api";
 import { autopilotText } from "@/lib/account/errors";
 import { approvalOpen } from "@/lib/account/machine";
 import { useLastFor } from "@/lib/data/hooks";
-import { timeText, whenText } from "@/lib/data/derive";
+import { dateText, timeText, whenText } from "@/lib/data/derive";
 import { usd0 } from "@/lib/format";
+import { PLACES } from "@/lib/places";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { useNow } from "@/lib/ui/useNow";
-import { Invite, OFFLINE_LINE, useScreenTheme } from "./AisScreen";
+import { Invite, Meter, OFFLINE_LINE, Tally, useScreenTheme } from "./shared";
 import { AppMark, appForLabel } from "./apps";
 import t from "@/components/trade/trade.module.css";
 import s from "./ai.module.css";
+import c from "./oneAi.module.css";
 
 function Back() {
   const q = useLinkQuery();
@@ -38,15 +42,25 @@ function Back() {
   );
 }
 
-export function AiCardScreen({ id }: { id: string }) {
+/** "Connected AIs" as a button, for a page with nothing else to show. */
+function BackButton() {
+  const q = useLinkQuery();
+  return (
+    <Link className="ag-btn ag-btn--ghost" href={`/app/ai${q}`}>
+      Connected AIs
+    </Link>
+  );
+}
+
+export function OneAi({ id }: { id: string }) {
   const { config } = useMock();
   const tone = useScreenTheme();
   const account = useAccount();
   const flow = useFlow();
   const grants = useGrants({ poll: true });
-  const g = grants.data?.find((x) => x.id === id);
+  const g = grants.data?.find((v) => v.id === id);
 
-  // every state but the card itself: one panel under the strip, its words in the middle
+  // every state but the page itself: one panel under the strip, its words in the middle
   const alone = (node: React.ReactNode, busy = false) => (
     <div className={s.frameOne} aria-busy={busy || undefined}>
       <section className={`${t.panel} ${s.listPanel}`}>{node}</section>
@@ -80,7 +94,7 @@ export function AiCardScreen({ id }: { id: string }) {
         )}
       </Invite>,
     );
-  } else body = <Card g={g} />;
+  } else body = <Page g={g} />;
 
   return (
     <div className={`${t.screen} ${s.screen} ${tone}`} data-phone={config.phone}>
@@ -96,19 +110,10 @@ export function AiCardScreen({ id }: { id: string }) {
   );
 }
 
-/** "Connected AIs" as a button, for a page with nothing else to show. */
-function BackButton() {
-  const q = useLinkQuery();
-  return (
-    <Link className="ag-btn ag-btn--ghost" href={`/app/ai${q}`}>
-      Connected AIs
-    </Link>
-  );
-}
-
-function Card({ g }: { g: Grant }) {
+function Page({ g }: { g: Grant }) {
   const account = useAccount();
   const flow = useFlow();
+  const q = useLinkQuery();
   const now = useNow(30_000);
   const pocket = usePocket(g.pocket);
   const activity = useActivity(g.id, { poll: true });
@@ -125,6 +130,8 @@ function Card({ g }: { g: Grant }) {
   // a request waits only while the AI is connected: one left from before a disconnect or the end date has ended
   const waiting = st === "active" ? (approvals.data ?? []).filter((a) => a.grantId === g.id && approvalOpen(a, now)) : [];
   const target = { pocket: g.pocket, ai: g.label, ended: st !== "active" };
+  const given = givenOf(g, left);
+  const timeLeft = timeLeftText(g.expiresAt, now);
 
   // the end date is the header's last figure; the line under the name says only how it stands
   const connectedLine = `Connected ${whenText(g.createdAt)}.${st === "ended" ? " Its permission has ended." : st === "disconnected" ? " Disconnected." : ""}`;
@@ -133,43 +140,70 @@ function Card({ g }: { g: Grant }) {
   return (
     <div className={s.frame}>
       <section className={`${t.panel} ${t.headPanel} ${s.figs}`} aria-label={`${g.label}'s pocket`}>
-        <div className={t.hsRow}>
+        <div className={`${t.hsRow} ${s.wideHead}`}>
           <div className={s.ident}>
-            <AppMark app={appForLabel(g.label)} name={g.label} size={48} />
+            <AppMark app={appForLabel(g.label)} name={g.label} size={56} />
             <div className={s.pocketHead}>
               <h1 className={s.cardH1}>{g.label}</h1>
               <p className={s.quiet}>{connectedLine}</p>
             </div>
           </div>
-          <div className={t.priceBlock}>
+          <div className={`${t.priceBlock} ${c.pocketBlock}`}>
             <span className={t.pLabel}>In {g.label}'s pocket</span>
             {pocket.isError ? (
               <span className={s.err}>Can't read the pocket right now. Trying again.</span>
             ) : (
               <span className={`${t.bigPrice} font-display ${sk}`}>{left === undefined ? "$000" : usd0(left)}</span>
             )}
-            <span className={t.pSub}>{`Moved in when connected: ${usd0(lim.budget)}`}</span>
+            {given !== null && left !== undefined && <Meter f={given > 0 ? left / given : 0} />}
+            <span className={t.pSub}>{given !== null && left !== undefined ? `Left of the ${usd0(given)} moved in when connected` : `Moved in when connected: ${usd0(lim.budget)}`}</span>
           </div>
-          <dl className={`${t.hsGrid} ${s.stats}`}>
+          <dl className={`${t.hsGrid} ${s.stats} ${c.stats}`}>
             <div>
               <dt>Spent</dt>
-              <dd>{spent === null ? <small>Not yet shown</small> : <Num>{usd0(spent)}</Num>}</dd>
+              <dd>
+                {spent === null ? <small>Not yet shown</small> : <Num>{usd0(spent)}</Num>}
+              </dd>
             </div>
             <div>
               <dt>Most on one trade</dt>
               <dd>
                 <Num>{usd0(lim.perTradeCap)}</Num>
+                <span className={c.ddSub}>The limit you set</span>
               </dd>
             </div>
             <div>
               <dt>Trades in the last 24 hours</dt>
               <dd>
-                <Num>{`${trades} of ${lim.tradesPerDay}`}</Num>
+                {trades === null ? (
+                  <small>Not yet shown</small>
+                ) : (
+                  <>
+                    <Num>{String(trades)}</Num>
+                    <small> of {lim.tradesPerDay}</small>
+                    <span className={c.ddPic}>
+                      <Tally used={trades} of={lim.tradesPerDay} />
+                    </span>
+                    {st === "active" && <span className={c.ddSub}>{tradesLeftText(trades, lim.tradesPerDay)}</span>}
+                  </>
+                )}
               </dd>
             </div>
             <div>
-              <dt>{st === "active" ? "Ends" : "Ended"}</dt>
-              <dd>{whenText(st === "disconnected" && offAt ? offAt : g.expiresAt)}</dd>
+              <dt>{st === "active" ? "Time left" : "Ended"}</dt>
+              <dd>
+                {st === "active" ? (
+                  <>
+                    {timeLeft ?? "Ending now"}
+                    <span className={c.ddPic}>
+                      <Meter f={timeLeftShare(g, now)} />
+                    </span>
+                    <span className={c.ddSub}>Ends {whenText(g.expiresAt)}</span>
+                  </>
+                ) : (
+                  whenText(st === "disconnected" && offAt ? offAt : g.expiresAt)
+                )}
+              </dd>
             </div>
           </dl>
         </div>
@@ -191,7 +225,7 @@ function Card({ g }: { g: Grant }) {
             Activity
           </button>
           <button type="button" role="tab" aria-selected={tab === "positions"} onClick={() => setTab("positions")}>
-            Positions ({positions.length})
+            Positions{pocket.data ? ` (${positions.length})` : ""}
           </button>
         </div>
         <section className={s.section} data-tab="activity" data-shown={tab === "activity"} aria-labelledby="act-h">
@@ -199,11 +233,7 @@ function Card({ g }: { g: Grant }) {
             Activity
           </h2>
           {activity.isError && <p className={s.err}>Can't load the activity right now. Trying again.</p>}
-          {activity.isPending ? (
-            <span className="ag-skel ag-skel-on">Loading the activity</span>
-          ) : (
-            <Feed g={g} events={activity.data ?? []} />
-          )}
+          {activity.isPending ? <span className="ag-skel ag-skel-on">Loading the activity</span> : <Timeline g={g} events={activity.data ?? []} now={now} />}
         </section>
         <section className={s.section} data-tab="positions" data-shown={tab === "positions"} aria-labelledby="pos-h">
           <h2 id="pos-h" className={`${s.h2} ${s.panelH2}`}>
@@ -211,13 +241,24 @@ function Card({ g }: { g: Grant }) {
           </h2>
           {pocket.isPending ? (
             <span className="ag-skel ag-skel-on">Loading its positions</span>
+          ) : !pocket.data ? (
+            // the pocket could not be read: say so, never "no positions"
+            <p className={s.err}>Can't read its positions right now. Trying again.</p>
           ) : positions.length ? (
             <>
               <p className={s.line}>Held by {g.label}, paying your account.</p>
               <PositionCards positions={positions} lastFor={lastFor} closable={false} />
             </>
+          ) : st === "active" ? (
+            <div className={c.next}>
+              <p className={c.nextH}>{g.label} hasn't opened any positions yet.</p>
+              <p className={s.line}>Ask {g.label} to go Long or Short on a GPU month. What it opens shows here, and its payouts come to your account.</p>
+              <Link className={`ag-btn ag-btn--ghost ${c.nextBtn}`} href={`${PLACES.markets}${q}`}>
+                See the markets
+              </Link>
+            </div>
           ) : (
-            <p className={s.line}>{g.label} hasn't opened any positions yet.</p>
+            <p className={s.line}>{g.label} didn't open any positions.</p>
           )}
         </section>
       </section>
@@ -253,17 +294,27 @@ function Card({ g }: { g: Grant }) {
             </div>
           </div>
         )}
-        <div className="ag-rows">
-          <div>
-            <span>Payouts go to</span>
-            <span>Your account, {shortAddress(account.address)}</span>
+        <div className={c.where}>
+          <div className={c.whereRow}>
+            <span className={c.whereK}>Payouts go to</span>
+            <span className={c.whereV}>
+              Your account
+              {account.address && (
+                <>
+                  {" "}
+                  <Num>{shortAddress(account.address)}</Num>
+                </>
+              )}
+            </span>
           </div>
-          <div>
-            <span>Pocket address</span>
-            <span className="ag-val">
+          <div className={c.whereRow}>
+            <span className={c.whereK}>Pocket address</span>
+            <span className={c.whereV}>
               <Num>{shortAddress(g.pocket)}</Num>
+            </span>
+            <span className={c.whereActs}>
               <CopyButton text={g.pocket} what={`${g.label}'s pocket address`} />
-              <a href={explorerAddress(g.pocket)} target="_blank" rel="noreferrer">
+              <a className="ag-textbtn" href={explorerAddress(g.pocket)} target="_blank" rel="noreferrer">
                 Explorer
               </a>
             </span>
@@ -333,7 +384,8 @@ function leadText(min: number) {
   return `${min} minutes`;
 }
 
-/** "Keep my hedge going": per GPU, roll the pocket's Long into the next month before the month it holds closes. */
+/** "Keep my hedge going": per GPU, roll the pocket's Long into the next month before the month it holds closes. A
+ *  switch each, with one line: what it checks and its last result when on, what it would do when off. */
 function Autopilot({ g, active }: { g: Grant; active: boolean }) {
   const orders = useStandingOrders(g.id);
   const { backend } = useAiBackend();
@@ -341,7 +393,7 @@ function Autopilot({ g, active }: { g: Grant; active: boolean }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const list = orders.data ?? [];
-  const latest = (gpu: string): StandingOrder | undefined => list.filter((o) => o.gpu === gpu).sort((x, y) => y.createdAt - x.createdAt)[0];
+  const latest = (gpu: string): StandingOrder | undefined => list.filter((o) => o.gpu === gpu).sort((p, n) => n.createdAt - p.createdAt)[0];
   const act = async (gpu: string, o: StandingOrder | undefined) => {
     setBusy(gpu);
     setError(null);
@@ -367,26 +419,34 @@ function Autopilot({ g, active }: { g: Grant; active: boolean }) {
           : `Stopped when ${g.label}'s permission ended.`}
       </p>
       {error && <p className={s.err}>{error}</p>}
-      <ul className={s.autos}>
+      <ul className={c.autos}>
         {ROLL_GPUS.map((gpu) => {
           const o = latest(gpu);
           const on = o?.status === "active";
           if (!active && !o) return null;
+          const line = on ? `Checks ${leadText(o!.leadMinutes)} before a month closes. ${autopilotText(o!.lastResult)}` : active ? `Moves its ${gpu} Long into the next month.` : "Stopped.";
+          const word = busy === gpu ? (on ? "Stopping" : "Starting") : on ? "On" : "Off";
           return (
-            <li key={gpu}>
-              <div>
-                <b>
-                  {gpu}: {on ? "on" : "off"}
-                </b>
-                <span className={s.quiet}>
-                  {on ? `Checks ${leadText(o!.leadMinutes)} before a month closes. ${autopilotText(o!.lastResult)}` : o ? "Stopped." : "Not on."}
-                </span>
-              </div>
-              {active && (
-                <button className="ag-btn ag-btn--ghost" type="button" disabled={busy === gpu || orders.isPending} onClick={() => act(gpu, o)}>
-                  {busy === gpu ? (on ? "Stopping" : "Starting") : on ? "Stop" : "Start"}
+            <li key={gpu} data-on={on || undefined}>
+              <span className={c.autoName}>{gpu}</span>
+              {active ? (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  aria-label={`Keep the ${gpu} hedge going`}
+                  aria-busy={busy === gpu || undefined}
+                  className={c.switch}
+                  disabled={busy === gpu || orders.isPending}
+                  onClick={() => act(gpu, o)}
+                >
+                  <span className={c.switchWord}>{word}</span>
+                  <i aria-hidden="true" />
                 </button>
+              ) : (
+                <span className={c.switchWord}>{on ? "On" : "Off"}</span>
               )}
+              <span className={`${s.quiet} ${c.autoLine}`}>{line}</span>
             </li>
           );
         })}
@@ -395,25 +455,65 @@ function Autopilot({ g, active }: { g: Grant; active: boolean }) {
   );
 }
 
-function Feed({ g, events }: { g: Grant; events: import("@/lib/account/api").ActivityEvent[] }) {
-  const lines = events.map((e) => ({ e, line: activityLine(e, g.label) })).filter((x) => x.line);
+/** A UTC day: "2026-10-11". */
+const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+/** "Today", "Yesterday", else "Oct 9" (UTC, as every time on the page). */
+function dayText(day: string, now: number) {
+  if (day === dayOf(now)) return "Today";
+  if (day === dayOf(now - 86_400_000)) return "Yesterday";
+  return dateText(day);
+}
+
+/** What it did as a timeline, newest first, by day: a mark per entry (filled for a trade, hollow for a refusal or a
+ *  failure), the sentence, its dollars on the right, the time and the transaction under it. */
+function Timeline({ g, events, now }: { g: Grant; events: ActivityEvent[]; now: number }) {
+  const lines = events
+    .map((e) => ({ e, line: activityLine(e, g.label) }))
+    .filter((v) => v.line)
+    .sort((p, n) => n.e.at - p.e.at);
   if (!lines.length) return <p className={s.line}>Nothing yet. {g.label}'s trades show here as they happen.</p>;
+  const days: { day: string; items: typeof lines }[] = [];
+  for (const it of lines) {
+    const day = dayOf(it.e.at);
+    const last = days[days.length - 1];
+    if (last && last.day === day) last.items.push(it);
+    else days.push({ day, items: [it] });
+  }
   return (
-    <ul className={s.feed}>
-      {lines.map(({ e, line }, i) => (
-        <li key={`${e.at}-${e.name}-${i}`} data-quiet={line!.quiet || undefined}>
-          <span className={s.feedText}>{line!.text}</span>
-          <span className={s.feedAmt}>{line!.amount ? <Num>{usd0(line!.amount)}</Num> : null}</span>
-          <span className={s.feedWhen}>
-            <span>{whenText(new Date(e.at).toISOString())}</span>
-            {line!.txHash && (
-              <a href={explorerTx(line!.txHash)} target="_blank" rel="noreferrer">
-                Explorer
-              </a>
-            )}
-          </span>
-        </li>
+    <div className={c.tl}>
+      {days.map(({ day, items }) => (
+        <section key={day} className={c.tlDay} aria-label={dayText(day, now)}>
+          <h3 className={c.tlDayH}>{dayText(day, now)}</h3>
+          <ol className={c.tlList}>
+            {items.map(({ e, line }, i) => {
+              const iso = new Date(e.at).toISOString();
+              const kind = line!.quiet ? "quiet" : e.name === "pocket.trade" || e.name === "autopilot.rolled" ? "trade" : "note";
+              return (
+                <li key={`${e.at}-${e.name}-${i}`} data-kind={kind}>
+                  <span className={c.tlDot} aria-hidden="true" />
+                  <div className={s.actBody}>
+                    <span className={s.actText}>{line!.text}</span>
+                    {line!.amount ? (
+                      <span className={s.actAmt}>
+                        <Num>{usd0(line!.amount)}</Num>
+                      </span>
+                    ) : null}
+                    <span className={s.actMeta}>
+                      <time dateTime={iso}>{timeText(iso)}</time>
+                      {line!.txHash && (
+                        <a href={explorerTx(line!.txHash)} target="_blank" rel="noreferrer">
+                          Explorer
+                        </a>
+                      )}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
       ))}
-    </ul>
+    </div>
   );
 }

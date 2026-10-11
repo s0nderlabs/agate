@@ -540,6 +540,12 @@ function PasskeyNext({ failure, message, onEmail }: { failure: PasskeyFailure; m
     case "unsupported":
       more = email;
       break;
+    case "rate_limited":
+      // no new accounts from this network for an hour: the server refused after the device saved the new passkey, so
+      // signing in with it would go nowhere; the email still works
+      if (!failure.hourly) main = { label: "Try again", run: again(failure.mode) };
+      more = email;
+      break;
     default:
       // a passkey that worked before Dynamic finished made the account: the next tap signs in
       main = { label: "Try again", run: again(failure.code === "dynamic" ? "signin" : failure.mode) };

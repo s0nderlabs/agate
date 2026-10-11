@@ -1,8 +1,8 @@
 "use client";
 // How to let an AI trade (wallet spec 10.2): pick the AI app, then add Agate's link where that app takes it; an app
 // that signs in by itself (OAuth) then asks for the person's OK on the Allow page, the others are connected from here
-// first and take the link made for them. Used as the empty Connected AIs page, its side column and the "Add another
-// AI" sheet. The apps, their marks and their steps live in apps.tsx.
+// first and take the link made for them. Used as the "Add another AI" sheet; Connected AIs draws the same choice as
+// numbered steps (useAddAi holds what both read). The apps, their marks and their steps live in apps.tsx.
 import Link from "next/link";
 import { useState } from "react";
 import { useAiBackend, useMcpUrl } from "@/lib/account/ai";
@@ -52,9 +52,10 @@ export function CodeLine({ text, what, label }: { text: string; what: string; la
   );
 }
 
-export function HowTo({ heading = "h2", onGo, intro = true }: { heading?: "h1" | "h2"; onGo?: () => void; intro?: boolean }) {
+/** What adding an AI app reads: the app picked, Agate's link for AI apps, and the line that app takes. */
+export function useAddAi() {
   const [id, setId] = useState<AppId>("claude");
-  const app = AI_APPS.find((a) => a.id === id)!;
+  const app = AI_APPS.find((a) => a.id === id) ?? AI_APPS[0];
   const mcp = useMcpUrl();
   const { backend } = useAiBackend();
   const q = useLinkQuery();
@@ -62,30 +63,66 @@ export function HowTo({ heading = "h2", onGo, intro = true }: { heading?: "h1" |
   // live reads the real server's public link, signed in or not; a build with no server (or a link that is not https,
   // or one that cannot be read) never offers a link to paste into a real AI app
   const notPublic = (!!url && !url.startsWith("https://")) || (!backend.example && (!AGATE_SERVER || mcp.isError));
-  const H = heading;
   const text = app.line ? app.line(url) : url;
+  return { id, setId, app, q, text, notPublic, loading: mcp.isPending };
+}
+
+/** Agate's link (or the line the app takes) to copy, in its three states: not public on this build, still loading, or
+ *  ready with its Copy button. `field` draws it as the Connected AIs steps' one-row field. */
+export function AddLink({ app, text, notPublic, loading, field }: { app: AiApp; text: string; notPublic: boolean; loading: boolean; field?: { box: string; text: string; copy: string } }) {
+  if (notPublic) return <p className="ag-fine">Agate's AI link isn't public on this build yet.</p>;
+  if (loading)
+    return (
+      <span className={`${field?.box ?? "ag-codeline"} ag-skel ag-skel-on`} aria-hidden="true">
+        https://
+      </span>
+    );
+  const what = app.line ? "the line" : "the link";
+  const label = app.line ? `The line for ${app.name}` : "Agate's link for AI apps";
+  if (!field) return <CodeLine text={text} what={what} label={label} />;
+  return (
+    <div className={field.box}>
+      <pre className={`ag-codeline ${field.text}`} tabIndex={0} aria-label={label}>
+        {text}
+      </pre>
+      <CopyButton text={text} what={what} className={`ag-btn ag-btn--ghost ${field.copy}`} />
+    </div>
+  );
+}
+
+/** An app Agate hasn't tried itself yet says so. Both callers put it inside their steps' live region, so a screen
+ *  reader hears it with them. */
+export function UntriedNote({ app }: { app: AiApp }) {
+  if (app.tried) return null;
+  return <p className="ag-fine">Agate hasn't tried {app.name} itself yet. If it can't sign in, connect it from here and add the link Agate gives you.</p>;
+}
+
+/** An app that signs in by itself can still be connected from Agate instead. */
+export function ConnectInstead({ app, q, onGo }: { app: AiApp; q: string; onGo?: () => void }) {
+  if (!app.oauth) return null;
+  return (
+    <p>
+      <Link className="ag-textbtn" href={connectHref(app, q)} onClick={onGo}>
+        Connect from here instead
+      </Link>
+    </p>
+  );
+}
+
+export function HowTo({ onGo }: { onGo?: () => void }) {
+  const { id, setId, app, q, text, notPublic, loading } = useAddAi();
   return (
     <div className="grid gap-[18px]">
-      {intro && (
-        <div className="grid gap-2">
-          <H>Let your AI trade on Agate</H>
-          <p>Pick your AI app. It trades only from a pocket you fund, inside limits you set, and you can stop it at any time.</p>
-        </div>
-      )}
+      <div className="grid gap-2">
+        <h2>Let your AI trade on Agate</h2>
+        <p>Pick your AI app. It trades only from a pocket you fund, inside limits you set, and you can stop it at any time.</p>
+      </div>
       <AppPicker picked={id} onPick={(a) => setId(a.id)} />
       <div className="grid gap-3" aria-live="polite">
         {app.oauth ? (
           <>
             <p>{app.paste}</p>
-            {notPublic ? (
-              <p className="ag-fine">Agate's AI link isn't public on this build yet.</p>
-            ) : mcp.isPending ? (
-              <span className="ag-codeline ag-skel ag-skel-on" aria-hidden="true">
-                https://
-              </span>
-            ) : (
-              <CodeLine text={text} what={app.line ? "the line" : "the link"} label={app.line ? `The line for ${app.name}` : "Agate's link for AI apps"} />
-            )}
+            <AddLink app={app} text={text} notPublic={notPublic} loading={loading} />
             {app.then && <p>{app.then}</p>}
           </>
         ) : (
@@ -98,15 +135,9 @@ export function HowTo({ heading = "h2", onGo, intro = true }: { heading?: "h1" |
             </Link>
           </>
         )}
-        {!app.tried && <p className="ag-fine">Agate hasn't tried {app.name} itself yet. If it can't sign in, connect it from here and add the link Agate gives you.</p>}
+        <UntriedNote app={app} />
       </div>
-      {app.oauth && (
-        <p>
-          <Link className="ag-textbtn" href={connectHref(app, q)} onClick={onGo}>
-            Connect from here instead
-          </Link>
-        </p>
-      )}
+      <ConnectInstead app={app} q={q} onGo={onGo} />
     </div>
   );
 }

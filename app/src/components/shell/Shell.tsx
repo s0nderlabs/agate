@@ -152,7 +152,7 @@ export { PLACES } from "@/lib/places";
 
 /** active: the place on screen; null on pages outside the four (Connected AIs, the Allow page, an approval). site: a
  *  page of the site (docs, privacy), whose mark goes home to the landing rather than into the app */
-export function NavBar({ active = "markets", site = false }: { active?: "markets" | "positions" | "index" | "how" | "docs" | null; site?: boolean }) {
+export function NavBar({ active = "markets", site = false }: { active?: "markets" | "positions" | "index" | "docs" | null; site?: boolean }) {
   const { config, setConfig } = useMock();
   const account = useAccount();
   const linkQuery = useLinkQuery();
@@ -161,7 +161,6 @@ export function NavBar({ active = "markets", site = false }: { active?: "markets
     ["markets", "Markets"],
     ["positions", "Positions"],
     ["index", "Index"],
-    ["how", "How it works"],
     ["docs", "Docs"],
   ];
   return (

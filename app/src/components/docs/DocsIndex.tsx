@@ -3,6 +3,7 @@
 // reading order, each chapter as its name and its one-line description. The button opens the search dialog
 // (SearchPalette), which searches every section.
 import Link from "next/link";
+import { HOW_SLUG } from "@/lib/docs/explainer";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { docHref } from "./ChapterList";
 import { useDocsNav } from "./DocsFrame";
@@ -29,6 +30,9 @@ export function DocsIndex() {
       <header className={s.homeHead}>
         <h1 className={s.homeTitle}>Agate docs</h1>
         <p className={s.lead}>How the price of a GPU-hour is made, how its monthly market works, and every way in: the app, an AI, the API, the SDK and the contracts.</p>
+        <p className={s.homeStart}>
+          New to Agate? <Link href={docHref(HOW_SLUG, null, linkQuery)}>Start with How Agate works</Link>, six short steps with pictures.
+        </p>
       </header>
       <div className={s.homeSearch}>
         <SearchButton />
@@ -62,7 +66,7 @@ export function DocsIndex() {
         </section>
       ))}
       <p className={s.agents}>
-        For AI agents: <a href="/llms.txt">llms.txt</a> lists every page, <a href="/llms-full.txt">llms-full.txt</a> holds them all as markdown, and each page has a View as Markdown link.
+        For AI agents: <a href="/llms.txt">llms.txt</a> lists every chapter after How Agate works (its pictures have no markdown), <a href="/llms-full.txt">llms-full.txt</a> holds them all as markdown, and each has a View as Markdown link.
       </p>
     </main>
   );
