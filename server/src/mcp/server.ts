@@ -123,6 +123,8 @@ export function buildMcpServer(deps: McpDeps, grant: GrantRow): McpServer {
           priceDate: m.priceDate,
           change: m.priceDate ? Number((m.price - m.prevPrice).toFixed(4)) : null,
           clouds: `${m.liveCount} of ${m.panelSize}`,
+          // which clouds make the price, each with its own price on the price's day (the reserve has none)
+          sources: m.panel.map((s) => ({ company: s.family, price: s.price, counted: s.live, reserve: s.reserve })),
           tradable: m.tradable,
           months: m.series.map((s) => ({ month: s.month, symbol: s.symbol, phase: s.phase, quote: s.quote, floor: s.floor, cap: s.cap, openInterest: s.openInterest, closesAt: s.closesAt })),
         }));

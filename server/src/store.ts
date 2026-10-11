@@ -301,6 +301,7 @@ export class Store {
     this.addColumn("grants", "routers", "routers TEXT NOT NULL DEFAULT '[]'");
     this.addColumn("grants", "pocket_index", "pocket_index INTEGER NOT NULL DEFAULT 1");
     this.addColumn("grants", "connector_hash", "connector_hash TEXT");
+    this.addColumn("grants", "ended_connector_hash", "ended_connector_hash TEXT");
   }
 
   // ---- webhook idempotency
@@ -455,6 +456,18 @@ export class Store {
     const raw = `agt_c_${randomBytes(32).toString("base64url")}`;
     this.db.query("UPDATE grants SET connector_hash = ? WHERE id = ?").run(sha(raw), grantId);
     return raw;
+  }
+
+  /** Ends a grant's connector URL for good: a new secret nobody sees replaces it, and the old one is remembered so a
+   *  call on it can be told it was disconnected (only a hash is kept). */
+  endConnector(grantId: string): void {
+    this.db.query("UPDATE grants SET ended_connector_hash = connector_hash WHERE id = ? AND connector_hash IS NOT NULL AND ended_connector_hash IS NULL").run(grantId);
+    this.newConnectorSecret(grantId);
+  }
+
+  /** True if this is a connector URL a disconnect ended. */
+  isEndedConnector(raw: string): boolean {
+    return this.db.query("SELECT 1 FROM grants WHERE ended_connector_hash = ?").get(sha(raw)) !== null;
   }
 
   grantByConnector(raw: string): GrantRow | null {

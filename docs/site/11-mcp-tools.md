@@ -64,7 +64,8 @@ Today's index price per GPU and the tradable months with their best bid and ask 
 | `gpu` | gpu | every GPU | one GPU only |
 
 Returns a list, one entry per GPU: `gpu`, `price` (`null` before the first final day), `priceDate`, `change` (from
-the day before), `clouds` (`"5 of 6"`: sources counted of the panel), `tradable`, and `months`, each with `month`,
+the day before), `clouds` (`"5 of 6"`: sources counted of the panel), `sources` (each cloud as `company`, with its own
+`price` that day, `counted` and `reserve`, the same rows as the developer API), `tradable`, and `months`, each with `month`,
 `symbol`, `phase`, `quote` (bid, ask, last), `floor`, `cap` (the ceiling), `openInterest` and `closesAt`.
 
 ### `quote`

@@ -172,6 +172,30 @@ describe("trades", () => {
   });
 });
 
+describe("get_prices", () => {
+  test("names each cloud with its own price that day", async () => {
+    const store = new Store(":memory:");
+    const market = {
+      getMarket: async () => ({
+        gpu: "H100", price: 3.99, prevPrice: 3.99, priceDate: "2026-10-10", liveCount: 2, panelSize: 3, tradable: true, series: [],
+        panel: [
+          { family: "Verda", live: true, reserve: false, price: 3.93 },
+          { family: "Lambda", live: true, reserve: false, price: 3.99 },
+          { family: "Hyperstack", live: false, reserve: true, price: null },
+        ],
+      }),
+    };
+    const client = await connect(store, grantRow(), market);
+    const [h100] = json(await client.callTool({ name: "get_prices", arguments: { gpu: "H100" } }));
+    expect(h100.clouds).toBe("2 of 3");
+    expect(h100.sources).toEqual([
+      { company: "Verda", price: 3.93, counted: true, reserve: false },
+      { company: "Lambda", price: 3.99, counted: true, reserve: false },
+      { company: "Hyperstack", price: null, counted: false, reserve: true },
+    ]);
+  });
+});
+
 describe("HTTP lanes and OAuth", () => {
   const user: DynamicUser = { userId: "u-1", email: null, wallets: new Map(), scopes: [], externalSub: null };
   const mk = () => {
@@ -305,6 +329,22 @@ describe("HTTP lanes and OAuth", () => {
     // the person disconnects: the token dies with the connection
     await app.request("/api/grants/g-1/disconnect", { method: "POST", headers: { authorization: "Bearer good" } });
     expect((await rpc(app, "/mcp", tok.access_token)).status).toBe(401);
+  });
+
+  test("a disconnected connector URL says it was disconnected; a wrong one stays unknown", async () => {
+    const { store, app } = mk();
+    store.putGrant(grantRow());
+    const secret = store.newConnectorSecret("g-1");
+    expect(await tools(await rpc(app, `/c/${secret}/mcp`))).toContain("my_limits");
+    await app.request("/api/grants/g-1/disconnect", { method: "POST", headers: { authorization: "Bearer good" } });
+    const dead = await rpc(app, `/c/${secret}/mcp`);
+    expect(dead.status).toBe(401);
+    expect(((await dead.json()) as { error: string }).error).toBe("this AI connection was disconnected: connect it again from Agate");
+    // a second disconnect (a retried request) keeps the answer
+    await app.request("/api/grants/g-1/disconnect", { method: "POST", headers: { authorization: "Bearer good" } });
+    expect(((await (await rpc(app, `/c/${secret}/mcp`)).json()) as { error: string }).error).toBe("this AI connection was disconnected: connect it again from Agate");
+    const wrong = await rpc(app, `/c/agt_c_${"x".repeat(43)}/mcp`);
+    expect(((await wrong.json()) as { error: string }).error).toBe("unknown connection");
   });
 
   test("redirect policy: custom schemes are an allowlist, so script, local-file and OS-handler schemes never pass", () => {

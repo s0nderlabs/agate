@@ -14,6 +14,8 @@ import type { GrantRow } from "../store.ts";
 import { buildMcpServer, type McpDeps } from "./server.ts";
 
 const MAX_BODY_BYTES = 1 << 20;
+/** What a disconnected connection answers, on either lane */
+export const DISCONNECTED = "this AI connection was disconnected: connect it again from Agate";
 
 export function mcpRoutes(deps: McpDeps, oauth: OAuthStore): Hono {
   const app = new Hono();
@@ -37,21 +39,26 @@ export function mcpRoutes(deps: McpDeps, oauth: OAuthStore): Hono {
     }
     let grant: GrantRow | null = null;
     let miss = "unknown connection";
+    let ended = false;
     if (oauthLane && credential.startsWith(ACCESS_TOKEN_PREFIX)) {
       const row = oauth.getByAccessToken(credential);
       grant = row && (!row.resource || acceptedResources().includes(row.resource)) ? deps.store.grant(row.card_id) : null;
       miss = "invalid or expired access token";
     } else {
       grant = deps.store.grantByConnector(credential);
+      // a URL a disconnect ended answers why, so the AI app can say "you were disconnected", not a connection error
+      ended = !grant && deps.store.isEndedConnector(credential);
+      if (ended) miss = DISCONNECTED;
     }
     if (!grant) {
       await drain(c);
-      if (!badSecret.allow(clientIp(c), Date.now())) return c.json({ error: "too many requests" }, 429);
+      // a retried ended URL is not a guess: it keeps its answer instead of counting toward the bad-secret limit
+      if (!ended && !badSecret.allow(clientIp(c), Date.now())) return c.json({ error: "too many requests" }, 429);
       return unauthorized(c, miss, oauthLane);
     }
     if (grant.status === "revoked") {
       await drain(c);
-      return unauthorized(c, "this AI connection was disconnected", oauthLane);
+      return unauthorized(c, DISCONNECTED, oauthLane);
     }
     if (c.req.method === "GET") return c.json({ error: "method not allowed" }, 405, { Allow: "POST, DELETE" });
     if (c.req.method === "POST" && !perGrant.allow(grant.id, Date.now())) {

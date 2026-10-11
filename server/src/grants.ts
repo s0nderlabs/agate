@@ -131,7 +131,7 @@ export function endGrant(store: Store, id: string): void {
   for (const a of store.expireApprovalsOfGrant(id, reason)) store.event({ source: "agate", name: "approval.expired", userId: a.userId, grantId: id, detail: { requestId: a.id, reason } });
   store.setGrantStatus(id, "revoked");
   for (const o of store.standingOrdersOf({ grantId: id, status: "active" })) store.setStandingOrder(o.id, { status: "stopped" });
-  store.newConnectorSecret(id); // the old connector URL stops working; the new one is never shown
+  store.endConnector(id); // the old connector URL stops working (and says so); the new one is never shown
   new OAuthStore(store.db).revokeTokensByCardId(id);
 }
 
