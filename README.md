@@ -55,6 +55,15 @@ contract can read it through a Chainlink-style feed, H100 at
 
 </details>
 
+## What sets it apart
+
+- **A price anyone can check.** It comes from the clouds' own price pages, every source is shown beside it, and a
+  second, independent reader must countersign every change before it counts.
+- **No wallet, no gas.** Anyone signs in with a passkey, an email or Google and trades from a smart account whose
+  network fees Agate pays.
+- **An AI that hedges for you.** An AI app connects over MCP and trades from its own pocket, inside a budget, a
+  per-trade cap and an end date the person sets; autopilot rolls a hedge into the next month.
+
 ## How it works
 
 1. **A standard unit.** One GPU-hour of a defined GPU model, rented on demand.
@@ -136,7 +145,7 @@ HyperIndex; Hono and the MCP SDK; one Linux server for the always-on processes.
 |---|---|
 | [`contracts/`](contracts/) | `AgateIndex`, the market (`src/market/`), the example feeds (`src/examples/`) |
 | [`wall/`](wall/) | the price readers, both writers, the watcher, attester and keeper, guardian CLI, page check, repair agent, market maker, payer and lister |
-| [`client/`](client/) | `@agate/client`, the SDK |
+| [`client/`](client/) | `@agate/client`, the SDK (on npm as [`@s0nderlabs/agate`](https://www.npmjs.com/package/@s0nderlabs/agate)) |
 | [`wallet/`](wallet/) | `@agate/wallet`: Dynamic sign-in, smart accounts, the pocket's session key |
 | [`server/`](server/) | MCP, OAuth 2.1, approvals, autopilot, the markets snapshot, the developer API |
 | [`app/`](app/) | the web app |

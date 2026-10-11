@@ -8,7 +8,8 @@ import { kuruOrderBookAbi } from "../src/abi.ts";
 import { AgateClient, resolveGraphqlUrl } from "../src/client.ts";
 import { DEFAULT_GRAPHQL_URL } from "../src/graphql.ts";
 import { PANELS } from "../src/static.ts";
-import { band, buyLong, closeLongDaily, closeShort, openShort, placeLimit, sellLong, WriteError } from "../src/writes.ts";
+import { planClaim, planCloseShort, planOpenLongDaily } from "../src/plan.ts";
+import { band, buyLong, claim, closeLongDaily, closeShort, openLongDaily, openShort, placeLimit, sellLong, WriteError } from "../src/writes.ts";
 
 const ME = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 const A = (n: number) => `0x${n.toString(16).padStart(40, "0")}` as const;
@@ -358,5 +359,30 @@ describe("no put-back while the outcome is unknown", () => {
     expect(e?.reason).toBe("NoReceipt");
     expect(e?.txs.map((t) => t.label)).toEqual(["approve tUSD to the router"]);
     expect(e?.message).toContain("once nothing is pending");
+  });
+});
+
+describe("checks with a named reason", () => {
+  const NOV = { gpu: "H100", month: "2026-11" } as const;
+  const said = (e: WriteError | null) => [e?.stage, e?.reason, e?.message];
+  test("a month with no Kuru book yet is NoMarket, for a write and a plan", async () => {
+    const f = world(MAKER);
+    (f.s as { market: unknown }).market = null;
+    expect(said(await outcome(buyLong(f.c, f.w, { ...NOV, dollars: "10" })))).toEqual(["check", "NoMarket", "H100 2026-11 has no Kuru market yet"]);
+    expect(said(await outcome(planOpenLongDaily(f.c, ME, { ...NOV, dollars: "10" })))).toEqual(["check", "NoMarket", "H100 2026-11 has no Kuru market yet"]);
+    expect(f.sent).toEqual([]);
+  });
+  test("a daily Long too small for its parts is PartsTooSmall, for a write and a plan", async () => {
+    const f = world(MAKER);
+    expect(said(await outcome(openLongDaily(f.c, f.w, { ...NOV, dollars: "0.01", parts: 30 })))).toEqual(["check", "PartsTooSmall", "the size is too small for that many parts"]);
+    expect(said(await outcome(planOpenLongDaily(f.c, ME, { ...NOV, dollars: "0.01", parts: 30 })))).toEqual(["check", "PartsTooSmall", "the size is too small for that many parts"]);
+    expect(f.sent).toEqual([]);
+  });
+  test("a close or claim with no position ids is NoPositions, for a write and a plan", async () => {
+    const f = world(MAKER);
+    for (const p of [closeShort(f.c, f.w, { ...NOV, positionIds: [] }), closeLongDaily(f.c, f.w, { ...NOV, positionIds: [] }), claim(f.c, f.w, { ...NOV, positionIds: [] }), planCloseShort(f.c, ME, { ...NOV, positionIds: [] }), planClaim(f.c, ME, { ...NOV, positionIds: [] })]) {
+      expect(said(await outcome(p))).toEqual(["check", "NoPositions", "no positions given"]);
+    }
+    expect(f.sent).toEqual([]);
   });
 });

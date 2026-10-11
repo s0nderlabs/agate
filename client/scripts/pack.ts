@@ -3,7 +3,7 @@
 // declarations, usable from Node 18+, bundlers and Bun. Usage:
 //   bun run scripts/pack.ts                  build dist/pkg and list what `npm pack` would ship (nothing is published)
 //   AGATE_NPM_NAME=<name> bun run scripts/pack.ts   the same under another package name
-// Publishing is a person's step: `npm publish dist/pkg --access public`, signed in to npm.
+// Publishing is a person's step: `npm publish ./dist/pkg --access public` (the ./ matters: a bare dist/pkg reads as a GitHub repo), signed in to npm.
 import { $ } from "bun";
 import { copyFileSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,7 +12,7 @@ const root = join(import.meta.dir, "..");
 const out = join(root, "dist/pkg");
 const src = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version: string; dependencies: Record<string, string>; exports: Record<string, string> };
 /** README.npm.md names the package by this default; a build under another name rewrites it there */
-const DEFAULT_NAME = "agate-sdk";
+const DEFAULT_NAME = "@s0nderlabs/agate";
 const name = process.env.AGATE_NPM_NAME || DEFAULT_NAME;
 
 rmSync(join(root, "dist"), { recursive: true, force: true });

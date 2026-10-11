@@ -100,7 +100,7 @@ export async function planOpenLongDaily(c: AgateClient, me: Address, p: { gpu: G
   const dollars = parseDollars(p.dollars);
   if (dollars === 0n) throw new AmountError("dollars must be above 0");
   const minOut = await buyBound(c, s, dollars, p);
-  if (minOut / parts / LOT === 0n) throw new WriteError("the size is too small for that many parts", "check");
+  if (minOut / parts / LOT === 0n) throw new WriteError("the size is too small for that many parts", "check", "PartsTooSmall");
   await needDollars(c, me, dollars, "this buy");
   const calls = [...(await approvalIfShort(c, me, c.dollar, dollars, "approve tUSD to the router")), routerCall(c, "openLongDaily", [s.terms.series, dollars, minOut, parts, payee, NOPERMIT])];
   return { account: me, calls, summary: { action: "openLongDaily", gpu: p.gpu, month: p.month, series: s.terms.series, maxSpend: toNumber6(dollars), payee, bound: { kind: "minTokensOut", value: toNumber6(minOut) } } };
@@ -205,7 +205,7 @@ const claimCall = (series: Address, ids: bigint[]): PlanCall => (ids.length === 
 export async function planClaim(c: AgateClient, me: Address, p: { gpu: Gpu; month: string; positionIds: (string | bigint)[] }): Promise<Plan<ClaimSummary>> {
   const s = await c.seriesAt(p.gpu, p.month);
   const ids = p.positionIds.map((x) => BigInt(x));
-  if (ids.length === 0) throw new WriteError("no positions given", "check");
+  if (ids.length === 0) throw new WriteError("no positions given", "check", "NoPositions");
   return { account: me, calls: [claimCall(s.terms.series, ids)], summary: { action: "claim", series: [{ gpu: p.gpu, month: p.month, series: s.terms.series, positionIds: ids.map(String) }] } };
 }
 

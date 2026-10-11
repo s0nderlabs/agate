@@ -19,9 +19,9 @@ const group = (doc: string, source: string, texts: readonly string[]): Quote[] =
 const page = (file: string) => `${DOCS_PATH}/${file}`;
 
 const QUOTES: Quote[] = [
-  ...group(page("08-api.md"), "server/src/developer.ts", ["gpu must be one of", "month is YYYY-MM, for example 2026-11", "market on sale (see /v1/markets)", "price yet", "requests a minute; wait a minute", "the markets could not be read right now; try again shortly", "trades could not be read right now; try again shortly", "candles could not be read right now; try again shortly"]),
+  ...group(page("08-api.md"), "server/src/developer.ts", ["gpu must be one of", "month is YYYY-MM, for example 2026-11", "market on sale (see /v1/markets)", "price yet", "requests a minute; wait a minute", "the markets could not be read right now; try again shortly", "trades could not be read right now; try again shortly", "candles could not be read right now; try again shortly", "no such endpoint: ", "(see /v1 for the list)"]),
   ...group(page("17-errors.md"), "server/src/mcp/routes.ts", ["missing credential", "invalid or expired access token", "unknown connection", "method not allowed", "payload too large", "rate limit exceeded for this connection", "too many requests"]),
-  ...group(page("17-errors.md"), "server/src/mcp/server.ts", ["budget_left", "not_enough_tokens", "price_moved", "thin_book", "above_band", "below_band", "drip_too_soon", "empty_book", "bad_amount", "sponsor_limit", "no_market", "bad_input", "not_found", "grant_revoked", "grant_expired"]),
+  ...group(page("17-errors.md"), "server/src/mcp/server.ts", ["budget_left", "not_enough_tokens", "price_moved", "thin_book", "above_band", "below_band", "drip_too_soon", "empty_book", "bad_amount", "sponsor_limit", "no_market", "parts_too_small", "bad_input", "not_found", "grant_revoked", "grant_expired"]),
   ...group(page("17-errors.md"), "wallet/src/allowed.ts", ["over_per_trade_cap", "payee_must_be_you", "approve_router_only", "no_native_value", "not_allowed_contract", "not_allowed_function"]),
   ...group(page("17-errors.md"), "client/src", ["has no Kuru market yet", "no positions given", "the size is too small for that many parts", "is not listed", "is price only: ", "must be a decimal string or a bigint, never a number", "is not a plain decimal like 12.34", "decimals", "must be a multiple of 0.0001 GPU-hour", "must be a positive multiple of $0.01"]),
   ...group(page("17-errors.md"), "server/src/grants.ts", ["trades used in the last 24 hours", "daily_limit", "the per-trade cap must be above 0 and at most the budget", "trades per day: 1 to", "the end date must be within", "the Assistant is not delegated to agate yet (try again in a few seconds)", "pocket_in_use: this pocket already serves", "the signed permission does not match: "]),
@@ -40,6 +40,7 @@ const QUOTES: Quote[] = [
     "This passkey is from the older sign-in, where a passkey was added to an email or Google account.",
     "That took too long. Try again.",
     "Too many tries from this network. Wait a minute, then try again.",
+    "Too many new accounts from this network. Try again in an hour.",
     "New passkey accounts are paused for today. Use Google or your email instead.",
     "Agate couldn't accept that passkey. Try again.",
     "Your passkey worked, but sign-in didn't finish. Try again.",
@@ -58,6 +59,8 @@ const QUOTES: Quote[] = [
     "agate makes the price of GPU compute tradable: a daily index of GPU-hour rental prices (H100, H200, B200 and more) and monthly tokens that pay that month's average price.",
     "Refusals name the rule (over_per_trade_cap, budget_left, daily_limit, grant_expired, price_moved, ...): read them before retrying.",
   ]),
+  // the check-day report the price page shows, in the script's own words
+  ...group(page("04-the-price.md"), "client/scripts/check-day.ts", ["company", "readings day price counted", "yes, at its day price", "yes, at its last good day price", "Median of the", "counted: ", "MATCH (", "price, status, counts and the record's digest", "for the held prices: ", "each matches its record"]),
 ];
 
 /** A docs page as the site renders its words (no frontmatter, no markdown), and a source file or folder of .ts

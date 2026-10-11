@@ -26,11 +26,15 @@ async function answers(rpc: string): Promise<boolean> {
 
 export type AnvilProc = { proc: Bun.Subprocess; port: number; rpc: string };
 
-/** args go to anvil after `--port`; env is added to this process's environment (e.g. AGATE_ANVIL_ROOT). */
-export async function spawnAnvil(args: string[], o: { env?: Record<string, string>; timeoutMs?: number } = {}): Promise<AnvilProc> {
+/** args go to anvil after `--port`; env is added to this process's environment (e.g. AGATE_ANVIL_ROOT). `states`: how
+ *  many recent block states anvil keeps in memory (anvil-safe's leading count, `--prune-history <n>`; never on disk).
+ *  None by default: a read at "latest" that races a newly mined block then fails (-32602 BlockOutOfRangeError). */
+export async function spawnAnvil(args: string[], o: { env?: Record<string, string>; timeoutMs?: number; states?: number } = {}): Promise<AnvilProc> {
+  if (o.states !== undefined && !(Number.isInteger(o.states) && o.states > 0)) throw new Error(`states must be a positive integer, not ${o.states}`);
   const port = freePort();
   const rpc = `http://127.0.0.1:${port}`;
-  const proc = Bun.spawn([ANVIL_SAFE, "--port", String(port), ...args], { env: { ...process.env, ...o.env }, stdout: "ignore", stderr: "pipe" });
+  const states = o.states ? [String(o.states)] : [];
+  const proc = Bun.spawn([ANVIL_SAFE, ...states, "--port", String(port), ...args], { env: { ...process.env, ...o.env }, stdout: "ignore", stderr: "pipe" });
   const err = new Response(proc.stderr).text(); // drained from the start so a chatty anvil can never block on the pipe
   let exited = false;
   void proc.exited.then(() => {

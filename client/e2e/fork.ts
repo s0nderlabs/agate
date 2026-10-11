@@ -7,6 +7,11 @@ import { spawnAnvil } from "../../wall/scripts/anvil.ts";
 
 export const UPSTREAM = "https://testnet-rpc.monad.xyz";
 export const MIN_FREE_GB = Number(process.env.AGATE_ANVIL_MIN_FREE_GB ?? 30);
+/** Recent block states the fork keeps in memory. With none (anvil-safe's default), a read at "latest" that lands while
+ *  another transaction is mined (the bots send all the time) fails with -32602 BlockOutOfRangeError ("block height is
+ *  N+1 but requested was N"): anvil resolves "latest" to N, the new block lands, and N's state is gone. With a few kept,
+ *  that read is answered from N's state. Memory only, never on disk. */
+export const FORK_STATES = 16;
 
 /** Whether an http(s) URL names this machine, in any spelling the URL parser normalizes: localhost and *.localhost (any
  *  case, trailing dots, percent-encoded), 127.0.0.0/8 (also written in decimal, hex, octal or short, e.g. 2130706433,
@@ -56,6 +61,11 @@ export function anvilTmp(): string {
   const r = Bun.spawnSync(["du", "-sh", `${process.env.HOME}/.foundry/anvil/tmp`], { stdout: "pipe", stderr: "ignore" });
   return r.stdout.toString().trim().split(/\s+/)[0] ?? "none";
 }
+/** The pid of an anvil-safe anvil still serving `port` (with or without its kept-states count), or "". */
+export function anvilOnPort(port: string): string {
+  if (!/^\d+$/.test(port)) return "";
+  return Bun.spawnSync(["pgrep", "-f", `anvil --prune-history( [0-9]+)? --port ${port} `], { stdout: "pipe" }).stdout.toString().trim();
+}
 
 export async function rpcCall(rpc: string, method: string, params: unknown[] = []): Promise<unknown> {
   const r = await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
@@ -86,7 +96,7 @@ export class Fork {
   static async start(): Promise<Fork> {
     const gb = freeGb();
     if (gb < MIN_FREE_GB) throw new Error(`only ${gb} GB free (floor ${MIN_FREE_GB} GB): not starting anvil`);
-    const a = await spawnAnvil(["--fork-url", UPSTREAM, "--code-size-limit", "131072", "--silent", "--slots-in-an-epoch", "1"], { timeoutMs: 180_000 });
+    const a = await spawnAnvil(["--fork-url", UPSTREAM, "--code-size-limit", "131072", "--silent", "--slots-in-an-epoch", "1"], { timeoutMs: 180_000, states: FORK_STATES });
     const { forkBlock } = await assertFork(a.rpc);
     await rpcCall(a.rpc, "anvil_setBlockTimestampInterval", [0]);
     return new Fork(a.rpc, a.proc, forkBlock);

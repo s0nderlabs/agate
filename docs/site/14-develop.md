@@ -25,7 +25,7 @@ bun install          # app, client, wallet and server: one bun workspace (hoiste
 |---|---|---|
 | `contracts/` | `AgateIndex`, the market contracts (`src/market/`), the example feeds (`src/examples/`), Foundry | `forge test` (see [Contracts](12-contracts.md) for the two installs first) |
 | `wall/` | the price readers, both writers, the watcher, attester and keeper, the guardian CLI, page check, repair agent, Akash reader, market maker, payer and lister, chaos tests | `cd wall && bun install && bun test` |
-| `client/` | `@agate/client`, the SDK: reads, writes and plans ([SDK](10-sdk.md)) | `cd client && bun test` |
+| `client/` | `@agate/client`, the SDK (on npm as `@s0nderlabs/agate`): reads, writes and plans ([SDK](10-sdk.md)) | `cd client && bun test` |
 | `wallet/` | `@agate/wallet`: Dynamic sign-in, the main account and AI pockets as Kernel smart accounts, the pocket's session key | `cd wallet && bun test` (`FORK=1` adds the pocket's limits on a fork) |
 | `server/` | `@agate/server`: MCP, OAuth 2.1, grants, approvals, autopilot, Dynamic webhooks, the markets snapshot, `/v1` | `cd server && bun test` |
 | `app/` | the web app (Next.js 16, React 19) | `cd app && bun run typecheck`; `bun dev` to run it |

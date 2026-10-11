@@ -54,6 +54,16 @@ export const openapi = {
           price: usdOrNull,
           counted: { type: "boolean", description: "in today's median" },
           reserve: { type: "boolean", description: "held in reserve: counted only when a main source fails" },
+          page: {
+            type: ["object", "null"],
+            description:
+              "the newest clean reading of this cloud's price page on the price's date by the watcher (the independent reader the attester checks each day against); null when there is none",
+            properties: {
+              sha256: { type: "string", pattern: "^[0-9a-f]{64}$", description: "hex sha256 of the page's bytes as fetched" },
+              fetchedAt: iso,
+              price: { ...usd, description: "the price read from that page, US dollars per GPU-hour" },
+            },
+          },
         },
       },
       Price: {

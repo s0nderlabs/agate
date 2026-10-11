@@ -130,7 +130,10 @@ fixed when the month is listed, from five final days of the index: the rule and 
   [`0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36`](https://testnet.monadexplorer.com/address/0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36).
   Each day emits `DayClosed` (price, status, fresh companies) and `RecordSlots` (every source's day price and whether
   it counted); `Attested`, `Vetoed`, `RecordReplaced` and `DayCarried` record every check.
-- **API:** `GET /v1/prices/{gpu}` gives each source's price beside the median, and the daily history.
+- **API:** `GET /v1/prices/{gpu}` gives each source's price beside the median, and the daily history. Each source
+  row also carries `page`: the sha256 of the exact bytes of that cloud's page as the watcher fetched it that day, and
+  when, so anyone holding a saved copy of the page can hash it and confirm it is the very page the price was checked
+  against.
 - **Code:** the readers and the recipe in `wall/packages/sources`, the contract in `contracts/src`.
 
 One real day, H100 on Oct 9 2026 (day id 20735), checked from a terminal:
@@ -186,7 +189,76 @@ checked at deploy (`contracts/script/DeployIndex.s.sol`); the six, from `contrac
 | A100 | `0x32422c52fa2c8e908a3d943000e08e47ac121b194f11f4d58f0149ef008418de` |
 | L40S | `0x5d0a54c25c386ef135340ebc802b2bc2538004e5538d436114a5b3c9398b30e4` |
 
-## 9. Limits, stated
+### Check any day yourself
+
+The steps above check one day by hand. The SDK does the same for any day, reading only the chain: the source writer's
+readings of that day as the index stores them (`readings(gpuId, day, writer)`: each cloud's sum and count of hourly
+readings, kept for ever), then the rules of section 3 (each cloud's average to the cent, at least 12 readings, the hold
+for up to 5 days, the median across companies), then a comparison with the stored record, its digest included. Which
+clouds were being held, and at what price, depends on the days before, so it replays every day from the GPU's first
+one the same way and reports any that disagree.
+
+```sh
+git clone https://github.com/s0nderlabs/agate && cd agate && bun install && cd client
+bun run check-day H100 2026-10-09   # leave out the date for the newest final day
+```
+
+```text
+H100 on 2026-10-09 (index day 20735), final, DEGRADED
+Recomputed from Monad Testnet (chain 10143), index 0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36, source writer 0xf0be5c7461c0743acde590a22bccb66fc2112335
+
+  company     readings  day price  counted
+  Verda             24      $3.92  yes, at its day price
+  Nebius             0          -  yes, at its last good day price $4.50 (under 12 readings)
+  Lambda            24      $3.99  yes, at its day price
+  CoreWeave         23      $6.16  yes, at its day price
+  Civo              24      $2.99  yes, at its day price
+  Hyperstack         0          -  no
+
+Median of the 5 counted: $3.99
+Stored $3.99, recomputed $3.99: MATCH (price, status, counts and the record's digest)
+Replayed the 5 earlier days from 2026-10-04 for the held prices: each matches its record
+```
+
+In code it is `agate.checkDay({ gpu: "H100", date: "2026-10-09" })` ([SDK](10-sdk.md#check-any-day)), which returns
+the stored and the recomputed price, whether they match, and each source's inputs. It uses the public RPC unless
+`AGATE_RPC_URL` names another. It is not in the npm release yet: `@s0nderlabs/agate` gets it in its next version, so
+until then run it from a clone as above.
+
+On Oct 11 2026 every final day so far matched: Oct 4 to 10, all six GPUs, 42 of 42 days. What it checks is the
+arithmetic from the stored readings; whether each reading matched the cloud's page is what the attester (section 4)
+and the page check (section 6) watch. The hourly readings themselves are in each writer's `ReadingsPosted` events.
+
+## 9. Why these rules
+
+Each rule above was chosen against the alternatives, from how existing benchmarks and settlement contracts work, from
+published research and failures, and from Agate's own tests. Where a rule rests only on Agate's own reasoning and tests,
+this section says so.
+
+| Rule | Why | What it rests on |
+|---|---|---|
+| **The median across companies, not the average** | An average moves with every input, so one wrong or dishonest source moves the price. A median stays inside the range of the honest sources until half of them are wrong. In Agate's test the median held with 2 bad inputs of 5 and 3 of 7; an average held with none. | Hampel (1971), [A General Qualitative Definition of Robustness](https://doi.org/10.1214/aoms/1177693054); Eisl, Jankowitsch and Subrahmanyam (2017), [The Manipulation Potential of Libor and Euribor](https://doi.org/10.1111/eufm.12126), which finds that alternative fixings "could significantly reduce the effect of manipulation"; the New York Fed's SOFR is a (volume-weighted) median; Agate's own test |
+| **An odd number of sources** | With an even count a median is the mean of the two middle values, so a single source can move it again. | MakerDAO's [median contract](https://github.com/makerdao/median) refuses an even quorum |
+| **One vote per company, and no trackers as inputs** | Feeds that copy each other are one opinion. Counting six price trackers as six votes moved one day's median by 6.6% in Agate's test, and an error they share moves the price instead of being outvoted. | Agate's own test; the Synthetix sKRW incident (2019), where two feeds of one wrong price were averaged |
+| **One price class only (on-demand list prices)** | A median needs inputs that measure the same thing. Mixed with other price classes, the middle can jump with no price having changed. | Eskandari et al. (2021), [SoK: Oracles from the Ground Truth to Market Manipulation](https://doi.org/10.1145/3479722.3480994) |
+| **A plain average inside the day, with no "must last 24 hours" rule** | A rule that only counts a price once it has persisted can be gamed by flickering the page: in Agate's test four of seven attack patterns moved one source's month by 13% to 14.5% under that rule, and none under a plain average of the day's readings. | Mackinga, Nadahalli and Wattenhofer (2022), [TWAP Oracle Attacks: Easier Done than Said?](https://eprint.iacr.org/2022/445); the CME CF Bitcoin Reference Rate (medians inside a slice, a mean across slices); Agate's own test |
+| **"Fresh" means read that day, not "the value changed"** | List prices are unchanged on 98.4% to 99.7% of days in Agate's data, so a reader that silently stopped looks exactly like an honest unchanged price unless each day needs its own readings. | Agate's own data and reasoning |
+| **A dark source is held 5 days, then leaves** | Holding a short time keeps one outage from moving the price; leaving after it keeps a dead source from voting for ever. | No source prescribes 5. The nearest practice is ISDA's 2005 Commodity Definitions (at most 5 days of disruption) and the LME's rules; the number is Agate's choice |
+| **A minimum number of fresh sources, with a label below it** | A benchmark should say what the least data it will publish on is, and what happens below that. | IOSCO [Principles for Financial Benchmarks](https://www.iosco.org/library/pubdocs/pdf/IOSCOPD415.pdf) (2013), Principle 11; ISDA's reference-dealer fallback (at least three quotations) |
+| **Values outside $0.10 to $1,000 count as no price; nothing is ever clamped into range** | A guard that quietly changes a number is itself a price source. Lending protocols lost money when a hard-coded floor or a rate limit substituted its own value for the market's. | The Venus and Blizz losses (2022); Aave's CAPO post-mortem (2026); the Moonwell cbETH mispricing (2026) |
+| **Sources join or leave only on an announced date** | People holding a month's market must know in advance what will be measured. | IOSCO Principle 12 (advance notice and an exact effective date); EU Benchmarks Regulation, Article 13 |
+| **A waiting period, and a second key that can stop a price but never write one** | A stolen writer key alone must not be able to make a price count, and a checker must not become a second writer. | MakerDAO's [Oracle Security Module](https://github.com/makerdao/osm) (a delay, `stop`, `void`); in Agate's test a per-day limit on one key still let a stolen writer move 87% to 98% of the maximum over a month |
+| **A changed day needs a countersign; an unchanged one only waits** | Most days nothing changes, so the second check is spent where the risk is. | Agate's own reasoning and tests; no outside source |
+| **A final day is never restated** | Contracts that have paid out cannot be re-run. | CME Rule 812; the ICE Swap Rate's no-republication policy; IOSCO Principle 11 |
+| **A month pays the plain average of its days** | A renter pays every day, so the month's average is what a month of renting costs, and a wrong day moves it by only one part in the month's days. | All 14 monthly-average contracts Agate read settle this way, including NYMEX's [H100 rental futures filing](https://www.cftc.gov/filings/ptc/ptc08112615405.pdf) (Aug 2026) and ISDA's 2005 Commodity Definitions; Duffie and Stein (2015), [Reforming LIBOR and Other Financial Market Benchmarks](https://doi.org/10.1257/jep.29.2.191): a wider averaging window is harder to manipulate |
+| **Every calendar day counts** | GPUs are rented on weekends too. A business-day average left up to 7.14% of a price step unhedged for a renter billed daily in Agate's test. | CBOT 30-Day Fed Funds and CME One-Month SOFR futures count every calendar day; Agate's own test |
+| **Each day is kept inside the floor and ceiling before averaging** | The month's payout then never leaves the range the locked dollars can pay, with no early stop or knock-out when a day touches an edge. | CME's degree-day weather contracts (a daily floor at zero, a monthly sum); products that stopped on a touch ended badly (MacroShares Oil, 2008) |
+
+What the research does not settle: a median only promises a value inside the honest sources' range, not the right one
+(Breidenbach et al., the [Chainlink 2.0 whitepaper](https://research.chain.link/whitepaper-v2.pdf), section 7.2.2), and
+the checking rules of the attester and the watcher are Agate's own design, tested by Agate and by no outside party.
+
+## 10. Limits, stated
 
 - These are **posted list prices**, not prices clouds actually transact at. Clouds change their list prices in steps,
   so the index moves rarely and in steps (for example, an H100 list price can sit unchanged for weeks).

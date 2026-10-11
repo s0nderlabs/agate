@@ -294,3 +294,53 @@ export interface PanelGpu {
   spec: string;
   slots: { slot: number; family: string; sourceId: string; liveAtStart: boolean }[];
 }
+
+/** checkDay's answer: one GPU's index price for one day, recomputed from what the chain stores, beside the record the
+ *  index keeps. Prices in dollars per GPU-hour. */
+export interface DayCheck {
+  gpu: Gpu;
+  /** the UTC day, YYYY-MM-DD */
+  date: string;
+  /** the index day id (days since 1970-01-01) */
+  day: number;
+  /** the record is final (markets read only final days); false for the one record that can still be pending */
+  final: boolean;
+  /** the stored record's status: full, degraded or demo (by how many companies were fresh), or carried (no usable
+   *  data: the day before's price repeated) */
+  status: "full" | "degraded" | "demo" | "carried";
+  /** the price the index stored */
+  stored: number;
+  /** the price recomputed from the chain */
+  recomputed: number;
+  /** the recomputed record equals the stored one: the price, the status and counts, and the record's digest (which
+   *  covers every source's day price, kind and reading count and the state the day leaves behind) */
+  match: boolean;
+  /** the stored fields the recomputation disagrees with ("value", "digest", ...); empty when match */
+  differences: string[];
+  /** the writer whose readings made the day (lowercase); "" for a carried day */
+  source: string;
+  /** the record's digest as stored and as recomputed; null for a carried day (it has none) */
+  digest: { stored: string; recomputed: string } | null;
+  /** readings a source needs that day for a day price (12 of 24 in production) */
+  minReadings: number;
+  /** per source, the inputs the recomputation used (empty for a carried day) */
+  sources: DayCheckSource[];
+  /** the days replayed, from the GPU's first day to this one, to rebuild each source's held price and dark-day count
+   *  from the chain; mismatches: the earlier days whose recomputation disagreed with their record (YYYY-MM-DD) */
+  replay: { from: string; days: number; mismatches: string[] };
+}
+/** One source (a cloud's price page, one slot of the GPU's panel) on a checked day. */
+export interface DayCheckSource {
+  /** the company */
+  family: string;
+  slot: number;
+  /** hourly readings the day's source writer stored for it */
+  readings: number;
+  /** the average of those readings to the cent, when there are at least minReadings; else null */
+  dayPrice: number | null;
+  /** fresh: counted at its day price; held: counted at its last good day price (dark for up to 5 days); out: not
+   *  counted (the reserve, dark too long, or not live) */
+  kind: "fresh" | "held" | "out";
+  /** the price that entered the median: dayPrice when fresh, the held price when held; null when out */
+  used: number | null;
+}

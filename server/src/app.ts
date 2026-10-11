@@ -24,6 +24,7 @@ import { checkHmac } from "./dynamic/hmac.ts";
 import { decide, type ReviewRequest } from "./dynamic/review.ts";
 import { type SnapshotCache, snapshotCache } from "./snapshot.ts";
 import { developerApi } from "./developer.ts";
+import { type Fingerprints, watcherFingerprints } from "./fingerprints.ts";
 import { handleWebhook } from "./dynamic/webhook.ts";
 import { fetchExternalSub } from "./dynamic/users.ts";
 import type { PocketLimits } from "@agate/wallet/allowed";
@@ -56,6 +57,8 @@ export type AppDeps = {
   agateClient?: () => AgateClient;
   /** the markets snapshot behind GET /api/markets (default: read through agateClient) */
   snapshots?: SnapshotCache;
+  /** the developer API's page fingerprints (default: the watcher's log in AGATE_WATCHER_LOG_DIR; unset: none) */
+  pages?: Fingerprints | null;
   /** passkey accounts: the sign-in key (default HOME/byoa-es256.pem), origin -> rp id, and the clock */
   byoaKeyPem?: () => string;
   passkeyOrigins?: Map<string, string>;
@@ -131,7 +134,9 @@ export function publicApp(deps: AppDeps): Hono {
    *  read the chain itself; 503 when it cannot be read (the app then reads the chain). */
   const snapshots = deps.snapshots ?? snapshotCache(agate, { log });
   // the developer API (developer.ts): the same snapshot as stable, read-only JSON for anyone, under /v1
-  app.route("/", developerApi({ snapshots, client: agate, log }));
+  const logDir = process.env.AGATE_WATCHER_LOG_DIR;
+  const pages = deps.pages !== undefined ? deps.pages : logDir ? watcherFingerprints(logDir) : null;
+  app.route("/", developerApi({ snapshots, client: agate, log, pages }));
   app.get("/api/markets", async (c) => {
     const s = await snapshots.get();
     if (!s) return c.json({ error: "the markets could not be read; read them from the chain" }, 503, { "cache-control": "no-store" });

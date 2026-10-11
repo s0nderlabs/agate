@@ -86,6 +86,7 @@ own client keeps the one-time check).
 | `getWallet(address)` | tUSD, `lastDrip` / `nextDrip` / `canDrip` (the dollar's `nextDripAt`), Kuru margin tUSD, MON, positions: held tokens, short balances, pay-me-daily and short positions with `paid` and `claimable` | chain balances and `position()` / `claimable()`; indexer for position ids, open times and entry prices | every position id scanned on chain; `entry` 0, `openedAt` "" |
 | `openOrders(address)` | the user's resting Kuru orders as `OpenOrder`, newest first | indexer `BookOrder` candidates (every page, up to 50,000) plus every order id above the newest the indexer has seen (an order placed a moment ago is never missed; the newest ids are read first, so an order indexed in between is in one of the two), each checked on chain by Kuru's own status rule | the newest 500 order ids of each book, from the chain |
 | `openOrdersResult(address)` | `{orders, complete, source}`: the same orders, where they came from (`"indexer"` or `"chain"`) and whether every id was reached | as above; `complete` false when the indexer holds more of the user's orders than 50,000 | `complete` false when a book holds older ids than the scan reached (the maker's requotes create ids all day): show "may be incomplete" |
+| `checkDay({ gpu, date })` | `DayCheck`: one day's index price recomputed from the chain beside the stored one, `match` (price, status, counts and the record's digest), each source's readings, day price and kind, and the earlier days replayed (src/check.ts, a whole-number port of the contract's daily formula) | index views in three rounds: `gpu`, `firstRecordDay`, `writers`; `slotWindow`, `familyOf`, `record` of every day from the GPU's first, `isSuspended`; each computed day's source `readings`, and for a carried day every writer's `readings` and `isVoided` | same (never the indexer); `bun run check-day <gpu> [date]` prints it |
 
 A month that is not listed (an upcoming month, or a price-only GPU) has an empty book, no fills and no candles: `book`,
 `recentFills` and `candles` return empty, never an error; the writes, which need a listed month, throw `ReadError`
@@ -301,7 +302,8 @@ bun run e2e/session-report.ts # read only: a demo session's days, listings, book
 ```
 
 `e2e/run.ts fork` starts an anvil fork of Monad testnet through `wall/scripts/anvil-safe.sh` (refused under 30 GB
-free) with the **live deployment** (`contracts/deployments/10143.json`), writes and countersigns index days as the
+free; the last 16 block states kept in memory, so a read at "latest" still answers when a bot's transaction is mined
+under it) with the **live deployment** (`contracts/deployments/10143.json`), writes and countersigns index days as the
 index's own writer and attester (impersonated on the fork, the operator kit's `ops/testnet/rehearse/days.ts`), runs
 the payer app as the lister and the market maker app with the kit's public rehearsal keys (fork only), and an Envio
 indexer of the fork on its own Postgres and Hasura containers (`e2e/indexer.ts`: names, network and free ports of

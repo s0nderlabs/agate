@@ -1,4 +1,5 @@
-// anvil-safe.sh: cleanup on stop, the concurrency cap, the disk floor, parent death and the kill -9 sweep.
+// anvil-safe.sh: cleanup on stop, the concurrency cap, the disk floor, parent death, the kill -9 sweep, and the kept
+// states (a leading count) that let a read at "latest" survive a block mined under it.
 // Every case runs under its own AGATE_ANVIL_ROOT, so it never touches the shared slots of a real run, and with
 // the disk floor at 0 unless the case is about the floor.
 import { afterAll, describe, expect, test } from "bun:test";
@@ -123,5 +124,60 @@ describe.skipIf(!Bun.which("anvil"))("anvil-safe.sh", () => {
     next.proc.kill("SIGTERM");
     await next.proc.exited;
     expect(runs(root)).toEqual([]);
+  }, 40_000);
+
+  // A read at "latest" on a chain other processes send to: anvil resolves "latest" to block N, and when the next block
+  // lands before N's state is read, the read becomes one at N under a head of N+1. With no state kept for N it fails
+  // with -32602 "BlockOutOfRangeError: block height is N+1 but requested was N". Asked here directly, so no timing:
+  // 20 blocks mined, then a call and a balance read 1, 16 and 17 blocks behind the head.
+  async function readsBehindHead(rpc: string): Promise<Record<string, string>> {
+    const ask = async (method: string, params: unknown[]) =>
+      (await (await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) })).json()) as { result?: unknown; error?: { code: number; message: string } };
+    const accts = (await ask("eth_accounts", [])).result as string[];
+    for (let i = 0; i < 20; i++) await ask("eth_sendTransaction", [{ from: accts[1], to: accts[0], value: "0x1", gas: "0x5208" }]);
+    let head = 0;
+    for (let i = 0; i < 250 && head < 20; i++) {
+      head = Number((await ask("eth_blockNumber", [])).result as string);
+      if (head < 20) await Bun.sleep(20);
+    }
+    const at = (back: number) => `0x${(head - back).toString(16)}`;
+    const said = (r: { error?: { code: number; message: string } }) => (r.error ? `${r.error.code} ${r.error.message.replace(/\d+/g, "N")}` : "ok");
+    return {
+      head: String(head),
+      call1: said(await ask("eth_call", [{ to: accts[0], data: "0x" }, at(1)])),
+      balance1: said(await ask("eth_getBalance", [accts[0], at(1)])),
+      balance16: said(await ask("eth_getBalance", [accts[0], at(16)])),
+      balance17: said(await ask("eth_getBalance", [accts[0], at(17)])),
+    };
+  }
+
+  test("a leading count keeps that many states: it reaches anvil as --prune-history <n>, and a cleanup check still finds it", async () => {
+    const root = freshRoot();
+    const a = await spawnAnvil(["--silent"], { env: { AGATE_ANVIL_ROOT: root, AGATE_ANVIL_MIN_FREE_GB: "0" }, timeoutMs: 20_000, states: 16 });
+    const [pid] = anvilPids(root);
+    const cmd = Bun.spawnSync(["ps", "-o", "command=", "-p", String(pid)], { stdout: "pipe" }).stdout.toString().trim();
+    expect(cmd).toStartWith(`anvil --prune-history 16 --port ${a.port} `);
+    // the e2e's leftover check (client/e2e/fork.ts anvilOnPort) and the wrapper's own sweep both match this line
+    const found = Bun.spawnSync(["pgrep", "-f", `anvil --prune-history( [0-9]+)? --port ${a.port} `], { stdout: "pipe" }).stdout.toString().trim();
+    expect(found).toBe(String(pid));
+    a.proc.kill("SIGTERM");
+    await a.proc.exited;
+    expect(await until(() => !alive(pid!))).toBe(true);
+    expect(runs(root)).toEqual([]);
+    await expect(spawnAnvil(["--silent"], { states: 0 })).rejects.toThrow("states must be a positive integer");
+  }, 30_000);
+
+  test("a read behind the head: refused out of range with no states kept, answered within the 16 kept", async () => {
+    const OUT = "-32602 BlockOutOfRangeError: block height is N but requested was N";
+    const bare = await spawnAnvil(["--silent"], { env: { AGATE_ANVIL_ROOT: freshRoot(), AGATE_ANVIL_MIN_FREE_GB: "0" }, timeoutMs: 20_000 });
+    const without = await readsBehindHead(bare.rpc);
+    bare.proc.kill("SIGTERM");
+    await bare.proc.exited;
+    const kept = await spawnAnvil(["--silent"], { env: { AGATE_ANVIL_ROOT: freshRoot(), AGATE_ANVIL_MIN_FREE_GB: "0" }, timeoutMs: 20_000, states: 16 });
+    const with16 = await readsBehindHead(kept.rpc);
+    kept.proc.kill("SIGTERM");
+    await kept.proc.exited;
+    expect(without).toEqual({ head: "20", call1: OUT, balance1: OUT, balance16: OUT, balance17: OUT });
+    expect(with16).toEqual({ head: "20", call1: "ok", balance1: "ok", balance16: "ok", balance17: OUT });
   }, 40_000);
 });

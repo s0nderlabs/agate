@@ -1,6 +1,6 @@
 {
   "name": "@agate/client",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "agate's live data layer: typed reads (chain and indexer) and plain write functions over viem, in the app's shapes",
@@ -17,6 +17,7 @@
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "gen": "bun run scripts/gen-static.ts",
+    "check-day": "bun run scripts/check-day.ts",
     "e2e:fork": "bun run e2e/run.ts fork",
     "e2e:live": "bun run e2e/run.ts live",
     "pack:npm": "bun run scripts/pack.ts"

@@ -19,7 +19,7 @@ import { type Abi, type Address, createWalletClient, encodeFunctionData, type He
 import { privateKeyToAccount } from "viem/accounts";
 import { agateDollarAbi, agateTokenAbi, kuruMarginAccountAbi, kuruOrderBookAbi } from "../../src/abi.ts";
 import { buyLong, cancelLimit, closeLongDaily, closeShort, createAgateClient, drip, mintPairs, openLongDaily, openShort, placeLimit, redeem, send, sellLong, toNumber6, type WriteError, withdrawMargin } from "../../src/index.ts";
-import { anvilTmp, assertFork, dfLine, rpcCall } from "../../e2e/fork.ts";
+import { anvilOnPort, anvilTmp, assertFork, dfLine, rpcCall } from "../../e2e/fork.ts";
 import { DEPLOYMENTS_FILE, World } from "../../e2e/world.ts";
 
 const USER_KEY: Hex = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a"; // anvil account 4
@@ -337,7 +337,7 @@ async function main(): Promise<number> {
     rmSync(state, { recursive: true, force: true });
   }
   const alive = pids.filter((p) => Bun.spawnSync(["kill", "-0", String(p)], { stderr: "ignore" }).success);
-  const anvilLeft = port ? Bun.spawnSync(["pgrep", "-f", `anvil --prune-history --port ${port} `], { stdout: "pipe" }).stdout.toString().trim() : "";
+  const anvilLeft = anvilOnPort(port);
   report.leftovers = { pids: alive, anvil: anvilLeft };
   report.diskAfter = dfLine();
   report.anvilTmpAfter = anvilTmp();

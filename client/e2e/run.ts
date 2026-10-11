@@ -21,7 +21,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Hex } from "viem";
 import { createAgateClient, type Deployments, type Gpu, resolveGraphqlUrl } from "../src/index.ts";
-import { anvilTmp, assertFork, dfLine, rpcCall } from "./fork.ts";
+import { anvilOnPort, anvilTmp, assertFork, dfLine, rpcCall } from "./fork.ts";
 import { big, type Hooks, journey, Steps } from "./flows.ts";
 import { otherContainers, waitIndexed } from "./indexer.ts";
 import { liveReads } from "./live.ts";
@@ -119,7 +119,7 @@ async function fork(): Promise<number> {
   report.liveIndexerAfter = await liveIdx();
   // this run's own processes by pid, and the anvil serving its fork's port; the operator's processes never match
   const alive = pids.filter((p) => Bun.spawnSync(["kill", "-0", String(p)], { stderr: "ignore" }).success);
-  const anvilLeft = port ? Bun.spawnSync(["pgrep", "-f", `anvil --prune-history --port ${port} `], { stdout: "pipe" }).stdout.toString().trim() : "";
+  const anvilLeft = anvilOnPort(port);
   const ownContainers = runNames ? Bun.spawnSync(["podman", "ps", "-a", "--format", "{{.Names}}"], { stdout: "pipe", stderr: "ignore" }).stdout.toString().split("\n").filter((n) => runNames!.includes(n)).join(" ") : "";
   const leftovers = [alive.length ? `pids ${alive.join(" ")}` : "", anvilLeft ? `anvil ${anvilLeft}` : "", ownContainers ? `containers ${ownContainers}` : ""].filter(Boolean).join("; ");
   report.leftoverProcesses = leftovers;

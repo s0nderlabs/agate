@@ -91,6 +91,9 @@ export const WRITE_REASONS = [
   "DripTooSoon",
   "MonthNotFinal",
   "PostOnlyError",
+  "NoMarket",
+  "PartsTooSmall",
+  "NoPositions",
   "NoReceipt",
   "reverted",
 ] as const;
@@ -318,6 +321,12 @@ export function refusalOf(e: unknown, ctx: { kind: TradeKind; month?: string }):
       return fail(reason, COPY.monthNotFinal(month), "back");
     case "PostOnlyError":
       return ticket(reason, COPY.postOnly);
+    case "NoMarket":
+      return fail(reason, COPY.monthNotOpen(month), "back");
+    case "PartsTooSmall":
+      return ticket(reason, COPY.partsTooSmall);
+    case "NoPositions":
+      return fail(reason, COPY.pickPosition, "back");
     case "NoReceipt":
       return { sheet: "pending", message: COPY.pending, action: "none", nothingSent: false, reason };
     case "reverted":
@@ -330,12 +339,9 @@ export function refusalOf(e: unknown, ctx: { kind: TradeKind; month?: string }):
   if (stage === "receipt") return { sheet: "failed", message: COPY.landedMoved, action: "recheck", nothingSent: false, reason: stage };
 
   // check-stage refusals without a reason, by what they say
-  if (/too small for that many parts/i.test(msg)) return ticket("parts", COPY.partsTooSmall);
   if (/less than 0\.0001 GPU-hour/i.test(msg)) return ticket("dust", COPY.tooSmallToBuy);
   if (/^(you|the account) holds? /i.test(msg)) return fail("InsufficientTokens", COPY.tokensShort, "back", { refresh: true });
-  if (/no Kuru market yet/i.test(msg)) return fail("noMarket", COPY.monthNotOpen(month), "back");
   if (/is not yours|not opened through the router|position \S+ is a (long|short)/i.test(msg)) return fail("notHere", COPY.notHere, "back");
-  if (/no positions given/i.test(msg)) return fail("noPositions", COPY.pickPosition, "back");
   if (/could not be read/i.test(msg)) return fail("unread", COPY.network, "retry");
   if (/nothing to claim/i.test(msg)) return fail("nothingToClaim", COPY.nothingToClaim, "back");
   if (/nothing to settle/i.test(msg)) return fail("nothingToSettle", COPY.nothingToSettle, "back");
@@ -761,6 +767,7 @@ export const REFUSAL_RULES = {
   approve_router_only: "it tried something outside its pocket's limits",
   no_native_value: "it tried something outside its pocket's limits",
   no_market: "that month isn't open for trading yet",
+  parts_too_small: "its amount was too small for daily payouts",
   bad_input: "it asked with numbers Agate couldn't read",
   not_found: "it asked about something that isn't there",
   monthnotfinal: "that month hasn't settled yet",

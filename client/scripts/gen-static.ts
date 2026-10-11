@@ -16,7 +16,7 @@ export const PICK = {
   agateSeriesAbi: { from: "market", name: "agateSeriesAbi", fns: "*", events: "*" },
   agateFactoryAbi: { from: "market", name: "agateFactoryAbi", fns: ["currentMonth", "seriesOf", "marketOf", "isSeries", "routerCanUse", "gpuIds", "labelOf", "previewListing", "index", "dollar", "router", "kuruRouter", "tag", "takerFeeBps", "makerFeeBps"], events: ["SeriesListed", "MarketRecorded"] },
   agateRouterAbi: { from: "market", name: "agateRouterAbi", fns: "*", events: "*" },
-  agateIndexAbi: { from: "report", name: "agateIndexAbi", fns: ["record", "head", "gpu", "slotState", "slotStates", "slotWindow", "familyOf", "readings", "clocks", "dayStart", "dayId", "firstRecordDay", "finalFix", "writers", "attester", "disrupted"], events: ["DayClosed", "Attested", "DayCarried"] },
+  agateIndexAbi: { from: "report", name: "agateIndexAbi", fns: ["record", "head", "gpu", "slotState", "slotStates", "slotWindow", "familyOf", "readings", "clocks", "dayStart", "dayId", "firstRecordDay", "finalFix", "writers", "attester", "disrupted", "isSuspended", "isVoided"], events: ["DayClosed", "Attested", "DayCarried"] },
 } as const;
 
 type Entry = { type: string; name?: string };

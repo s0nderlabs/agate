@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { AgateClient, Candle, Fill, Market, MarketsSnapshot } from "@agate/client";
 import { publicApp } from "../src/app.ts";
 import { developerApi } from "../src/developer.ts";
+import type { Fingerprints } from "../src/fingerprints.ts";
 import { openapi } from "../src/openapi.ts";
 import type { SnapshotCache } from "../src/snapshot.ts";
 import { Store } from "../src/store.ts";
@@ -107,11 +108,31 @@ describe("developer API v1", () => {
     expect(j.readAt).toBe(snapshot.readAt);
     expect(j.prices[0]).toMatchObject({ gpu: "H100", price: 3.99, date: "2026-10-07", previousPrice: 3.95, change: 0.04, sourcesCounted: 1, panelSize: 2, tradable: true });
     expect(j.prices[0].sources).toEqual([
-      { company: "Lambda", price: 3.99, counted: true, reserve: false },
-      { company: "Hyperstack", price: null, counted: false, reserve: true },
+      { company: "Lambda", price: 3.99, counted: true, reserve: false, page: null },
+      { company: "Hyperstack", price: null, counted: false, reserve: true, page: null },
     ]);
     // before a GPU's first final day there is no price, not a 0
     expect(j.prices[1]).toMatchObject({ gpu: "A100", price: null, date: null, change: null, finalAt: null });
+  });
+
+  test("each priced source row carries the page behind its price; a reserve and a GPU before its first final day carry none", async () => {
+    const asked: unknown[] = [];
+    const fp = { sha256: "ab".repeat(32), fetchedAt: "2026-10-07T23:18:04Z", price: 3.99 };
+    const pages: Fingerprints = {
+      page: (q) => {
+        asked.push(q);
+        return fp;
+      },
+    };
+    const app = developerApi({ snapshots: snaps(), client: counting().client, log: () => {}, pages });
+    const all = (await get(app, "/v1/prices")).j;
+    expect(all.prices[0].sources.map((r: { page: unknown }) => r.page)).toEqual([fp, null]);
+    expect(all.prices[1].sources.map((r: { page: unknown }) => r.page)).toEqual([null, null]);
+    expect(asked).toEqual([{ gpu: "H100", date: "2026-10-07", slot: 0, company: "Lambda" }]);
+    expect((await get(app, "/v1/prices/H100")).j.sources[0].page).toEqual(fp);
+    // the real server app passes them through
+    const pub = publicApp({ store: new Store(":memory:"), log: () => {}, agateClient: counting().client, snapshots: snaps(), pages });
+    expect((await get(pub, "/v1/prices")).j.prices[0].sources[0].page).toEqual(fp);
   });
 
   test("one GPU: case-insensitive, with onchain history and the logger's days apart; unknown GPU is a 400", async () => {
@@ -229,6 +250,22 @@ describe("developer API v1", () => {
     for (let i = 0; i < 10; i++) expect((await via(`1.1.1.${i}`)).status).toBe(200); // 10 x the limit for the app's address
     expect((await via("2.2.2.2")).status).toBe(429); // another header value is still the same bucket
     expect((await app.request("/v1/status", { headers: { "x-forwarded-for": "8.8.8.8" } })).status).toBe(200);
+  });
+
+  test("a path or method the API does not have is a JSON 404 on the real server app, with open CORS", async () => {
+    const app = publicApp({ store: new Store(":memory:"), log: () => {}, agateClient: counting().client, snapshots: snaps() });
+    const { r, j } = await get(app, "/v1/price");
+    expect(r.status).toBe(404);
+    expect(r.headers.get("content-type")).toContain("application/json");
+    expect(r.headers.get("access-control-allow-origin")).toBe("*");
+    expect(j).toEqual({ error: "no such endpoint: GET /v1/price (see /v1 for the list)" });
+    expect((await get(app, "/v1/markets/H100/2026-11/book")).r.status).toBe(404);
+    const post = await app.request("/v1/prices", { method: "POST", headers: { "x-forwarded-for": "1.2.3.4" } });
+    expect(post.status).toBe(404);
+    expect(((await post.json()) as { error: string }).error).toBe("no such endpoint: POST /v1/prices (see /v1 for the list)");
+    // the known endpoints still answer
+    expect((await get(app, "/v1")).r.status).toBe(200);
+    expect((await get(app, "/v1/prices")).r.status).toBe(200);
   });
 
   test("every path in the OpenAPI spec answers on the real server app, and the index lists them", async () => {

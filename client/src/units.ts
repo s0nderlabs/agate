@@ -98,6 +98,13 @@ export function iso(t: bigint | number): string {
 export function dateOfDay(day: number): string {
   return new Date(day * 86_400_000).toISOString().slice(0, 10);
 }
+/** The index day id of a calendar date (YYYY-MM-DD, UTC), dateOfDay's inverse. */
+export function dayOfDate(date: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const day = m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86_400_000 : Number.NaN;
+  if (!Number.isSafeInteger(day) || day < 0 || dateOfDay(day) !== date) throw new AmountError(`date "${date}" is not a YYYY-MM-DD date`);
+  return day;
+}
 /** "2026-11" of a month (year * 12 + month - 1). */
 export function monthLabel(month: number): string {
   const y = Math.floor(month / 12);

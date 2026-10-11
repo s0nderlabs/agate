@@ -63,6 +63,8 @@ const RULES: Record<string, string> = {
   Depth: "thin_book",
   DripTooSoon: "drip_too_soon",
   EmptyBook: "empty_book",
+  NoMarket: "no_market",
+  PartsTooSmall: "parts_too_small",
 };
 
 export type McpDeps = {

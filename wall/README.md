@@ -32,7 +32,8 @@ Archive tests read the logger's saved pages from `AGATE_RAW_DIR` (default `~/.ag
 without them. Tests that compare with research files kept outside the repo read them from `AGATE_PRICE_ONLY_READINGS`,
 `AGATE_TRACKER_SAMPLES` and `AGATE_TRACKER_SAMPLES_OCT3`, and skip with a printed line when those are unset. Every
 local chain starts through `scripts/anvil-safe.sh` (pruned history, a private HOME removed on exit, no start under
-30 GB free, at most 12 at once); the chain tests need `anvil` and a `forge build` of `contracts/`.
+30 GB free, at most 12 at once; a leading number keeps that many recent block states in memory, for a chain that is
+read at "latest" while other processes send to it); the chain tests need `anvil` and a `forge build` of `contracts/`.
 
 End to end and chaos, each scenario on its own local anvil with the real AgateIndex:
 

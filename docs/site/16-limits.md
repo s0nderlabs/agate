@@ -36,8 +36,6 @@ source: 'contracts/src, server/src/grants.ts, wallet/src/allowed.ts, wall/apps'
 - **An AI connection's end date depends on how it connected.** Past the end date a connector URL still answers
   reads (its trade tools are gone), while an OAuth connection stops answering within the hour, because its token is
   not renewed. Either way, connecting again with a new end date restores it.
-- **The SDK is not on npm yet.** It is built and tested; for now, use it from this repository. Until it is published,
-  a package on npm that claims to be Agate's is not ours.
 
 ## Who can do what
 
@@ -66,7 +64,7 @@ pocket's trades, every order in the book. Your account's address is visible to a
 
 ## What is not built yet
 
-Beyond the limits above (one CRE node, no outside audit, Transaction Review, the SDK off npm):
+Beyond the limits above (one CRE node, no outside audit, Transaction Review):
 
 - Kuru Spot V2 books for the app (the market maker is ready to quote them).
 - A recovery path for a lost passkey (an account made from a passkey alone has nothing else to sign in with), and

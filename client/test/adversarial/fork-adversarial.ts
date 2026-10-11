@@ -33,7 +33,7 @@ import {
   type TxSummary,
   WriteError,
 } from "../../src/index.ts";
-import { anvilTmp, assertFork, dfLine, rpcCall } from "../../e2e/fork.ts";
+import { anvilOnPort, anvilTmp, assertFork, dfLine, rpcCall } from "../../e2e/fork.ts";
 import { DEPLOYMENTS_FILE, World } from "../../e2e/world.ts";
 
 const USER_KEY: Hex = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"; // anvil account 2
@@ -318,7 +318,7 @@ async function main(): Promise<number> {
     rmSync(state, { recursive: true, force: true });
   }
   const alive = pids.filter((p) => Bun.spawnSync(["kill", "-0", String(p)], { stderr: "ignore" }).success);
-  const anvilLeft = port ? Bun.spawnSync(["pgrep", "-f", `anvil --prune-history --port ${port} `], { stdout: "pipe" }).stdout.toString().trim() : "";
+  const anvilLeft = anvilOnPort(port);
   report.leftovers = { pids: alive, anvil: anvilLeft };
   report.diskAfter = dfLine();
   report.anvilTmpAfter = anvilTmp();

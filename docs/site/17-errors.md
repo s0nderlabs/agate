@@ -30,7 +30,8 @@ The app words its own messages (`app/src/lib/account/errors.ts`); the sentences 
 | `This device already has a passkey for Agate. Sign in with it.` | this device already holds an Agate passkey | **Sign in with it** |
 | `This passkey is from the older sign-in, where a passkey was added to an email or Google account.` | this passkey belongs to an email or Google account | **Continue**: it signs that account in |
 | `That took too long. Try again.` | a passkey request lasts 5 minutes | try again |
-| `Too many tries from this network. Wait a minute, then try again.` | too many passkey requests from one network (new accounts: 5 an hour) | wait, or use Google or your email |
+| `Too many tries from this network. Wait a minute, then try again.` | too many passkey requests from one network in a minute | wait a minute, or use Google or your email |
+| `Too many new accounts from this network. Try again in an hour.` | 5 new passkey accounts were made from this network in the last hour | **Use your email instead**, or try again in an hour |
 | `New passkey accounts are paused for today. Use Google or your email instead.` | the day's cap on new passkey accounts (150) is reached, or Dynamic's test environment is full (then Google and email fail too) | use Google or your email, or try tomorrow |
 | `Agate couldn't accept that passkey. Try again.` | Agate's server could not verify the passkey's answer | try again |
 | `Your passkey worked, but sign-in didn't finish. Try again.` | Dynamic did not finish the sign-in | **Try again**: the account now exists, so it signs in |
@@ -47,8 +48,8 @@ The app words its own messages (`app/src/lib/account/errors.ts`); the sentences 
 
 ## Developer API
 
-Every error from a known endpoint is `{ "error": "<sentence>" }` with `400`, `404`, `429` or `503`, and `429` and
-`503` carry a `retry-after`. The full table, sentence by sentence: [Developer API](08-api.md#errors).
+Every error, a path the API does not have included, is `{ "error": "<sentence>" }` with `400`, `404`, `429` or
+`503`, and `429` and `503` carry a `retry-after`. The full table, sentence by sentence: [Developer API](08-api.md#errors).
 
 ## MCP connection
 
@@ -86,8 +87,9 @@ Nothing was signed.
 | `sponsor_limit` | the network fee could not be sponsored right now | try later |
 | `bad_amount` | an amount with too many decimals, off the 0.0001 GPU-hour lot or the $0.01 price grid | round it |
 | `bad_input` | a `quote` without the amount its side needs | pass `dollars` for a Long, `gpu_hours` for a Short |
-| `no_market` | (`quote` only) the month has no order book yet | `get_prices` lists the tradable months |
-| `refused` | a check with no rule of its own: a trade on a month whose book is not created yet (`<gpu> <month> has no Kuru market yet`), `no positions given`, `the size is too small for that many parts` | read `detail` |
+| `no_market` | the month has no order book yet (a trade says `<gpu> <month> has no Kuru market yet`) | `get_prices` lists the tradable months |
+| `parts_too_small` | a pay-me-daily Long too small for that many daily parts (`the size is too small for that many parts`) | buy more |
+| `refused` | a check with no rule of its own | read `detail` |
 | `not_found` | an approval or autopilot order of another connection, or none | use an id this connection got |
 | `not_allowed_contract`, `not_allowed_function` | a call the pocket may never make | only the trade tools trade |
 | `payee_must_be_you`, `approve_router_only`, `no_native_value` | a call that would pay someone else, approve another spender, or send MON | never; these protect the person |
@@ -130,6 +132,9 @@ that already landed (an approval before a failed trade, say).
 | `check` | `DripTooSoon` | the faucet's 24 hours have not passed | no |
 | `check` | `MonthNotFinal` | settle before every day of the month is final | no |
 | `check` | `PostOnlyError` | a post-only limit order would cross the book | no |
+| `check` | `NoMarket` | the month has no Kuru order book yet (`<gpu> <month> has no Kuru market yet`) | no |
+| `check` | `PartsTooSmall` | a pay-me-daily Long too small to split into that many daily parts (`the size is too small for that many parts`) | no |
+| `check` | `NoPositions` | a close or claim with no position ids (`no positions given`) | no |
 | `simulate` | the contract error's name | the call reverts in simulation | no |
 | `estimate` | the RPC's error name | gas estimation failed | no |
 | `send` | the wallet's error name | the wallet did not send | no |

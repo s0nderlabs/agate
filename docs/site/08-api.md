@@ -64,9 +64,15 @@ reader's countersign. `GET /v1/prices/H100`:
   "sourcesCounted": 5,
   "panelSize": 6,
   "sources": [
-    { "company": "Verda", "price": 3.83, "counted": true, "reserve": false },
-    { "company": "Lambda", "price": 3.99, "counted": true, "reserve": false },
-    { "company": "Hyperstack", "price": null, "counted": false, "reserve": true }
+    {
+      "company": "Verda", "price": 3.83, "counted": true, "reserve": false,
+      "page": { "sha256": "2660a4cf0c8c4413d313715c93bbeb0c102545aad1ea018ad300980b96267840", "fetchedAt": "2026-10-07T23:18:04Z", "price": 3.85 }
+    },
+    {
+      "company": "Lambda", "price": 3.99, "counted": true, "reserve": false,
+      "page": { "sha256": "cf517d807032af0c53b0c8608c794896d6a425b5c8b669e8b9a5ee2668826e71", "fetchedAt": "2026-10-07T23:18:04Z", "price": 3.99 }
+    },
+    { "company": "Hyperstack", "price": null, "counted": false, "reserve": true, "page": null }
   ],
   "tradable": true,
   "history": [{ "date": "2026-10-07", "price": 3.99, "status": "final" }],
@@ -76,6 +82,11 @@ reader's countersign. `GET /v1/prices/H100`:
 
 - `price` is `null` before a GPU's first final day; `previousPrice` and `change` are `null` until there is a day before it.
 - A `reserve` source counts only when a main source fails.
+- `page` is the page behind a source's price: the watcher's newest clean reading of that cloud's price page on
+  `date` (the watcher is the independent reader the attester checks each day against). `sha256` is the fingerprint of
+  the exact bytes it fetched, `fetchedAt` when, and `price` the price read from that one page (the source's own
+  `price` is the day's average, so the two can differ when a cloud changed its price that day). `page` is `null` for
+  a source without a price, a source held from an earlier day, or when the page had no clean reading that day. It is kept by Agate's server, not onchain.
 - `history` is the onchain record (`status: "carried"` means no new reading that day, the day before carried).
 - `beforeOnchain` holds days our logger recorded before the index went onchain: shown for context, nothing settles
   on them.
@@ -115,8 +126,7 @@ Long buys the token; going Short locks the ceiling and sells it. `GET /v1/market
 
 ## Errors
 
-Every error from a known endpoint is JSON, `{ "error": "<sentence>" }`, with one of these statuses (a path the API
-does not have, such as `/v1/price`, answers a plain-text `404 Not Found`, so check the status before parsing):
+Every error is JSON, `{ "error": "<sentence>" }`, with one of these statuses:
 
 | Status | `error` | Where | `retry-after` |
 |---|---|---|---|
@@ -124,6 +134,7 @@ does not have, such as `/v1/price`, answers a plain-text `404 Not Found`, so che
 | `400` | `month is YYYY-MM, for example 2026-11` | any `{month}` path | |
 | `404` | `<gpu> has no <month> market on sale (see /v1/markets)` | `/v1/markets/{gpu}/{month}` and below | |
 | `404` | `no <gpu> price yet` | `/v1/prices/{gpu}` | |
+| `404` | `no such endpoint: <method> <path> (see /v1 for the list)` | a path the API does not have, such as `/v1/price`, or a method other than GET | |
 | `429` | `over 120 requests a minute; wait a minute` (`over 1200` through the app's address) | everywhere | `60` |
 | `503` | `the markets could not be read right now; try again shortly` | prices, markets, books | `10` |
 | `503` | `trades could not be read right now; try again shortly` | `/trades` | `15` |

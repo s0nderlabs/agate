@@ -5,11 +5,12 @@
 import { type Abi, type Address, type Chain, createPublicClient, decodeErrorResult, defineChain, fallback, type Hex, http, type PublicClient, type Transport, toFunctionSelector } from "viem";
 import { agateDollarAbi, agateFactoryAbi, agateIndexAbi, agateRouterAbi, agateSeriesAbi, agateTokenAbi, kuruMarginAccountAbi, kuruOrderBookAbi } from "./abi.ts";
 import { decodeL2Book, type RawBook, toBook } from "./book.ts";
+import { CARRIED, checkDayFrom, type DayReadings, type StoredRecord } from "./check.ts";
 import { dayIdAt, dayStart, expectedClose, expectedFinal, type IndexClocks, type RecordTimes } from "./clock.ts";
 import { DEFAULT_GRAPHQL_URL, type FixRow, type FlowRow, type GraphQL, graphql, IndexerError, type OrderRow, type PositionRow, Q, type SeriesRow, type TradeRow } from "./graphql.ts";
 import { PANELS, TESTNET_DEPLOYMENTS, TESTNET_PRELAUNCH } from "./static.ts";
-import type { Book, Candle, Deployments, FactoryRecord, Fill, Gpu, IndexDay, Market, MarketsSnapshot, OpenOrder, PanelGpu, PanelSlot, Position, Quote, Series, SourceReading, TickerItem, Wallet } from "./types.ts";
-import { dateOfDay, daysIn, firstDayOf, iso, LOT, monthLabel, monthOfDay, monthOfLabel, monthShort, SIZE_PER_TOKEN, TICK, toNumber6, U, unitsToHours, ZERO_ADDRESS } from "./units.ts";
+import type { Book, Candle, DayCheck, Deployments, FactoryRecord, Fill, Gpu, IndexDay, Market, MarketsSnapshot, OpenOrder, PanelGpu, PanelSlot, Position, Quote, Series, SourceReading, TickerItem, Wallet } from "./types.ts";
+import { dateOfDay, dayOfDate, daysIn, firstDayOf, iso, LOT, monthLabel, monthOfDay, monthOfLabel, monthShort, SIZE_PER_TOKEN, TICK, toNumber6, U, unitsToHours, ZERO_ADDRESS } from "./units.ts";
 
 export const PUBLIC_RPC = "https://testnet-rpc.monad.xyz";
 
@@ -582,6 +583,100 @@ export class AgateClient {
   private prelaunchOf(v: GpuView): IndexDay[] {
     if (this.chain.id !== TESTNET_PRELAUNCH.chainId || this.index.toLowerCase() !== TESTNET_PRELAUNCH.index) return [];
     return (TESTNET_PRELAUNCH.days[v.gpu] ?? []).filter((d) => d.day < v.firstDay).map((d) => ({ date: dateOfDay(d.day), price: toNumber6(BigInt(d.valueU)), status: d.status, example: false, onchain: false }));
+  }
+
+  /** Check any day yourself: `gpu`'s index price on `date` (YYYY-MM-DD, a UTC day) recomputed from the chain alone
+   *  and compared with the record the index stores (check.ts: every record from the GPU's first day is replayed from
+   *  the stored readings, so held prices come from the chain too). Never the indexer: three rounds of index views.
+   *  Throws ReadError when the day has no record (before the GPU's first day, not closed yet, or skipped). */
+  async checkDay(q: { gpu: Gpu; date: string }): Promise<DayCheck> {
+    const day = dayOfDate(q.date);
+    const panel = this.panelOf(q.gpu);
+    const id = panel.gpuId as Hex;
+    const ix = this.index;
+    const A = agateIndexAbi as Abi;
+    const ok = (r: Res, what: string): unknown => {
+      if (!r.ok) throw new ReadError(`${what} at ${ix} reverted: ${r.error}`);
+      return r.value;
+    };
+    const [c, base] = await Promise.all([
+      this.clocks(),
+      this.mc([
+        { address: ix, abi: A, functionName: "gpu", args: [id] },
+        { address: ix, abi: A, functionName: "firstRecordDay", args: [id] },
+        { address: ix, abi: A, functionName: "writers" },
+      ]),
+    ]);
+    const g = ok(base[0]!, "gpu") as { nSlots: number; nFamilies: number; firstDay: number; head: number };
+    const [frExists, frDay] = ok(base[1]!, "firstRecordDay") as readonly [boolean, number];
+    const writers = (ok(base[2]!, "writers") as readonly Address[]).filter((w) => w !== ZERO_ADDRESS);
+    const n = Number(g.nSlots);
+    const firstDay = Number(g.firstDay);
+    const head = Number(g.head);
+    if (n === 0) throw new ReadError(`${q.gpu} is not registered on the index ${ix}`);
+    if (day < firstDay) throw new ReadError(`${q.gpu} has no record for ${q.date}: the index's first day for it is ${dateOfDay(firstDay)}`);
+    if (day >= head) throw new ReadError(`${q.gpu} has no record for ${q.date} yet: ${dateOfDay(head)} is the next day to close`);
+    const slots = Array.from({ length: n }, (_, i) => i);
+    const days = Array.from({ length: day - firstDay + 1 }, (_, i) => firstDay + i);
+    const r2 = await this.mc([
+      ...slots.map((s) => ({ address: ix, abi: A, functionName: "slotWindow", args: [id, s] })),
+      ...slots.map((s) => ({ address: ix, abi: A, functionName: "familyOf", args: [id, s] })),
+      ...days.map((d) => ({ address: ix, abi: A, functionName: "record", args: [id, d] })),
+      ...writers.map((w) => ({ address: ix, abi: A, functionName: "isSuspended", args: [w] })),
+    ]);
+    const windows = slots.map((s) => ok(r2[s]!, "slotWindow") as readonly [number, number]);
+    const fams = slots.map((s) => ok(r2[n + s]!, "familyOf") as readonly [number, number]);
+    const famQ: number[] = Array(Number(g.nFamilies)).fill(0);
+    for (const [f, fq] of fams) famQ[Number(f)] = Number(fq);
+    const shape = { family: fams.map(([f]) => Number(f)), famQ, liveFrom: windows.map(([a]) => Number(a)), liveUntil: windows.map(([, b]) => Number(b)) };
+    const records = new Map<number, StoredRecord>();
+    days.forEach((d, i) => {
+      const [exists, isFinal, r] = ok(r2[2 * n + i]!, "record") as readonly [boolean, boolean, { value: number; status: number; fresh: number; quorum: number; held: number; freshMedian: number; late: boolean; incomplete: boolean; changed: boolean; source: Address; digest: Hex }];
+      records.set(d, { exists, isFinal, value: Number(r.value), status: Number(r.status), fresh: Number(r.fresh), quorum: Number(r.quorum), held: Number(r.held), freshMedian: Number(r.freshMedian), late: r.late, incomplete: r.incomplete, changed: r.changed, source: r.source, digest: r.digest });
+    });
+    if (!records.get(day)!.exists) throw new ReadError(`${q.gpu} has no record for ${q.date}: the day was skipped`);
+    const suspended = writers.map((_, k) => ok(r2[2 * n + days.length + k]!, "isSuspended") as boolean);
+    // the source's readings of every computed day; for a carried day every writer's, with whether it was voided that
+    // day: carryDay advances a dark slot's counter only on the evidence of every writer eligible that day. Eligibility
+    // is read as it stands now (writers, suspensions); a writer changed since a carried day could only show as a
+    // mismatch on a later day whose digest depends on that counter, never as a silent pass
+    const computed = days.filter((d) => records.get(d)!.exists && records.get(d)!.status !== CARRIED);
+    const carriedDays = days.filter((d) => records.get(d)!.exists && records.get(d)!.status === CARRIED);
+    const r3 = await this.mc([
+      ...computed.map((d) => ({ address: ix, abi: A, functionName: "readings", args: [id, d, records.get(d)!.source] })),
+      ...carriedDays.flatMap((d) => writers.flatMap((w) => [{ address: ix, abi: A, functionName: "readings", args: [id, d, w] }, { address: ix, abi: A, functionName: "isVoided", args: [id, d, w] }])),
+    ]);
+    const readingsOf = (v: unknown): DayReadings => {
+      const x = v as { sums: readonly (number | bigint)[]; counts: readonly (number | bigint)[]; sliceBits: bigint; late: boolean };
+      return { sums: x.sums.map(Number), counts: x.counts.map(Number), sliceBits: BigInt(x.sliceBits), late: x.late };
+    };
+    const readings = new Map<number, DayReadings>();
+    computed.forEach((d, i) => readings.set(d, readingsOf(ok(r3[i]!, "readings"))));
+    const carried = new Map<number, number[][]>();
+    carriedDays.forEach((d, j) => {
+      const evidence: number[][] = [];
+      writers.forEach((_, k) => {
+        const at = computed.length + 2 * (j * writers.length + k);
+        const rd = readingsOf(ok(r3[at]!, "readings"));
+        const voided = ok(r3[at + 1]!, "isVoided") as boolean;
+        if (!suspended[k] && !voided && rd.sliceBits !== 0n) evidence.push([...rd.counts]);
+      });
+      carried.set(d, evidence);
+    });
+    return checkDayFrom({
+      gpu: q.gpu,
+      gpuId: id,
+      day,
+      firstDay,
+      firstRecordDay: frExists ? Number(frDay) : null,
+      minReadings: c.minReadings,
+      slices: c.slices,
+      shape,
+      names: slots.map((s) => panel.slots[s]?.family ?? `slot ${s}`),
+      records,
+      readings,
+      carried,
+    });
   }
 
   // ------------------------------------------------------------------ series

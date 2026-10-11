@@ -8,7 +8,8 @@
 # - sweeps what a kill -9 left behind: the run dirs of dead wrappers (stopping the anvil each one recorded)
 #   and their slots.
 # Admission and sweeping happen under one short lock, so two starts never race over a slot or a run dir.
-# Everything lives under AGATE_ANVIL_ROOT (default ~/.cache/agate-anvil). Usage: anvil-safe.sh [anvil args...]
+# Everything lives under AGATE_ANVIL_ROOT (default ~/.cache/agate-anvil). Usage: anvil-safe.sh [states] [anvil args...]
+# (a leading number is how many recent block states anvil keeps in memory: --prune-history <states>).
 PARENT="${AGATE_ANVIL_PARENT:-$PPID}"
 MAX="${AGATE_ANVIL_MAX:-12}"
 MIN_GB="${AGATE_ANVIL_MIN_FREE_GB:-30}"

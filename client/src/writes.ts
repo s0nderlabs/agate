@@ -238,7 +238,7 @@ function ev(txs: TxSummary[], name: string): DecodedEvent[] {
 /** @internal Shared with plan.ts; not part of the app API (it may change). */
 export async function live(c: AgateClient, gpu: Gpu, month: string): Promise<SeriesLive & { market: Address }> {
   const s = await c.seriesAt(gpu, month);
-  if (!s.market) throw new WriteError(`${gpu} ${month} has no Kuru market yet`, "check");
+  if (!s.market) throw new WriteError(`${gpu} ${month} has no Kuru market yet`, "check", "NoMarket");
   return s as SeriesLive & { market: Address };
 }
 
@@ -569,7 +569,7 @@ export async function openLongDaily(c: AgateClient, w: WalletClient, p: { gpu: G
   const dollars = parseDollars(p.dollars);
   if (dollars === 0n) throw new AmountError("dollars must be above 0");
   const minOut = await buyBound(c, s, dollars, p);
-  if (minOut / parts / LOT === 0n) throw new WriteError("the size is too small for that many parts", "check");
+  if (minOut / parts / LOT === 0n) throw new WriteError("the size is too small for that many parts", "check", "PartsTooSmall");
   await needDollars(c, me, dollars, "this buy");
   return guarded(c, w, () => ROUTER_UNDO, async (st) => {
     await ensureAllowance(c, w, c.dollar, c.router, dollars, "approve tUSD to the router", st);
@@ -610,7 +610,7 @@ export async function closeLongDaily(c: AgateClient, w: WalletClient, p: { gpu: 
  *  (its operator), as the router requires.
  *  @internal Shared with plan.ts; not part of the app API (it may change). */
 export async function ownPositions(c: AgateClient, s: SeriesLive, ids: bigint[], me: Address, side: 0 | 1): Promise<bigint> {
-  if (ids.length === 0) throw new WriteError("no positions given", "check");
+  if (ids.length === 0) throw new WriteError("no positions given", "check", "NoPositions");
   const r = await c.mc(ids.map((id) => ({ address: s.terms.series, abi: agateSeriesAbi as Abi, functionName: "position", args: [id] })));
   let q = 0n;
   r.forEach((x, i) => {
@@ -678,7 +678,7 @@ export async function claim(c: AgateClient, w: WalletClient, p: { gpu: Gpu; mont
   await checkChain(c, w);
   const s = await c.seriesAt(p.gpu, p.month);
   const ids = p.positionIds.map((x) => BigInt(x));
-  if (ids.length === 0) throw new WriteError("no positions given", "check");
+  if (ids.length === 0) throw new WriteError("no positions given", "check", "NoPositions");
   const tx = await send(c, w, ids.length === 1 ? { address: s.terms.series, abi: agateSeriesAbi as Abi, functionName: "claim", args: [ids[0]], label: "claim" } : { address: s.terms.series, abi: agateSeriesAbi as Abi, functionName: "claimMany", args: [ids], label: `claimMany(${ids.length})` });
   const paid = ev([tx], "Claimed").reduce((a, e) => a + (e.args.amount as bigint), 0n);
   const closed = ev([tx], "PositionClosed").map((e) => String(e.args.id));

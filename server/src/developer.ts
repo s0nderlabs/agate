@@ -1,5 +1,6 @@
-// The developer API (v1): agate's market data as stable, read-only JSON for anyone, no key. Prices with every source,
-// each GPU's daily history, the months on sale with their order books, trades, hourly candles and a status line.
+// The developer API (v1): agate's market data as stable, read-only JSON for anyone, no key. Prices with every source
+// (and the page behind each source's price: its sha256 and fetch time, fingerprints.ts), each GPU's daily history,
+// the months on sale with their order books, trades, hourly candles and a status line.
 // Prices are dollars per GPU-hour, sizes GPU-hours, times ISO UTC. Built on the markets snapshot (one chain read for
 // every caller, snapshot.ts) and, for trades and candles, the indexer through @agate/client behind a short cache.
 // Open CORS, GET only, a per-IP limit. Field names are the contract: add fields, never rename or remove them in v1.
@@ -8,6 +9,7 @@ import { cors } from "hono/cors";
 import { type AgateClient, type Book, type Candle, type Fill, GPUS, type Gpu, type IndexDay, type Market, type MarketsSnapshot, type Series } from "@agate/client";
 import { openapi, V1_LIMIT_PER_MIN } from "./openapi.ts";
 import { clientIp, RateLimiter } from "./ratelimit.ts";
+import type { Fingerprints } from "./fingerprints.ts";
 import type { SnapshotCache } from "./snapshot.ts";
 
 export { V1_LIMIT_PER_MIN };
@@ -21,7 +23,7 @@ const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
 const ZERO = "0x0000000000000000000000000000000000000000";
 const addrOrNull = (a: string | null) => (!a || a.toLowerCase() === ZERO ? null : a);
 
-export function priceView(m: Market) {
+export function priceView(m: Market, pages?: Fingerprints | null) {
   // the client repeats today's price as prevPrice when there is no day before it: that is no previous price
   const prev = m.priceDate && m.history.length >= 2;
   return {
@@ -35,7 +37,15 @@ export function priceView(m: Market) {
     nextFinalAt: m.nextUpdateAt,
     sourcesCounted: m.liveCount,
     panelSize: m.panelSize,
-    sources: m.panel.map((s) => ({ company: s.family, price: s.price, counted: s.live, reserve: s.reserve })),
+    sources: m.panel.map((s, slot) => ({
+      company: s.family,
+      price: s.price,
+      counted: s.live,
+      reserve: s.reserve,
+      // the watcher's clean read of this page on the price's day: a row only, so a held price (from an earlier day)
+      // is never paired with that day's page
+      page: pages && m.priceDate && s.price !== null && s.live ? pages.page({ gpu: m.gpu, date: m.priceDate, slot, company: s.family }) : null,
+    })),
     tradable: m.tradable,
   };
 }
@@ -105,6 +115,8 @@ export type DeveloperDeps = {
   now?: () => number;
   /** requests per IP per minute (tests set it low) */
   limitPerMin?: number;
+  /** the page fingerprints of the source rows (fingerprints.ts); absent: every row's page is null */
+  pages?: Fingerprints | null;
 };
 
 export function developerApi(deps: DeveloperDeps): Hono {
@@ -192,7 +204,7 @@ export function developerApi(deps: DeveloperDeps): Hono {
   app.get("/v1/prices", async (c) => {
     const s = await snap(c);
     if (s instanceof Response) return s;
-    return c.json({ ...stamp(s), prices: s.markets.map(priceView) }, 200, cached(5));
+    return c.json({ ...stamp(s), prices: s.markets.map((m) => priceView(m, deps.pages)) }, 200, cached(5));
   });
 
   app.get("/v1/prices/:gpu", async (c) => {
@@ -202,7 +214,7 @@ export function developerApi(deps: DeveloperDeps): Hono {
     if (s instanceof Response) return s;
     const m = s.markets.find((x) => x.gpu === gpu);
     if (!m) return c.json({ error: `no ${gpu} price yet` }, 404);
-    return c.json({ ...stamp(s), ...priceView(m), history: m.history.map(dayView), beforeOnchain: (m.prelaunch ?? []).map(dayView) }, 200, cached(5));
+    return c.json({ ...stamp(s), ...priceView(m, deps.pages), history: m.history.map(dayView), beforeOnchain: (m.prelaunch ?? []).map(dayView) }, 200, cached(5));
   });
 
   app.get("/v1/markets", async (c) => {
@@ -261,6 +273,9 @@ export function developerApi(deps: DeveloperDeps): Hono {
       cached(5),
     );
   });
+
+  // last: a path or method the API does not have answers in the API's own error shape, not plain text
+  app.all("/v1/*", (c) => c.json({ error: `no such endpoint: ${c.req.method} ${c.req.path} (see /v1 for the list)` }, 404));
 
   return app;
 }

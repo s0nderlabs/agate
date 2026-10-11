@@ -100,6 +100,14 @@ describe("refusalOf: planning (spec 6.9)", () => {
     expect(refusalOf(writeError("bids below", "check", "BelowBand", quote), { kind: "short", month: "2026-12" }).message).toBe("At these prices this trade can only lose: the bids are below the least December will pay. Nothing was sent.");
   });
 
+  test("NoMarket, PartsTooSmall, NoPositions", () => {
+    expect(refusalOf(writeError("the size is too small for that many parts", "check", "PartsTooSmall"), buy)).toEqual({ sheet: "ticket", message: COPY.partsTooSmall, action: "back", nothingSent: true, reason: "PartsTooSmall" });
+    expect(refusalOf(writeError("H100 2026-12 has no Kuru market yet", "check", "NoMarket"), { kind: "buy", month: "2026-11" })).toMatchObject({ sheet: "failed", message: "November isn't open for trading yet.", action: "back", nothingSent: true });
+    // the router's own revert of the same name reads the same
+    expect(refusalOf(writeError("openLong: the simulation reverted (NoMarket)", "simulate", "NoMarket"), buy).message).toBe("November isn't open for trading yet.");
+    expect(refusalOf(writeError("no positions given", "check", "NoPositions"), { kind: "closeShort" })).toMatchObject({ sheet: "failed", message: COPY.pickPosition, action: "back" });
+  });
+
   test("EmptyBook, Depth by trade, MonthNotFinal, PostOnlyError", () => {
     expect(refusalOf(writeError("empty", "check", "EmptyBook"), buy).message).toBe("No one is selling November right now. Nothing was sent.");
     expect(refusalOf(writeError("depth", "check", "Depth"), { kind: "short" }).message).toBe(COPY.depthShort);
@@ -131,15 +139,12 @@ describe("refusalOf: planning (spec 6.9)", () => {
 
   test("check-stage refusals without a reason, by what they say", () => {
     const at = (m: string, kind: TradeKind = "buy") => refusalOf(writeError(m), { kind, month: "2026-11" });
-    expect(at("the size is too small for that many parts")).toMatchObject({ sheet: "ticket", message: COPY.partsTooSmall });
     expect(at("$0.0001 buys less than 0.0001 GPU-hour (one Kuru size unit): the size is too small to buy; nothing was sent")).toMatchObject({ sheet: "ticket", message: COPY.tooSmallToBuy });
     expect(at("you hold 3 GPU-hours of H100-NOV26 in the wallet", "sale")).toMatchObject({ message: COPY.tokensShort, refresh: true });
     expect(at("the account holds no H100-NOV26 to roll", "sale")).toMatchObject({ message: COPY.tokensShort });
-    expect(at("H100 2026-12 has no Kuru market yet")).toMatchObject({ message: "November isn't open for trading yet." });
     expect(at("position 7 is not yours", "closeDaily").message).toBe(COPY.notHere);
     expect(at("position 7 was not opened through the router: close it with the series directly", "closeShort").message).toBe(COPY.notHere);
     expect(at("position 7 is a long", "closeShort").message).toBe(COPY.notHere);
-    expect(at("no positions given", "closeShort").message).toBe(COPY.pickPosition);
     expect(at("the book could not be read")).toMatchObject({ message: COPY.network, action: "retry" });
     expect(at("position 7 could not be read", "closeDaily")).toMatchObject({ message: COPY.network, action: "retry" });
     expect(at("nothing to claim yet").message).toBe(COPY.nothingToClaim);
@@ -171,7 +176,7 @@ describe("refusalOf: planning (spec 6.9)", () => {
 
   test("the month: from the order, or a plain stand-in", () => {
     expect(refusalOf(writeError("empty", "check", "EmptyBook"), { kind: "buy" }).message).toBe("No one is selling this month right now. Nothing was sent.");
-    expect(refusalOf(writeError("H100 2026-12 has no Kuru market yet"), { kind: "buy" }).message).toBe("This month isn't open for trading yet.");
+    expect(refusalOf(writeError("H100 2026-12 has no Kuru market yet", "check", "NoMarket"), { kind: "buy" }).message).toBe("This month isn't open for trading yet.");
     const order: Order = { kind: "openShort", gpu: "H100", month: "2027-01", gpuHours: "1.0000", parts: 1, daily: true };
     expect(refusalOfOrder(writeError("bids below", "check", "BelowBand"), order).message).toContain("January");
     expect(refusalOfOrder(writeError("too soon", "check", "DripTooSoon"), { kind: "drip" }).sheet).toBe("drip");
@@ -268,7 +273,7 @@ describe("limit orders (Pro, the real account)", () => {
   test("planning: the price and the size, with the order's month", () => {
     expect(limitRefusal(named("AmountError", "price must lie in the band 1.95 to 8 (what a H100-NOV26 token can still pay at the month's end)"), ask).message).toBe("That price is outside what November can still pay.");
     expect(limitRefusal(named("AmountError", "a limit order is 1 to 1,000,000 GPU-hours (Kuru's sizes), not 0.5"), bid).message).toBe(COPY.limitSize);
-    expect(limitRefusal(writeError("H100 2027-01 has no Kuru market yet"), { kind: "withdrawMargin", asset: { gpu: "H100", month: "2027-01" } }).message).toBe("January isn't open for trading yet.");
+    expect(limitRefusal(writeError("H100 2027-01 has no Kuru market yet", "check", "NoMarket"), { kind: "withdrawMargin", asset: { gpu: "H100", month: "2027-01" } }).message).toBe("January isn't open for trading yet.");
   });
 
   test("sending: a landed revert in the order's own words; anything else as a trade's send", () => {
@@ -441,12 +446,13 @@ describe("connect and disconnect copy (spec 9.6, 10.5)", () => {
 
 describe("what an AI tried: refusal rules, MCP statuses, the autopilot", () => {
   /** mcp/server.ts: a WriteError reason in the AI's words, else the reason lower-cased. */
-  const MCP_RULES: Record<string, string> = { InsufficientBalance: "budget_left", InsufficientTokens: "not_enough_tokens", PriceMoved: "price_moved", ThinBook: "thin_book", AboveBand: "above_band", BelowBand: "below_band", Depth: "thin_book", DripTooSoon: "drip_too_soon", EmptyBook: "empty_book" };
+  const MCP_RULES: Record<string, string> = { InsufficientBalance: "budget_left", InsufficientTokens: "not_enough_tokens", PriceMoved: "price_moved", ThinBook: "thin_book", AboveBand: "above_band", BelowBand: "below_band", Depth: "thin_book", DripTooSoon: "drip_too_soon", EmptyBook: "empty_book", NoMarket: "no_market", PartsTooSmall: "parts_too_small" };
   const SERVER_RULES = ["not_allowed_contract", "not_allowed_function", "over_per_trade_cap", "payee_must_be_you", "approve_router_only", "no_native_value", "daily_limit", "grant_revoked", "grant_expired", "no_market", "bad_input", "not_found"];
 
   test("every rule reads as a plain clause", () => {
     for (const rule of SERVER_RULES) expect(ruleText(rule)).not.toBe(FALLBACK);
-    for (const reason of WRITE_REASONS) expect(ruleText(MCP_RULES[reason] ?? reason.toLowerCase())).not.toBe(FALLBACK);
+    // NoPositions never reaches the MCP (its close tools require at least one position id): an SDK-only reason
+    for (const reason of WRITE_REASONS.filter((r) => r !== "NoPositions")) expect(ruleText(MCP_RULES[reason] ?? reason.toLowerCase())).not.toBe(FALLBACK);
     expect(ruleText("daily_limit: 5 of 5 trades used in the last 24 hours")).toBe(REFUSAL_RULES.daily_limit);
     expect(ruleText("OVER_PER_TRADE_CAP")).toBe(REFUSAL_RULES.over_per_trade_cap);
     expect(ruleText("something_new")).toBe(FALLBACK);

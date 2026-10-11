@@ -15,6 +15,16 @@ const ROOT = join(import.meta.dir, "..", "..");
 export const DEPLOYMENTS_FILE = join(ROOT, "contracts", "deployments", "10143.json");
 export const REHEARSAL = { bot: "0x9A410E49A53115E85b751fE8D3b589bb8F1a717F", payer: "0xe1eCba46ecaeba115f92F15C066FBE5335c409Ee" } as const;
 
+/** The error a failed bun script printed: its "<Class>: message" line and, for a viem RPC error, the node's own words
+ *  (its "Details:" line). Bun prints the source lines around the throw first ("45 | case ...InvalidRequestRpcError..."),
+ *  which name other error classes: those are never taken for the error. */
+export function errorOf(stderr: string): string {
+  const lines = stderr.trim().split("\n").map((l) => l.trim());
+  const head = lines.find((l) => /^([A-Za-z]*Error|error): /.test(l)) ?? lines.find((l) => l && !/^\d+ \|/.test(l)) ?? "";
+  const details = lines.find((l) => l.startsWith("Details: "));
+  return details && !head.includes(details.slice(9)) ? `${head} ${details}` : head;
+}
+
 /** Writes, closes and countersigns every index day up to `toDay` on a loopback anvil fork (the kit's days.ts, as the
  *  index's own writer and attester, impersonated; it refuses any other RPC), then past T_PEND. Its output is kept in
  *  <logDir>/days-<toDay>.log when a folder is given, and a failure names it. */
@@ -28,7 +38,7 @@ export function writeDays(o: { rpc: string; index: string; toDay: number; logDir
   if (!r.success) {
     // the error's own line (its class and message, not only the stack frames) and the last day days.ts finished
     const lines = err.trim().split("\n");
-    const first = lines.find((l) => /Error|error:/.test(l)) ?? lines[0] ?? "";
+    const first = errorOf(err);
     const lastDay = out.trim().split("\n").filter((l) => l.startsWith('{"day"')).pop() ?? "(no day finished)";
     throw new Error(`days.ts --to ${o.toDay} failed: ${first.trim().slice(0, 400)} | last day done: ${lastDay} | ${lines.slice(-3).join(" ")}${where}`);
   }

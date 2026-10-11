@@ -9,31 +9,25 @@ source: 'client/src'
 
 # The library Agate's own app runs on.
 
-`@agate/client` is Agate's data and trading layer: every screen
+`@s0nderlabs/agate` is Agate's data and trading layer: every screen
 of the app reads through it, and Agate's server builds every AI trade with it. One dependency,
 [viem](https://viem.sh). It works in Node 18+, browsers (any bundler) and Bun, and returns plain numbers: dollars per
 GPU-hour and GPU-hours, never raw units.
 
 ## Install
 
-The SDK is not on npm yet, and until it is published no package on npm under any name is Agate's. Build it once
-from a clone of this repository into plain JavaScript, then install the file it makes:
-
 ```sh
-git clone https://github.com/s0nderlabs/agate && cd agate && bun install && cd client
-AGATE_NPM_NAME=@agate/client bun run pack:npm   # builds client/dist/pkg: ES modules and type declarations
-npm pack ./dist/pkg                              # writes agate-client-0.1.0.tgz
-cd <your project> && npm install <path to>/agate-client-0.1.0.tgz viem   # or: bun add <path>.tgz viem
+npm install @s0nderlabs/agate viem   # or: bun add @s0nderlabs/agate viem
 ```
 
-Then `import { createAgateClient } from "@agate/client"`. Inside this repository's own packages it is the workspace
-package (`bun install` at the root). Depending on the `client/` folder directly from outside the repository does not
-work today: it ships TypeScript source that expects the workspace's install.
+Then `import { createAgateClient } from "@s0nderlabs/agate"`. The package is published from `client/` in this
+repository (`bun run pack:npm` builds it); inside the repository's own packages the same code is the workspace
+package `@agate/client`.
 
 ## Create a client
 
 ```ts
-import { createAgateClient } from "@agate/client";
+import { createAgateClient } from "@s0nderlabs/agate";
 
 const agate = createAgateClient({
   graphqlUrl: "https://agate-1.tailf06dd7.ts.net:8443/v1/graphql", // history, trades, candles; null = chain only
@@ -43,7 +37,7 @@ const agate = createAgateClient({
 A first script, `read.mjs` (`node read.mjs` or `bun read.mjs`):
 
 ```js
-import { createAgateClient } from "@agate/client";
+import { createAgateClient } from "@s0nderlabs/agate";
 
 const agate = createAgateClient({ graphqlUrl: null }); // chain only: no indexer needed for this read
 const h100 = await agate.getMarket("H100");
@@ -82,8 +76,21 @@ H100 $3.99 per GPU-hour, final day 2026-10-09
 | `ticker()` | each GPU's change and each month's change over 24 hours |
 | `getWallet(address)` | test dollars, every position (Long, Short, pay me daily), what is claimable, what rests at Kuru |
 | `openOrders(address)` | the account's resting limit orders |
+| `checkDay({ gpu, date })` | one day's index price recomputed from the chain alone, beside the stored one, with each source's inputs (below) |
 
 All shapes are in `types.ts` (`Market`, `Series`, `IndexDay`, `Book`, `Fill`, `Candle`, `Position`, `Wallet`, ...).
+
+### Check any day
+
+```ts
+const day = await agate.checkDay({ gpu: "H100", date: "2026-10-09" });
+console.log(day.stored, day.recomputed, day.match); // 3.99 3.99 true
+```
+
+`checkDay` reads the day's stored readings and replays the index's rules on them, from the GPU's first day, then
+compares the result with the stored record, digest included (`DayCheck` in `types.ts`; the method:
+[Check any day yourself](04-the-price.md#check-any-day-yourself)). In `client/`, `bun run check-day H100 2026-10-09`
+prints the same as a short report. It is not in the npm release yet: `@s0nderlabs/agate` gets it in its next version.
 
 ## Trade, two ways
 
@@ -109,7 +116,7 @@ band, a thin book, a price that moved, the balance, slippage) and put the bound 
 | mint or redeem pairs | `mintPairs`, `redeem` | `planRedeem` |
 
 ```ts
-import { buyLong, planBuyLong, readResult } from "@agate/client";
+import { buyLong, planBuyLong, readResult } from "@s0nderlabs/agate";
 
 await buyLong(agate, walletClient, { gpu: "H100", month: "2026-11", dollars: "100", maxPrice: "4.10" });
 

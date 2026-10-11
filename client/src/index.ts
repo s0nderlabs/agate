@@ -5,6 +5,7 @@ export { AgateClient, createAgateClient, resolveGraphqlUrl, pageIsLocal, PUBLIC_
 export { DEFAULT_GRAPHQL_URL, IndexerError, graphql, type GraphQL } from "./graphql.ts";
 export { decodeL2Book, toBook, sellProceeds, buyTokens, buyFill, buyCost, asksUpTo, DepthError, type RawBook } from "./book.ts";
 export { dayStart, dayIdAt, expectedClose, expectedFinal, type IndexClocks } from "./clock.ts";
+export { checkDayFrom, recomputeDay, carryState, recordDigest, type DayCheckInput, type DayReadings, type IndexShape, type IndexSlotState, type Recomputed, type StoredRecord } from "./check.ts";
 export * from "./units.ts";
 export * from "./writes.ts";
 export { TESTNET_DEPLOYMENTS, TESTNET_INDEXES, PANELS } from "./static.ts";

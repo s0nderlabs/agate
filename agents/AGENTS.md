@@ -20,7 +20,7 @@ Per app (Codex, Hermes and OpenClaw checked against the live server on Oct 8 202
 | Claude Code | `claude mcp add --transport http agate <agate host>/mcp`, then `/mcp` to sign in | `claude mcp add --transport http agate <url>` |
 | Claude.ai | Settings, Connectors, Add custom connector: `<agate host>/mcp` | same field, the URL |
 | Codex CLI | `codex mcp add agate --url <agate host>/mcp`, then `codex mcp login agate` (reaches the Allow page) | `codex mcp add agate --url <url>` (connects; lists the tools) |
-| Hermes Agent | not yet: Hermes v0.8.0 hands only the host to the MCP SDK, which then refuses agate's `/mcp` resource (as it would Linear's or Notion's) | in `~/.hermes/config.yaml`, `mcp_servers: agate: url: <url>`; `hermes mcp test agate` lists 17 tools (tool calls checked) |
+| Hermes Agent | not on Hermes v0.8.0: it hands only the host to the MCP SDK, which then refuses agate's `/mcp` resource (as it would Linear's or Notion's); newer Hermes passes the full address (upstream issue 16015, not checked here yet) | in `~/.hermes/config.yaml`, `mcp_servers: agate: url: <url>`; `hermes mcp test agate` lists 17 tools (tool calls checked) |
 | OpenClaw | no OAuth for MCP servers | `openclaw mcp set agate '{"url":"<url>","transport":"streamable-http"}'` (set `transport`: without it OpenClaw uses SSE; tool calls checked) |
 | opencode | `"mcp": {"agate": {"type": "remote", "url": "<agate host>/mcp"}}` in `opencode.json` (not checked yet) | same with the URL (not checked yet) |
 | Cursor, ChatGPT, VS Code | add `<agate host>/mcp` as a remote MCP server (not checked yet) | the URL as a remote server |
@@ -70,7 +70,7 @@ ends it; `my_limits` lists what is on.
 ## AI companies: an agent with its own wallet
 
 An AI company's agent does not need a person's pocket. It can hold its own Dynamic server wallet (TSS-MPC, 2-of-2
-with Dynamic) that owns a gas-sponsored smart account, and trade agate with `@agate/client`'s plan builders
+with Dynamic) that owns a gas-sponsored smart account, and trade agate with the SDK's plan builders (`@s0nderlabs/agate` on npm)
 (`planBuyLong`, `planRollLong`, ...) as single user operations. agate's reference agent (`server/src/company/agent.ts`,
 run with `server/scripts/company-agent.ts`) keeps one rule: hold N GPU-hours of a GPU's next open month, buying the
 shortfall in parts of at most $X while the best ask is at or under a ceiling, and journals every decision with the
