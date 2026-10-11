@@ -80,6 +80,7 @@ Every address Agate serves, in one place:
 | OpenAPI | https://agate.elpabl0.xyz/api/v1/openapi.json |
 | MCP server | `https://agate-1.tailf06dd7.ts.net/mcp` |
 | OAuth discovery | `https://agate-1.tailf06dd7.ts.net/.well-known/oauth-protected-resource/mcp`, `/.well-known/oauth-authorization-server` |
+| Passkey sign-in key (JWKS) | `https://agate-1.tailf06dd7.ts.net/.well-known/agate-jwks.json` |
 | Indexer (GraphQL, public, read-only, POST) | `https://agate-1.tailf06dd7.ts.net:8443/v1/graphql` (fixed), and the hosted copy the app asks first, `https://indexer.dev.hyperindex.xyz/<deployment>/v1/graphql` (its id changes on each redeploy: [Built on](15-built-on.md#envio-the-indexer)) |
 | Monad testnet RPC | `https://testnet-rpc.monad.xyz` (chain 10143) |
 

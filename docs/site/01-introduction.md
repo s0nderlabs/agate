@@ -20,7 +20,7 @@ you trade the price, settled in dollars.
 |---|---|---|
 | **The price** | One number per GPU per day: what the clouds charge per GPU-hour on their own public price pages, read hourly and combined as a median of companies, with every source shown | `AgateIndex` on Monad, written by a Chainlink CRE workflow and countersigned by a second, independent reader |
 | **The market** | One token per GPU per month that pays that month's average price, kept between a floor and a ceiling. Long locks what you pay; Short locks what you earn. Every token is fully backed | Monthly series contracts, traded on Kuru's onchain order book |
-| **The ways in** | A web app with email or Google sign-in and no gas, an MCP server for AI agents, a developer API, an SDK, and Chainlink-style feeds for contracts | `app/`, `server/`, `client/`, `contracts/src/examples/` |
+| **The ways in** | A web app with passkey, email or Google sign-in and no gas, an MCP server for AI agents, a developer API, an SDK, and Chainlink-style feeds for contracts | `app/`, `server/`, `client/`, `contracts/src/examples/` |
 
 Six GPUs have a daily price today: H100, H200, B200, B300, A100 and L40S. The first three have monthly markets; the
 other three are price only for now.

@@ -1,7 +1,7 @@
 ---
 slug: accounts
 title: Accounts and gas
-description: Email, Google or a passkey; a smart account per person with sponsored gas; no wallet to install.
+description: A passkey alone, email or Google; a smart account per person with sponsored gas; no wallet to install.
 group: Concepts
 order: 6
 source: 'wallet/src, wallet/README.md'
@@ -9,7 +9,7 @@ source: 'wallet/src, wallet/README.md'
 
 # No wallet to install, no gas to pay.
 
-People sign in with an email code or Google (and can add a passkey after). Behind that sits a real onchain account,
+People sign up with a passkey alone, an email code or Google. Behind that sits a real onchain account,
 a smart account on Monad, whose transactions Agate pays for. The account layer is Dynamic for sign-in and embedded
 wallets, and ZeroDev for the smart accounts and gas sponsorship.
 
@@ -31,12 +31,29 @@ Every user operation is sponsored through ZeroDev under the project's chain poli
 batched user operation: an approval when one is short, then the router call. When the sponsor refuses, nothing is
 sent and the app says so.
 
+## Passkey accounts
+
+**Continue with a passkey** makes an account from a passkey alone, with no email. The browser's own dialog makes the
+passkey (Touch ID, Face ID, Windows Hello or a phone). Agate's server checks it and hands the app a sign-in token that
+lives 60 seconds; Dynamic checks that token against Agate's public key and opens a normal session (Dynamic's Bring
+Your Own Auth). The main wallet, the 10,000 test dollars and everything after are the same as for any account.
+
+- **Next time, in the same browser,** the same button signs in. **In another browser or on a new device,** tap
+  **I already have a passkey**: it uses a passkey synced there, or one on your phone. The main button there would
+  make a second, empty account.
+- **The passkey is the only way in.** One saved to iCloud Keychain or Google Password Manager follows you to your
+  other devices; losing every copy loses the account and its test dollars ([Limits](16-limits.md)).
+- **An email or Google account stays separate.** The two are never joined. A passkey added earlier to an email or
+  Google account still signs that account in: tap **I already have a passkey**, then **Continue**.
+- Dynamic needs an email on every account, so a passkey account carries a placeholder address that takes no mail. The
+  app never shows it ([Built on](15-built-on.md#dynamic-sign-in-and-wallets)).
+- Agate's server keeps no secrets, only public keys, so its database alone cannot sign anyone in.
+
 ## Step-up
 
-Sensitive actions (connecting a new AI, delegating the Assistant) ask the person to confirm again with a code or a
-passkey. Signing in works with an email code or Google alone; a passkey is optional, added from the Account sheet
-after the first sign-in (it signs in an existing person, never a new one). Once a person has a passkey, every
-confirmation goes through it instead of a code.
+Sensitive actions (connecting a new AI, delegating the Assistant) ask the person to confirm again: a passkey account
+with its passkey, an email or Google account with a code. An email or Google account can also add a passkey from the
+Account sheet; once it has one, every confirmation goes through it instead of a code.
 
 ## Test dollars
 
@@ -45,7 +62,9 @@ that account's last drip (`dripPeriod` is 86,400 s on `AgateDollar`), not per ca
 drip at the first sign-in. Too soon, the faucet refuses with `DripTooSoon` and the app says when the next one opens.
 Pocket budgets move from the main account to the pocket and back.
 
-## Measured on Monad testnet (Oct 4 2026, n = 1 to 3 each)
+## Measured on Monad testnet
+
+Oct 4 2026, n = 1 to 3 each:
 
 | Step | Time |
 |---|---|
@@ -54,6 +73,14 @@ Pocket budgets move from the main account to the pocket and back.
 | a sponsored user operation from the main account | 6.0 s |
 | pocket permission signed, pocket funded, grant accepted | 9.6 s |
 | an AI trade from the pocket, signed by the delegated Assistant | 5.6 to 7.6 s |
+
+Passkey accounts, Oct 11 2026, in a test browser with a software passkey (so no time for a person in the dialog):
+
+| Step | Time |
+|---|---|
+| passkey dialog to a signed-in session | 2.8 to 3.8 s |
+| main wallet created | 7 to 9 s |
+| confirming again with the passkey (step-up) | 2.4 s |
 
 ## Signed out
 

@@ -35,7 +35,23 @@ const QUOTES: Quote[] = [
     "At these prices this trade can only lose: the bids are below the least",
     "This trade needs more test dollars than your account holds. Nothing was sent.",
     "settles once every day is final. Nothing was sent.",
+    "No passkey was made.",
+    "This device already has a passkey for Agate. Sign in with it.",
+    "This passkey is from the older sign-in, where a passkey was added to an email or Google account.",
+    "That took too long. Try again.",
+    "Too many tries from this network. Wait a minute, then try again.",
+    "New passkey accounts are paused for today. Use Google or your email instead.",
+    "Agate couldn't accept that passkey. Try again.",
+    "Your passkey worked, but sign-in didn't finish. Try again.",
+    "Agate can't be reached right now. Try again in a moment.",
+    "This browser can't use passkeys. Use Google or your email instead.",
+    "Your passkey didn't confirm it. Try again, or Cancel.",
+    "Your passkey worked, but it didn't finish. Try again.",
   ]),
+  // also a piece of an older, longer message: pinned to its own string literal
+  { doc: page("17-errors.md"), text: "No passkey signed you in.", source: "app/src/lib/account/errors.ts", inSource: '"No passkey signed you in."' },
+  // the passkey choices the errors page names, as the sign-in sheet labels them
+  ...group(page("17-errors.md"), "app/src/components/flow/SignInSheet.tsx", ["Try again or use my phone", "Make a new passkey", "Use your email instead", "I already have a passkey", "Sign in with it"]),
   // every reason the SDK throws is in the errors page's SDK table; in the source each is a string literal
   ...WRITE_REASONS.map((text) => ({ doc: page("17-errors.md"), text, source: "client/src", inSource: `"${text}"` })),
   ...group(page("11-mcp-tools.md"), "server/src/mcp/server.ts", [

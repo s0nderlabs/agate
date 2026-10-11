@@ -8,10 +8,10 @@ with free test dollars.
 
 ## 1. Sign in (30 seconds)
 
-- Tap **Sign in** and use your email (a code arrives) or Google. No wallet, no extension, no gas: your account is
-  created for you and network fees are on agate.
+- Tap **Sign in**, then **Continue with a passkey** (one Touch ID or Face ID, no email), or use your email (a code
+  arrives) or Google. No wallet, no extension, no gas: your account is created for you and network fees are on agate.
 - The first sign-in adds **10,000 test dollars** (about 6 seconds). You can take 10,000 more 24 hours later.
-- No inbox to hand? The portal's access instructions give a test login that works without one.
+- No inbox to hand? Use a passkey, or the test login in the portal's access instructions.
 
 ## 2. Trade (2 minutes)
 

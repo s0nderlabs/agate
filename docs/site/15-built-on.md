@@ -104,10 +104,12 @@ curl -s https://indexer.dev.hyperindex.xyz/4b2eb56/v1/graphql -H 'content-type: 
 
 ## Dynamic: sign-in and wallets
 
-Email codes, Google and passkeys; an embedded TSS-MPC wallet per person; step-up before sensitive actions; a second
+Email codes, Google and passkeys, including accounts made from a passkey alone through Bring Your Own Auth (Agate's
+server checks the passkey and signs a 60-second ES256 JWT: [Passkey accounts](06-accounts.md#passkey-accounts)); an
+embedded TSS-MPC wallet per person; step-up before sensitive actions; a second
 wallet (the Assistant) delegated to Agate only when a person connects an AI; server wallets for the payer and for an
 AI company's own agent; delegation webhooks; and a Transaction Review endpoint, built and waiting for Dynamic to turn
-it on for Monad testnet. Code: `wallet/src/dynamic.ts`, `server/src/dynamic/`, `wall/packages/market/src/dynamic-signer.ts`,
+it on for Monad testnet. Code: `wallet/src/dynamic.ts`, `server/src/dynamic/`, `server/src/passkey/`, `wall/packages/market/src/dynamic-signer.ts`,
 `server/src/company/agent.ts`, the environment as code in `ops/dynamic/`.
 
 **Proof.**
@@ -123,12 +125,21 @@ it on for Monad testnet. Code: `wallet/src/dynamic.ts`, `server/src/dynamic/`, `
 - **Server wallets:** an AI company's agent bought GPU-hours from its own Dynamic server wallet
   [`0x79f908d9...`](https://testnet.monadexplorer.com/tx/0x79f908d996a6a55fd367d3e2ba852e49a315a81a48871fc1354852b93531a21a). The live payer signs with the Dynamic
   server wallet `0x31BC1a1A7d4B6dD5888B584016ce194c27b82c45` (November's daily payouts begin Nov 1).
+- **A passkey-only account:** made with one passkey dialog, no email, it delegated its Assistant, connected an AI,
+  and the AI's pocket took its test dollars on Oct 11
+  [`0x4ce1a5ae...`](https://testnet.monadexplorer.com/tx/0x4ce1a5ae0b74ccdd0c1fd9cb54abe7935a5cca35c01c1d9d8e7acfe71f57b2e6).
 - **Transaction Review:** Agate's endpoint has received 7 review calls from Dynamic and refused each, because the
   request signature did not verify; it waits on Dynamic's side for Monad testnet.
 
 **What we ran into.** Dynamic's policy engine does not cover Monad yet (mainnet or testnet), so an AI's limits live
 onchain instead: a ZeroDev session key on its pocket (see below). We reported the gap to Dynamic on Oct 4; their
 policies can sit on top once Monad is supported.
+
+Passkey accounts hit two more. Dynamic holds every account to an email while email sign-in is on, even with the email
+field set optional, so the first passkey-only account got a session limited to a details form, and no wallet. Agate's
+sign-in token now carries a verified placeholder address, `pk-<32 hex>@passkey.agate.elpabl0.xyz`, made one way from
+the account's id; it takes no mail and the app never shows it. And the short session token the SDK keeps lists no
+credentials, so Agate's server finds which passkey account a session belongs to through Dynamic's management API.
 
 ## ZeroDev: smart accounts and gas
 

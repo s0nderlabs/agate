@@ -25,6 +25,19 @@ The app words its own messages (`app/src/lib/account/errors.ts`); the sentences 
 | `Your next 10,000 test dollars arrive <when>.` | test dollars come once every 24 hours per account | wait until then |
 | `Agate couldn't pay the network fee this time. Nothing was sent. Try again in a minute.` | the sponsored-fee policy refused (2 MON a user operation, 1,000 a day) | try again in a minute |
 | a code or passkey prompt | connecting an AI or delegating the Assistant asks you to confirm again | confirm ([Accounts and gas](06-accounts.md#step-up)) |
+| `No passkey was made.` | the passkey dialog was closed before a passkey was made | **Try again**, **I already have a passkey**, or **Use your email instead** |
+| `No passkey signed you in.` | the dialog was closed, or the browser found no Agate passkey (it cannot tell which) | **Try again or use my phone**, **Make a new passkey**, or **Use your email instead** |
+| `This device already has a passkey for Agate. Sign in with it.` | this device already holds an Agate passkey | **Sign in with it** |
+| `This passkey is from the older sign-in, where a passkey was added to an email or Google account.` | this passkey belongs to an email or Google account | **Continue**: it signs that account in |
+| `That took too long. Try again.` | a passkey request lasts 5 minutes | try again |
+| `Too many tries from this network. Wait a minute, then try again.` | too many passkey requests from one network (new accounts: 5 an hour) | wait, or use Google or your email |
+| `New passkey accounts are paused for today. Use Google or your email instead.` | the day's cap on new passkey accounts (150) is reached, or Dynamic's test environment is full (then Google and email fail too) | use Google or your email, or try tomorrow |
+| `Agate couldn't accept that passkey. Try again.` | Agate's server could not verify the passkey's answer | try again |
+| `Your passkey worked, but sign-in didn't finish. Try again.` | Dynamic did not finish the sign-in | **Try again**: the account now exists, so it signs in |
+| `Agate can't be reached right now. Try again in a moment.` | Agate's server did not answer | try again in a moment |
+| `This browser can't use passkeys. Use Google or your email instead.` | the browser has no passkey support | use Google or your email, or another browser |
+| `Your passkey didn't confirm it. Try again, or Cancel.` | confirming again with a passkey did not go through | try again |
+| `Your passkey worked, but it didn't finish. Try again.` | confirming again: Dynamic did not finish | try again |
 | `It now fills <x> GPU-hours at $<p> on average for $<d>.` | the book moved between the quote and the send | look at the new numbers and confirm again |
 | `At prices <month> can still pay, the book holds $<x> (<h> GPU-hours). The rest would buy above that.` | the book is thinner than your order | buy at most that, or wait for the maker to requote |
 | `At these prices this trade can only lose: the asks are above what <month> can pay. Nothing was sent.` | buying above the ceiling can only lose | wait for a lower ask |

@@ -22,18 +22,19 @@ GPU rental prices move fast, and there is no open way to lock one in. Renters ca
 GPU owners cannot protect their income, and there is no open, multi-source price for compute onchain. agate reads the
 clouds' own price pages every hour, writes one checked price per GPU per day on Monad, and lists a monthly market on
 each price: a Long that pays the month's average price, and a Short that locks it in, both fully backed, traded on
-Kuru's order book. People sign in with an email and trade with no wallet and no gas; an AI trades from its own pocket
-inside limits the person sets; developers read the same price from an API, an SDK or a contract.
+Kuru's order book. People sign in with a passkey, an email or Google and trade with no wallet and no gas; an AI
+trades from its own pocket inside limits the person sets; developers read the same price from an API, an SDK or a
+contract.
 
 <details>
 <summary><b>For hackathon judges</b> · a three-minute tour, a 30-second onchain check, and where to look</summary>
 
 <br>
 
-**Try it (three minutes).** Open https://agate.elpabl0.xyz/app, sign in with an email code or Google (the first sign-in
-adds 10,000 test dollars), go Long $100 on H100 November 2026, go Short with **Pay me daily**, close either, then open
-the Index page to see every cloud's price beside the median. The full walk-through, with an AI connection:
-[`JUDGES.md`](JUDGES.md).
+**Try it (three minutes).** Open https://agate.elpabl0.xyz/app, sign in with a passkey, an email code or Google (the
+first sign-in adds 10,000 test dollars), go Long $100 on H100 November 2026, go Short with **Pay me daily**, close
+either, then open the Index page to see every cloud's price beside the median. The full walk-through, with an AI
+connection: [`JUDGES.md`](JUDGES.md).
 
 **Check it onchain (30 seconds).** `curl https://agate.elpabl0.xyz/api/v1/prices` returns today's price per GPU
 with each source beside it. The same numbers are written in the index contract
@@ -78,7 +79,7 @@ markets.
 
 | Door | What it is | Docs |
 |---|---|---|
-| Web app | trade and hedge from a phone or desktop; email or Google sign-in, sponsored gas, test dollars | [Quickstart](docs/site/02-quickstart.md) |
+| Web app | trade and hedge from a phone or desktop; passkey, email or Google sign-in, sponsored gas, test dollars | [Quickstart](docs/site/02-quickstart.md) |
 | AI apps | a hosted MCP server: Claude, Codex, Hermes, OpenClaw and others read prices and trade from a pocket | [Connect an AI](docs/site/03-connect-an-ai.md) |
 | Developer API | read-only JSON, no key: prices with sources, history, months, books, trades, candles | [Developer API](docs/site/08-api.md) |
 | SDK | the TypeScript library the app runs on: reads, trades, call batches for smart accounts | [SDK](docs/site/10-sdk.md) |

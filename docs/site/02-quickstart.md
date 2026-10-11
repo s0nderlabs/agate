@@ -12,16 +12,17 @@ source: 'app/, JUDGES.md'
 This page takes you through the app at https://agate.elpabl0.xyz/app (phone or desktop) from signing in to a
 closed trade, then shows the same data from a terminal and from code.
 
-**Before you start:** a browser and an email address or a Google account. Nothing to install, no wallet, nothing to
-fund: test dollars are free and have no value.
+**Before you start:** a browser on a device that can save a passkey (Touch ID, Face ID, Windows Hello, or a phone
+nearby), or an email address or a Google account. Nothing to install, no wallet, nothing to fund: test dollars are
+free and have no value.
 
 ## 1. Sign in
 
-Tap **Sign in** and use Google or your email (a code arrives); you can add a passkey after, and sign in with it
-from then on. There is no wallet to
-install and no gas to pay: an account is created for you (a smart account, see [Accounts](06-accounts.md)) and network
-fees are paid by Agate. The first sign-in adds **10,000 test dollars** in about 6 seconds; you can take 10,000 more
-24 hours after the last time.
+Tap **Sign in**, then **Continue with a passkey**. One Touch ID or Face ID makes your account, with no email. In
+another browser or on a new device, tap **I already have a passkey** instead. Or use Google or your email (a code
+arrives). There is no wallet to install and no gas to pay: an account is created for you (a smart account, see
+[Accounts](06-accounts.md#passkey-accounts)) and network fees are paid by Agate. The first sign-in adds
+**10,000 test dollars** in about 6 seconds; you can take 10,000 more 24 hours after the last time.
 
 **You should see** your balance at the top: $10,000.00.
 

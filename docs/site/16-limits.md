@@ -25,6 +25,10 @@ source: 'contracts/src, server/src/grants.ts, wallet/src/allowed.ts, wall/apps'
   by Kuru, so a mainnet market depends on that.
 - **Not audited.** The contracts are tested (unit, fuzz, invariant, adversarial and fork tests) but have had no
   outside audit.
+- **Passkey accounts lean on Agate's server.** Signing in and confirming with an Agate passkey go through it: while
+  it is down, passkey accounts cannot sign in (email and Google still can). Its database is the only record of which
+  passkey opens which account, copied daily on the same server. New passkey accounts are capped at 150 a day, and 5
+  an hour from one network.
 - **One server.** The always-on processes run on one rented server, with the standby writer on a second machine; a
   day survives an outage (late days are closed and carried), but the robots stop while it is down.
 - **Dynamic Transaction Review waits on Dynamic.** It is built on Agate's side; until Dynamic turns it on for Monad
@@ -65,4 +69,5 @@ pocket's trades, every order in the book. Your account's address is visible to a
 Beyond the limits above (one CRE node, no outside audit, Transaction Review, the SDK off npm):
 
 - Kuru Spot V2 books for the app (the market maker is ready to quote them).
-- A recovery path for a lost passkey, and backup codes.
+- A recovery path for a lost passkey (an account made from a passkey alone has nothing else to sign in with), and
+  backup codes.
