@@ -140,6 +140,11 @@ export class PasskeyStore {
       : null;
   }
 
+  /** the passkey account already tied to this Dynamic user (bound at its first step-up), if any */
+  subOfDynamicUser(dynamicUserId: string): string | null {
+    return (this.db.query("SELECT sub FROM passkey_accounts WHERE dynamic_user_id = ?").get(dynamicUserId) as { sub: string } | null)?.sub ?? null;
+  }
+
   /** ties the account to its Dynamic user on first use; false when another Dynamic user already holds it */
   bindDynamicUser(sub: string, dynamicUserId: string): boolean {
     const r = this.db.query("UPDATE passkey_accounts SET dynamic_user_id = ? WHERE sub = ? AND (dynamic_user_id IS NULL OR dynamic_user_id = ?)").run(dynamicUserId, sub, dynamicUserId);

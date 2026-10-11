@@ -1,5 +1,5 @@
 // Passkey accounts over HTTP: sign up and sign in with a passkey alone, and confirm a sensitive step with it.
-// agate runs the WebAuthn ceremony and, once the passkey checks out, answers a JWT that lives two minutes; the app
+// agate runs the WebAuthn ceremony and, once the passkey checks out, answers a JWT that lives 60 seconds; the app
 // hands it to Dynamic (signInWithExternalJwt, or requestExternalAuthElevatedToken for a step-up) and never stores it.
 //   GET  /.well-known/agate-jwks.json   the public key Dynamic checks those JWTs with
 //   POST /api/passkey/options           a sign-in and a sign-up ceremony at once, so a tap needs no network wait
@@ -61,12 +61,15 @@ export type PasskeyDeps = {
   keys: ByoaKeys;
   /** the app's Dynamic-session check: the user, or the 401 to answer */
   authed: (c: Context) => Promise<DynamicUser | Response>;
+  /** the passkey account of a Dynamic user, from Dynamic: the app's session JWT is the minified one, which carries no
+   *  verified credentials, so u.externalSub is often null */
+  externalSubOf: (userId: string) => Promise<string | null>;
   log: (e: Record<string, unknown>) => void;
   origins: Map<string, string>;
   now?: () => number;
 };
 
-type Answer = { status: 400 | 403 | 404 | 409 | 429; code: string; error: string };
+type Answer = { status: 400 | 403 | 404 | 409 | 429 | 503; code: string; error: string };
 const A = {
   origin: { status: 403, code: "origin_not_allowed", error: "passkeys work only from the Agate app" },
   limited: { status: 429, code: "rate_limited", error: "too many passkey requests: wait a minute and try again" },
@@ -81,6 +84,7 @@ const A = {
   scope: { status: 400, code: "scope_not_allowed", error: "a passkey cannot confirm that" },
   notPasskey: { status: 403, code: "not_a_passkey_account", error: "this account was not made with a passkey" },
   mismatch: { status: 403, code: "dynamic_mismatch", error: "this passkey belongs to another account" },
+  lookup: { status: 503, code: "lookup_failed", error: "the account could not be checked with Dynamic right now: try again shortly" },
 } satisfies Record<string, Answer>;
 
 export function passkeyRoutes(deps: PasskeyDeps): Hono {
@@ -252,7 +256,15 @@ export function passkeyRoutes(deps: PasskeyDeps): Hono {
     if (!at) return fail(c, A.origin);
     const scope = ((await c.req.json().catch(() => null)) as { scope?: unknown } | null)?.scope;
     if (typeof scope !== "string" || !STEP_UP_SCOPES.has(scope)) return fail(c, A.scope);
-    const sub = u.externalSub;
+    // the session's own claim, else the account bound at an earlier step-up, else Dynamic (a first step-up)
+    let sub = u.externalSub ?? store.subOfDynamicUser(u.userId);
+    if (!sub) {
+      try {
+        sub = await deps.externalSubOf(u.userId);
+      } catch (e) {
+        return fail(c, A.lookup, { why: (e as Error).message.slice(0, 80) });
+      }
+    }
     const acct = sub ? store.account(sub) : null;
     if (!sub || !acct || acct.status !== "active") return fail(c, A.notPasskey);
     if (!store.bindDynamicUser(sub, u.userId)) return fail(c, A.mismatch, { why: "bind" });
@@ -270,7 +282,8 @@ export function passkeyRoutes(deps: PasskeyDeps): Hono {
     if (!body) return fail(c, A.bad);
     const cer = store.claimCeremony(body.ceremonyId, "stepup", now);
     if (!cer || !cer.sub || !cer.scope) return fail(c, A.expired);
-    if (cer.dynamicUserId !== u.userId || cer.sub !== u.externalSub) return fail(c, A.mismatch, { rpId: cer.rpId });
+    // the ceremony was made for this Dynamic user's own passkey account (checked, and bound, at /stepup/options)
+    if (cer.dynamicUserId !== u.userId) return fail(c, A.mismatch, { rpId: cer.rpId });
     const r = await checkAssertion(body.response, cer, cer.sub, now);
     if ("refuse" in r) return fail(c, r.refuse, r.extra);
     log({ event: "passkey.stepup", code: cer.scope, rpId: cer.rpId, cred8: r.cred8 });

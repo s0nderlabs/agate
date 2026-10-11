@@ -25,6 +25,7 @@ import { decide, type ReviewRequest } from "./dynamic/review.ts";
 import { type SnapshotCache, snapshotCache } from "./snapshot.ts";
 import { developerApi } from "./developer.ts";
 import { handleWebhook } from "./dynamic/webhook.ts";
+import { fetchExternalSub } from "./dynamic/users.ts";
 import type { PocketLimits } from "@agate/wallet/allowed";
 import type { GrantRow, Store } from "./store.ts";
 
@@ -59,6 +60,8 @@ export type AppDeps = {
   byoaKeyPem?: () => string;
   passkeyOrigins?: Map<string, string>;
   passkeyNow?: () => number;
+  /** the passkey account of a Dynamic user (default: Dynamic's management API) */
+  externalSubOf?: (userId: string) => Promise<string | null>;
 };
 
 /** The market reader the MCP tools use: the factory in AGATE_FACTORY ("real" by default), deployments from
@@ -119,7 +122,8 @@ export function publicApp(deps: AppDeps): Hono {
   let signer: ((b: string) => string) | null | undefined;
   app.use("/api/*", cors({ origin: origins, allowHeaders: ["authorization", "content-type"], allowMethods: ["GET", "POST"], maxAge: 600 }));
   // passkey accounts (passkey/routes.ts); after the cors line, so its preflight and headers apply
-  app.route("/", passkeyRoutes({ store: new PasskeyStore(deps.store.db), keys: byoaKeys({ pem: deps.byoaKeyPem, aud: process.env.AGATE_BYOA_AUD ?? cfg.environmentId, now: deps.passkeyNow }), authed, log, origins: deps.passkeyOrigins ?? passkeyOrigins(), now: deps.passkeyNow }));
+  const keys = byoaKeys({ pem: deps.byoaKeyPem, aud: process.env.AGATE_BYOA_AUD ?? cfg.environmentId, emailDomain: process.env.AGATE_BYOA_EMAIL_DOMAIN || undefined, now: deps.passkeyNow });
+  app.route("/", passkeyRoutes({ store: new PasskeyStore(deps.store.db), keys, authed, externalSubOf: deps.externalSubOf ?? fetchExternalSub, log, origins: deps.passkeyOrigins ?? passkeyOrigins(), now: deps.passkeyNow }));
 
   app.get("/health", (c) => c.json({ ok: true }));
 

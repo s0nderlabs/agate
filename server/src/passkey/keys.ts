@@ -1,17 +1,23 @@
 // The key agate signs passkey sign-ins with (Dynamic's Bring Your Own Auth). Once a passkey checks out, agate hands
-// the app a JWT that lives two minutes; the app gives it to Dynamic, which checks it against the public key served
+// the app a JWT that lives 60 seconds; the app gives it to Dynamic, which checks it against the public key served
 // at /.well-known/agate-jwks.json and opens a normal session for that sub. The private key is HOME/byoa-es256.pem,
 // made on first use with mode 600 and never printed or logged. Losing it is harmless: the next key is served at the
 // same address, and accounts are keyed by sub, not by the key.
-import { createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID } from "node:crypto";
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { calculateJwkThumbprint, importPKCS8, type JWK, SignJWT } from "jose";
+import { placeholderAddress } from "@agate/wallet/placeholder";
 import { ensureHome, HOME } from "../config.ts";
 
 /** what Dynamic's externalAuth settings name as the issuer: a constant, never the server's (changing) host */
 export const BYOA_ISS = process.env.AGATE_BYOA_ISS ?? "https://agate.elpabl0.xyz";
-export const BYOA_TTL_S = 120;
+export const BYOA_TTL_S = 60;
+
+/** Dynamic holds every account to an email while email sign-in is on (a passkey account without one gets only a
+ *  "fill in your details" session and no wallet), so with AGATE_BYOA_EMAIL_DOMAIN set a sign-in token carries a
+ *  verified placeholder: one-way from the sub, unique, on a domain that takes no mail. The app never shows it. */
+export const placeholderEmail = (sub: string, domain: string) => placeholderAddress(createHash("sha256").update(sub).digest("hex").slice(0, 32), domain);
 
 export type ByoaKeys = {
   jwks(): Promise<{ keys: JWK[] }>;
@@ -34,8 +40,9 @@ function readOrCreate(home: string): string {
   return readFileSync(f, "utf8");
 }
 
-/** `aud`: what Dynamic's externalAuth settings name as the audience (the Dynamic environment id) */
-export function byoaKeys(opts: { aud: string; home?: string; pem?: () => string; iss?: string; now?: () => number }): ByoaKeys {
+/** `aud`: what Dynamic's externalAuth settings name as the audience (the Dynamic environment id); `emailDomain`: see
+ *  placeholderEmail */
+export function byoaKeys(opts: { aud: string; emailDomain?: string; home?: string; pem?: () => string; iss?: string; now?: () => number }): ByoaKeys {
   const now = opts.now ?? Date.now;
   let loaded: Promise<{ key: CryptoKey; jwk: JWK }> | undefined;
   const load = () =>
@@ -54,7 +61,8 @@ export function byoaKeys(opts: { aud: string; home?: string; pem?: () => string;
     async sign(sub, scope) {
       const { key, jwk } = await load();
       const iat = Math.floor(now() / 1000);
-      const jwt = await new SignJWT(scope ? { scope } : {})
+      const claims = scope ? { scope } : opts.emailDomain ? { email: placeholderEmail(sub, opts.emailDomain), emailVerified: true } : {};
+      const jwt = await new SignJWT(claims)
         .setProtectedHeader({ alg: "ES256", kid: jwk.kid!, typ: "JWT" })
         .setIssuer(opts.iss ?? BYOA_ISS)
         .setAudience(opts.aud)

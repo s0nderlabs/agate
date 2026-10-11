@@ -398,11 +398,6 @@
             "networkId": 999999999
           },
           {
-            "chainName": "Degen Chain",
-            "enabled": false,
-            "networkId": 666666666
-          },
-          {
             "chainName": "Blast Mainnet",
             "enabled": false,
             "networkId": 81457
@@ -1525,7 +1520,10 @@
       "environmentLocked": false,
       "externalAuth": {
         "assumeEmailVerified": false,
-        "enabled": false,
+        "aud": "db2880bd-e52a-4f00-aa83-2c3ec77281cb",
+        "enabled": true,
+        "iss": "https://agate.elpabl0.xyz",
+        "jwksUrl": "${PUBLIC_BASE}/.well-known/agate-jwks.json",
         "stepUpEnabled": true
       },
       "hCaptcha": {

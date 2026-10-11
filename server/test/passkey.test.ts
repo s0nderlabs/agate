@@ -27,6 +27,8 @@ function fixture() {
   const store = new Store(":memory:");
   /** Dynamic sessions by bearer token: "s:<sub>" is the passkey account's session, "email" an email account */
   const users: Record<string, DynamicUser> = {};
+  /** what Dynamic's management API answers: the passkey account of a Dynamic user id */
+  const dynamicSubs: Record<string, string> = {};
   const app = publicApp({
     store,
     log: (e) => logs.push(e),
@@ -34,6 +36,10 @@ function fixture() {
     passkeyOrigins: new Map([[ORIGIN, RP], ["http://localhost:5174", "localhost"]]),
     passkeyNow: () => t,
     verifyUser: async (tok) => users[tok] ?? Promise.reject(new Error("bad token")),
+    externalSubOf: async (userId) => {
+      if (userId === "dyn-down") throw new Error("Dynamic user lookup failed (502)");
+      return dynamicSubs[userId] ?? null;
+    },
     agateClient: () => ({}) as never,
   });
   const post = async (path: string, body: unknown, h: Record<string, string> = {}) => {
@@ -50,8 +56,16 @@ function fixture() {
     users[`s:${sub}`] = { userId, email: null, wallets: new Map(), scopes: [], externalSub: sub };
     return { authorization: `Bearer s:${sub}` };
   };
+  /** the app's real session: a minified JWT, so no externalSub; Dynamic knows the account */
+  const minified = (sub: string, userId = `dyn-${sub}`) => {
+    users[`m:${sub}`] = { userId, email: null, wallets: new Map(), scopes: [], externalSub: null };
+    dynamicSubs[userId] = sub;
+    return { authorization: `Bearer m:${sub}` };
+  };
   const jwks = async () => createLocalJWKSet((await (await app.request("/.well-known/agate-jwks.json")).json()) as { keys: never[] });
-  return { app, store, logs, users, post, options, signUp, session, jwks, tick: (ms: number) => (t += ms), ip: () => `10.0.0.${++ip}` };
+  /** a JWT checked the way Dynamic checks it, 30 s after it was made */
+  const verify = async (jwt: string) => jwtVerify(jwt, await jwks(), { issuer: ISS, audience: AUD, currentDate: new Date("2026-10-11T03:00:30Z") });
+  return { app, store, logs, users, dynamicSubs, post, options, signUp, session, minified, jwks, verify, tick: (ms: number) => (t += ms), ip: () => `10.0.0.${++ip}` };
 }
 
 let f: ReturnType<typeof fixture>;
@@ -120,12 +134,33 @@ describe("sign-up", () => {
     expect(sub).toMatch(/^pk_[A-Za-z0-9_-]{22}$/);
     const { payload } = await jwtVerify(r.body.externalJwt, await f.jwks(), { issuer: ISS, audience: AUD, algorithms: ["ES256"], currentDate: new Date("2026-10-11T03:00:30Z") });
     expect(payload.sub).toBe(sub);
-    expect(payload.exp! - payload.iat!).toBe(120);
+    expect(payload.exp! - payload.iat!).toBe(60);
     expect(typeof payload.jti).toBe("string");
     expect(payload.email).toBeUndefined();
     expect(payload.scope).toBeUndefined();
     expect(decodeProtectedHeader(r.body.externalJwt)).toMatchObject({ alg: "ES256", typ: "JWT" });
     expect(f.store.db.query("SELECT COUNT(*) AS n FROM passkey_accounts").get()).toEqual({ n: 1 });
+  });
+
+  test("with AGATE_BYOA_EMAIL_DOMAIN a sign-in token carries a verified placeholder address, a step-up token none", async () => {
+    process.env.AGATE_BYOA_EMAIL_DOMAIN = "passkey.agate.elpabl0.xyz";
+    try {
+      const g = fixture();
+      const { r, sub, pk } = await g.signUp();
+      const { payload } = await g.verify(r.body.externalJwt);
+      expect(payload.email).toMatch(/^pk-[0-9a-f]{32}@passkey\.agate\.elpabl0\.xyz$/);
+      expect(payload.emailVerified).toBe(true);
+      const o = await g.post("/api/passkey/stepup/options", { scope: "wallet:delegate" }, g.session(sub));
+      const up = await g.post("/api/passkey/stepup", { ceremonyId: o.body.ceremonyId, response: pk.get(o.body.options, { origin: ORIGIN }) }, g.session(sub));
+      const step = await g.verify(up.body.externalJwt);
+      expect(step.payload.email).toBeUndefined();
+      expect(toUser({ sub: "dyn-1", email: payload.email, verified_credentials: [{ format: "externalUser", public_identifier: sub }] }, "env").email).toBeNull();
+      expect(toUser({ sub: "dyn-2", email: "a@b.c" }, "env").email).toBe("a@b.c");
+      // a real email linked later wins over the placeholder, wherever Dynamic lists it
+      expect(toUser({ sub: "dyn-3", email: payload.email, verified_credentials: [{ format: "email", email: payload.email }, { format: "email", email: "real@x.com" }] }, "env").email).toBe("real@x.com");
+    } finally {
+      delete process.env.AGATE_BYOA_EMAIL_DOMAIN;
+    }
   });
 
   test("a ceremony is used once", async () => {
@@ -234,7 +269,7 @@ describe("sign-in", () => {
     const { pk, sub } = await f.signUp();
     const r = await signIn(pk);
     expect(r.status).toBe(200);
-    const { payload } = await jwtVerify(r.body.externalJwt, await f.jwks(), { issuer: ISS, audience: AUD, currentDate: new Date("2026-10-11T03:00:30Z") });
+    const { payload } = await f.verify(r.body.externalJwt);
     expect(payload.sub).toBe(sub);
     expect(r.body.sub).toBe(sub);
   });
@@ -300,10 +335,34 @@ describe("step-up", () => {
     const r = await f.post("/api/passkey/stepup", { ceremonyId: o.body.ceremonyId, response: pk.get(o.body.options, { origin: ORIGIN }) }, auth);
     expect(r.status).toBe(200);
     expect(r.body.scope).toBe("wallet:delegate");
-    const { payload } = await jwtVerify(r.body.externalJwt, await f.jwks(), { issuer: ISS, audience: AUD, currentDate: new Date("2026-10-11T03:00:30Z") });
+    const { payload } = await f.verify(r.body.externalJwt);
     expect(payload).toMatchObject({ sub, scope: "wallet:delegate" });
     expect(Date.parse(r.body.expiresAt)).toBe(payload.exp! * 1000);
     expect(f.store.db.query("SELECT dynamic_user_id AS d FROM passkey_accounts").get()).toEqual({ d: `dyn-${sub}` });
+  });
+
+  test("a minified session (no verified credentials) finds its passkey account through Dynamic", async () => {
+    const { pk, sub } = await f.signUp();
+    const r = await stepUp(pk, f.minified(sub));
+    expect(r.status).toBe(200);
+    const { payload } = await f.verify(r.body.externalJwt);
+    expect(payload).toMatchObject({ sub, scope: "wallet:delegate" });
+  });
+
+  test("once bound, a step-up needs no lookup at Dynamic", async () => {
+    const { pk, sub } = await f.signUp();
+    expect((await stepUp(pk, f.minified(sub, "dyn-bound"))).status).toBe(200);
+    f.dynamicSubs["dyn-bound"] = "pk_someone_else";
+    const again = await stepUp(pk, f.minified(sub, "dyn-bound"));
+    expect(again.status).toBe(200);
+    expect((await f.verify(again.body.externalJwt)).payload.sub).toBe(sub);
+  });
+
+  test("Dynamic not answering the lookup is a 503 to retry, not \"not a passkey account\"", async () => {
+    const { pk, sub } = await f.signUp();
+    const r = await stepUp(pk, f.minified(sub, "dyn-down"));
+    expect(r.status).toBe(503);
+    expect(r.body.code).toBe("lookup_failed");
   });
 
   test("needs a session, an allowed scope and a passkey account", async () => {
@@ -339,7 +398,7 @@ describe("step-up", () => {
     const { pk, sub } = await f.signUp();
     const r = await stepUp(pk, f.session(sub), "credential:link");
     expect(r.body.scope).toBe("credential:link");
-    const { payload } = await jwtVerify(r.body.externalJwt, await f.jwks(), { issuer: ISS, audience: AUD, currentDate: new Date("2026-10-11T03:00:30Z") });
+    const { payload } = await f.verify(r.body.externalJwt);
     expect(payload.sub).toBe(sub);
   });
 });

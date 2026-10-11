@@ -41,6 +41,7 @@ import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, startAuthenti
 import type { Address, LocalAccount } from "viem";
 import { toAccount } from "viem/accounts";
 import { monadTestnet } from "./chain.ts";
+import { realEmail } from "./placeholder.ts";
 
 export const AGATE_DYNAMIC_ENVIRONMENT_ID = "db2880bd-e52a-4f00-aa83-2c3ec77281cb";
 
@@ -155,7 +156,7 @@ export async function passkeyCount(client: DynamicClient): Promise<number> {
 // ------------------------------------------------------------------ passkey accounts (a passkey alone, no email)
 
 /** "Continue with a passkey": sign up or sign in with a passkey alone. These are agate's passkeys, checked by agate's
- *  server, which answers a JWT that lives two minutes; Dynamic turns it into a normal session (Bring Your Own Auth),
+ *  server, which answers a JWT that lives 60 seconds; Dynamic turns it into a normal session (Bring Your Own Auth),
  *  and the main wallet and test dollars follow as for any sign-up. startPasskeySignIn and addPasskey above stay for
  *  people who added a Dynamic passkey to an email or Google account; a passkey account never has one.
  *  `server` is agate's server base (AGATE_SERVER). Every failure is an AgatePasskeyError with a code. */
@@ -333,6 +334,12 @@ export async function signInWithAgatePasskey(client: DynamicClient, server: stri
 export function continueWithPasskey(client: DynamicClient, server: string, opts: { mode?: "auto" | "signin" | "create"; prepared?: PasskeyPrepared } = {}): Promise<PasskeyResult> {
   const mode = opts.mode === "signin" || opts.mode === "create" ? opts.mode : hasPasskeyHint() ? "signin" : "create";
   return mode === "signin" ? signInWithAgatePasskey(client, server, opts.prepared) : createAccountWithPasskey(client, server, opts.prepared);
+}
+
+/** The person's email to show, or null: a passkey account's address is a placeholder Dynamic requires
+ *  (pk-<hex>@...), nobody's mailbox; a real email linked later is shown. */
+export function shownEmail(client: DynamicClient): string | null {
+  return realEmail(client.user?.email) ?? client.user?.verifiedCredentials?.map((c) => (String(c.format) === "email" ? realEmail(c.email) : null)).find(Boolean) ?? null;
 }
 
 /** True for a person who signed up with a passkey alone: "Confirm it's you" then uses confirmWithAgatePasskey (they

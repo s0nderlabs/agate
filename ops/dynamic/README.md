@@ -35,12 +35,19 @@ proxy for it works on 10143 (asked them on Oct 4 2026).
 A person can sign up with a passkey alone. agate's server checks the passkey and signs a JWT with the key in
 `~/.agate-dynamic/byoa-es256.pem` (P-256, made on first use, mode 600, never printed); Dynamic checks it against
 `${PUBLIC_BASE}/.well-known/agate-jwks.json` and creates the person with an `externalUser` credential. The setting is
-`settings.security.externalAuth` in `sandbox.json` (`iss` https://agate.elpabl0.xyz, `aud` the environment id,
-`jwksUrl`, `assumeEmailVerified` false, `stepUpEnabled` true), written with `env.ts apply --settings`.
+`settings.security.externalAuth` in `sandbox.json` (on since Oct 11 2026: `iss` https://agate.elpabl0.xyz, `aud` the
+environment id, `jwksUrl`, `assumeEmailVerified` false, `stepUpEnabled` true), written with `env.ts apply --settings`.
+
+Dynamic holds every account to an email while email sign-in is on: an external user without one gets a session
+limited to "fill in your details" (scope `userDataForm`, `missingFields` email) and no wallet, even with the email
+field set optional (tried Oct 11 2026: no effect, set back to required). So the server runs with
+`AGATE_BYOA_EMAIL_DOMAIN=passkey.agate.elpabl0.xyz`: each sign-in JWT carries a verified placeholder address
+`pk-<32 hex>@passkey.agate.elpabl0.xyz`, one way from the account's `sub`. The domain takes no mail. Dynamic accepts the
+same sign-in JWT twice (it enforces single use only for step-up JWTs), so it lives 60 seconds.
 
 - Kill switch: `externalAuth.enabled` false (then `apply --settings`). New passkey sign-ins and step-ups stop; email
   and Google keep working; passkey accounts cannot sign in until it is back on.
-- The key: losing or replacing it is harmless. The next key is served at the same address and JWTs live 2 minutes;
+- The key: losing or replacing it is harmless. The next key is served at the same address and JWTs live 60 seconds;
   accounts are keyed by their `sub`, not by the key.
 - The database: `agate-server.db` maps each passkey to its account (tables `passkey_accounts`,
   `passkey_credentials`; public keys only). Losing it orphans every passkey account. The server copies it a minute

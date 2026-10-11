@@ -4,7 +4,7 @@ import { createKernelClientForWalletAccount } from "@dynamic-labs-sdk/zerodev";
 import { type Address, createPublicClient, encodeFunctionData, http, parseAbi, type PublicClient } from "viem";
 import { abi } from "@agate/client";
 import { AGATE, accountClient, createPocketPermission, describeReceipt, fundPocketCalls, kernelAccount, monadTestnet, shortTokensCapFor, sendCalls, zerodev, type Call } from "../src/index.ts";
-import { canDelegate, createAgateDynamic, delegateAssistant, ensureAssistantWallet, ensureMainWallet, finishEmailSignIn, confirmStepUp, finishGoogleSignIn, googleAccounts, startGoogleSignIn, unlinkGoogle, onSessionEvent, refreshSession, revokeAssistant, sessionExpiresAt, sessionToken, signOut, startEmailSignIn, walletSigner, wallets, type EmailOtp } from "../src/dynamic.ts";
+import { canDelegate, confirmWithAgatePasskey, createAccountWithPasskey, isAgatePasskeyAccount, signInWithAgatePasskey, createAgateDynamic, delegateAssistant, ensureAssistantWallet, ensureMainWallet, finishEmailSignIn, confirmStepUp, finishGoogleSignIn, googleAccounts, startGoogleSignIn, unlinkGoogle, onSessionEvent, refreshSession, revokeAssistant, sessionExpiresAt, sessionToken, signOut, startEmailSignIn, walletSigner, wallets, type EmailOtp } from "../src/dynamic.ts";
 
 declare const __ZERODEV_RPC__: string;
 declare const __AGATE_SERVER__: string;
@@ -34,7 +34,7 @@ async function api(path: string, init: RequestInit = {}) {
 
 async function refresh() {
   const w = wallets(client);
-  const lines = [`signed in: ${Boolean(sessionToken(client))}`, `wallet accounts: ${getWalletAccounts(client).map((a) => `${a.chain}:${a.address.slice(0, 10)}(${a.walletProviderKey})`).join(", ") || "-"}`];
+  const lines = [`signed in: ${Boolean(sessionToken(client))}${client.user ? `, passkey account: ${isAgatePasskeyAccount(client)}, missing fields: ${client.user.missingFields?.length ?? 0}` : ""}`, `wallet accounts: ${getWalletAccounts(client).map((a) => `${a.chain}:${a.address.slice(0, 10)}(${a.walletProviderKey})`).join(", ") || "-"}`];
   if (w) {
     lines.push(`main: ${w.main.address}`, `main account: ${(await kernelAccount(pc, await walletSigner(client, w.main))).address}`);
     lines.push(`assistant: ${w.assistant?.address ?? "-"}`);
@@ -112,6 +112,12 @@ step("refresh-session", async () => {
   return { before, after: sessionFacts().sessionMinutesLeft };
 });
 onSessionEvent(client, (e) => log("session-event", e));
+step("pk-create", async () => createAccountWithPasskey(client, __AGATE_SERVER__));
+step("pk-signin", async () => signInWithAgatePasskey(client, __AGATE_SERVER__));
+step("pk-confirm", async () => {
+  await confirmWithAgatePasskey(client, __AGATE_SERVER__, "wallet:delegate");
+  return `canDelegate ${canDelegate(client)}`;
+});
 step("main", async () => (await ensureMainWallet(client)).address);
 step("drip", async () => {
   const kc = await mainClient();

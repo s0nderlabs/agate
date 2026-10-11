@@ -206,3 +206,13 @@ describe("confirm it's you with an agate passkey", () => {
     expect(lib.isAgatePasskeyAccount(client())).toBe(false);
   });
 });
+
+describe("the email to show", () => {
+  test("a passkey account's placeholder address is never shown", () => {
+    const placeholder = "pk-0123456789abcdef0123456789abcdef@passkey.agate.elpabl0.xyz";
+    expect(lib.shownEmail(client({ email: placeholder }))).toBeNull();
+    expect(lib.shownEmail(client({ email: "a@b.c" }))).toBe("a@b.c");
+    expect(lib.shownEmail(client())).toBeNull();
+    expect(lib.shownEmail(client({ email: placeholder, verifiedCredentials: [{ format: "email", email: placeholder }, { format: "email", email: "real@x.com" }] }))).toBe("real@x.com");
+  });
+});

@@ -3,6 +3,7 @@
 // main wallet or an Assistant really belongs to whoever is calling.
 import { createRemoteJWKSet, type JWTPayload, jwtVerify } from "jose";
 import type { Address } from "viem";
+import { realEmail } from "@agate/wallet/placeholder";
 
 export type DynamicUser = {
   userId: string;
@@ -31,13 +32,14 @@ export function toUser(p: JWTPayload & Record<string, unknown>, environmentId: s
   if (!p.sub) throw new Error("token has no subject");
   const creds = (p.verified_credentials ?? []) as Credential[];
   const wallets = new Map<string, { id: string | null; name: string | null; provider: string | null }>();
-  let email: string | null = (p.email as string) ?? null;
+  // a passkey account's placeholder address is nobody's email: a real one linked later wins, else none
+  let email = realEmail(p.email);
   let externalSub: string | null = null;
   for (const c of creds) {
     if (c.format === "blockchain" && c.address && (c.chain ?? "eip155").toLowerCase().includes("eip155")) {
       wallets.set(c.address.toLowerCase(), { id: c.id ?? null, name: c.wallet_name ?? null, provider: c.wallet_provider ?? null });
     }
-    if (c.format === "email" && c.email && !email) email = c.email;
+    if (c.format === "email" && !email) email = realEmail(c.email);
     if (c.format === "externalUser" && c.public_identifier && !externalSub) externalSub = c.public_identifier;
   }
   const scopes = typeof p.scope === "string" ? p.scope.split(" ") : Array.isArray(p.scopes) ? (p.scopes as string[]) : [];
