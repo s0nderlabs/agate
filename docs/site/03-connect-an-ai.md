@@ -25,9 +25,10 @@ OAuth tokens are issued for this exact address, so add it as written. Every addr
   Agate's **Allow** page (`https://agate.elpabl0.xyz/app/connect?request=<id>`), and you sign in and set a budget, a
   cap per trade, trades a day and an end date. Discovery: `/.well-known/oauth-protected-resource/mcp` and
   `/.well-known/oauth-authorization-server` on the same host.
-- **Connector URL:** on Agate's **AI** page, connect an AI and copy the private URL it shows once. Add that URL as a
-  remote MCP server; no further sign-in. Treat it like a password: anyone with it can use that connection until you
-  disconnect it (connect again for a new one).
+- **Connector URL:** on Agate's **Connected AIs** page (`https://agate.elpabl0.xyz/app/ai`, from the Account sheet,
+  or **More** on a phone), connect an AI and copy the private URL it shows once. Add that URL as a remote MCP server;
+  no further sign-in. Treat it like a password: anyone with it can use that connection until you disconnect it
+  (connect again for a new one).
 
 ## Per app
 
@@ -37,7 +38,7 @@ Checked against the live server on Oct 8 2026 (Claude in use since Oct 4):
 | --- | --- | --- |
 | Claude Code | `claude mcp add --transport http agate https://agate-1.tailf06dd7.ts.net/mcp`, then `/mcp` to sign in | `claude mcp add --transport http agate <url>` |
 | Claude.ai | Settings, Connectors, Add custom connector: the `/mcp` address | the URL in the same field |
-| Codex CLI | `codex mcp add agate --url https://agate-1.tailf06dd7.ts.net/mcp`, then `codex mcp login agate` | `codex mcp add agate --url <url>` |
+| Codex CLI | `codex mcp add agate --url https://agate-1.tailf06dd7.ts.net/mcp`, then `codex mcp login agate` | `codex mcp add agate --url <url>` (connects and lists the tools; no trade checked yet) |
 | Hermes Agent | not on Hermes v0.8.0, which hands only the host to the MCP SDK, so the SDK refuses a `/mcp` resource; newer Hermes keeps the full address (upstream issue 16015, not checked here yet) | `mcp_servers: agate: url: <url>` in `~/.hermes/config.yaml`; `hermes mcp test agate` lists the tools |
 | OpenClaw | no OAuth for MCP servers | `openclaw mcp set agate '{"url":"<url>","transport":"streamable-http"}'` (set `transport`) |
 | opencode | `"mcp": {"agate": {"type": "remote", "url": "<address>/mcp"}}` in `opencode.json` (not checked yet) | the same with the URL |
@@ -81,8 +82,8 @@ In Claude Code the tools then show as `mcp__agate__get_prices`, `mcp__agate__ope
 - "Open a $50 H100 November long, paid daily."
 - "Keep my H100 hedge going into next month."
 
-Every trade shows on the **AI** page with its transaction, and above the cap the AI sends you an approval link
-instead of trading. The tools: [MCP tools](11-mcp-tools.md). A guide written for the agent itself:
+Every trade shows on the AI's page in **Connected AIs** with its transaction, and above the cap the AI sends you an
+approval link instead of trading. The tools: [MCP tools](11-mcp-tools.md). A guide written for the agent itself:
 [For agents](18-agents.md).
 
 ## If it fails
@@ -96,5 +97,5 @@ Every `401` and `429` the server answers, and every refusal rule: [Errors](17-er
 
 ## Disconnect
 
-On the **AI** page, **Disconnect** stops an AI at once: Agate stops signing for it, its tokens and connector URL die,
-its autopilot stops, and the pocket's dollars can be taken back.
+On **Connected AIs**, **Disconnect** stops an AI at once: Agate stops signing for it, its tokens and connector URL
+die, its autopilot stops, and the pocket's dollars can be taken back.

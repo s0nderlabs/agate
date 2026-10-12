@@ -58,9 +58,10 @@ Each roll counts as a trade. `stop_keep_hedge_going` ends it.
 
 ## Disconnect
 
-On the **AI** page, **Disconnect** ends a connection everywhere it could still act: Agate stops signing for it, its
-pending approvals and autopilot orders end, its connector URL and OAuth tokens die, and the app moves the pocket's dollars
-back to your main account. "Stop every AI" also revokes the Assistant with Dynamic, which stops its signing at once.
+On **Connected AIs**, **Disconnect** ends a connection everywhere it could still act: Agate stops signing for it, its
+pending approvals and autopilot orders end, its connector URL and OAuth tokens die, and by default the app moves the
+pocket's dollars back to your main account. Disconnecting the last connected AI also revokes the Assistant with
+Dynamic, which stops its signing at once.
 
 ## AI companies with their own wallet
 

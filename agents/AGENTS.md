@@ -10,8 +10,9 @@ two ways:
 - **OAuth 2.1**: add `<agate host>/mcp`. The app registers itself (DCR), opens agate's Allow page, and the person
   signs in to agate (Dynamic) and sets a budget, a per-trade cap, a daily trade count and an end date. Discovery is
   at `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server`.
-- **Connector URL**: the person connects on agate's "Connect your AI" screen and copies the private URL it shows
-  once (treat it like a password). The app adds that URL as a remote MCP server with no further sign-in.
+- **Connector URL**: the person opens agate's "Connected AIs" page (`/app/ai` on agate's site), connects the AI from
+  there and copies the private URL it shows once (treat it like a password). The app adds that URL as a remote MCP
+  server with no further sign-in.
 
 Per app (Codex, Hermes and OpenClaw checked against the live server on Oct 8 2026; Claude in use since Oct 4):
 
@@ -19,7 +20,7 @@ Per app (Codex, Hermes and OpenClaw checked against the live server on Oct 8 202
 | --- | --- | --- |
 | Claude Code | `claude mcp add --transport http agate <agate host>/mcp`, then `/mcp` to sign in | `claude mcp add --transport http agate <url>` |
 | Claude.ai | Settings, Connectors, Add custom connector: `<agate host>/mcp` | same field, the URL |
-| Codex CLI | `codex mcp add agate --url <agate host>/mcp`, then `codex mcp login agate` (reaches the Allow page) | `codex mcp add agate --url <url>` (connects; lists the tools) |
+| Codex CLI | `codex mcp add agate --url <agate host>/mcp`, then `codex mcp login agate` (reaches the Allow page) | `codex mcp add agate --url <url>` (connects and lists the tools; no trade checked yet) |
 | Hermes Agent | not on Hermes v0.8.0: it hands only the host to the MCP SDK, which then refuses agate's `/mcp` resource (as it would Linear's or Notion's); newer Hermes passes the full address (upstream issue 16015, not checked here yet) | in `~/.hermes/config.yaml`, `mcp_servers: agate: url: <url>`; `hermes mcp test agate` lists 17 tools (tool calls checked) |
 | OpenClaw | no OAuth for MCP servers | `openclaw mcp set agate '{"url":"<url>","transport":"streamable-http"}'` (set `transport`: without it OpenClaw uses SSE; tool calls checked) |
 | opencode | `"mcp": {"agate": {"type": "remote", "url": "<agate host>/mcp"}}` in `opencode.json` (not checked yet) | same with the URL (not checked yet) |
@@ -51,8 +52,9 @@ Trades (only while the connection is live): `open_long` (optionally `pay_me_dail
    chain itself checks: agate router calls only, per-trade cap, payouts pinned to the person's main account, N
    operations a day, an end date, and no ERC-1271 signatures. The pocket's balance is the hard total.
 
-The person can disconnect one AI at any time: agate stops signing for it, its tokens and URL die, and its pocket's
-dollars go home. "Stop every AI" also revokes the Assistant with Dynamic, which stops its signing at once.
+The person can disconnect one AI at any time ("Disconnect" on agate's "Connected AIs" page): agate stops signing
+for it, its tokens and URL die, and by default its pocket's dollars go home. Disconnecting the last connected AI also
+revokes the Assistant with Dynamic, which stops its signing at once.
 
 ## Autopilot
 

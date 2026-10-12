@@ -10,9 +10,9 @@ source: 'README.md'
 # What Agate stands on, where to find it in the code, and proof that it runs.
 
 Every transaction below is on Monad testnet and opens in the explorer. Counts are from the chain (read through Envio
-HyperSync) and from Agate's indexer, as of Oct 9 2026; they only grow. The indexer's own count, live:
+HyperSync) and from Agate's indexer, as of Oct 12 2026; they only grow. The indexer's own count, live:
 `curl -s https://agate-1.tailf06dd7.ts.net:8443/v1/graphql -H 'content-type: application/json' -d '{"query":"{ chain_metadata { num_events_processed } }"}'`
-(14,997 events on Oct 10).
+(18,782 events on Oct 12).
 
 ## Monad
 
@@ -38,8 +38,10 @@ forwarder swallows a failed `onReport`. Today it runs in CRE's simulator with
 Code: `wall/apps/writer-cre` (the workflow in `workflow/handler.ts`), `contracts/src/interfaces/IReceiver.sol`.
 
 **Proof.**
-- **250 CRE reports** written to the live index through the CRE forwarder since Oct 4, every one successful; the
-  writer fell back to posting directly 19 times, so 93% of the index's readings arrived through CRE. Writer
+- **200 CRE reports** written to the live index through the CRE forwarder by 13:00 UTC on Oct 12, every one
+  successful. They carry the primary writer's readings: 200 of its 205 posts since Oct 4 went through the forwarder,
+  and the other 5 went directly when a CRE run gave no result. The standby writer posts its own readings directly
+  (205 by the same time), by design: it is the second, independent writer. Primary writer
   `0xf0be5c7461c0743acde590a22bccb66fc2112335`, forwarder `0xb9f79d863261869b234c481d1f9a7af84aead192`.
 - First report (Oct 4): [`0x47751afb...`](https://testnet.monadexplorer.com/tx/0x47751afb9ed7bf84253e5dc5eb42a97685a503997f62aba9b2bcf0f165d70df1). A recent one:
   [`0x2d48b837...`](https://testnet.monadexplorer.com/tx/0x2d48b837a896f66570d596f8f8f400f80e99a100483ae9f3802bbc2d791d11ed). Each run reads six clouds' pages and the
@@ -64,15 +66,16 @@ the book level by level. Code: `contracts/src/market/interfaces/IKuruRouter.sol`
   [`0x0993a12e...`](https://testnet.monadexplorer.com/tx/0x0993a12e4e2c9ead07ad59c632dc2cbe18c55d367fa3e231d83740fe2aab94c5), H200
   [`0x9a110aa4...`](https://testnet.monadexplorer.com/tx/0x9a110aa434820b6e5f6b83d4f4b48eea68dd84f63747341fada4da94df3d2fc8), B200
   [`0x7a3a478e...`](https://testnet.monadexplorer.com/tx/0x7a3a478e7579d6ac01e3842bdfe7ab6e01e02c457c956232ceb51981350fde38)) and nine fast-clock demo months.
-- **33 trades, 2,050 GPU-hours, $9,180 in test dollars** from 7 accounts; 15 of the trades ($8,699) on the November
-  books. Agate's own market maker is on one side of every trade so far.
+- **25 trades on the live November books by Oct 12: 3,385 GPU-hours, $14,555 in test dollars**, from 10 accounts,
+  all of them Agate's own (team and test accounts and AI pockets); no outside trader yet. Agate's market maker is on
+  the other side of every trade. The 18 fills on the fast-clock demo months (Oct 4) are not counted here.
 - One of each action: a Long (router market buy) [`0xabee0211...`](https://testnet.monadexplorer.com/tx/0xabee02118e0be46d106b6dc2b2a713eafb10b65bf194efbbf58b76005f4d684a);
   a Short (mint and sell) [`0x18b13f53...`](https://testnet.monadexplorer.com/tx/0x18b13f53dc0f76e23c7692224da57a95d267529a432325f46df9b3a0b519932a); a Short bought back
   [`0x9284b3e5...`](https://testnet.monadexplorer.com/tx/0x9284b3e566e0ca4e3469608d5d0dc89c06253f029ab3dab3c4abbe7810b56af1); a resting limit order
   [`0x6a17321f...`](https://testnet.monadexplorer.com/tx/0x6a17321fbfae99b7c3cd37f628f52d3e9312430c0addd4a5f9c59e075256f2c7), its cancel
   [`0x31376ac1...`](https://testnet.monadexplorer.com/tx/0x31376ac12f703f75881fa88f7adba1b56553f82f318c3ba04e5d4113c52bcacb) and the margin withdrawal
   [`0xdfdf5ecb...`](https://testnet.monadexplorer.com/tx/0xdfdf5ecb8368ac48f9c04b9d6a4a9cbbcafe198cfb563a76c75196f9b0d24298); the market maker requoting the H100
-  book in one batch [`0x6e621d62...`](https://testnet.monadexplorer.com/tx/0x6e621d62ba2044dbadbeb9b7e7048db046fb60cba9d2d19c788c307fd627d6ed) (459 maker transactions so far).
+  book in one batch [`0x6e621d62...`](https://testnet.monadexplorer.com/tx/0x6e621d62ba2044dbadbeb9b7e7048db046fb60cba9d2d19c788c307fd627d6ed) (513 maker transactions by Oct 12).
 
 **What we ran into.** Kuru stopped open market creation on mainnet after its Sep 4 exploit, so Agate's books run on
 Kuru V1 testnet, where anyone can still open a market. We asked Kuru for a Spot V2 listing, and on Oct 9 Kuru agreed
@@ -89,7 +92,7 @@ app asks Envio Cloud first. Code: `indexer/` (`config.yaml`, `schema.graphql`).
 - Hosted on Envio Cloud (project `s0nderlabs/agate`, a development deployment redeployed when the indexer changes):
   `https://indexer.dev.hyperindex.xyz/4b2eb56/v1/graphql`. The path carries the deployment's id, so it changes with
   each redeploy. A copy runs on Agate's server at a fixed address, the one to use from your own code:
-  `https://agate-1.tailf06dd7.ts.net:8443/v1/graphql`. Both had processed 13,253 events by Oct 9, caught up to the
+  `https://agate-1.tailf06dd7.ts.net:8443/v1/graphql`. Both had processed 18,782 events by Oct 12, caught up to the
   chain head.
 - 41 events across the index, the factories, every series, the router, the test dollar and Kuru; 29 entities; each
   Kuru book is registered from the factory's `MarketRecorded` event as it is created (`indexer/src/handlers/factory.ts:125`),
@@ -115,11 +118,11 @@ it on for Monad testnet. Code: `wallet/src/dynamic.ts`, `server/src/dynamic/`, `
 **Proof.**
 - **A person's trade from the app:** a Dynamic embedded wallet signs for the person's smart account, gas sponsored,
   for example a pay-me-daily Long on Oct 8 [`0x7ded45fe...`](https://testnet.monadexplorer.com/tx/0x7ded45fe05334d825952d5da5b3db442416f754a16e72485a0f3559cf4ae1fcf).
-- **Delegated access:** Agate's server has received 8 `wallet.delegation.created` webhooks and signed 15 times with
-  delegated Assistant wallets. An AI's trade from its pocket, signed that way:
+- **Delegated access:** Agate's server has received 17 `wallet.delegation.created` webhooks and signed 18 times with
+  delegated Assistant wallets (team tests included). An AI's trade from its pocket, signed that way:
   [`0x97011f94...`](https://testnet.monadexplorer.com/tx/0x97011f941530d99490aef4d157245dbf1cc077bd20c42d67a04fddadb78c2087); the autopilot rolling a hedge into the
-  next month: [`0x6d94893d...`](https://testnet.monadexplorer.com/tx/0x6d94893df4d7765a6af940ce978aefaa821af35a9e2d6f0d9b1c630f692a7723); 4 delegations revoked by
-  disconnects.
+  next month: [`0x6d94893d...`](https://testnet.monadexplorer.com/tx/0x6d94893df4d7765a6af940ce978aefaa821af35a9e2d6f0d9b1c630f692a7723); 7 delegations revoked
+  (team tests included).
 - **Above the cap:** an AI asked, the person approved, and the trade ran from their main account:
   [`0xabee0211...`](https://testnet.monadexplorer.com/tx/0xabee02118e0be46d106b6dc2b2a713eafb10b65bf194efbbf58b76005f4d684a).
 - **Server wallets:** an AI company's agent bought GPU-hours from its own Dynamic server wallet
@@ -141,6 +144,15 @@ sign-in token now carries a verified placeholder address, `pk-<32 hex>@passkey.a
 the account's id; it takes no mail and the app never shows it. And the short session token the SDK keeps lists no
 credentials, so Agate's server finds which passkey account a session belongs to through Dynamic's management API.
 
+Three more, from the delegated Assistant. Dynamic's server-side revoke answered 401 to every API token we tried (both
+endpoints), so the revoke Dynamic honours is the one in the person's browser; Agate's server also has its own kill
+switch that destroys its copy of the delegated share and ends the AI's connections (`server/src/app.ts`). Dynamic's
+gas relayer answers "Unsupported chain" for Monad testnet, so sponsored gas comes from ZeroDev. And no Dynamic SDK
+attaches the user operation to a smart account's signature, so Dynamic sees only a bare hash on any chain; Agate's
+server attaches it itself to every delegated signature (`SignMessageContext.evmUserOperation`,
+`server/src/dynamic/signer.ts`), so Transaction Review and Dynamic's policies can check the calls once they run for
+Monad; none of the 7 review calls received so far has carried it.
+
 ## ZeroDev: smart accounts and gas
 
 Every person's main account and every AI pocket is a Kernel v3.1 smart account (ERC-4337, EntryPoint 0.7) with
@@ -150,20 +162,26 @@ per trade, the main account as payee), a rate limit (trades a day) and a timesta
 
 ## Alchemy: transactions and the app's reads
 
-Agate's processes send their transactions through Alchemy, and the attester and keeper follow the chain over its
-websocket; every process meters its compute units per method against a daily budget. The hosted app reads through an
-Alchemy key locked to Agate's own domains, with the public RPC after it. Code: `wall/packages/report/src/meter.ts`
-(the meter), `wall/apps/watcher/src/chain/send-route.ts` (the send route), `wall/apps/watcher/src/chain/ws-wake.ts`
-(the websocket), `ops/testnet/`.
+The writers, the attester, the keeper, the market maker and the payer send their own transactions through Alchemy
+(all but the CRE reports), and the attester and keeper follow the chain over its websocket; each process that uses
+Alchemy meters its compute units per method against a daily budget. The hosted app reads through an Alchemy key
+locked to Agate's own domains, with the public RPC after it. Code: `wall/packages/report/src/meter.ts` (the meter),
+`wall/apps/watcher/src/chain/send-route.ts` (the send route), `wall/apps/watcher/src/chain/ws-wake.ts` (the
+websocket), `wall/apps/writer-cre/src/simulate.ts` (the CRE CLI's key-free RPC), `ops/testnet/`.
 
 **Proof.** The signing processes (the writers, the attester, the keeper, the market maker and the payer) send their
-own transactions, nonces and receipts through Alchemy, falling back to public RPCs on any outage or limit; the attester
-and keeper keep an Alchemy websocket open. Usage on Oct 8: 11.49M of the month's 22.2M compute units, about 48K a day,
-checked against the processes' own meter.
+own transactions, nonces and receipts through Alchemy, falling back to public RPCs on any outage or limit; the
+attester and keeper keep an Alchemy websocket open. The exceptions are the primary writer's CRE reports (the CRE CLI
+broadcasts them, and it is only ever given a key-free public RPC) and the labeled test trader, which sends on the
+public RPC. Usage on Oct 8: 11.49M of the month's 22.2M compute units on Alchemy's dashboard, about 48K a day. The
+processes' own meter counts only their sends (about 20K to 45K a day); the dashboard also counts the app's key and the
+websockets.
 
-**What we ran into.** Agate's first day ran every process through Alchemy and hit the month's compute cap in 7 hours.
-So the roles split: Alchemy carries every transaction and the live websocket, reads go to public RPCs, and each
-process meters its compute units against a daily budget.
+**What we ran into.** On the morning of Oct 4 every process used Alchemy first and spent 11.3M compute units in about
+7 hours (eth_getLogs 67% of them), until the $5 spending limit cut all of them off. So the roles split: Alchemy now
+carries only the signing processes' own sends (not the CRE reports) and the attester's and keeper's websocket, the
+processes' other reads go to public RPCs, and each process that uses Alchemy meters its compute units against a
+daily budget.
 
 ## Code and data we build on
 

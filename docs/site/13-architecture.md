@@ -78,7 +78,10 @@ The wall's chaos tests run each of these on a local chain ([Build and test](14-d
 
 - Each role has its own key, read from the macOS key store (or, on the server, a stand-in that serves owner-only
   files), never printed and never in the repo.
-- The processes send their transactions through Alchemy with a daily compute budget, and read through free public RPCs.
+- The writers, the attester, the keeper, the market maker and the payer send their own transactions through Alchemy
+  with a daily compute budget (not the CRE reports, which go out on a key-free public RPC); the attester and keeper
+  follow the chain over Alchemy's websocket, the hosted app reads through a domain-locked Alchemy key, and the other
+  reads go through free public RPCs.
 - Every write is simulated first; a call that would revert is never sent.
 - People and AI pockets never hold MON: their smart accounts' gas is sponsored through ZeroDev.
 

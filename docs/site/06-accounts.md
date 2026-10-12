@@ -89,5 +89,7 @@ Passkey accounts, Oct 11 2026, in a test browser with a software passkey (so no 
 
 ## Signed out
 
-Signed out, the app shows a practice account with example positions, so every screen can be explored before signing
-in.
+Signed out, the app shows the live prices, the index and the order books, the same as signed in. The trade button
+reads **Sign in to trade**, and an order that fills at once goes on after you sign in; in **Simple** the ticket sizes
+it against the 10,000 test dollars a first sign-in brings. Positions and Connected AIs ask you to sign in before they
+show what you hold or which AIs you connected.

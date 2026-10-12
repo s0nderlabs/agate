@@ -27,7 +27,8 @@ sends `Authorization: Bearer <Dynamic session JWT>` (`sessionToken(client)` from
    approval }` (u strings, 1e6 = $1; validUntil unix seconds, at most 90 days) -> `201` the connection (below), active
    at once: the key installs itself inside the AI's first operation (~7 s instead of ~5 s). `409` when the
    Assistant's delegation has not reached the server yet: retry after 2 to 5 s. The Assistant is delegated once per
-   person; later AIs need no new code (step-up only again after "Stop every AI"). The delegated key share reaches the
+   person; later AIs need no new code (step-up only again after the Assistant is revoked, when the last connected AI is
+   disconnected). The delegated key share reaches the
    server only in Dynamic's delegation webhook: if it was missed (the public base was down, Oct 5), delegating again
    is a no-op at Dynamic and the 409 never clears. Recover only while `/api/me` shows no active delegation: revoke the
    Assistant's delegation (`revokeAssistant`), then a fresh "confirm it's you" step-up (`requestStepUp`, needed again
@@ -54,8 +55,8 @@ pocketIndex, tradesPerDay, expiresAt, createdAt }`.
   BigInt(pocketIndex))` sends `tUSD.transfer(mainAccount, balance)` (the main wallet is the pocket's owner, whatever
   the AI's key allows; proven live: 6.3 s, sponsored). Positions stay in the pocket and show under it; the same
   owner account can close them (planCloseShort / planSellLong with `me` = the pocket).
-- Stop EVERY AI: `revokeAssistant(client, assistant)` (Dynamic stops the Assistant signing at once, for all pockets)
-  plus disconnect each connection. Connecting again then needs a fresh code (`requestStepUp` / `confirmStepUp`).
+- Revoke the Assistant: `revokeAssistant(client, assistant)` (Dynamic stops the Assistant signing at once, for all
+  pockets); the app calls it when the last connected AI is disconnected. Connecting again then needs a fresh code (`requestStepUp` / `confirmStepUp`).
 - `GET /api/activity?limit=100[&grantId=]` -> events newest first `{ at, source, name, walletId, grantId, detail }`.
   Names: `grant.created`, `grant.connector_issued`, `grant.oauth_approved`, `grant.disconnected`, `pocket.trade`
   (detail: `summary` = the plan's TradeSummary { action, gpu, month, maxSpend, bound, gpuHours?, payee? }, userOpHash,

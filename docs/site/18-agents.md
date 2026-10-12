@@ -63,10 +63,10 @@ A sized hedge: "I rent 8 H100s through November" is `size_for { gpus: 8, days: 3
 | Step | Why it is theirs | Where they do it |
 |---|---|---|
 | A trade above the cap | only they can spend past the limit they set | the approval link, `https://agate.elpabl0.xyz/app/approve?request=<id>` (15 minutes) |
-| More budget, a higher cap, a later end date | the limits are theirs | connect you again on the AI page |
+| More budget, a higher cap, a later end date | the limits are theirs | connect you again from **Connected AIs** in the app |
 | Signing in, a code, a passkey | it proves who they are | the app, never the chat |
 | Collecting at the month's end | the payouts go to their main account | **Collect** in the app's Positions, or the SDK's `settle` or `claim` |
-| Disconnecting you | their call at any time | the AI page |
+| Disconnecting you | their call at any time | **Disconnect** on **Connected AIs** in the app |
 
 ## Never
 

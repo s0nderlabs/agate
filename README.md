@@ -119,7 +119,8 @@ calling agate's tools through a connector URL.
 - **No wallet for the user.** Every person and every AI pocket is a ZeroDev Kernel smart account with sponsored gas,
   signed in through Dynamic, so a trade is one tap.
 - **The ecosystem's stack:** Chainlink CRE writes the price, Kuru runs the books, Envio indexes everything over
-  HyperSync, Alchemy carries the services' transactions. Where each sits in the code: [Built on](docs/site/15-built-on.md).
+  HyperSync, Alchemy sends the services' own transactions (the CRE reports and the labeled test trader go out on a public RPC). Where
+  each sits in the code: [Built on](docs/site/15-built-on.md).
 
 ## Architecture
 

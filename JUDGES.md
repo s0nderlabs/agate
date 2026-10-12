@@ -33,7 +33,9 @@ hour; every cloud's price is shown beside it. How it's made: [agate.elpabl0.xyz/
 
 ## 4. Connect an AI (optional, 2 minutes)
 
-Open **AI**. It shows agate's link for AI apps and, for Claude Code, the command to run:
+Open **Connected AIs**: tap your test-dollar balance at the top right (on a phone, **More** in the bottom bar), then
+**Connected AIs**, or go to https://agate.elpabl0.xyz/app/ai. Under **Add an AI**, pick your app: it shows agate's
+link for AI apps or, for Claude Code, the command to run:
 
 ```sh
 claude mcp add --transport http agate https://agate-1.tailf06dd7.ts.net/mcp
@@ -41,7 +43,7 @@ claude mcp add --transport http agate https://agate-1.tailf06dd7.ts.net/mcp
 
 Your AI app then opens agate to ask for your OK: set a budget and limits (per trade, trades a day, end date) and
 allow it. (Or use **Connect from here instead** to get a link for any other MCP app.) Then ask it "what's the H100 price on agate?" or "open a $50 H100 November long". Its trades come from its own pocket,
-within your limits, and show on the AI page. Steps for Codex, Hermes, OpenClaw and others: [agents/AGENTS.md](agents/AGENTS.md).
+within your limits, and show in **Connected AIs**. Steps for Codex, Hermes, OpenClaw and others: [agents/AGENTS.md](agents/AGENTS.md).
 
 ## Proof onchain (Monad testnet, chain 10143)
 
@@ -56,16 +58,16 @@ within your limits, and show on the AI page. Steps for Codex, Hermes, OpenClaw a
 All addresses: [`contracts/deployments/10143.json`](contracts/deployments/10143.json). The same data as JSON, no key:
 https://agate.elpabl0.xyz/api/v1/prices ([agate.elpabl0.xyz/docs/api](https://agate.elpabl0.xyz/docs/api)).
 
-## Each sponsor, with proof (as of Oct 9 2026)
+## Each sponsor, with proof (as of Oct 12 2026)
 
 | Sponsor | What it does in agate | Proof you can click | Code |
 |---|---|---|---|
-| Chainlink CRE | the primary writer of the price: reads the index, then six clouds' pages every hour, nodes agree on each number, reports to the index and reads back what landed | 250 reports since Oct 4, all successful, 93% of readings: first [`0x4775...`](https://testnet.monadexplorer.com/tx/0x47751afb9ed7bf84253e5dc5eb42a97685a503997f62aba9b2bcf0f165d70df1), recent [`0x2d48...`](https://testnet.monadexplorer.com/tx/0x2d48b837a896f66570d596f8f8f400f80e99a100483ae9f3802bbc2d791d11ed); first run that reads the chain before and after [`0x1951...`](https://testnet.monadexplorer.com/tx/0x19516ae0dd2f5e30b9a2b752b56cffe05b90022dbeaccfc7bdcdab49b5a8a4cf) | `wall/apps/writer-cre/workflow/handler.ts` |
-| Kuru | one order book per GPU per month; Long, Short, limit orders, cancels, a market maker | 12 markets created (H100 November [`0x0993...`](https://testnet.monadexplorer.com/tx/0x0993a12e4e2c9ead07ad59c632dc2cbe18c55d367fa3e231d83740fe2aab94c5)); 33 trades, 2,050 GPU-hours; a limit order [`0x6a17...`](https://testnet.monadexplorer.com/tx/0x6a17321fbfae99b7c3cd37f628f52d3e9312430c0addd4a5f9c59e075256f2c7) and its cancel [`0x3137...`](https://testnet.monadexplorer.com/tx/0x31376ac12f703f75881fa88f7adba1b56553f82f318c3ba04e5d4113c52bcacb) | `contracts/src/market/AgateRouter.sol`, `wall/apps/marketmaker` |
-| Envio | indexes the index, every month and every Kuru book; drives candles, the trades tape, positions and the API | live on Envio Cloud: `https://indexer.dev.hyperindex.xyz/4b2eb56/v1/graphql` (13,253 events, at the chain head) | `indexer/` |
-| Dynamic | sign-in and wallets; a delegated Assistant wallet signs each AI's trades; server wallets for the payer and an AI company's agent | an AI's trade signed by its delegated wallet [`0x9701...`](https://testnet.monadexplorer.com/tx/0x97011f941530d99490aef4d157245dbf1cc077bd20c42d67a04fddadb78c2087); the autopilot roll [`0x6d94...`](https://testnet.monadexplorer.com/tx/0x6d94893df4d7765a6af940ce978aefaa821af35a9e2d6f0d9b1c630f692a7723); a server wallet's buy [`0x79f9...`](https://testnet.monadexplorer.com/tx/0x79f908d996a6a55fd367d3e2ba852e49a315a81a48871fc1354852b93531a21a); 8 delegations, 15 delegated signatures | `wallet/src/dynamic.ts`, `server/src/dynamic/` |
+| Chainlink CRE | the primary writer of the price: reads the index, then six clouds' pages every hour, nodes agree on each number, reports to the index and reads back what landed | 200 reports to the live index by 13:00 UTC on Oct 12, all successful, carrying 200 of the primary writer's 205 posts since Oct 4 (the other 5 went directly when a CRE run gave no result; the standby writer posts directly by design): first [`0x4775...`](https://testnet.monadexplorer.com/tx/0x47751afb9ed7bf84253e5dc5eb42a97685a503997f62aba9b2bcf0f165d70df1), recent [`0x2d48...`](https://testnet.monadexplorer.com/tx/0x2d48b837a896f66570d596f8f8f400f80e99a100483ae9f3802bbc2d791d11ed); first run that reads the chain before and after [`0x1951...`](https://testnet.monadexplorer.com/tx/0x19516ae0dd2f5e30b9a2b752b56cffe05b90022dbeaccfc7bdcdab49b5a8a4cf) | `wall/apps/writer-cre/workflow/handler.ts` |
+| Kuru | one order book per GPU per month; Long, Short, limit orders, cancels, a market maker | 12 markets created (H100 November [`0x0993...`](https://testnet.monadexplorer.com/tx/0x0993a12e4e2c9ead07ad59c632dc2cbe18c55d367fa3e231d83740fe2aab94c5)); 25 trades and 3,385 GPU-hours on the live November books by Oct 12, all by Agate's own accounts; a limit order [`0x6a17...`](https://testnet.monadexplorer.com/tx/0x6a17321fbfae99b7c3cd37f628f52d3e9312430c0addd4a5f9c59e075256f2c7) and its cancel [`0x3137...`](https://testnet.monadexplorer.com/tx/0x31376ac12f703f75881fa88f7adba1b56553f82f318c3ba04e5d4113c52bcacb) | `contracts/src/market/AgateRouter.sol`, `wall/apps/marketmaker` |
+| Envio | indexes the index, every month and every Kuru book; drives candles, the trades tape, positions and the API | live on Envio Cloud: `https://indexer.dev.hyperindex.xyz/4b2eb56/v1/graphql` (18,782 events by Oct 12, at the chain head) | `indexer/` |
+| Dynamic | sign-in and wallets; a delegated Assistant wallet signs each AI's trades; server wallets for the payer and an AI company's agent | an AI's trade signed by its delegated wallet [`0x9701...`](https://testnet.monadexplorer.com/tx/0x97011f941530d99490aef4d157245dbf1cc077bd20c42d67a04fddadb78c2087); the autopilot roll [`0x6d94...`](https://testnet.monadexplorer.com/tx/0x6d94893df4d7765a6af940ce978aefaa821af35a9e2d6f0d9b1c630f692a7723); a server wallet's buy [`0x79f9...`](https://testnet.monadexplorer.com/tx/0x79f908d996a6a55fd367d3e2ba852e49a315a81a48871fc1354852b93531a21a); 17 delegations and 18 delegated signatures by Oct 12, team tests included | `wallet/src/dynamic.ts`, `server/src/dynamic/` |
 | Sourcify | every live contract's source, checkable against the chain | all 20 verified, runtime and creation code matching: [the index](https://sourcify.dev/#/lookup/0x419394b0Edf3d03164a7C06ea525cC1ED0e5Da36) | `contracts/deployments/10143-sourcify.json` |
-| Alchemy | sends every signing process's transactions, with a compute-unit meter and a daily budget; the app's reads on a domain-locked key | 11.49M compute units used by Oct 8, matching the processes' own meter | `wall/packages/report/src/meter.ts` |
+| Alchemy | sends the services' own transactions (writers, attester, keeper, market maker, payer; not the CRE reports, which go out on a key-free public RPC), with a compute-unit meter and a daily budget; the app's reads on a domain-locked key | 11.49M compute units on Alchemy's dashboard by Oct 8, 11.3M of them on the morning of Oct 4, before the roles split | `wall/packages/report/src/meter.ts` |
 
 Every action with its transaction, and what each sponsor does, feature by feature:
 [agate.elpabl0.xyz/docs/built-on](https://agate.elpabl0.xyz/docs/built-on).
