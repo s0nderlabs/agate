@@ -16,6 +16,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { mcpRoutes } from "./mcp/routes.ts";
 import { appendRedirectParams, oauthRoutes, publicBase, redirectUriAllowed } from "./oauth/routes.ts";
 import { OAuthStore } from "./oauth/store.ts";
+import { backupCodes } from "./passkey/codes.ts";
 import { byoaKeys } from "./passkey/keys.ts";
 import { passkeyOrigins, passkeyRoutes } from "./passkey/routes.ts";
 import { PasskeyStore } from "./passkey/store.ts";
@@ -61,6 +62,8 @@ export type AppDeps = {
   pages?: Fingerprints | null;
   /** passkey accounts: the sign-in key (default HOME/byoa-es256.pem), origin -> rp id, and the clock */
   byoaKeyPem?: () => string;
+  /** the backup codes' pepper (tests); otherwise HOME/backup-codes.key, made on first use */
+  backupCodePepper?: () => Buffer;
   passkeyOrigins?: Map<string, string>;
   passkeyNow?: () => number;
   /** the passkey account of a Dynamic user (default: Dynamic's management API) */
@@ -126,7 +129,8 @@ export function publicApp(deps: AppDeps): Hono {
   app.use("/api/*", cors({ origin: origins, allowHeaders: ["authorization", "content-type"], allowMethods: ["GET", "POST"], maxAge: 600 }));
   // passkey accounts (passkey/routes.ts); after the cors line, so its preflight and headers apply
   const keys = byoaKeys({ pem: deps.byoaKeyPem, aud: process.env.AGATE_BYOA_AUD ?? cfg.environmentId, emailDomain: process.env.AGATE_BYOA_EMAIL_DOMAIN || undefined, now: deps.passkeyNow });
-  app.route("/", passkeyRoutes({ store: new PasskeyStore(deps.store.db), keys, authed, externalSubOf: deps.externalSubOf ?? fetchExternalSub, log, origins: deps.passkeyOrigins ?? passkeyOrigins(), now: deps.passkeyNow }));
+  const passkeyStore = new PasskeyStore(deps.store.db);
+  app.route("/", passkeyRoutes({ store: passkeyStore, keys, codes: backupCodes({ pepper: deps.backupCodePepper, hasCodes: () => passkeyStore.codesTotal() > 0 }), authed, externalSubOf: deps.externalSubOf ?? fetchExternalSub, log, origins: deps.passkeyOrigins ?? passkeyOrigins(), now: deps.passkeyNow }));
 
   app.get("/health", (c) => c.json({ ok: true }));
 

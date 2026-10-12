@@ -33,6 +33,7 @@ function fixture() {
     store,
     log: (e) => logs.push(e),
     byoaKeyPem: () => PEM,
+    backupCodePepper: () => Buffer.alloc(32, 7),
     passkeyOrigins: new Map([[ORIGIN, RP], ["http://localhost:5174", "localhost"]]),
     passkeyNow: () => t,
     verifyUser: async (tok) => users[tok] ?? Promise.reject(new Error("bad token")),
@@ -65,7 +66,11 @@ function fixture() {
   const jwks = async () => createLocalJWKSet((await (await app.request("/.well-known/agate-jwks.json")).json()) as { keys: never[] });
   /** a JWT checked the way Dynamic checks it, 30 s after it was made */
   const verify = async (jwt: string) => jwtVerify(jwt, await jwks(), { issuer: ISS, audience: AUD, currentDate: new Date("2026-10-11T03:00:30Z") });
-  return { app, store, logs, users, dynamicSubs, post, options, signUp, session, minified, jwks, verify, tick: (ms: number) => (t += ms), ip: () => `10.0.0.${++ip}` };
+  const get = async (path: string, h: Record<string, string> = {}) => {
+    const r = await app.request(path, { headers: { origin: ORIGIN, ...h } });
+    return { status: r.status, body: (await r.json()) as Json, headers: r.headers };
+  };
+  return { app, store, logs, users, dynamicSubs, post, get, options, signUp, session, minified, jwks, verify, tick: (ms: number) => (t += ms), ip: () => `10.0.0.${++ip}` };
 }
 
 let f: ReturnType<typeof fixture>;
@@ -400,6 +405,185 @@ describe("step-up", () => {
     expect(r.body.scope).toBe("credential:link");
     const { payload } = await f.verify(r.body.externalJwt);
     expect(payload.sub).toBe(sub);
+  });
+});
+
+describe("backup codes", () => {
+  const handleOf = (sub: string) => (f.store.db.query("SELECT user_handle AS h FROM passkey_accounts WHERE sub = ?").get(sub) as { h: string }).h;
+  const passkeysOf = (sub: string) => (f.store.db.query("SELECT COUNT(*) AS n FROM passkey_credentials WHERE sub = ?").get(sub) as { n: number }).n;
+  const codesLeft = (sub: string) => (f.store.db.query("SELECT COUNT(*) AS n FROM passkey_codes WHERE sub = ? AND used_at IS NULL").get(sub) as { n: number }).n;
+  /** a step-up ceremony for backup_codes, answered by pk */
+  const confirm = async (pk: FakePasskey, auth: Record<string, string>) => {
+    const o = await f.post("/api/passkey/stepup/options", { scope: "backup_codes" }, auth);
+    expect(o.status).toBe(200);
+    return { ceremonyId: o.body.ceremonyId, response: pk.get(o.body.options, { origin: ORIGIN }) };
+  };
+  const recover = async (code: string, pk = new FakePasskey(), h: Record<string, string> = {}) => {
+    const o = await f.post("/api/passkey/recover/options", { code }, h);
+    if (o.status !== 200) return { o, r: null as null | Awaited<ReturnType<typeof f.post>>, pk };
+    const r = await f.post("/api/passkey/recover", { ceremonyId: o.body.ceremonyId, response: pk.create(o.body.options, { origin: ORIGIN }) });
+    return { o, r, pk };
+  };
+
+  test("a new account makes its first ten codes without its passkey; only hashes are stored", async () => {
+    const { sub } = await f.signUp();
+    const auth = f.session(sub);
+    const r = await f.post("/api/passkey/codes", {}, auth);
+    expect(r.status).toBe(200);
+    expect(r.headers.get("cache-control")).toBe("no-store");
+    expect(r.body.codes).toHaveLength(10);
+    for (const c of r.body.codes) expect(c).toMatch(/^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
+    expect(new Set(r.body.codes).size).toBe(10);
+    expect((await f.get("/api/passkey/codes", auth)).body).toEqual({ left: 10 });
+    const stored = JSON.stringify(f.store.db.query("SELECT * FROM passkey_codes").all());
+    for (const c of r.body.codes) {
+      expect(stored).not.toContain(c);
+      expect(stored).not.toContain(c.replace("-", ""));
+    }
+    expect(JSON.stringify(f.logs)).not.toContain(r.body.codes[0]);
+  });
+
+  test("replacing codes, or a first set long after sign-up, needs the passkey in the same request", async () => {
+    const { pk, sub } = await f.signUp();
+    const auth = f.session(sub);
+    const first = (await f.post("/api/passkey/codes", {}, auth)).body.codes as string[];
+    const again = await f.post("/api/passkey/codes", {}, auth);
+    expect([again.status, again.body.code]).toEqual([403, "passkey_needed"]);
+    const r = await f.post("/api/passkey/codes", await confirm(pk, auth), auth);
+    expect(r.status).toBe(200);
+    expect(r.body.codes).not.toEqual(first);
+    // the old set no longer works
+    expect((await recover(first[0]!)).o.body.code).toBe("bad_code");
+    // an account that never made codes, an hour after sign-up
+    const late = await f.signUp();
+    const lateAuth = f.session(late.sub);
+    f.tick(31 * 60_000);
+    expect((await f.post("/api/passkey/codes", {}, lateAuth)).body.code).toBe("passkey_needed");
+    expect((await f.post("/api/passkey/codes", await confirm(late.pk, lateAuth), lateAuth)).status).toBe(200);
+  });
+
+  test("a backup_codes step-up is never a Dynamic token, and another account's passkey cannot replace codes", async () => {
+    const a = await f.signUp();
+    const b = await f.signUp();
+    const authA = f.session(a.sub);
+    await f.post("/api/passkey/codes", {}, authA);
+    const o = await f.post("/api/passkey/stepup/options", { scope: "backup_codes" }, authA);
+    const asToken = await f.post("/api/passkey/stepup", { ceremonyId: o.body.ceremonyId, response: a.pk.get(o.body.options, { origin: ORIGIN }) }, authA);
+    expect(asToken.status).toBe(400);
+    expect(asToken.body.externalJwt).toBeUndefined();
+    // b's passkey answering a's ceremony
+    const o2 = await f.post("/api/passkey/stepup/options", { scope: "backup_codes" }, authA);
+    const wrong = await f.post("/api/passkey/codes", { ceremonyId: o2.body.ceremonyId, response: b.pk.get(o2.body.options, { origin: ORIGIN }) }, authA);
+    expect(wrong.status).toBe(400);
+    // a wallet:delegate ceremony cannot replace codes
+    const o3 = await f.post("/api/passkey/stepup/options", { scope: "wallet:delegate" }, authA);
+    const scoped = await f.post("/api/passkey/codes", { ceremonyId: o3.body.ceremonyId, response: a.pk.get(o3.body.options, { origin: ORIGIN }) }, authA);
+    expect(scoped.body.code).toBe("expired");
+  });
+
+  test("a code adds a new passkey to the same account and signs in; it works once", async () => {
+    const { pk: old, sub } = await f.signUp();
+    const codes = (await f.post("/api/passkey/codes", {}, f.session(sub))).body.codes as string[];
+    const { o, r, pk } = await recover(codes[3]!.toLowerCase().replace("-", " "));
+    expect(o.status).toBe(200);
+    expect(o.body.options.excludeCredentials.map((k: Json) => k.id)).toEqual([old.id]);
+    expect(r!.status).toBe(200);
+    expect(r!.body).toMatchObject({ sub, codesLeft: 9 });
+    expect((await f.verify(r!.body.externalJwt)).payload.sub).toBe(sub);
+    // the new passkey signs in to the same account; the old one still does too
+    for (const k of [pk, old]) {
+      const so = (await f.options()).body;
+      const si = await f.post("/api/passkey/signin", { ceremonyId: so.signin.ceremonyId, response: k.get(so.signin.options, { origin: ORIGIN }, { userHandle: handleOf(sub) }) });
+      expect([si.status, si.body.sub]).toEqual([200, sub]);
+    }
+    expect((await recover(codes[3]!)).o.body.code).toBe("bad_code");
+    expect((await f.get("/api/passkey/codes", f.session(sub))).body).toEqual({ left: 9 });
+  });
+
+  test("Crockford typing: any case, spaces or no dash, O as 0, I and L as 1", async () => {
+    const { normalize } = await import("../src/passkey/codes.ts");
+    expect(normalize("abcd-0o1i")).toBe("ABCD0011");
+    expect(normalize(" a b c d 0 1 L 9 ")).toBe("ABCD0119");
+    expect(normalize("ABCD-012U")).toBeNull();
+    expect(normalize("ABCD-012")).toBeNull();
+    expect(normalize("x".repeat(40))).toBeNull();
+  });
+
+  test("two finishes with one code: exactly one new passkey", async () => {
+    const { sub } = await f.signUp();
+    const code = ((await f.post("/api/passkey/codes", {}, f.session(sub))).body.codes as string[])[0]!;
+    const o1 = await f.post("/api/passkey/recover/options", { code });
+    const o2 = await f.post("/api/passkey/recover/options", { code });
+    const [r1, r2] = await Promise.all([
+      f.post("/api/passkey/recover", { ceremonyId: o1.body.ceremonyId, response: new FakePasskey().create(o1.body.options, { origin: ORIGIN }) }),
+      f.post("/api/passkey/recover", { ceremonyId: o2.body.ceremonyId, response: new FakePasskey().create(o2.body.options, { origin: ORIGIN }) }),
+    ]);
+    expect([r1.status, r2.status].sort()).toEqual([200, 400]);
+    expect(passkeysOf(sub)).toBe(2);
+  });
+
+  test("a wrong code, another origin, too many guesses, or an unverified passkey get nothing", async () => {
+    const { sub } = await f.signUp();
+    const code = ((await f.post("/api/passkey/codes", {}, f.session(sub))).body.codes as string[])[0]!;
+    expect((await recover("0000-0000")).o.body.code).toBe("bad_code");
+    expect((await recover("not a code")).o.body.code).toBe("bad_code");
+    expect((await f.post("/api/passkey/recover/options", { code }, { origin: "https://evil.example" })).body.code).toBe("origin_not_allowed");
+    // a ceremony answered from another origin burns it and leaves the code unused
+    const o = await f.post("/api/passkey/recover/options", { code });
+    const bad = await f.post("/api/passkey/recover", { ceremonyId: o.body.ceremonyId, response: new FakePasskey().create(o.body.options, { origin: "https://evil.example" }) });
+    expect(bad.body.code).toBe("not_verified");
+    expect(codesLeft(sub)).toBe(10);
+    // 5 guesses a minute from one address
+    const h = { "x-forwarded-for": "10.9.9.9" };
+    for (let i = 0; i < 5; i++) expect((await f.post("/api/passkey/recover/options", { code: "0000-0000" }, h)).body.code).toBe("bad_code");
+    expect((await f.post("/api/passkey/recover/options", { code }, h)).status).toBe(429);
+  });
+
+  test("one address cannot shut recovery for everyone; another origin is not charged", async () => {
+    const { sub } = await f.signUp();
+    const code = ((await f.post("/api/passkey/codes", {}, f.session(sub))).body.codes as string[])[0]!;
+    // 60 addresses x 5 wrong guesses: each limited only by its own budget
+    for (let a = 0; a < 60; a++) for (let i = 0; i < 5; i++) await f.post("/api/passkey/recover/options", { code: "0000-0000" }, { "x-forwarded-for": `10.8.${a}.1` });
+    expect((await f.post("/api/passkey/recover/options", { code }, { "x-forwarded-for": "10.7.7.7" })).status).toBe(200);
+    // calls from another origin never count against the address
+    const h = { "x-forwarded-for": "10.6.6.6" };
+    for (let i = 0; i < 10; i++) await f.post("/api/passkey/recover/options", { code }, { ...h, origin: "https://evil.example" });
+    expect((await f.post("/api/passkey/recover/options", { code }, h)).status).toBe(200);
+  });
+
+  test("asking for the passkey costs no new-set budget; reading is limited per person", async () => {
+    const { pk, sub } = await f.signUp();
+    const auth = f.session(sub);
+    await f.post("/api/passkey/codes", {}, auth);
+    // 9 more sets with the passkey, each preceded by a passkey_needed answer: all within 10 sets an hour
+    for (let i = 0; i < 9; i++) {
+      expect((await f.post("/api/passkey/codes", {}, auth)).body.code).toBe("passkey_needed");
+      expect((await f.post("/api/passkey/codes", await confirm(pk, auth), auth)).status).toBe(200);
+      f.tick(10_000);
+    }
+    expect((await f.post("/api/passkey/codes", await confirm(pk, auth), auth)).status).toBe(429);
+    f.tick(60 * 60_000);
+    for (let i = 0; i < 20; i++) expect((await f.get("/api/passkey/codes", auth)).status).toBe(200);
+    expect((await f.get("/api/passkey/codes", auth)).status).toBe(429);
+  });
+
+  test("a lost pepper file is refused while codes exist, never replaced (every code would stop working)", async () => {
+    const { backupCodes } = await import("../src/passkey/codes.ts");
+    const home = mkdtempSync(join(tmpdir(), "pepper-"));
+    expect(backupCodes({ home, hasCodes: () => false }).hashOf("ABCD-1234")).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect((statSync(join(home, "backup-codes.key")).mode & 0o777).toString(8)).toBe("600");
+    const again = backupCodes({ home, hasCodes: () => true }).hashOf("ABCD-1234");
+    expect(again).toBe(backupCodes({ home }).hashOf("abcd 1234"));
+    const empty = mkdtempSync(join(tmpdir(), "pepper-"));
+    expect(() => backupCodes({ home: empty, hasCodes: () => true }).hashOf("ABCD-1234")).toThrow("backup-codes.key is missing");
+    expect(readdirSync(empty)).toEqual([]);
+  });
+
+  test("codes need a session and a passkey account", async () => {
+    expect((await f.post("/api/passkey/codes", {})).status).toBe(401);
+    expect((await f.get("/api/passkey/codes")).status).toBe(401);
+    f.users.email = { userId: "dyn-email", email: "a@b.c", wallets: new Map(), scopes: [], externalSub: null };
+    expect((await f.post("/api/passkey/codes", {}, { authorization: "Bearer email" })).body.code).toBe("not_a_passkey_account");
   });
 });
 

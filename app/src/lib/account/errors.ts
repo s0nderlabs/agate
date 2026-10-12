@@ -479,7 +479,7 @@ export function agatePasskeyCode(e: unknown): PasskeyFailureCode | null {
   return x.name === "AgatePasskeyError" && typeof x.code === "string" && PASSKEY_CODES.includes(x.code) ? (x.code as PasskeyFailureCode) : null;
 }
 /** every code once: a code the wallet adds fails the compile here until it has its words */
-const PASSKEY_CODE_SET: Record<PasskeyFailureCode, true> = { unsupported: true, cancelled: true, exists: true, unknown_passkey: true, expired: true, rate_limited: true, signups_paused: true, rejected: true, dynamic: true, service: true };
+const PASSKEY_CODE_SET: Record<PasskeyFailureCode, true> = { unsupported: true, cancelled: true, exists: true, unknown_passkey: true, expired: true, rate_limited: true, signups_paused: true, rejected: true, dynamic: true, service: true, bad_code: true };
 const PASSKEY_CODES = Object.keys(PASSKEY_CODE_SET);
 
 /** "Continue with a passkey" did not finish: the line under the button, by why and which way it was going. The choices
@@ -488,6 +488,8 @@ export function passkeyFirstText(f: PasskeyFailure): string {
   switch (f.code) {
     case "cancelled":
       return f.mode === "signin" ? "No passkey signed you in." : "No passkey was made.";
+    case "bad_code":
+      return "That code doesn't work. Check it, or try another of your backup codes.";
     case "exists":
       return "This device already has a passkey for Agate. Sign in with it.";
     case "unknown_passkey":

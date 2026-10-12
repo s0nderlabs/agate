@@ -184,6 +184,8 @@ export type PasskeyErrorCode =
   | "rejected"
   /** the passkey checked out but Dynamic did not finish the sign-in or the step-up */
   | "dynamic"
+  /** a backup code that does not work (wrong, used, or replaced by a newer set) */
+  | "bad_code"
   /** agate's server could not be reached or failed */
   | "service";
 
@@ -194,6 +196,8 @@ export class AgatePasskeyError extends Error {
     message: string,
     readonly status?: number,
     options?: { cause?: unknown },
+    /** the server's own code (for example "passkey_needed"), when it answered one */
+    readonly serverCode?: string,
   ) {
     super(message, options);
   }
@@ -225,16 +229,17 @@ function writeHint(): void {
 }
 
 /** agate's codes that the app tells apart; any other refusal is "rejected" */
-const SERVER_CODES = new Set<string>(["unknown_passkey", "expired", "signups_paused", "exists", "rate_limited"] satisfies PasskeyErrorCode[]);
+const SERVER_CODES = new Set<string>(["unknown_passkey", "expired", "signups_paused", "exists", "rate_limited", "bad_code"] satisfies PasskeyErrorCode[]);
 
+/** a call to agate's passkey routes; `body` undefined is a GET */
 async function agatePost<T>(server: string, path: string, body: unknown, token?: string | null): Promise<T> {
   let r: Response;
   try {
     r = await fetch(`${server.replace(/\/+$/, "")}${path}`, {
-      method: "POST",
+      method: body === undefined ? "GET" : "POST",
       credentials: "omit",
-      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify(body),
+      headers: { ...(body === undefined ? {} : { "content-type": "application/json" }), ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch (e) {
     throw new AgatePasskeyError("service", "Agate's server could not be reached", undefined, { cause: e });
@@ -242,7 +247,7 @@ async function agatePost<T>(server: string, path: string, body: unknown, token?:
   const j = (await r.json().catch(() => null)) as { error?: string; code?: string } | null;
   if (r.ok && j) return j as T;
   const code: PasskeyErrorCode = r.status === 429 ? "rate_limited" : j?.code && SERVER_CODES.has(j.code) ? (j.code as PasskeyErrorCode) : r.status >= 500 || !j ? "service" : "rejected";
-  throw new AgatePasskeyError(code, j?.error ?? `Agate's server answered ${r.status}`, r.status);
+  throw new AgatePasskeyError(code, j?.error ?? `Agate's server answered ${r.status}`, r.status, undefined, j?.code);
 }
 
 function fromBrowser(e: unknown): AgatePasskeyError {
@@ -271,12 +276,12 @@ async function dialog<T>(run: () => Promise<T>): Promise<T> {
 }
 
 /** agate checks the dialog's answer and hands back a JWT, which goes to Dynamic once */
-async function finishPasskey(client: DynamicClient, server: string, path: "/api/passkey/register" | "/api/passkey/signin", ceremonyId: string, response: unknown, created: boolean): Promise<PasskeyResult> {
-  const { externalJwt, sub } = await agatePost<{ externalJwt: string; sub: string }>(server, path, { ceremonyId, response });
+async function finishPasskey(client: DynamicClient, server: string, path: "/api/passkey/register" | "/api/passkey/signin" | "/api/passkey/recover", ceremonyId: string, response: unknown, created: boolean): Promise<PasskeyResult & { codesLeft?: number }> {
+  const { externalJwt, sub, codesLeft } = await agatePost<{ externalJwt: string; sub: string; codesLeft?: number }>(server, path, { ceremonyId, response });
   // before Dynamic: if its step fails, the account exists and the next tap signs in instead of making another
   writeHint();
   await intoDynamic(client, externalJwt);
-  return { sub, created };
+  return { sub, created, ...(codesLeft === undefined ? {} : { codesLeft }) };
 }
 
 /** Fetches a sign-in and a sign-up ceremony (call when the sheet opens, and again when the result is 4 minutes old). */
@@ -363,6 +368,41 @@ export async function confirmWithAgatePasskey(client: DynamicClient, server: str
   } catch (e) {
     throw fromDynamic(e);
   }
+}
+
+// ------------------------------------------------------------------ backup codes (a lost passkey)
+
+/** Ten one-time backup codes for this passkey account, shown once ("XXXX-XXXX"): each adds a new passkey to the
+ *  account when every copy of the old one is lost. A new account's first set right after sign-up needs nothing more;
+ *  replacing codes asks for the passkey (the browser's dialog) in the same request, so this function does that
+ *  step itself when agate asks for it. A new set replaces every earlier code. */
+export async function passkeyMakeCodes(client: DynamicClient, server: string): Promise<string[]> {
+  const token = sessionToken(client);
+  if (!token) throw new AgatePasskeyError("rejected", "Sign in first.");
+  try {
+    return (await agatePost<{ codes: string[] }>(server, "/api/passkey/codes", {}, token)).codes;
+  } catch (e) {
+    if (!(e instanceof AgatePasskeyError && e.serverCode === "passkey_needed")) throw e;
+  }
+  needWebAuthn();
+  const o = await agatePost<PasskeyCeremony>(server, "/api/passkey/stepup/options", { scope: "backup_codes" }, token);
+  const response = await dialog(() => startAuthentication({ optionsJSON: o.options as never }));
+  return (await agatePost<{ codes: string[] }>(server, "/api/passkey/codes", { ceremonyId: o.ceremonyId, response }, token)).codes;
+}
+
+/** How many of this account's backup codes are unused (0 when it never made any). */
+export async function passkeyCodesLeft(server: string, token: string): Promise<number> {
+  return (await agatePost<{ left: number }>(server, "/api/passkey/codes", undefined, token)).left;
+}
+
+/** "Lost your passkey? Use a backup code": the code makes a NEW passkey on the same account (the browser's dialog),
+ *  then signs in with it like continueWithPasskey. The code is used up only when the new passkey checks out. */
+export async function passkeyRecover(client: DynamicClient, server: string, code: string): Promise<PasskeyResult & { codesLeft: number }> {
+  needWebAuthn();
+  const o = await agatePost<PasskeyCeremony>(server, "/api/passkey/recover/options", { code });
+  const response = await dialog(() => startRegistration({ optionsJSON: o.options as never }));
+  const r = await finishPasskey(client, server, "/api/passkey/recover", o.ceremonyId, response, false);
+  return { sub: r.sub, created: false, codesLeft: r.codesLeft ?? 0 };
 }
 
 // ------------------------------------------------------------------ session

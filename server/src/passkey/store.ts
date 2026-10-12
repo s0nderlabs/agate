@@ -5,7 +5,7 @@
 // claimed once, before its response is checked, so each challenge gets exactly one attempt.
 import type { Database } from "bun:sqlite";
 
-export type CeremonyKind = "register" | "signin" | "stepup";
+export type CeremonyKind = "register" | "signin" | "stepup" | "recover";
 
 export type Ceremony = {
   id: string;
@@ -13,12 +13,14 @@ export type Ceremony = {
   challenge: string;
   origin: string;
   rpId: string;
-  /** register: the sub, user handle and label the new account gets; stepup: the account and the Dynamic user */
+  /** register: the sub, user handle and label the new account gets; stepup: the account and the Dynamic user;
+   *  recover: the account, its user handle and label, and the backup code's hash (codeHash) used up at the finish */
   sub: string | null;
   userHandle: string | null;
   label: string | null;
   scope: string | null;
   dynamicUserId: string | null;
+  codeHash?: string | null;
   expiresAt: number;
 };
 
@@ -80,7 +82,17 @@ export class PasskeyStore {
         used INTEGER NOT NULL DEFAULT 0
       );
       CREATE INDEX IF NOT EXISTS passkey_ceremonies_expires ON passkey_ceremonies(expires_at);
+      CREATE TABLE IF NOT EXISTS passkey_codes (
+        hash TEXT PRIMARY KEY,
+        sub TEXT NOT NULL REFERENCES passkey_accounts(sub),
+        created_at INTEGER NOT NULL,
+        used_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS passkey_codes_sub ON passkey_codes(sub);
     `);
+    // a database from before backup codes: the ceremony's code hash
+    const cols = db.query("PRAGMA table_info(passkey_ceremonies)").all() as { name: string }[];
+    if (!cols.some((c) => c.name === "code_hash")) db.exec("ALTER TABLE passkey_ceremonies ADD COLUMN code_hash TEXT");
   }
 
   private lastSweep = 0;
@@ -94,10 +106,10 @@ export class PasskeyStore {
     }
     this.db
       .query(
-        `INSERT INTO passkey_ceremonies (id, kind, challenge, origin, rp_id, sub, user_handle, label, scope, dynamic_user_id, created_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO passkey_ceremonies (id, kind, challenge, origin, rp_id, sub, user_handle, label, scope, dynamic_user_id, code_hash, created_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(c.id, c.kind, c.challenge, c.origin, c.rpId, c.sub, c.userHandle, c.label, c.scope, c.dynamicUserId, now, c.expiresAt);
+      .run(c.id, c.kind, c.challenge, c.origin, c.rpId, c.sub, c.userHandle, c.label, c.scope, c.dynamicUserId, c.codeHash ?? null, now, c.expiresAt);
   }
 
   /** marks the ceremony used and returns it, or null when it is unknown, of another kind, used or expired */
@@ -116,20 +128,26 @@ export class PasskeyStore {
       label: (row.label as string) ?? null,
       scope: (row.scope as string) ?? null,
       dynamicUserId: (row.dynamic_user_id as string) ?? null,
+      codeHash: (row.code_hash as string) ?? null,
       expiresAt: row.expires_at as number,
     };
+  }
+
+  /** one passkey row (inside a caller's transaction) */
+  private insertCredential(sub: string, cred: NewCredential, now: number): void {
+    this.db
+      .query(
+        `INSERT INTO passkey_credentials (id, sub, public_key, counter, transports, rp_id, device_type, backed_up, aaguid, created_at, last_used_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(cred.id, sub, cred.publicKey, cred.counter, JSON.stringify(cred.transports), cred.rpId, cred.deviceType, cred.backedUp ? 1 : 0, cred.aaguid, now, now);
   }
 
   /** the account and its first passkey, together or not at all */
   createAccount(a: { sub: string; userHandle: string; label: string }, cred: NewCredential, now: number): void {
     this.db.transaction(() => {
       this.db.query("INSERT INTO passkey_accounts (sub, user_handle, label, created_at, last_signin_at) VALUES (?, ?, ?, ?, ?)").run(a.sub, a.userHandle, a.label, now, now);
-      this.db
-        .query(
-          `INSERT INTO passkey_credentials (id, sub, public_key, counter, transports, rp_id, device_type, backed_up, aaguid, created_at, last_used_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(cred.id, a.sub, cred.publicKey, cred.counter, JSON.stringify(cred.transports), cred.rpId, cred.deviceType, cred.backedUp ? 1 : 0, cred.aaguid, now, now);
+      this.insertCredential(a.sub, cred, now);
     })();
   }
 
@@ -164,6 +182,50 @@ export class PasskeyStore {
   touchCredential(id: string, sub: string, counter: number, now: number): void {
     this.db.query("UPDATE passkey_credentials SET counter = ?, last_used_at = ? WHERE id = ?").run(counter, now, id);
     this.db.query("UPDATE passkey_accounts SET last_signin_at = ? WHERE sub = ?").run(now, sub);
+  }
+
+  // ---- backup codes (a lost passkey): only keyed hashes are kept, so the database alone gives no code away
+
+  /** the account's unused codes */
+  codesLeft(sub: string): number {
+    return (this.db.query("SELECT COUNT(*) AS n FROM passkey_codes WHERE sub = ? AND used_at IS NULL").get(sub) as { n: number }).n;
+  }
+
+  /** codes stored for anyone: when there are some, a missing pepper is a lost file, not a first start */
+  codesTotal(): number {
+    return (this.db.query("SELECT COUNT(*) AS n FROM passkey_codes").get() as { n: number }).n;
+  }
+
+  /** codes the account was ever given (any set, used or not): 0 means it never made a set */
+  codesEver(sub: string): number {
+    return (this.db.query("SELECT COUNT(*) AS n FROM passkey_codes WHERE sub = ?").get(sub) as { n: number }).n;
+  }
+
+  /** a new set replaces every earlier code of the account, used or not */
+  replaceCodes(sub: string, hashes: string[], now: number): void {
+    this.db.transaction(() => {
+      this.db.query("DELETE FROM passkey_codes WHERE sub = ?").run(sub);
+      const ins = this.db.query("INSERT INTO passkey_codes (hash, sub, created_at) VALUES (?, ?, ?)");
+      for (const h of hashes) ins.run(h, sub, now);
+    })();
+  }
+
+  /** the active account an unused code belongs to, or null */
+  subOfCode(hash: string): string | null {
+    const r = this.db.query("SELECT c.sub AS sub FROM passkey_codes c JOIN passkey_accounts a ON a.sub = c.sub WHERE c.hash = ? AND c.used_at IS NULL AND a.status = 'active'").get(hash) as { sub: string } | null;
+    return r?.sub ?? null;
+  }
+
+  /** a lost passkey's replacement: the code is used up and the new passkey added, together or not at all. False when
+   *  the code was used (or replaced) since the ceremony began. */
+  recoverWith(hash: string, sub: string, cred: NewCredential, now: number): boolean {
+    return this.db.transaction(() => {
+      const r = this.db.query("UPDATE passkey_codes SET used_at = ? WHERE hash = ? AND sub = ? AND used_at IS NULL").run(now, hash, sub);
+      if (r.changes !== 1) return false;
+      this.insertCredential(sub, cred, now);
+      this.db.query("UPDATE passkey_accounts SET last_signin_at = ? WHERE sub = ?").run(now, sub);
+      return true;
+    })();
   }
 
   signupsSince(ms: number): number {

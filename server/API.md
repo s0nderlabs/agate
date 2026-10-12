@@ -108,23 +108,38 @@ directly. Errors are `{ error: "<sentence>", code }`.
 - `POST /api/passkey/signin { ceremonyId, response }` -> `{ externalJwt, sub }`. `404 unknown_passkey`: not one of
   agate's passkeys (most likely a Dynamic passkey added to an email account: offer `startPasskeySignIn`).
 - `POST /api/passkey/stepup/options { scope }` (Bearer) and `POST /api/passkey/stepup { ceremonyId, response }`
-  (Bearer) -> `{ externalJwt, scope, expiresAt }` for `wallet:delegate` or `credential:link` (anything else is
-  `scope_not_allowed`); the account binds to its first Dynamic user, another one is `dynamic_mismatch`.
+  (Bearer) -> `{ externalJwt, scope, expiresAt }` for `wallet:delegate` or `credential:link`; `backup_codes` is also
+  a scope here, but its ceremony is finished at `POST /api/passkey/codes`, never turned into a token (anything else
+  is `scope_not_allowed`); the account binds to its first Dynamic user, another one is `dynamic_mismatch`.
+- `POST /api/passkey/codes {}` (Bearer, a passkey account) -> `{ codes }`: ten one-time backup codes, `XXXX-XXXX`
+  (Crockford base32, 40 bits each), shown only in this answer; a new set replaces every earlier code. Without the
+  passkey only a new account's first set (within 30 minutes of sign-up, never had codes); otherwise `403
+  passkey_needed`, and the request carries `{ ceremonyId, response }` from a `backup_codes` step-up. 10 new sets an
+  hour per person. `GET /api/passkey/codes` (Bearer) -> `{ left }`. Both 20 calls a minute per person.
+- `POST /api/passkey/recover/options { code }` (no auth; allowed origins) -> `{ ceremonyId, options }`: a ceremony
+  for a NEW passkey on the code's account (its own user handle; its passkeys excluded); `bad_code` for a wrong, used
+  or replaced code; 5 a minute per address. `POST /api/passkey/recover { ceremonyId, response }` -> `{ externalJwt,
+  sub, codesLeft }`: the code is used up and the passkey added together, only once the new passkey verifies; the old
+  passkeys stay.
 
 Codes: `origin_not_allowed`, `rate_limited` (options 30 a minute, sign-ins 20 a minute, new accounts 5 an hour per
 address, failed tries not counted; step-ups 10 a minute per person), `signups_paused` (once
 `AGATE_PASSKEY_SIGNUPS_PER_DAY`, default 150, accounts were made in the last 24 hours), `bad_request`, `expired`, `not_verified`, `not_discoverable`, `exists`, `unknown_passkey`,
 `scope_not_allowed`, `not_a_passkey_account`, `dynamic_mismatch`, `lookup_failed` (503: Dynamic could not be asked
-which passkey account a session is); `413` over 16 KB.
+which passkey account a session is), `bad_code`, `passkey_needed`, `codes_unavailable` (503: the backup-code pepper
+file is missing while codes exist; see ops/dynamic/README.md); `413` over 16 KB.
 
 From `@agate/wallet/dynamic`: `preparePasskey(server)` when the sheet opens (so the tap opens the dialog at once),
 `continueWithPasskey(client, server, { mode, prepared })` for the one button (signs in when this browser used an agate
 passkey before, else makes an account; `mode: "signin"` for "I already have a passkey"), `createAccountWithPasskey`,
 `signInWithAgatePasskey`, `isAgatePasskeyAccount(client)`, `confirmWithAgatePasskey(client, server, scope)` for
 "Confirm it's you", `hasPasskeyHint()`, `passkeySupport()`, `shownEmail(client)` (the person's email, or null for a
-passkey account's placeholder). Every failure is an `AgatePasskeyError` whose `code` is
-`unsupported`, `cancelled` (the dialog was closed, or no passkey picked), `exists`, `unknown_passkey`, `expired`,
-`rate_limited`, `signups_paused`, `rejected`, `dynamic` (the passkey worked, Dynamic did not finish) or `service`.
+passkey account's placeholder), `passkeyMakeCodes(client, server)` (runs the passkey dialog itself when the server
+asks for it), `passkeyCodesLeft(server, token)`, `passkeyRecover(client, server, code)` ("Lost your passkey? Use a
+backup code": a new passkey on the same account, then signed in). Every failure is an `AgatePasskeyError` whose `code`
+is `unsupported`, `cancelled` (the dialog was closed, or no passkey picked), `exists`, `unknown_passkey`, `expired`,
+`rate_limited`, `signups_paused`, `rejected`, `dynamic` (the passkey worked, Dynamic did not finish), `bad_code` or
+`service`; `serverCode` carries the server's own code when it sent one.
 
 ## Approval card (a trade an AI asked for above its cap)
 

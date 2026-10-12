@@ -7,6 +7,11 @@
 //   POST /api/passkey/signin            a known passkey -> { externalJwt, sub }
 //   POST /api/passkey/stepup/options    (Dynamic session) a ceremony for one scope, this account's passkeys only
 //   POST /api/passkey/stepup            (Dynamic session) -> { externalJwt, scope, expiresAt }
+//   POST /api/passkey/codes             (Dynamic session) a new set of backup codes -> { codes }; replacing a set
+//                                       needs this account's passkey in the same request (a backup_codes step-up)
+//   GET  /api/passkey/codes             (Dynamic session) -> { left }
+//   POST /api/passkey/recover/options   a backup code -> a ceremony for a NEW passkey on that code's account
+//   POST /api/passkey/recover           the new passkey -> { externalJwt, sub, codesLeft } (the code is used up)
 // Every ceremony is single use and lives 5 minutes; its origin and rp id come from the allowlist row the request's
 // Origin picked, never from the request body. Errors are { error: <sentence>, code }. Logs carry only the event, a
 // code, the rp id and the first 8 characters of a credential id: never a JWT, a WebAuthn response or a challenge.
@@ -25,8 +30,9 @@ import { decodeClientDataJSON, isoBase64URL } from "@simplewebauthn/server/helpe
 import type { DynamicUser } from "../dynamic/jwt.ts";
 import { envInt } from "../oauth/routes.ts";
 import { RateLimiter, clientIp } from "../ratelimit.ts";
+import type { BackupCodes } from "./codes.ts";
 import type { ByoaKeys } from "./keys.ts";
-import type { Ceremony, CeremonyKind, PasskeyStore } from "./store.ts";
+import type { Ceremony, CeremonyKind, NewCredential, PasskeyStore } from "./store.ts";
 
 const CEREMONY_MS = 5 * 60_000;
 const PROMPT_MS = 120_000;
@@ -34,6 +40,10 @@ const DAY_MS = 86_400_000;
 const ALGS = [-7, -257];
 /** what a passkey step-up may unlock; never wallet:export or anything else */
 export const STEP_UP_SCOPES = new Set(["wallet:delegate", "credential:link"]);
+/** the step-up scope that replaces backup codes: checked here, never handed to Dynamic */
+export const CODES_SCOPE = "backup_codes";
+/** a new account may make its first codes without its passkey for this long (the "You're set" screen) */
+const FIRST_CODES_MS = 30 * 60_000;
 
 /** AGATE_PASSKEY_ORIGINS: "origin=rpId" pairs, comma separated. An rp id must be the origin's host or a parent of
  *  it, and a real domain (localhost, or a name with a dot): the browser refuses anything else, so a typo fails here
@@ -59,6 +69,7 @@ export function passkeyOrigins(raw = process.env.AGATE_PASSKEY_ORIGINS ?? "https
 export type PasskeyDeps = {
   store: PasskeyStore;
   keys: ByoaKeys;
+  codes: BackupCodes;
   /** the app's Dynamic-session check: the user, or the 401 to answer */
   authed: (c: Context) => Promise<DynamicUser | Response>;
   /** the passkey account of a Dynamic user, from Dynamic: the app's session JWT is the minified one, which carries no
@@ -85,6 +96,9 @@ const A = {
   notPasskey: { status: 403, code: "not_a_passkey_account", error: "this account was not made with a passkey" },
   mismatch: { status: 403, code: "dynamic_mismatch", error: "this passkey belongs to another account" },
   lookup: { status: 503, code: "lookup_failed", error: "the account could not be checked with Dynamic right now: try again shortly" },
+  badCode: { status: 400, code: "bad_code", error: "that backup code does not work: check it, or use another" },
+  passkeyNeeded: { status: 403, code: "passkey_needed", error: "confirm with your passkey to make new backup codes" },
+  codesDown: { status: 503, code: "codes_unavailable", error: "backup codes cannot be checked right now: try again later" },
 } satisfies Record<string, Answer>;
 
 export function passkeyRoutes(deps: PasskeyDeps): Hono {
@@ -95,6 +109,12 @@ export function passkeyRoutes(deps: PasskeyDeps): Hono {
   const signupLimit = new RateLimiter(envInt("AGATE_PASSKEY_SIGNUPS_PER_HOUR", 5), 3_600_000);
   const signinLimit = new RateLimiter(envInt("AGATE_PASSKEY_SIGNINS_PER_MIN", 20), 60_000);
   const stepUpLimit = new RateLimiter(envInt("AGATE_PASSKEY_STEPUPS_PER_MIN", 10), 60_000);
+  // the codes routes look the account up (maybe at Dynamic): per person; a new set counts only when one is made
+  const codesReadLimit = new RateLimiter(envInt("AGATE_PASSKEY_CODES_CALLS_PER_MIN", 20), 60_000);
+  const codesLimit = new RateLimiter(envInt("AGATE_PASSKEY_CODES_PER_HOUR", 10), 3_600_000);
+  // a guessed code, per address: a code is 40 bits, so 5 a minute keeps guessing hopeless. No cap for everyone
+  // together: one client could fill it and shut recovery for every real person.
+  const recoverLimit = new RateLimiter(envInt("AGATE_PASSKEY_RECOVER_PER_MIN", 5), 60_000);
   const signupsPerDay = envInt("AGATE_PASSKEY_SIGNUPS_PER_DAY", 150);
 
   const fail = (c: Context, a: Answer, extra: Record<string, unknown> = {}) => {
@@ -159,6 +179,36 @@ export function passkeyRoutes(deps: PasskeyDeps): Hono {
     return { sub: acct.sub, cred8: at.cred8 };
   };
 
+  /** what sign-up and recovery both check of a new passkey: not embedded, verified (user verification, origin, rp
+   *  id, challenge), discoverable and not already known. On success, the row to store. */
+  const checkRegistration = async (response: RegistrationResponseJSON, cer: Ceremony, sub: string): Promise<{ cred: NewCredential } | { refuse: Answer; extra: Record<string, unknown> }> => {
+    if (embedded(response.response.clientDataJSON)) return { refuse: A.notVerified, extra: { rpId: cer.rpId, why: "embedded" } };
+    let info;
+    try {
+      const v = await verifyRegistrationResponse({ response, expectedChallenge: cer.challenge, expectedOrigin: cer.origin, expectedRPID: cer.rpId, requireUserVerification: true, supportedAlgorithmIDs: ALGS });
+      info = v.verified ? v.registrationInfo : null;
+    } catch {
+      info = null;
+    }
+    if (!info) return { refuse: A.notVerified, extra: { rpId: cer.rpId } };
+    if (response.clientExtensionResults?.credProps?.rk === false) return { refuse: A.notDiscoverable, extra: { rpId: cer.rpId } };
+    const cred = info.credential;
+    if (store.credential(cred.id)) return { refuse: A.exists, extra: { rpId: cer.rpId, cred8: cred.id.slice(0, 8) } };
+    return {
+      cred: {
+        id: cred.id,
+        sub,
+        publicKey: isoBase64URL.fromBuffer(cred.publicKey),
+        counter: cred.counter,
+        transports: cred.transports ?? response.response.transports ?? [],
+        rpId: cer.rpId,
+        deviceType: info.credentialDeviceType,
+        backedUp: info.credentialBackedUp,
+        aaguid: info.aaguid,
+      },
+    };
+  };
+
   app.use("/api/passkey/*", bodyLimit({ maxSize: 16 * 1024, onError: (c) => c.json({ error: "request body too large", code: "too_large" }, 413, { Connection: "close" }) }));
 
   app.get("/.well-known/agate-jwks.json", async (c) => c.json(await keys.jwks(), 200, { "cache-control": "public, max-age=300" }));
@@ -198,36 +248,12 @@ export function passkeyRoutes(deps: PasskeyDeps): Hono {
     if (!body) return fail(c, A.bad);
     const cer = store.claimCeremony(body.ceremonyId, "register", now);
     if (!cer || !cer.sub || !cer.userHandle || !cer.label) return fail(c, A.expired);
-    const { response } = body;
-    if (embedded(response.response.clientDataJSON)) return fail(c, A.notVerified, { rpId: cer.rpId, why: "embedded" });
-    let info;
-    try {
-      const v = await verifyRegistrationResponse({ response, expectedChallenge: cer.challenge, expectedOrigin: cer.origin, expectedRPID: cer.rpId, requireUserVerification: true, supportedAlgorithmIDs: ALGS });
-      info = v.verified ? v.registrationInfo : null;
-    } catch {
-      info = null;
-    }
-    if (!info) return fail(c, A.notVerified, { rpId: cer.rpId });
-    if (response.clientExtensionResults?.credProps?.rk === false) return fail(c, A.notDiscoverable, { rpId: cer.rpId });
-    const cred = info.credential;
-    if (store.credential(cred.id)) return fail(c, A.exists, { rpId: cer.rpId, cred8: cred.id.slice(0, 8) });
+    const checked = await checkRegistration(body.response, cer, cer.sub);
+    if ("refuse" in checked) return fail(c, checked.refuse, checked.extra);
+    const { cred } = checked;
     // only a verified new passkey counts against the address's sign-ups (a failed try costs nothing)
     if (!signupLimit.allow(clientIp(c), now)) return fail(c, A.signupLimited, { rpId: cer.rpId });
-    store.createAccount(
-      { sub: cer.sub, userHandle: cer.userHandle, label: cer.label },
-      {
-        id: cred.id,
-        sub: cer.sub,
-        publicKey: isoBase64URL.fromBuffer(cred.publicKey),
-        counter: cred.counter,
-        transports: cred.transports ?? response.response.transports ?? [],
-        rpId: cer.rpId,
-        deviceType: info.credentialDeviceType,
-        backedUp: info.credentialBackedUp,
-        aaguid: info.aaguid,
-      },
-      now,
-    );
+    store.createAccount({ sub: cer.sub, userHandle: cer.userHandle, label: cer.label }, cred, now);
     log({ event: "passkey.signup", rpId: cer.rpId, cred8: cred.id.slice(0, 8) });
     const { jwt } = await keys.sign(cer.sub);
     return ok(c, { externalJwt: jwt, sub: cer.sub }, 201);
@@ -247,6 +273,23 @@ export function passkeyRoutes(deps: PasskeyDeps): Hono {
     return ok(c, { externalJwt: jwt, sub: r.sub });
   });
 
+  /** the active passkey account of a signed-in Dynamic user (bound to it on first use), or the answer to refuse with */
+  const accountOf = async (u: DynamicUser): Promise<{ sub: string; createdAt: number } | { refuse: Answer; extra?: Record<string, unknown> }> => {
+    // the session's own claim, else the account bound at an earlier step-up, else Dynamic (a first step-up)
+    let sub = u.externalSub ?? store.subOfDynamicUser(u.userId);
+    if (!sub) {
+      try {
+        sub = await deps.externalSubOf(u.userId);
+      } catch (e) {
+        return { refuse: A.lookup, extra: { why: (e as Error).message.slice(0, 80) } };
+      }
+    }
+    const acct = sub ? store.account(sub) : null;
+    if (!sub || !acct || acct.status !== "active") return { refuse: A.notPasskey };
+    if (!store.bindDynamicUser(sub, u.userId)) return { refuse: A.mismatch, extra: { why: "bind" } };
+    return { sub, createdAt: acct.createdAt };
+  };
+
   app.post("/api/passkey/stepup/options", async (c) => {
     const u = await deps.authed(c);
     if (u instanceof Response) return u;
@@ -255,19 +298,10 @@ export function passkeyRoutes(deps: PasskeyDeps): Hono {
     const at = originRow(c);
     if (!at) return fail(c, A.origin);
     const scope = ((await c.req.json().catch(() => null)) as { scope?: unknown } | null)?.scope;
-    if (typeof scope !== "string" || !STEP_UP_SCOPES.has(scope)) return fail(c, A.scope);
-    // the session's own claim, else the account bound at an earlier step-up, else Dynamic (a first step-up)
-    let sub = u.externalSub ?? store.subOfDynamicUser(u.userId);
-    if (!sub) {
-      try {
-        sub = await deps.externalSubOf(u.userId);
-      } catch (e) {
-        return fail(c, A.lookup, { why: (e as Error).message.slice(0, 80) });
-      }
-    }
-    const acct = sub ? store.account(sub) : null;
-    if (!sub || !acct || acct.status !== "active") return fail(c, A.notPasskey);
-    if (!store.bindDynamicUser(sub, u.userId)) return fail(c, A.mismatch, { why: "bind" });
+    if (typeof scope !== "string" || !(STEP_UP_SCOPES.has(scope) || scope === CODES_SCOPE)) return fail(c, A.scope);
+    const a = await accountOf(u);
+    if ("refuse" in a) return fail(c, a.refuse, a.extra);
+    const sub = a.sub;
     const creds = store.credentialsOf(sub).filter((k) => k.rpId === at.rpId);
     const options = await generateAuthenticationOptions({ rpID: at.rpId, allowCredentials: creds.map((k) => ({ id: k.id, transports: k.transports })), userVerification: "required", timeout: PROMPT_MS });
     return ok(c, { ceremonyId: newCeremony("stepup", options.challenge, at, now, { sub, scope, dynamicUserId: u.userId }), options });
@@ -281,7 +315,8 @@ export function passkeyRoutes(deps: PasskeyDeps): Hono {
     const body = await readBody<AuthenticationResponseJSON>(c);
     if (!body) return fail(c, A.bad);
     const cer = store.claimCeremony(body.ceremonyId, "stepup", now);
-    if (!cer || !cer.sub || !cer.scope) return fail(c, A.expired);
+    // a backup_codes ceremony is finished at /api/passkey/codes, never turned into a Dynamic token
+    if (!cer || !cer.sub || !cer.scope || !STEP_UP_SCOPES.has(cer.scope)) return fail(c, A.expired);
     // the ceremony was made for this Dynamic user's own passkey account (checked, and bound, at /stepup/options)
     if (cer.dynamicUserId !== u.userId) return fail(c, A.mismatch, { rpId: cer.rpId });
     const r = await checkAssertion(body.response, cer, cer.sub, now);
@@ -289,6 +324,99 @@ export function passkeyRoutes(deps: PasskeyDeps): Hono {
     log({ event: "passkey.stepup", code: cer.scope, rpId: cer.rpId, cred8: r.cred8 });
     const { jwt, expiresAt } = await keys.sign(r.sub, cer.scope);
     return ok(c, { externalJwt: jwt, scope: cer.scope, expiresAt: new Date(expiresAt).toISOString() });
+  });
+
+  app.get("/api/passkey/codes", async (c) => {
+    const u = await deps.authed(c);
+    if (u instanceof Response) return u;
+    if (!codesReadLimit.allow(u.userId, clock())) return fail(c, A.limited);
+    const a = await accountOf(u);
+    if ("refuse" in a) return fail(c, a.refuse, a.extra);
+    return ok(c, { left: store.codesLeft(a.sub) });
+  });
+
+  app.post("/api/passkey/codes", async (c) => {
+    const u = await deps.authed(c);
+    if (u instanceof Response) return u;
+    const now = clock();
+    if (!codesReadLimit.allow(u.userId, now)) return fail(c, A.limited);
+    const a = await accountOf(u);
+    if ("refuse" in a) return fail(c, a.refuse, a.extra);
+    // without the passkey, only a new account's first set (right after sign-up); anything else would let a stolen
+    // session mint codes and keep the account for good
+    const first = store.codesEver(a.sub) === 0 && now - a.createdAt < FIRST_CODES_MS;
+    let cred8: string | undefined;
+    if (!first) {
+      const body = await readBody<AuthenticationResponseJSON>(c);
+      if (!body) return fail(c, A.passkeyNeeded);
+      const cer = store.claimCeremony(body.ceremonyId, "stepup", now);
+      if (!cer || cer.scope !== CODES_SCOPE || cer.sub !== a.sub) return fail(c, A.expired);
+      if (cer.dynamicUserId !== u.userId) return fail(c, A.mismatch, { rpId: cer.rpId });
+      const r = await checkAssertion(body.response, cer, cer.sub, now);
+      if ("refuse" in r) return fail(c, r.refuse, r.extra);
+      cred8 = r.cred8;
+    }
+    // counted only when a set is made, so "confirm with your passkey" first costs nothing
+    if (!codesLimit.allow(u.userId, now)) return fail(c, A.limited);
+    let made;
+    try {
+      made = deps.codes.make();
+    } catch (e) {
+      return fail(c, A.codesDown, { why: (e as Error).message.slice(0, 80) });
+    }
+    const { codes, hashes } = made;
+    store.replaceCodes(a.sub, hashes, now);
+    log({ event: "passkey.codes", code: first ? "first" : "replaced", ...(cred8 ? { cred8 } : {}) });
+    return ok(c, { codes });
+  });
+
+  app.post("/api/passkey/recover/options", async (c) => {
+    const now = clock();
+    const at = originRow(c);
+    if (!at) return fail(c, A.origin);
+    if (!recoverLimit.allow(clientIp(c), now)) return fail(c, A.limited);
+    const typed = ((await c.req.json().catch(() => null)) as { code?: unknown } | null)?.code;
+    let hash: string | null;
+    try {
+      hash = typeof typed === "string" ? deps.codes.hashOf(typed) : null;
+    } catch (e) {
+      return fail(c, A.codesDown, { why: (e as Error).message.slice(0, 80) });
+    }
+    const sub = hash ? store.subOfCode(hash) : null;
+    const acct = sub ? store.account(sub) : null;
+    if (!hash || !sub || !acct) return fail(c, A.badCode);
+    const options = await generateRegistrationOptions({
+      rpName: "Agate",
+      rpID: at.rpId,
+      userName: acct.label,
+      userDisplayName: acct.label,
+      // the account's own user handle, so the new passkey signs in to this account
+      userID: new Uint8Array(isoBase64URL.toBuffer(acct.userHandle)),
+      attestationType: "none",
+      authenticatorSelection: { residentKey: "required", requireResidentKey: true, userVerification: "required" },
+      excludeCredentials: store.credentialsOf(sub).filter((k) => k.rpId === at.rpId).map((k) => ({ id: k.id, transports: k.transports as never })),
+      supportedAlgorithmIDs: ALGS,
+      timeout: PROMPT_MS,
+    });
+    return ok(c, { ceremonyId: newCeremony("recover", options.challenge, at, now, { sub, userHandle: acct.userHandle, label: acct.label, codeHash: hash }), options });
+  });
+
+  app.post("/api/passkey/recover", async (c) => {
+    // limited at /recover/options: a finish needs a fresh ceremony from there
+    const now = clock();
+    const body = await readBody<RegistrationResponseJSON>(c);
+    if (!body) return fail(c, A.bad);
+    const cer = store.claimCeremony(body.ceremonyId, "recover", now);
+    if (!cer || !cer.sub || !cer.userHandle || !cer.codeHash) return fail(c, A.expired);
+    const checked = await checkRegistration(body.response, cer, cer.sub);
+    if ("refuse" in checked) return fail(c, checked.refuse, checked.extra);
+    const { cred } = checked;
+    const added = store.recoverWith(cer.codeHash, cer.sub, cred, now);
+    // the code was used, or a new set replaced it, since the ceremony began
+    if (!added) return fail(c, A.badCode, { rpId: cer.rpId });
+    log({ event: "passkey.recover", rpId: cer.rpId, cred8: cred.id.slice(0, 8) });
+    const { jwt } = await keys.sign(cer.sub);
+    return ok(c, { externalJwt: jwt, sub: cer.sub, codesLeft: store.codesLeft(cer.sub) });
   });
 
   return app;

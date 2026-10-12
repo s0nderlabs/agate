@@ -50,12 +50,20 @@ same sign-in JWT twice (it enforces single use only for step-up JWTs), so it liv
 - The key: losing or replacing it is harmless. The next key is served at the same address and JWTs live 60 seconds;
   accounts are keyed by their `sub`, not by the key.
 - The database: `agate-server.db` maps each passkey to its account (tables `passkey_accounts`,
-  `passkey_credentials`; public keys only). Losing it orphans every passkey account. The server copies it a minute
-  after start and then daily to `~/.agate-dynamic/backups/agate-server-YYYY-MM-DD.db` (mode 600, the last 7 kept);
-  the copies sit on the same disk, so copy one off the server before a rebuild. To restore: stop the server, put the
-  copy back as `agate-server.db` (no `-wal` or `-shm` files beside it), start it.
+  `passkey_credentials`, `passkey_codes`; public keys and code hashes only). Losing it orphans every passkey account.
+  The server copies it a minute after start and then daily to `~/.agate-dynamic/backups/agate-server-YYYY-MM-DD.db`
+  (mode 600, the last 7 kept); the copies sit on the same disk, so copy one off the server before a rebuild. To
+  restore: stop the server, put the copy back as `agate-server.db` (no `-wal` or `-shm` files beside it), put
+  `backup-codes.key` back too (below), start it.
+- The backup-code pepper: `~/.agate-dynamic/backup-codes.key` (made on first use, mode 600, never printed). Backup
+  codes are stored only as HMACs under it, so it is deliberately NOT in the database copies: keep a copy of it off the
+  server with the database copy, apart from it. Unlike the sign-in key, losing it is NOT harmless: every saved code
+  stops working. While any code is stored the server refuses to make a new pepper (code `codes_unavailable`, 503)
+  instead of silently replacing it.
 - A passkey account that lost its passkey: synced passkeys (iCloud Keychain, Google Password Manager) cover most
-  cases; check another device first. There is no email to fall back on, so the account and its test dollars are lost.
+  cases; check another device first. Otherwise one of the account's backup codes (shown once, at sign-up or when
+  remade from the Account sheet) adds a new passkey to the same account. With neither, the account and its test
+  dollars are lost.
 
 ## A person lost their passkey
 
@@ -72,8 +80,9 @@ There is no reset we can run. Tested Oct 6 2026 on the test account agatepk4 (`3
   needs the passkey.
 - Turning the environment's passkey method off (even for 90 s) does not help: the step-up still requires the passkey.
 
-The ways out, in order: (1) ask Dynamic support to remove the passkey credential (give them the user id and the
-credential id from `GET /users/{id}`); (2) if it cannot wait, the person signs up again with another email, moves their
-funds and positions over with ordinary sends from the old account (signing needs no step-up), then the old user can be
-deleted in the dashboard. Prevention for later: turn on backup codes for the passkey method and show them once in the
-app when a passkey is added.
+This is about a Dynamic passkey added to an email or Google account (a passkey account made from a passkey alone
+recovers with its own backup codes, above). The ways out, in order: (1) ask Dynamic support to remove the passkey
+credential (give them the user id and the credential id from `GET /users/{id}`); (2) if it cannot wait, the person
+signs up again with another email, moves their funds and positions over with ordinary sends from the old account
+(signing needs no step-up), then the old user can be deleted in the dashboard. Prevention for later: turn on Dynamic's
+own backup codes for the passkey method and show them once in the app when a passkey is added.

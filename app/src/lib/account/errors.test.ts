@@ -522,7 +522,7 @@ describe("passkey-first failures", () => {
 
   test("every code has its own plain line, and a cancel says which way it went", async () => {
     const { passkeyFirstText } = await import("./errors");
-    const codes = ["unsupported", "cancelled", "exists", "unknown_passkey", "expired", "rate_limited", "signups_paused", "rejected", "dynamic", "service"] as const;
+    const codes = ["unsupported", "cancelled", "exists", "unknown_passkey", "expired", "rate_limited", "signups_paused", "rejected", "dynamic", "service", "bad_code"] as const;
     const lines = codes.map((code) => passkeyFirstText({ code, mode: "create" }));
     expect(new Set(lines).size).toBe(codes.length);
     for (const l of lines) expect(l).not.toMatch(/\u2014/);
