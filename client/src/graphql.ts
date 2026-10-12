@@ -175,6 +175,11 @@ export const Q = {
   lastTrades: `query LastTrades($series: [String!]!) {
   PricePoint(where: {id: {_in: $series}}) { id lastTradePriceU lastTradeAt }
 }`,
+  // lastTrades with the indexer's own block, for a caller that must tell a quiet market from a lagging indexer
+  lastTradesHead: `query LastTradesHead($series: [String!]!) {
+  PricePoint(where: {id: {_in: $series}}) { id lastTradeAt }
+  chain_metadata { latest_processed_block }
+}`,
   // Every paged query orders by a unique key last (the row id), so rows of one block keep one order from page to page
   // and an offset never repeats or skips a row. That id is text ("<block>-<logIndex>", so "B-9" sorts after "B-12"):
   // the client re-sorts by log index, and a page that ends inside a block is completed with tradesInBlock first.

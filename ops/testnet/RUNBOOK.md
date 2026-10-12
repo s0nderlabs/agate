@@ -465,6 +465,52 @@ bun run e2e/session-report.ts            # read only, every 30 minutes (in anoth
   listings; the maker's books level by level; the claims per day and the payer's share (with the indexer); the open
   alerts since the session began; per key the MON out since the deploy block and its transaction count.
 
+## The labeled test trader
+
+A small bot that keeps the November books moving until outside traders arrive: in each of H100, H200 and B200 it
+reads when the market last traded (the indexer, and its own last trade from `~/.agate-test-trader/state.json`) and, if
+nothing traded for an hour, makes one trade at the maker's price: it buys $10 to $20 when it holds under $2 of the
+month and sells what it holds (up to $20) when it holds more, so its position stays near zero. Caps: one trade per
+market per idle hour, 72 trades and $1,000 of volume a day (00:00 UTC, buys and sales alike), a MON floor of 11, and
+nothing while a send of its key is still pending. Its wallet is the test user
+`0x14fB2CE8Fb6d7016e4E416bE7E58ca028Cc2C84a` (Keychain `agate.test.user`); it is Agate's own address, labeled as such
+in docs/site/16-limits.md, so its trades are never counted as outside traders'. It runs on the local machine (the key
+is in its Keychain), in its own window, through its launcher `ops/testnet/test-trader.sh` (a clean environment, a
+restart 30 s after a crash), and is not managed by up.sh or down.sh. It holds the same per-key lock as the live check
+(`~/.agate-e2e/locks`), so stop it before a live check with this key; while the lock is held elsewhere it waits and
+tries again every minute.
+
+```
+tmux new-window -t <session> -n test-trader "/bin/sh $PWD/ops/testnet/test-trader.sh"     # start it (from the repo)
+tmux pipe-pane -t <session>:test-trader -o "cat >> $HOME/.agate-kit/logs/test-trader.log" # its log
+tmux send-keys -t <session>:test-trader C-c                                               # stop it: finishes the trade
+tmux kill-window -t <session>:test-trader       # once the log says "stopped" (exact name only, never by number)
+tail -f ~/.agate-kit/logs/test-trader.log                                                  # what it decides and sends
+```
+
+One pass without sending anything, to see what it would do now (a dry run takes no lock, so it works beside the
+running trader):
+
+```
+cd client && AGATE_TEST_TRADER_KEY_CMD='security find-generic-password -s agate.test.user -a private-key -w' \
+  bun run scripts/test-trader.ts --dry-run --once
+```
+
+Each pass prints one JSON line per market: `tick` with the book, what it holds and the plan (`skip`, with the reason,
+or `buy`/`sell` with the size and the price bound), then `trade` with the transaction, or `error`. A pass stops before
+any market when the indexer does not answer (`indexer_down`) or lags the chain by more than 300 blocks
+(`indexer_behind`): a quiet market and an unreadable one must never look alike. A send whose outcome is unknown (a
+timeout, no receipt) is counted against the caps (`uncertain` in trades.jsonl), ends the pass and holds every send for
+15 minutes (`uncertain_wait`); after that a pass still waits while a send is pending. A market is skipped when the
+indexer has no row for its month (`not_indexed`: it cannot tell a quiet market from an unindexed one) or when its book
+is more than 10% wide (a stray order at the top, not the maker's price). A state file it cannot read, or cannot write
+after a trade, stops it with exit 2 (the launcher does not restart it) rather than resetting the day's counts or
+trading past them; move the file aside to start them again. Ctrl-C (or a closed window) finishes the trade in
+progress, saves it and exits 0; a kill-window alone does not wait for it. Its gas comes out of its own MON: about 0.05
+MON a trade (most trades also send an approval), so the 39 MON above the floor last about 11 days at the cap. Refill
+it the way it was first funded, from the deployer (`ops/testnet/send.ts transfers ... --key-env`). `bun test
+test/test-trader.test.ts` covers the decision table.
+
 ## Stopping
 
 ```

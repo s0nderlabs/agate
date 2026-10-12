@@ -19,7 +19,12 @@ source: 'contracts/src, server/src/grants.ts, wallet/src/allowed.ts, wall/apps'
   deployment on Chainlink's network. The standby writer and the attester's countersign still apply. The simulator
   also runs with its limits off, because CoreWeave's price page (437 KB) is bigger than CRE's 250 KB HTTP limit; on
   Chainlink's network that page would go through Confidential HTTP (500 KB).
-- **Thin books.** Depth comes from Agate's own market maker. Outside traders are few so far.
+- **Thin books.** Depth comes from Agate's own market maker. There are no outside traders yet. To keep the November
+  books moving, a labeled test trader,
+  [`0x14fB...C84a`](https://testnet.monadexplorer.com/address/0x14fB2CE8Fb6d7016e4E416bE7E58ca028Cc2C84a), trades in
+  a market that has gone an hour without a trade: it buys $10 to $20 when it holds under $2 of the month and sells
+  what it holds (up to $20) when it holds more, so it holds close to nothing, at most 72 trades and $1,000 a day. Its
+  trades are Agate's own and never count as outside traders'.
 - **Three GPUs trade.** H100, H200 and B200 have monthly markets; B300, A100 and L40S have a daily price only.
 - **The venue.** Kuru's V1 order book on testnet lets anyone open a market; on mainnet, new Kuru markets are listed
   by Kuru, so a mainnet market depends on that.
