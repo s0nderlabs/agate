@@ -347,7 +347,7 @@ export function RecentTrades({ market, series, loading = false, idle = false }: 
                 </div>
               ))}
           </div>
-          {!busy && fills.length > 0 && <p className={s.fine}>Quoted and traded mostly by our market-maker bot on testnet.</p>}
+          {!busy && fills.length > 0 && <p className={s.fine}>Quoted by our market-maker bot; most trades on testnet are our own test bots.</p>}
         </>
       )}
     </div>
