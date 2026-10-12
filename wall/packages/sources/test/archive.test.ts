@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { GpuModel, ReadState } from "@agate/report/types";
 import { archivePresent, listHours, rawDir, readArchived } from "../src/io/archive.ts";
 import { archiveValues, type HourValues } from "../src/io/archiveValues.ts";
-import { GPUS, SOURCES } from "../src/pure/index.ts";
+import { GPUS, parse, parseWith, reasonOf, SOURCES } from "../src/pure/index.ts";
 
 const present = archivePresent();
 if (!present) console.log(`archive absent at ${rawDir()}: skipping the real-page tests (set AGATE_RAW_DIR)`);
@@ -68,6 +68,10 @@ function botWall(id: string, hour: string): boolean {
   return body !== null && body.length < 20_000 && /<title>\s*(?:Site verification|Just a moment|Attention Required|Access denied)/i.test(body);
 }
 
+/** Nebius's page since Oct 8 2026 has a "from X until Y" block, which nebius/1 cannot place: it reads the block's
+ *  rows into the block above, finds each GPU twice and refuses (ambiguous). nebius/2 reads it (the test below). */
+const RANGED = /\*\*Item \S+ from [A-Z][a-z]+ \d{1,2}(?:, \d{4})? until /;
+
 /** States a source/GPU may legitimately show; anything else (layout-changed, ambiguous, parse-error) fails. */
 function allowed(id: string, g: GpuModel, h: HourValues): ReadState[] {
   if (id === "p_civo" && g === "B200") return ["NOT_RENTABLE", "VALID"];
@@ -89,9 +93,16 @@ describe("parsers on every archived hour", () => {
         if (!src) continue;
         pages++;
         let good = true;
+        // the Oct 8 Nebius layout: read once per hour (not per GPU), and only nebius/1's "ambiguous" refusal is excused
+        let ambiguous: Partial<Record<GpuModel, boolean>> = {};
+        if (def.id === "p_nebius") {
+          const ah = listHours().find((x) => `${x.date}T${x.hour}` === h.hour)!;
+          const body = readArchived(ah, def.id) ?? "";
+          if (RANGED.test(body)) ambiguous = Object.fromEntries(Object.entries(parse(def.id, body, { utcDate: ah.date, nowSec: src.pageTime })).map(([g, r]) => [g, reasonOf(r) === "ambiguous"]));
+        }
         for (const g of GPUS.filter((x) => def.rules[x])) {
           const r = src.rows[g]!;
-          if (!allowed(def.id, g, h).includes(r.s) && !(r.s === "NO_ROW" && botWall(def.id, h.hour))) {
+          if (!allowed(def.id, g, h).includes(r.s) && !(r.s === "NO_ROW" && (botWall(def.id, h.hour) || ambiguous[g] === true))) {
             good = false;
             console.log(`${h.hour} ${def.id} ${g}: unexpected ${r.s}`);
           }
@@ -103,6 +114,21 @@ describe("parsers on every archived hour", () => {
       expect(pages).toBeGreaterThan(0);
     }
     console.log(`archive parse rate over ${values.length} hours: ${table.join(", ")}`);
+  });
+
+  test.skipIf(!present)("nebius/2 reads the archived Oct 8 layout at the prices in effect (hours up to Oct 12 02 UTC)", () => {
+    // fixed hours, so a later reprice or a bot wall in the growing archive never fails this test
+    const want = { H100: 4_500_000, H200: 5_400_000, B200: 8_500_000, B300: 9_500_000 };
+    let ranged = 0;
+    for (const h of listHours().filter((x) => `${x.date}T${x.hour}` >= "2026-10-08T12" && `${x.date}T${x.hour}` <= "2026-10-12T02")) {
+      const body = readArchived(h, "p_nebius");
+      if (body === null || !RANGED.test(body)) continue;
+      ranged++;
+      const sec = Date.parse(`${h.date}T${h.hour}:00:00Z`) / 1000;
+      const r = parseWith("nebius/2", body, { utcDate: h.date, nowSec: sec });
+      for (const [g, v] of Object.entries(want) as [GpuModel, number][]) expect(r[g], `${h.date}T${h.hour} ${g}`).toMatchObject({ state: "VALID", valueU: v });
+    }
+    expect(ranged).toBeGreaterThan(0);
   });
 
   // A parser that flaps would step many times a day. Real pages step at most once a UTC day: Verda reprices every GPU

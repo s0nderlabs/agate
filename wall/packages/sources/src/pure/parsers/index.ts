@@ -12,6 +12,7 @@ import { extractLambda } from "./lambda.ts";
 import { extractNebius } from "./nebius.ts";
 import { extractSeeweb } from "./seeweb.ts";
 import { extractVerda } from "./verda.ts";
+import { extract as extractNebiusV2 } from "./nebius.v2.ts";
 
 export const EXTRACTORS_BY_VERSION: Readonly<Record<string, { sourceId: string; extract: Extractor }>> = {
   "verda/1": { sourceId: "p_verda", extract: extractVerda },
@@ -23,5 +24,6 @@ export const EXTRACTORS_BY_VERSION: Readonly<Record<string, { sourceId: string; 
   "seeweb/1": { sourceId: "p_seeweb", extract: extractSeeweb },
   "gcore/1": { sourceId: "p_gcore", extract: extractGcore },
   // repair:begin
+  "nebius/2": { sourceId: "p_nebius", extract: extractNebiusV2 },
   // repair:end
 };

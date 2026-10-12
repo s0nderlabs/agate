@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { gzipSync } from "node:zlib";
 import type { GpuModel } from "@agate/report/types";
-import { GPUS, parse, reasonOf, SOURCES } from "../src/pure/index.ts";
+import { GPUS, parse, parseWith, reasonOf, SOURCES } from "../src/pure/index.ts";
 import { renderPage, type SynthGpu, type SynthPage, times } from "../src/synthetic.ts";
 import type { ParseContext, SourceDef } from "../src/types.ts";
 
@@ -165,6 +165,90 @@ describe("source-specific rules", () => {
     expect(reasonOf(parse("p_nebius", perHour, ctx).B200)).toBe("layout-changed");
     const noUsd = page.replace('<Tab title="USD">', '<Tab title="EUR">');
     expect(reasonOf(parse("p_nebius", noUsd, ctx).B200)).toBe("layout-changed");
+  });
+
+  // The layout Nebius has used since Oct 8 2026: three dated blocks, the middle one a range ("from X until Y")
+  const ranged = (blocks: { head: string; prices: Partial<Record<GpuModel, string>> }[]) => renderPage("p_nebius", { H100: { price: "1.00" } }, { blocks });
+  const oct8 = ranged([
+    { head: "from October 8, 2026", prices: { H100: "4.60" } },
+    { head: "from October 1 until October 8, 2026", prices: { H100: "4.50" } },
+    { head: "before October 1, 2026", prices: { H100: "3.85" } },
+  ]);
+  const read = (v: string, page: string, sec: number) => parseWith(v, page, { utcDate: new Date(sec * 1000).toISOString().slice(0, 10), nowSec: sec }).H100;
+  const day = (m: number, d: number, y = 2026) => Date.UTC(y, m, d) / 1000;
+
+  test("Nebius v1 refuses the Oct 8 layout (a range header read as a row would double every GPU)", () => {
+    expect(read("nebius/1", oct8, day(9, 12))?.state).toBe("NO_ROW");
+  });
+
+  test("Nebius v2: the block in effect by date across the range layout, the on-demand row only", () => {
+    expect(read("nebius/2", oct8, day(8, 30))).toMatchObject({ state: "VALID", valueU: 3_850_000 });
+    expect(read("nebius/2", oct8, day(9, 1))).toMatchObject({ state: "VALID", valueU: 4_500_000 });
+    expect(read("nebius/2", oct8, day(9, 8) - 1)).toMatchObject({ state: "VALID", valueU: 4_500_000 });
+    expect(read("nebius/2", oct8, day(9, 8))).toMatchObject({ state: "VALID", valueU: 4_600_000 });
+    expect(read("nebius/2", oct8, day(9, 12))).toMatchObject({ state: "VALID", valueU: 4_600_000 });
+  });
+
+  test("Nebius v2: a range counts only inside its dates; a year-less first date takes the year before only when it must", () => {
+    const only = ranged([{ head: "from October 1 until October 8, 2026", prices: { H100: "4.50" } }]);
+    expect(read("nebius/2", only, day(9, 5))).toMatchObject({ state: "VALID", valueU: 4_500_000 });
+    expect(read("nebius/2", only, day(9, 8))?.state).toBe("NO_ROW");
+    expect(read("nebius/2", only, day(8, 30))?.state).toBe("NO_ROW");
+    const yearEnd = ranged([{ head: "from December 15 until January 5, 2027", prices: { H100: "4.40" } }]);
+    expect(read("nebius/2", yearEnd, day(11, 20))).toMatchObject({ state: "VALID", valueU: 4_400_000 });
+    expect(read("nebius/2", yearEnd, day(0, 5, 2027))?.state).toBe("NO_ROW");
+    // the same day twice is an empty range, never a year-long one
+    const empty = ranged([
+      { head: "from October 8, 2026", prices: { H100: "4.60" } },
+      { head: "from October 8 until October 8, 2026", prices: { H100: "9.99" } },
+    ]);
+    expect(reasonOf(read("nebius/2", empty, day(9, 7)))).toBe("layout-changed");
+  });
+
+  test("Nebius v2 places every date like Date.UTC (it computes days itself, since gate 1 forbids Date)", () => {
+    const M = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    for (let y = 2024; y <= 2032; y++) {
+      for (let m = 0; m < 12; m++) {
+        for (const d of [1, 28, new Date(Date.UTC(y, m + 1, 0)).getUTCDate()]) {
+          const page = ranged([{ head: `from ${M[m]} ${d}, ${y}`, prices: { H100: "4.50" } }]);
+          const at = Date.UTC(y, m, d) / 1000;
+          expect(read("nebius/2", page, at - 1)?.state, `${y}-${m + 1}-${d}`).toBe("NO_ROW");
+          expect(read("nebius/2", page, at)?.state, `${y}-${m + 1}-${d}`).toBe("VALID");
+        }
+      }
+    }
+    expect(reasonOf(read("nebius/2", ranged([{ head: "from February 29, 2027", prices: { H100: "4.50" } }]), day(2, 1, 2027)))).toBe("layout-changed");
+  });
+
+  test("Nebius v2 refuses what it cannot place", () => {
+    // an Item header it does not know is never read as a row
+    const odd = oct8.replaceAll("from October 1 until October 8, 2026", "valid October 1 to October 8, 2026");
+    expect(reasonOf(read("nebius/2", odd, day(9, 12)))).toBe("layout-changed");
+    const backwards = ranged([{ head: "from October 9, 2026 until October 8, 2026", prices: { H100: "4.50" } }]);
+    expect(reasonOf(read("nebius/2", backwards, day(9, 8)))).toBe("layout-changed");
+    const clash = ranged([
+      { head: "from October 1, 2026", prices: { H100: "4.60" } },
+      { head: "from October 1 until October 8, 2026", prices: { H100: "4.50" } },
+    ]);
+    expect(reasonOf(read("nebius/2", clash, day(9, 5)))).toBe("layout-changed");
+    // a range that ended replaced the older block: reading that block again would bring back an old price
+    const ended = ranged([
+      { head: "from October 1 until October 8, 2026", prices: { H100: "4.50" } },
+      { head: "from September 1, 2026", prices: { H100: "3.00" } },
+    ]);
+    expect(reasonOf(read("nebius/2", ended, day(9, 10)))).toBe("layout-changed");
+  });
+
+  test("Nebius v2 reads every page nebius/1 reads to the same states and prices", () => {
+    const states = (v: string, page: string, c: ParseContext) => Object.fromEntries(Object.entries(parseWith(v, page, c)).map(([g, r]) => [g, [r.state, r.valueU]]));
+    const page = renderPage("p_nebius", { H100: { price: "4.50" }, H200: { price: "5.40" }, B200: { price: "8.50" } }, { dated: { date: "2026-10-01", before: { H100: "3.85", H200: "4.50", B200: "7.15" } } });
+    for (const sec of [day(8, 30), day(9, 1), day(9, 20)]) {
+      const c = { utcDate: new Date(sec * 1000).toISOString().slice(0, 10), nowSec: sec };
+      expect(states("nebius/2", page, c)).toEqual(states("nebius/1", page, c));
+    }
+    for (const p of [renderPage("p_nebius", { B200: { price: "8.50" } }), renderPage("p_nebius", { B200: { price: "8.50" } }, { broken: true }), renderPage("p_nebius", { H100: { state: "missing" } as never })]) {
+      expect(states("nebius/2", p, ctx)).toEqual(states("nebius/1", p, ctx));
+    }
   });
 
   test("Lambda: 8x before 1x, never 4x or 2x, never the cluster table", () => {

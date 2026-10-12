@@ -18,6 +18,9 @@ export interface SynthOptions {
   redesigned?: boolean;
   /** Nebius only: a dated change, "from <date>" block with the main prices, "before" block with these. */
   dated?: { date: string; before: Partial<Record<GpuModel, string>> };
+  /** Nebius only: the USD table as these dated blocks, in order (the layout since Oct 8 2026: "from X", then
+   *  "from X until Y", then "before X"). Each head is the phrase after "Item -"; prices per GPU (default 1.00). */
+  blocks?: { head: string; prices: Partial<Record<GpuModel, string>> }[];
 }
 
 export type SynthPage = Partial<Record<GpuModel, SynthGpu>>;
@@ -119,9 +122,15 @@ function nebius(p: SynthPage, o: SynthOptions): string {
       `    | ${item} | ${price} | 1 GPU hour |`,
       `    | Preemptible ${item} | \\$0.99 | 1 GPU hour |`,
     ];
-    const usdLines = o.dated
-      ? [...table(`Item ${D} from ${nebiusDate(o.dated.date)}`, c.text), ...table(`Item ${D} before ${nebiusDate(o.dated.date)}`, `\\$${o.dated.before[g] ?? "1.00"}`)]
-      : table("Item", c.text);
+    const usdLines = o.blocks
+      ? o.blocks.flatMap((b, i) => {
+          const t = table(`Item ${D} ${b.head}`, `\\$${b.prices[g] ?? "1.00"}`);
+          // the page's divider follows only the first header
+          return i === 0 ? [t[0]!, "    | - | - | - |", ...t.slice(1).filter((l) => !l.includes("| - |"))] : t.filter((l) => !l.includes("| - |"));
+        })
+      : o.dated
+        ? [...table(`Item ${D} from ${nebiusDate(o.dated.date)}`, c.text), ...table(`Item ${D} before ${nebiusDate(o.dated.date)}`, `\\$${o.dated.before[g] ?? "1.00"}`)]
+        : table("Item", c.text);
     parts.push(
       `#### NVIDIA${R} ${g} NVLink`,
       "",
