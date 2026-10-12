@@ -20,6 +20,9 @@ const page = (file: string) => `${DOCS_PATH}/${file}`;
 
 const QUOTES: Quote[] = [
   ...group(page("08-api.md"), "server/src/developer.ts", ["gpu must be one of", "month is YYYY-MM, for example 2026-11", "market on sale (see /v1/markets)", "price yet", "requests a minute; wait a minute", "the markets could not be read right now; try again shortly", "trades could not be read right now; try again shortly", "candles could not be read right now; try again shortly", "no such endpoint: ", "(see /v1 for the list)"]),
+  // backup codes: the sign-in sheet's own lines (app/src/components/flow/SignInSheet.tsx, account/errors.ts)
+  ...group(page("17-errors.md"), "app/src/components/flow/SignInSheet.tsx", ["That isn't a backup code. They look like K7QD-9XMP: 8 letters and numbers."]),
+  ...group(page("17-errors.md"), "app/src/lib/account/errors.ts", ["No new passkey was made, so your code still works."]),
   ...group(page("17-errors.md"), "server/src/mcp/routes.ts", ["missing credential", "invalid or expired access token", "unknown connection", "this AI connection was disconnected: connect it again from Agate", "method not allowed", "payload too large", "rate limit exceeded for this connection", "too many requests"]),
   ...group(page("17-errors.md"), "server/src/mcp/server.ts", ["budget_left", "not_enough_tokens", "price_moved", "thin_book", "above_band", "below_band", "drip_too_soon", "empty_book", "bad_amount", "sponsor_limit", "no_market", "parts_too_small", "bad_input", "not_found", "grant_revoked", "grant_expired"]),
   ...group(page("17-errors.md"), "wallet/src/allowed.ts", ["over_per_trade_cap", "payee_must_be_you", "approve_router_only", "no_native_value", "not_allowed_contract", "not_allowed_function"]),
@@ -44,6 +47,7 @@ const QUOTES: Quote[] = [
     "New passkey accounts are paused for today. Use Google or your email instead.",
     "Agate couldn't accept that passkey. Try again.",
     "Your passkey worked, but sign-in didn't finish. Try again.",
+    "That code doesn't work. Check it, or try another of your backup codes.",
     "Agate can't be reached right now. Try again in a moment.",
     "This browser can't use passkeys. Use Google or your email instead.",
     "Your passkey didn't confirm it. Try again, or Cancel.",

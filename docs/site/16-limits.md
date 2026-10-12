@@ -67,5 +67,5 @@ pocket's trades, every order in the book. Your account's address is visible to a
 Beyond the limits above (one CRE node, no outside audit, Transaction Review):
 
 - Kuru Spot V2 books for the app (the market maker is ready to quote them).
-- A recovery path for a lost passkey (an account made from a passkey alone has nothing else to sign in with), and
-  backup codes.
+- A way back for a passkey account that lost its passkey AND every backup code: there is none (it has no email to
+  fall back on).

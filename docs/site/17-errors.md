@@ -35,6 +35,9 @@ The app words its own messages (`app/src/lib/account/errors.ts`); the sentences 
 | `New passkey accounts are paused for today. Use Google or your email instead.` | the day's cap on new passkey accounts (150) is reached, or Dynamic's test environment is full (then Google and email fail too) | use Google or your email, or try tomorrow |
 | `Agate couldn't accept that passkey. Try again.` | Agate's server could not verify the passkey's answer | try again |
 | `Your passkey worked, but sign-in didn't finish. Try again.` | Dynamic did not finish the sign-in | **Try again**: the account now exists, so it signs in |
+| `That code doesn't work. Check it, or try another of your backup codes.` | the backup code is wrong, used, or replaced by a newer set | type it again, or use another of your codes |
+| `That isn't a backup code. They look like K7QD-9XMP: 8 letters and numbers.` | what was typed has the wrong shape | type the code as saved; case, spaces and the dash do not matter |
+| `No new passkey was made, so your code still works.` | the passkey dialog was closed while using a backup code | try again: the code was not used up |
 | `Agate can't be reached right now. Try again in a moment.` | Agate's server did not answer | try again in a moment |
 | `This browser can't use passkeys. Use Google or your email instead.` | the browser has no passkey support | use Google or your email, or another browser |
 | `Your passkey didn't confirm it. Try again, or Cancel.` | confirming again with a passkey did not go through | try again |

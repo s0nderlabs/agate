@@ -41,13 +41,18 @@ Your Own Auth). The main wallet, the 10,000 test dollars and everything after ar
 - **Next time, in the same browser,** the same button signs in. **In another browser or on a new device,** tap
   **I already have a passkey**: it uses a passkey synced there, or one on your phone. The main button there would
   make a second, empty account.
-- **The passkey is the only way in.** One saved to iCloud Keychain or Google Password Manager follows you to your
-  other devices; losing every copy loses the account and its test dollars ([Limits](16-limits.md)).
+- **The passkey is the way in, and backup codes are the way back.** One saved to iCloud Keychain or Google Password
+  Manager follows you to your other devices. When the account is made, the app shows **ten backup codes** once
+  (`XXXX-XXXX`, with Copy and Download). If every copy of the passkey is lost, **Sign in**, then **Lost your passkey?
+  Use a backup code**: the code makes a new passkey on the same account, and is used up. **Make new backup codes**
+  on the Account sheet replaces the set and asks for your passkey first. Losing the passkey and every code loses
+  the account and its test dollars ([Limits](16-limits.md)).
 - **An email or Google account stays separate.** The two are never joined. A passkey added earlier to an email or
   Google account still signs that account in: tap **I already have a passkey**, then **Continue**.
 - Dynamic needs an email on every account, so a passkey account carries a placeholder address that takes no mail. The
   app never shows it ([Built on](15-built-on.md#dynamic-sign-in-and-wallets)).
-- Agate's server keeps no secrets, only public keys, so its database alone cannot sign anyone in.
+- Agate's server keeps no secrets, only public keys and keyed hashes of the backup codes, so its database alone
+  cannot sign anyone in. A code is 40 bits; guessing is held to 5 tries a minute per network.
 
 ## Step-up
 

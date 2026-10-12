@@ -54,6 +54,7 @@ The concept pages use these terms; each line links to where it is explained in f
 | **approval** | the person's yes to one trade above the cap, by a link that lives 15 minutes |
 | **autopilot** | `keep_hedge_going`: Agate rolls a Long into the next month before each close |
 | **passkey account** | an account made from a passkey alone, with no email ([Accounts and gas](06-accounts.md#passkey-accounts)) |
+| **backup codes** | ten one-time codes shown when a passkey account is made; one adds a new passkey if the old one is lost ([Accounts and gas](06-accounts.md#passkey-accounts)) |
 | **step-up** | confirming again with a code or passkey before a sensitive action |
 | **sponsored gas** | network fees paid by Agate through ZeroDev, so no account needs MON |
 | **MCP** | the Model Context Protocol: how an AI app calls Agate's tools ([MCP tools](11-mcp-tools.md)) |
