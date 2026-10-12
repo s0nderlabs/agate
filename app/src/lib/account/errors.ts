@@ -487,7 +487,7 @@ const PASSKEY_CODES = Object.keys(PASSKEY_CODE_SET);
 export function passkeyFirstText(f: PasskeyFailure): string {
   switch (f.code) {
     case "cancelled":
-      return f.mode === "signin" ? "No passkey signed you in." : "No passkey was made.";
+      return f.mode === "signin" ? "No passkey signed you in." : f.mode === "recover" ? "No new passkey was made, so your code still works." : "No passkey was made.";
     case "bad_code":
       return "That code doesn't work. Check it, or try another of your backup codes.";
     case "exists":
@@ -499,11 +499,13 @@ export function passkeyFirstText(f: PasskeyFailure): string {
     case "rate_limited":
       return f.hourly ? "Too many new accounts from this network. Try again in an hour." : "Too many tries from this network. Wait a minute, then try again.";
     case "signups_paused":
-      return "New passkey accounts are paused for today. Use Google or your email instead.";
+      // a backup code's account exists already: only the sign-in that follows can be refused like this
+      return f.mode === "recover" ? "Agate can't finish signing you in right now. Your code still works, so try again later." : "New passkey accounts are paused for today. Use Google or your email instead.";
     case "rejected":
       return "Agate couldn't accept that passkey. Try again.";
     case "dynamic":
-      return "Your passkey worked, but sign-in didn't finish. Try again.";
+      // a backup code's: the code is used up and the new passkey saved, so that passkey is the way in now
+      return f.mode === "recover" ? "Your new passkey is saved, but sign-in didn't finish. Sign in with your passkey." : "Your passkey worked, but sign-in didn't finish. Try again.";
     case "service":
       return "Agate can't be reached right now. Try again in a moment.";
     case "unsupported":

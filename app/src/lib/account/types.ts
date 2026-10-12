@@ -22,13 +22,14 @@ export type SignInErrorAt = "init" | "sendCode" | "verify" | "google" | "passkey
 /** How a sign-in is being checked: a code, Google's way back, or a passkey in the browser's own dialog. */
 export type SignInVia = "code" | "google" | "passkey";
 
-/** "Continue with a passkey": sign in with one made before, or make a new account with a new one. */
-export type PasskeyMode = "signin" | "create";
+/** "Continue with a passkey": sign in with one made before, or make a new account with a new one. recover: a backup
+ *  code makes a new passkey for the account it belongs to (the browser's dialog saves one, as for create). */
+export type PasskeyMode = "signin" | "create" | "recover";
 
 /** Why a passkey sign-in or sign-up did not finish: the wallet package's AgatePasskeyError codes (a type only, nothing
  *  is bundled). cancelled: the browser's dialog was closed or no passkey was picked (it cannot tell which);
  *  unknown_passkey: a passkey that is not Agate's own, most likely one added to an email account before (the older
- *  sign-in takes it). */
+ *  sign-in takes it); bad_code: a backup code that does not work (wrong, used, or replaced by a newer set). */
 export type PasskeyFailureCode = import("@agate/wallet/dynamic").PasskeyErrorCode;
 
 /** A passkey attempt that failed: why, and which way it was going, so the sheet offers the right next step. */
@@ -283,13 +284,25 @@ export interface Account {
   /** "Continue with a passkey": "auto" signs in when this browser used an Agate passkey before and otherwise makes a
    *  new account (then set up like an email sign-up); "signin" for "I already have a passkey", "create" for "Make a
    *  new passkey". A failure lands in the error step with its PasskeyFailure */
-  continuePasskey: (mode?: "auto" | PasskeyMode) => void;
+  continuePasskey: (mode?: "auto" | "signin" | "create") => void;
   /** this browser used an Agate passkey before; null until known */
   passkeyHint: boolean | null;
   /** signed up with a passkey alone: no email to show, no Dynamic passkey to add, and the passkey is the only way in */
   passkeyAccount: boolean;
   /** passkeys on this account once signed in; null while unknown */
   passkeys: number | null;
+  /** backup codes work in this build (the passkey-account way back in when its passkey is lost) */
+  backupCodesOn: boolean;
+  /** a passkey account's backup codes: how many are left unused (0: none made yet, or all used; null: the count
+   *  couldn't be read); null while unknown, and for an account with an email or Google to fall back on */
+  backupCodes: { left: number | null } | null;
+  /** makes ten new backup codes and resolves with them: they are shown only once. Replacing codes that still work
+   *  asks for the passkey first (the browser's dialog), so a stolen session can't keep the account; the earlier codes
+   *  then stop working. A closed dialog rejects as an AgatePasskeyError "cancelled" and the old codes still work */
+  makeBackupCodes: () => Promise<string[]>;
+  /** signed out, "Use a backup code": the browser saves a new passkey for the account the code belongs to and signs
+   *  in with it; the code is then used up. A failure lands in the error step with its PasskeyFailure (bad_code) */
+  recoverWithCode: (code: string) => void;
   /** adds a passkey for next time (the browser's own dialog). "code": Dynamic first wants a fresh "Confirm it's you"
    *  (after Google, or a while after the code), so a code went to the email: call again with it. A person who already
    *  has a passkey confirms with that one instead (its dialog comes first). Rejects when nothing was added; a refused

@@ -1,0 +1,72 @@
+/* Backup codes (BackupCodes.tsx): the ten codes in two columns of the app's monospace on the well, the way a code is
+   read off and typed back; Copy and Download under them, then "I saved them". Nothing under 15 px. */
+/* the app's monospace (as globals.css sets it for code) */
+.box,
+.input {
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+.box {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--well);
+  border-radius: var(--r-1);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: code;
+}
+.list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  counter-increment: code;
+  font-family: var(--mono);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  -webkit-user-select: all;
+  user-select: all;
+}
+/* the number before each code, quiet and never selected with it */
+.list li::before {
+  content: counter(code);
+  min-width: 2ch;
+  text-align: right;
+  font-size: 15px;
+  color: var(--mute-text);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.list code {
+  padding: 0;
+  background: none;
+  font: inherit;
+}
+.acts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.note {
+  font-size: 15px;
+  color: var(--ink-2);
+}
+
+/* the code field in the sign-in sheet: the same monospace, spaced a little, in capitals as typed */
+.input {
+  font-family: var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.input::placeholder {
+  text-transform: none;
+}

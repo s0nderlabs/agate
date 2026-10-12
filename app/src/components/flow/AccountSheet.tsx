@@ -14,6 +14,7 @@ import { useLinkQuery } from "@/lib/mock/store";
 import { usePasskeySupport } from "@/lib/ui/hooks";
 import { Num } from "@/components/num/Num";
 import { CopyButton } from "./Copy";
+import { BackupCodes } from "./BackupCodes";
 import { DripButton } from "./DripButton";
 
 export function AccountHead() {
@@ -135,18 +136,63 @@ export function usePasskeyRow() {
   const account = useAccount();
   const supported = usePasskeySupport();
   const adder = usePasskeyAdd();
+  // backup codes (a passkey account's): closed, asking before new ones replace the old, or showing a new set
+  const [codes, setCodes] = useState<"closed" | "confirm" | "new">("closed");
   if (!supported || !account.ready) return { row: null, note: null };
-  // an account made with a passkey: that passkey is its way in, and Dynamic's own passkeys are not added to it
-  if (account.passkeyAccount)
+  // an account made with a passkey: that passkey is its way in, and Dynamic's own passkeys are not added to it; its
+  // backup codes are the way back in if the passkey is lost
+  if (account.passkeyAccount) {
+    const b = account.backupCodes;
+    // codes that may still work (or a count that couldn't be read): replacing them asks first, the passkey confirms it
+    const made = !!b && (b.left === null || b.left > 0);
+    const passkeyRow = (
+      <div>
+        <span>Passkey</span>
+        <span>Your way in</span>
+      </div>
+    );
+    if (!account.backupCodesOn) return { row: passkeyRow, note: null };
+    const value =
+      b === null ? (
+        <span className="ag-skel ag-skel-on">8 left</span>
+      ) : (
+        <span className="ag-val">
+          {b.left === null ? "Couldn't check" : made ? `${b.left} left` : "None"}
+          {codes === "closed" && (
+            <button className="ag-textbtn" type="button" onClick={() => setCodes(made ? "confirm" : "new")}>
+              {made ? "Make new codes" : "Make backup codes"}
+            </button>
+          )}
+        </span>
+      );
     return {
       row: (
-        <div>
-          <span>Passkey</span>
-          <span>Your way in</span>
-        </div>
+        <>
+          {passkeyRow}
+          <div>
+            <span>Backup codes</span>
+            {value}
+          </div>
+        </>
       ),
-      note: null,
+      note:
+        codes === "confirm" ? (
+          <div className="grid gap-2" role="group" aria-label="Make new backup codes">
+            <p>New codes replace your old ones, and the old ones stop working. Your passkey confirms it.</p>
+            <div className="flex flex-wrap gap-2">
+              <button className="ag-btn ag-btn--ghost" type="button" onClick={() => setCodes("new")}>
+                Make new codes
+              </button>
+              <button className="ag-btn ag-btn--quiet" type="button" onClick={() => setCodes("closed")}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : codes === "new" ? (
+          <BackupCodes onDone={() => setCodes("closed")} onCancel={() => setCodes("closed")} />
+        ) : null,
     };
+  }
   const { phase, note, add, busy } = adder;
   const n = account.passkeys;
   if (phase === "code" || phase === "checking") {

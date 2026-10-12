@@ -94,6 +94,10 @@ export const SIGNED_OUT: SignInState = { status: "signedOut" };
 export const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 /** A pasted code may carry spaces or a dash ("123 456"). */
 export const cleanCode = (s: string) => s.replace(/[\s-]/g, "");
+/** A backup code as Agate's server reads it: capitals and digits, the dash and spaces dropped (the codes are shown as
+ *  two groups of four, "K7QD-9XMP"). */
+export const cleanBackupCode = (s: string) => s.toUpperCase().replace(/[^0-9A-Z]/g, "");
+export const isBackupCode = (s: string) => /^[0-9A-Z]{8,16}$/.test(cleanBackupCode(s));
 export const isCode = (s: string) => /^\d{6}$/.test(cleanCode(s));
 
 /** The sheet may take an email (or Google, or a passkey) now. */

@@ -10,8 +10,8 @@ import { useMock, type OpenArgs } from "@/lib/mock/store";
 import type { SignInOutcome } from "@/lib/mock/config";
 import type { Position, Wallet } from "@/lib/mock/types";
 import { holderPositions, positionAt } from "@/lib/mock/timeline";
-import { SIGNIN_COPY } from "./errors";
-import { canStart, CREATING_SLOW_MS, isCode, SIGNED_OUT, signInReducer, toAccountStep, type SignInEvent, type SignInState } from "./machine";
+import { passkeyFirstText, SIGNIN_COPY } from "./errors";
+import { canStart, CREATING_SLOW_MS, isBackupCode, isCode, SIGNED_OUT, signInReducer, toAccountStep, type SignInEvent, type SignInState } from "./machine";
 import { type Account, type AccountPlan, DRIP, type DoneResult, type OnStep, type Order, type SignInStep, type TicketShown, type TradeAction } from "./types";
 
 /** Fake timings (ms), the real ones scaled down so each step can still be seen: the code arrives, the code is
@@ -41,6 +41,16 @@ type PretendEvent = SignInEvent | { type: "force"; state: SignInState };
 const pretendReducer = (s: SignInState, e: PretendEvent): SignInState => (e.type === "force" ? e.state : signInReducer(s, e));
 
 /** Whether this sign-in sets up a new person. The failing setups are a new person's by nature. */
+/** Ten pretend backup codes, as the server writes them: two groups of four in Crockford's base 32 (no I, L, O or U). */
+function pretendCodes() {
+  const abc = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  const bytes = crypto.getRandomValues(new Uint8Array(80));
+  return Array.from({ length: 10 }, (_, i) => {
+    const c = Array.from(bytes.slice(i * 8, i * 8 + 8), (b) => abc[b % 32]).join("");
+    return `${c.slice(0, 4)}-${c.slice(4)}`;
+  });
+}
+
 function setsUp(outcome: SignInOutcome, w: Wallet) {
   if (outcome === "returning") return false;
   if (outcome === "auto" || outcome === "wrong" || outcome === "expired") return isNew(w);
@@ -235,6 +245,82 @@ export function usePretendAccount(): Account {
       live.current.store.signIn(email);
     });
   }, [later, nextRun]);
+  // passkey-first, pretended: "Continue with a passkey" makes a new account (set up like an email sign-up) unless this
+  // page used one before; "I already have a passkey" signs in. Either way the account is a passkey account
+  const [pkAccount, setPkAccount] = useState(false);
+  const [pkHint, setPkHint] = useState(false);
+  const continuePasskey = useCallback(
+    (want: "auto" | "signin" | "create" = "auto") => {
+      if (!canStart(live.current.m)) return;
+      const r = nextRun();
+      const mode = want !== "auto" ? want : pkHint ? "signin" : "create";
+      dispatch({ type: "open" });
+      dispatch({ type: "passkey", mode });
+      later(PRETEND_MS.verify, () => {
+        if (r !== run.current) return;
+        setPkAccount(true);
+        setPkHint(true);
+        if (mode === "signin") {
+          dispatch({ type: "verified", wallet: true, email: "", at: Date.now() });
+          live.current.store.signIn("");
+          return;
+        }
+        dispatch({ type: "verified", wallet: false, email: "", at: Date.now() });
+        walletTries.current = 0;
+        setUp("");
+      });
+    },
+    [later, nextRun, pkHint, setUp],
+  );
+
+  // backup codes, pretended: ten made here for the page; any well-formed code signs in, except the first one tried
+  // under the "wrong" outcome (Mock controls, Sign-in row)
+  const [backupCodes, setBackupCodes] = useState<{ left: number }>({ left: 0 });
+  // Mock Reset forgets the passkey account and its codes with the wallet
+  const pkResets = useRef(store.resets);
+  useEffect(() => {
+    if (store.resets === pkResets.current) return;
+    pkResets.current = store.resets;
+    setPkAccount(false);
+    setPkHint(false);
+    setBackupCodes({ left: 0 });
+  }, [store.resets]);
+  const makeBackupCodes = useCallback(
+    () =>
+      new Promise<string[]>((resolve) =>
+        later(PRETEND_MS.sendCode, () => {
+          const codes = pretendCodes();
+          setBackupCodes({ left: codes.length });
+          resolve(codes);
+        }),
+      ),
+    [later],
+  );
+  const recoverWithCode = useCallback(
+    (code: string) => {
+      if (!canStart(live.current.m)) return;
+      const r = nextRun();
+      tries.current += 1;
+      const first = tries.current === 1;
+      dispatch({ type: "open" });
+      dispatch({ type: "passkey", mode: "recover" });
+      later(PRETEND_MS.verify, () => {
+        if (r !== run.current) return;
+        if ((first && live.current.outcome === "wrong") || !isBackupCode(code)) {
+          const failure = { code: "bad_code", mode: "recover" } as const;
+          dispatch({ type: "passkeyFailed", message: passkeyFirstText(failure), failure });
+          return;
+        }
+        setPkAccount(true);
+        setPkHint(true);
+        setBackupCodes((b) => ({ left: Math.max(0, b.left - 1) }));
+        dispatch({ type: "verified", wallet: true, email: "", at: Date.now() });
+        live.current.store.signIn("");
+      });
+    },
+    [later, nextRun],
+  );
+
   const addPasskey = useCallback(
     () =>
       new Promise<"added">((resolve) =>
@@ -262,6 +348,8 @@ export function usePretendAccount(): Account {
   const signOut = useCallback(async () => {
     nextRun();
     setOwed(false);
+    // the next sign-in may be an email or Google one (this page still remembers its passkey)
+    setPkAccount(false);
     dispatch({ type: "signOut" });
     live.current.store.signOut();
     dispatch({ type: "signedOut" });
@@ -452,13 +540,17 @@ export function usePretendAccount(): Account {
       otherEmail,
       startGoogle,
       startPasskey,
-      // passkey-first sign-up runs on Agate's server only: the pretend account keeps the older passkey sign-in
-      passkeyFirst: false,
+      // passkey-first, as the live app (no browser dialog: the passkey is pretended)
+      passkeyFirst: true,
       preparePasskey: noop,
-      continuePasskey: startPasskey,
-      passkeyHint: null,
-      passkeyAccount: false,
+      continuePasskey,
+      passkeyHint: pkHint,
+      passkeyAccount: ready && pkAccount,
       passkeys: ready ? passkeys : null,
+      backupCodesOn: true,
+      backupCodes: ready && pkAccount ? backupCodes : null,
+      makeBackupCodes,
+      recoverWithCode,
       addPasskey,
       retry,
       cancelSignIn,
@@ -469,6 +561,6 @@ export function usePretendAccount(): Account {
       signInAtOnce,
       collect,
     }),
-    [signIn, ready, wallet, positions, canDrip, nextDrip, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, passkeys, addPasskey, retry, cancelSignIn, signOut, drip, plan, send, signInAtOnce, collect],
+    [signIn, ready, wallet, positions, canDrip, nextDrip, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, continuePasskey, pkHint, pkAccount, passkeys, backupCodes, makeBackupCodes, recoverWithCode, addPasskey, retry, cancelSignIn, signOut, drip, plan, send, signInAtOnce, collect],
   );
 }

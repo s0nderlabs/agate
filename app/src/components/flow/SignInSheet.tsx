@@ -7,13 +7,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "@/lib/account";
 import { codeProblemText, SIGNIN_COPY } from "@/lib/account/errors";
-import { cleanCode, creatingSlow, isEmail, resendWait } from "@/lib/account/machine";
+import { cleanCode, creatingSlow, isBackupCode, isEmail, resendWait } from "@/lib/account/machine";
 import { DRIP, type PasskeyFailure, type SignInStep } from "@/lib/account/types";
 import { int, usd0 } from "@/lib/format";
 import { useLinkQuery, useMock } from "@/lib/mock/store";
 import { finePointer, usePasskeySupport } from "@/lib/ui/hooks";
 import { useNow } from "@/lib/ui/useNow";
 import { PasskeyCodeForm, usePasskeyAdd } from "./AccountSheet";
+import { BackupCodes } from "./BackupCodes";
+import bc from "./backupCodes.module.css";
 import { DripButton } from "./DripButton";
 import { GoogleG, PasskeyMark } from "./Marks";
 import { Check, Steps } from "./Steps";
@@ -42,6 +44,15 @@ export function SignInSheet({ from, ai, onFinished, onClose }: { from: SignInFro
   const step = account.signIn;
   // set up during this sheet: the finish shows "You're set" with a button instead of moving on by itself
   const [setUp, setSetUp] = useState(false);
+  // "Lost your passkey? Use a backup code": the code step, until Back (its failures stay on it). The typed code lives
+  // here, so it is still in the field after the browser's dialog (the step is off screen meanwhile)
+  const [backup, setBackup] = useState(false);
+  const [backupCode, setBackupCode] = useState("");
+  // into or out of the code step: a failure from the other side is not this side's to show
+  const toBackup = (on: boolean) => {
+    if (step.status === "error") account.cancelSignIn();
+    setBackup(on);
+  };
   useEffect(() => {
     if (step.status === "creating") setSetUp(true);
   }, [step.status]);
@@ -71,19 +82,41 @@ export function SignInSheet({ from, ai, onFinished, onClose }: { from: SignInFro
       </div>
     );
   } else if (step.status === "verifying" && step.via === "passkey") {
-    // the browser's own dialog is up: saving a new passkey, or picking one saved before
-    const making = step.passkeyMode === "create";
+    // the browser's own dialog is up: saving a new passkey (a new account, or one a backup code gets back), or
+    // picking one saved before
+    const mode = step.passkeyMode;
     body = (
       <div className="grid justify-items-center gap-4 py-6 text-center">
         <span className="ag-spinner" />
-        <h2 tabIndex={-1}>{making ? "Make your passkey" : "Use your passkey"}</h2>
-        <p>{making ? "Your browser asks to save a passkey for Agate. Use your fingerprint, face or device PIN." : "Your browser asks for the passkey you saved for Agate."}</p>
+        <h2 tabIndex={-1}>{mode === "recover" ? "Make your new passkey" : mode === "create" ? "Make your passkey" : "Use your passkey"}</h2>
+        <p>
+          {mode === "recover"
+            ? "Agate checks your code, then your browser asks to save a new passkey for your account. Use your fingerprint, face or device PIN."
+            : mode === "create"
+              ? "Your browser asks to save a passkey for Agate. Use your fingerprint, face or device PIN."
+              : "Your browser asks for the passkey you saved for Agate."}
+        </p>
       </div>
+    );
+  } else if (backup && (step.status === "signedOut" || step.status === "error")) {
+    body = (
+      <BackupCodeStep
+        step={step}
+        code={backupCode}
+        setCode={setBackupCode}
+        onBack={() => toBackup(false)}
+        // the new passkey (or one this device has already) signs in like "I already have a passkey", its failures
+        // said on the first step
+        onPasskey={() => {
+          setBackup(false);
+          account.continuePasskey("signin");
+        }}
+      />
     );
   } else if (step.status === "codeSent" || step.status === "verifying" || (step.status === "sendingCode" && step.resend)) {
     // a new code on its way keeps the code step on screen, its resend control busy
     body = <CodeStep step={step} />;
-  } else body = <EmailStep step={step} from={from} ai={ai} onClose={onClose} />;
+  } else body = <EmailStep step={step} from={from} ai={ai} onClose={onClose} onBackup={() => toBackup(true)} />;
   // no box of its own: the steps stay the sheet's grid items
   return (
     <div ref={box} style={{ display: "contents" }}>
@@ -114,7 +147,7 @@ function useStepFocus(box: React.RefObject<HTMLDivElement | null>) {
   });
 }
 
-function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignInFrom; ai?: string; onClose: () => void }) {
+function EmailStep({ step, from, ai, onClose, onBackup }: { step: SignInStep; from: SignInFrom; ai?: string; onClose: () => void; onBackup: () => void }) {
   const linkQuery = useLinkQuery();
   const account = useAccount();
   const practice = usePractice();
@@ -196,6 +229,12 @@ function EmailStep({ step, from, ai, onClose }: { step: SignInStep; from: SignIn
             {pkFirst && !pkFailed && account.passkeyHint !== true && (
               <button type="button" className="ag-textbtn" style={{ justifySelf: "center" }} disabled={sending} onClick={() => account.continuePasskey("signin")}>
                 I already have a passkey
+              </button>
+            )}
+            {/* a passkey account whose passkey is gone: one of its backup codes makes a new one */}
+            {pkFirst && account.backupCodesOn && (
+              <button type="button" className="ag-textbtn" style={{ justifySelf: "center" }} disabled={sending} onClick={onBackup}>
+                Lost your passkey? Use a backup code
               </button>
             )}
           </div>
@@ -376,6 +415,8 @@ function Creating({ step, from, onFinished }: { step: SignInStep; from: SignInFr
   const now = useNow(1_000, step.status === "creating");
   const failed = step.status === "error" && step.at === "wallet";
   const email = "email" in step && step.email ? step.email : (account.email ?? "");
+  // a passkey account's first backup codes: "I saved them" is the way on, unless no codes could be made
+  const [codesFailed, setCodesFailed] = useState(false);
 
   if (account.ready) {
     const dripFailed = step.status === "ready" && step.firstDripFailed;
@@ -396,10 +437,23 @@ function Creating({ step, from, onFinished }: { step: SignInStep; from: SignInFr
         <Check size={44} />
         <h2 tabIndex={-1}>You're set</h2>
         <p>{usd0(account.balance)} in test dollars, ready to trade.</p>
-        {account.passkeyAccount ? <PasskeyOnly /> : <PasskeyOffer />}
-        <button className="ag-btn ag-btn--primary ag-btn--lg" type="button" onClick={onFinished}>
-          {from === "trade" ? "Review trade" : from === "connect" || from === "approve" ? "Continue" : "Start trading"}
-        </button>
+        {account.passkeyAccount ? (
+          account.backupCodesOn ? (
+            <>
+              <PasskeyOnly codes />
+              <BackupCodes primary onDone={onFinished} onFailedChange={setCodesFailed} />
+            </>
+          ) : (
+            <PasskeyOnly />
+          )
+        ) : (
+          <PasskeyOffer />
+        )}
+        {(!account.passkeyAccount || !account.backupCodesOn || codesFailed) && (
+          <button className="ag-btn ag-btn--primary ag-btn--lg" type="button" onClick={onFinished}>
+            {from === "trade" ? "Review trade" : from === "connect" || from === "approve" ? "Continue" : "Start trading"}
+          </button>
+        )}
       </>
     );
   }
@@ -479,16 +533,88 @@ function PasskeyOffer() {
   );
 }
 
-/** "You're set" for an account made with a passkey: said plainly, since there is no email to fall back on. */
-function PasskeyOnly() {
+/** "You're set" for an account made with a passkey: said plainly, since there is no email to fall back on. codes: its
+ *  backup codes follow, the one way back in without it. */
+function PasskeyOnly({ codes = false }: { codes?: boolean }) {
   return (
     <div className="ag-offer">
       <PasskeyMark />
       <div className="grid gap-1">
         <b>Your passkey is your way in</b>
-        <p>It's the only way into this account, so keep it. A passkey saved to iCloud Keychain or Google Password Manager comes with you to your other devices. If you lose it, this account and its test dollars are gone.</p>
+        {codes ? (
+          <p>A passkey saved to iCloud Keychain or Google Password Manager comes with you to your other devices. Save these backup codes as well: if you lose your passkey, one of them makes you a new one. Each code works once.</p>
+        ) : (
+          <p>It's the only way into this account, so keep it. A passkey saved to iCloud Keychain or Google Password Manager comes with you to your other devices. If you lose it, this account and its test dollars are gone.</p>
+        )}
       </div>
     </div>
+  );
+}
+
+/** "Use a backup code": one of the codes saved at sign-up. The browser then saves a new passkey for that account and
+ *  signs in with it; the code is used up. Its failures stay here, under the field. */
+function BackupCodeStep({ step, code, setCode, onBack, onPasskey }: { step: SignInStep; code: string; setCode: (c: string) => void; onBack: () => void; onPasskey: () => void }) {
+  const account = useAccount();
+  const [bad, setBad] = useState(false);
+  const failed = step.status === "error" && step.at === "passkey" && step.passkey?.mode === "recover" ? step.passkey : null;
+  const failure = step.status === "error" && failed ? step.message : null;
+  // the code worked and the new passkey is saved, only the sign-in didn't finish; or this device holds the account's
+  // passkey already: a passkey is the way in now
+  const savedPasskey = failed?.code === "dynamic" || failed?.code === "exists";
+  return (
+    <form
+      className="grid gap-[18px]"
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!isBackupCode(code)) return setBad(true);
+        setBad(false);
+        account.recoverWithCode(code);
+      }}
+    >
+      <div className="grid gap-2">
+        <h2 tabIndex={-1}>Use a backup code</h2>
+        <p>Type one of the backup codes you saved when you made your account. Your browser then saves a new passkey for it, and that code stops working.</p>
+      </div>
+      <div className="grid gap-2">
+        <label className="ag-label" htmlFor="backup-code">
+          Backup code
+        </label>
+        <input
+          id="backup-code"
+          className={`ag-input ${bc.input}`}
+          type="text"
+          placeholder="K7QD-9XMP"
+          autoComplete="off"
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="go"
+          aria-invalid={bad || !!failure || undefined}
+          aria-describedby="backup-code-msg"
+          value={code}
+          onChange={(e) => {
+            setCode(e.target.value);
+            setBad(false);
+          }}
+        />
+        <p id="backup-code-msg" className="ag-err" aria-live="polite">
+          {bad ? "That isn't a backup code. They look like K7QD-9XMP: 8 letters and numbers." : failure}
+        </p>
+      </div>
+      {savedPasskey ? (
+        <button className="ag-btn ag-btn--primary ag-btn--lg" type="button" onClick={onPasskey}>
+          Sign in with your passkey
+        </button>
+      ) : (
+        <button className="ag-btn ag-btn--primary ag-btn--lg" type="submit" disabled={!account.configured}>
+          Continue
+        </button>
+      )}
+      <button className="ag-btn ag-btn--quiet" type="button" onClick={onBack}>
+        Back
+      </button>
+    </form>
   );
 }
 
@@ -496,7 +622,9 @@ function PasskeyOnly() {
  *  browser can't tell a closed dialog from "no passkey here", so the person chooses. */
 function PasskeyNext({ failure, message, onEmail }: { failure: PasskeyFailure; message: string; onEmail: () => void }) {
   const account = useAccount();
-  const again = (mode: "signin" | "create") => () => account.continuePasskey(mode);
+  // (a backup code's failures stay on its own step, and leaving it clears them: here a passkey attempt is only ever
+  // signin or create)
+  const again = (mode: PasskeyFailure["mode"]) => () => account.continuePasskey(mode === "recover" ? "signin" : mode);
   const email = (
     <button type="button" className="ag-textbtn" onClick={onEmail}>
       Use your email instead

@@ -12,7 +12,7 @@ import { getAgate } from "@/lib/data/agate";
 import type { Gpu } from "@/lib/mock/types";
 import { AGATE_SERVER, dynNow, getDynamic, googlePending, markGoogle, passkeyFirstOn, readHint, REAL_CONFIGURED, writeHint, type Dyn, type Hint } from "./dynamic";
 import { agatePasskeyCode, codeProblemOf, passkeyFirstText, passkeyProblemOf, sendCodeProblemOf, SIGNIN_COPY } from "./errors";
-import { canStart, cleanCode, GETTING_READY_MS, isCode, ordersAfter, refreshDue, restingKey, RESTORE_PATIENCE_MS, SIGNED_OUT, signInReducer, toAccountStep, withoutResting, type SignInState } from "./machine";
+import { canStart, cleanBackupCode, cleanCode, GETTING_READY_MS, isCode, ordersAfter, refreshDue, restingKey, RESTORE_PATIENCE_MS, SIGNED_OUT, signInReducer, toAccountStep, withoutResting, type SignInState } from "./machine";
 import { forgetClients, mainAddressOf, sendCalls } from "./main";
 import type { Position } from "@/lib/mock/types";
 import type { Account, AccountPlan, DoneResult, LimitDone, LimitOrder, LimitPlan, OnStep, Order, PasskeyFailure, PasskeyMode, RestingOrder, SignInStep, TradeAction } from "./types";
@@ -22,6 +22,9 @@ type PasskeyPrepared = Awaited<ReturnType<Dyn["lib"]["preparePasskey"]>>;
 
 /** Prepared passkey ceremonies are fetched again past this (the wallet package stops using them at 4 minutes). */
 const PREPARED_FRESH_MS = 3.5 * 60_000;
+
+/** Backup codes for a passkey account: a lost passkey's way back in (Agate's server keeps their hashes). */
+const BACKUP_CODES = process.env.NEXT_PUBLIC_BACKUP_CODES === "on";
 
 /** Google's way back is finished once per page, whatever Strict Mode's double effects do. */
 let googleFinish: Promise<boolean> | null = null;
@@ -525,12 +528,12 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
   }, [dyn]);
 
   const continuePasskey = useCallback(
-    (want: "auto" | PasskeyMode = "auto") => {
+    (want: "auto" | "signin" | "create" = "auto") => {
       if (!canStart(live.current.m)) return;
       const r = nextRun();
       dispatch({ type: "open" });
       // auto: sign in where this browser used an Agate passkey before, else a new account
-      const modeOf = (d: Dyn | null): PasskeyMode => (want !== "auto" ? want : (d?.lib.hasPasskeyHint() ?? false) || knownPasskey.current ? "signin" : "create");
+      const modeOf = (d: Dyn | null): "signin" | "create" => (want !== "auto" ? want : (d?.lib.hasPasskeyHint() ?? false) || knownPasskey.current ? "signin" : "create");
       // the sheet locks at the tap (a second tap, Google or Not now can't start another way in meanwhile); the mode is
       // set again once the library has read this browser's note
       const now = dynNow();
@@ -616,6 +619,65 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
     if (live.current.m.status !== "ready" || !h) throw Object.assign(new Error("sign in again"), { name: "UserNotAuthenticatedError" });
     return h;
   }, []);
+
+  // ===== backup codes: a passkey account's way back in when its passkey is lost =====
+  const backupCodesOn = BACKUP_CODES && passkeyFirst;
+  const backupCodes = useQuery({
+    queryKey: ["agate", "backupCodes", address ?? ""],
+    queryFn: async () => {
+      const d = await getDynamic();
+      const token = d.lib.sessionToken(d.client);
+      if (!token) throw new Error("sign in again");
+      return { left: await d.lib.passkeyCodesLeft(AGATE_SERVER, token) };
+    },
+    enabled: ready && dynUp && passkeyAccount && backupCodesOn,
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const makeBackupCodes = useCallback(async () => {
+    need();
+    const d = await dyn();
+    // the wallet asks for the passkey itself when the server wants it (a replace, or a first set long after sign-up)
+    const codes = await d.lib.passkeyMakeCodes(d.client, AGATE_SERVER);
+    // the new count is known: shown at once, then read back without holding the codes up
+    qc.setQueryData(["agate", "backupCodes", address ?? ""], { left: codes.length });
+    void qc.invalidateQueries({ queryKey: ["agate", "backupCodes"] });
+    return codes;
+  }, [need, dyn, qc, address]);
+  // signed out: like "Continue with a passkey", but the code says which account the new passkey is for
+  const recoverWithCode = useCallback(
+    (raw: string) => {
+      if (!canStart(live.current.m)) return;
+      const code = cleanBackupCode(raw);
+      const r = nextRun();
+      dispatch({ type: "open" });
+      dispatch({ type: "passkey", mode: "recover" });
+      const fail = (why: PasskeyFailure["code"]) => {
+        const failure: PasskeyFailure = { code: why, mode: "recover" };
+        if (r === run.current) dispatch({ type: "passkeyFailed", message: passkeyFirstText(failure), failure });
+      };
+      void dyn().then(async (d) => {
+        if (r !== run.current) return;
+        try {
+          await d.lib.passkeyRecover(d.client, AGATE_SERVER, code);
+        } catch (e) {
+          return fail(agatePasskeyCode(e) ?? "service");
+        }
+        knownPasskey.current = true;
+        setPasskeyHint(true);
+        if (r !== run.current) return;
+        try {
+          await signedIn(d, "verified");
+          void qc.invalidateQueries({ queryKey: ["agate", "backupCodes"] });
+        } catch {
+          // the code is used up and the new passkey saved: that passkey signs in from here
+          await d.lib.signOut(d.client).catch(() => {});
+          fail("dynamic");
+        }
+      }, () => r === run.current && dispatch({ type: "passkeyFailed", message: SIGNIN_COPY.init, failure: { code: "service", mode: "recover" } }));
+    },
+    [dyn, nextRun, signedIn, qc],
+  );
 
   // ===== passkeys on the account: how many, and adding one for next time =====
   const passkeys = useQuery({
@@ -778,6 +840,11 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
       passkeyAccount,
       // a count that can't be read offers "Add a passkey" (a second one is harmless) rather than a skeleton for good
       passkeys: passkeys.data ?? (passkeys.isError ? 0 : null),
+      backupCodesOn,
+      // a count that couldn't be read is said so (the row still offers new codes), never a skeleton for good
+      backupCodes: passkeyAccount && backupCodesOn ? (backupCodes.data ?? (backupCodes.isError ? { left: null } : null)) : null,
+      makeBackupCodes,
+      recoverWithCode,
       addPasskey,
       retry,
       cancelSignIn,
@@ -790,6 +857,6 @@ export function useRealAccount(active: boolean, withOrders = false): Account {
       planLimit,
       sendLimit,
     }),
-    [signIn, ready, email, who, address, w, wallet.isPending, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, passkeyFirst, preparePasskey, continuePasskey, passkeyHint, passkeyAccount, passkeys.data, passkeys.isError, addPasskey, retry, cancelSignIn, signOut, drip, plan, collect, send, orders.data, planLimit, sendLimit],
+    [signIn, ready, email, who, address, w, wallet.isPending, startSignIn, verifyCode, resendCode, otherEmail, startGoogle, startPasskey, passkeyFirst, preparePasskey, continuePasskey, passkeyHint, passkeyAccount, passkeys.data, passkeys.isError, backupCodesOn, backupCodes.data, backupCodes.isError, makeBackupCodes, recoverWithCode, addPasskey, retry, cancelSignIn, signOut, drip, plan, collect, send, orders.data, planLimit, sendLimit],
   );
 }
