@@ -31,6 +31,8 @@ export interface MmConfig extends BookConfig {
   keepWei: bigint;
   lowBalanceWei: bigint;
   runUntil: number; // unix s
+  /** the budget's pacing head start (s): what the first seconds of a UTC day may already spend */
+  headStartS: number;
   perFactory: Record<string, Partial<BookConfig>>;
   /** Kuru Spot V2 books to quote beside the V1 ones (v2.ts); null: none */
   kuruV2: V2Cfg | null;
@@ -61,6 +63,9 @@ export const DEFAULTS = {
   lowBalanceMon: 40,
   // through judging and the November series' settle (the real calendar's November settles Dec 1)
   runUntil: "2026-12-02T00:00:00Z",
+  // 4 hours of the day's budget at 00:00: the new index value moves through the asks then, and requoting every book at
+  // once costs more than one hour's share (measured Oct 6-12 2026 with 1 h: H200/B200 asks down 36 to 120 min daily)
+  headStartS: 14_400,
   perFactory: {} as Record<string, Record<string, unknown>>,
   kuruV2: null as Record<string, unknown> | null,
 };
@@ -135,6 +140,7 @@ export function parseConfig(text: string | null): MmConfig {
   const ru = j.runUntil ?? DEFAULTS.runUntil;
   if (typeof ru !== "string" || Number.isNaN(Date.parse(ru))) throw new ConfigError("config: runUntil is not an ISO time");
   const tickS = j.tickS === undefined || j.tickS === null ? null : num(j.tickS, "tickS", { min: 1 });
+  const headStartS = num(j.headStartS ?? DEFAULTS.headStartS, "headStartS", { min: 0, max: 86_400 });
   const perFactory: Record<string, Partial<BookConfig>> = {};
   const pf = (j.perFactory ?? {}) as Record<string, unknown>;
   if (typeof pf !== "object" || Array.isArray(pf)) throw new ConfigError("config: perFactory is not an object");
@@ -156,6 +162,7 @@ export function parseConfig(text: string | null): MmConfig {
     keepWei: parseEther(String(keepMon)),
     lowBalanceWei: parseEther(String(lowBalanceMon)),
     runUntil: Math.floor(Date.parse(ru) / 1000),
+    headStartS,
     perFactory,
     kuruV2: parseV2(j.kuruV2, book),
   };

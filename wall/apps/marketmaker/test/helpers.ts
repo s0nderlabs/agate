@@ -65,7 +65,7 @@ export function rig(o: { config?: Record<string, unknown>; daysBefore?: number; 
   const config = parseConfig(JSON.stringify({ factories: ["demo"], runUntil: "2026-12-31T00:00:00Z", ...(o.config ?? {}) }));
   const clock = { ms: 1_000_000 };
   const alerts = new AlertSink(join(dir, "alerts.jsonl"), { now: () => Number(w.t), print: false });
-  const budget = new Budget({ dir, role: "marketmaker", keepWei: config.keepWei, lowBalanceWei: config.lowBalanceWei, runUntil: config.runUntil, lowCode: "MM_KEY_LOW", spentCode: "MM_BUDGET_SPENT", address: maker });
+  const budget = new Budget({ dir, role: "marketmaker", keepWei: config.keepWei, lowBalanceWei: config.lowBalanceWei, runUntil: config.runUntil, lowCode: "MM_KEY_LOW", spentCode: "MM_BUDGET_SPENT", address: maker, headStartS: config.headStartS });
   const reads = new FakeReads(w);
   let mm!: MarketMaker;
   const sender = new FakeSender(w, maker, { guard: { canSpend: (c, safety) => mm.canSpend(c, safety), record: (c, safety) => mm.record(c, safety) } });

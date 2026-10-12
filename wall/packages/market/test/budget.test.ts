@@ -117,7 +117,7 @@ describe("budget, the maker's cases (BOTS-SPEC 2.6)", () => {
   const keep = monToWei(20);
   const T1 = BigInt(Date.parse("2026-10-04T00:00:00Z") / 1000);
   const until = Date.parse("2026-10-14T03:59:00Z") / 1000;
-  const mkMaker = (dir = mkdtempSync(join(tmpdir(), "agate-mm-budget-"))) => ({ dir, b: new Budget({ dir, role: "marketmaker", keepWei: keep, lowBalanceWei: monToWei(40), runUntil: until, lowCode: "MM_KEY_LOW", spentCode: "MM_BUDGET_SPENT", address: "0xBFAa70A8b399097FACF4A84B98Da5B304587C8B8" }) });
+  const mkMaker = (dir = mkdtempSync(join(tmpdir(), "agate-mm-budget-")), more: { headStartS?: number } = {}) => ({ dir, b: new Budget({ dir, role: "marketmaker", keepWei: keep, lowBalanceWei: monToWei(40), runUntil: until, lowCode: "MM_KEY_LOW", spentCode: "MM_BUDGET_SPENT", address: "0xBFAa70A8b399097FACF4A84B98Da5B304587C8B8", ...more }) });
   test("B = (balance - keep) / days left, frozen for the UTC day of chain time, persisted across a restart", () => {
     const { b, dir } = mkMaker();
     b.tick(T1 + 10n, 200n * MON);
@@ -134,11 +134,29 @@ describe("budget, the maker's cases (BOTS-SPEC 2.6)", () => {
     expect(utcDay(T1 + 86_400n)).toBe("2026-10-05");
     expect(daysLeft(BigInt(until) + 1n, until)).toBe(7n);
   });
+  test("a 4 h head start lets the day's first sends spend 4/24 of B; the day's total is unchanged", () => {
+    const { b } = mkMaker(undefined, { headStartS: 4 * 3_600 });
+    b.tick(T1 + 3n, 200n * MON);
+    const B = b.today!.budgetWei;
+    const fourH = (B * 14_403n) / 86_400n;
+    expect(b.allowance()).toBe(fourH);
+    // one hour's share would have refused this (the Oct 6-12 morning gap); four hours' allows it
+    const send = (B * 2n) / 24n;
+    expect(send > (B * 3_603n) / 86_400n).toBe(true);
+    expect(b.canSpend(send, false)).toEqual({ ok: true });
+    b.record(send, false);
+    b.tick(T1 + 86_399n, 200n * MON);
+    expect(b.allowance()).toBe(B - send);
+  });
+
   test("pacing: B x min(1, (s + 3,600) / 86,400); the floor; safety ignores pacing, not the floor", () => {
     const B = 86_400n * 1_000n;
     expect(paced(B, T1)).toBe(3_600n * 1_000n);
     expect(paced(B, T1 + 43_200n)).toBe(46_800n * 1_000n);
     expect(paced(B, T1 + 86_000n)).toBe(B);
+    // a longer head start frees more at the day's start, never more than B
+    expect(paced(B, T1, 14_400n)).toBe(14_400n * 1_000n);
+    expect(paced(B, T1 + 80_000n, 14_400n)).toBe(B);
     const { b } = mkMaker();
     b.tick(T1, 200n * MON);
     const room = b.allowance();

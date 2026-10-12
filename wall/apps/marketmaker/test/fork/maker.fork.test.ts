@@ -173,7 +173,7 @@ describe.skipIf(!RPC)("the maker on Kuru V1 (fork)", () => {
     const pool = await RpcPool.create({ urls: [RPC, RPC.replace("127.0.0.1", "localhost")], expectChainId: 10143, timeoutMs: 60_000, staleS: 10 ** 9, role: "marketmaker", now: () => Math.floor(Date.now() / 1000) });
     const config = parseConfig(JSON.stringify({ factories: ["demo"], runUntil: "2027-06-30T00:00:00Z" }));
     const alerts = new AlertSink(join(dir, "alerts.jsonl"), { now: () => Math.floor(Date.now() / 1000), print: false });
-    const budget = new Budget({ dir, role: "marketmaker", keepWei: config.keepWei, lowBalanceWei: config.lowBalanceWei, runUntil: config.runUntil, lowCode: "MM_KEY_LOW", spentCode: "MM_BUDGET_SPENT", address: who.maker });
+    const budget = new Budget({ dir, role: "marketmaker", keepWei: config.keepWei, lowBalanceWei: config.lowBalanceWei, runUntil: config.runUntil, lowCode: "MM_KEY_LOW", spentCode: "MM_BUDGET_SPENT", address: who.maker, headStartS: config.headStartS });
     let maker!: MarketMaker;
     sender = new MarketSender({ pool, keyEnv: KEY_ENV, role: "marketmaker", limits: LimitTable.fromEnv(), alerts, now: () => Math.floor(Date.now() / 1000), pollMs: 50, guard: { canSpend: (c, safety) => maker.canSpend(c, safety), record: (c, safety) => maker.record(c, safety) } });
     const log = (event: string, data: Record<string, unknown>) => {

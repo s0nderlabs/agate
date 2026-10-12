@@ -1,7 +1,8 @@
 // BOTS-SPEC 2.6: the MON budget of one bot key. Spend is counted from receipts into budget-<UTC day of chain time>.json,
 // so a restart never resets the day. The day's budget B = (balance - keep) / daysLeft is computed at the first tick
 // of the day and frozen; daysLeft = max(1, ceil((runUntil - t) / 86,400)), and 7 once runUntil has passed. By second
-// s of the day the spend may reach B x min(1, (s + 3,600) / 86,400). Floor: never sign when balance - costMax < keep.
+// s of the day the spend may reach B x min(1, (s + H) / 86,400), H the head start (HEAD_START_S by default; a bot may
+// set its own). Floor: never sign when balance - costMax < keep.
 // Safety actions (the maker's cancels; since Oct 5 also the lister's list and createMarket) ignore B and pacing, never
 // the floor; what they spend still counts in spentWei (the day's total, so a non-safety send after them gets only what
 // is left) and also in safetyWei (BOTS-SPEC 2.6 v2).
@@ -13,6 +14,8 @@ import type { BudgetDay } from "./types.ts";
 
 export const WEI_PER_MON = 10n ** 18n;
 const DAY = 86_400n;
+/** pacing's default head start: the first hour's share is free at the day's start */
+export const HEAD_START_S = 3_600;
 
 export function monToWei(mon: number): bigint {
   // to the gwei, exactly for any decimal MON amount a config holds
@@ -31,10 +34,10 @@ export function daysLeft(t: bigint, runUntil: number): bigint {
   return d < 1n ? 1n : d;
 }
 
-/** What the day's spend may reach by chain time t: B x min(1, (s + 3,600) / 86,400), s the second of the UTC day. */
-export function paced(budgetWei: bigint, t: bigint): bigint {
+/** What the day's spend may reach by chain time t: B x min(1, (s + headStart) / 86,400), s the second of the UTC day. */
+export function paced(budgetWei: bigint, t: bigint, headStartS = BigInt(HEAD_START_S)): bigint {
   const s = ((t % DAY) + DAY) % DAY;
-  const frac = s + 3_600n >= DAY ? DAY : s + 3_600n;
+  const frac = s + headStartS >= DAY ? DAY : s + headStartS;
   return (budgetWei * frac) / DAY;
 }
 
@@ -56,6 +59,8 @@ export interface BudgetOptions {
    *  and quotes in bursts that a budget paced for the production horizon refuses), until `until`. What the session has
    *  used is kept in session-<until>.json, so a restart or a new UTC day never grants it again. The floor holds. */
   session?: { wei: bigint; until: number };
+  /** pacing's head start in seconds (default HEAD_START_S): what the first seconds of a day may already spend */
+  headStartS?: number;
 }
 
 /** A demo session's MON for one bot from <prefix>_SESSION_MON and <prefix>_SESSION_UNTIL (unix seconds), both set by
@@ -108,7 +113,7 @@ export class Budget implements SpendGuard {
   private pacedLeft(): bigint {
     const d = this.day;
     if (!d) return 0n;
-    const allowed = paced(d.budgetWei, this.t);
+    const allowed = paced(d.budgetWei, this.t, BigInt(this.o.headStartS ?? HEAD_START_S));
     return allowed > d.spentWei ? allowed - d.spentWei : 0n;
   }
 

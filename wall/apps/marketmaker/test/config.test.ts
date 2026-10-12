@@ -14,9 +14,16 @@ describe("config", () => {
     expect(c.maxLossU).toBe(500_000_000_000n);
     expect(c.keepWei).toBe(parseEther("20"));
     expect(c.runUntil).toBe(Date.parse("2026-12-02T00:00:00Z") / 1000);
-    expect(Object.keys(DEFAULTS).length).toBe(21); // the 20 fields of 3.11, plus kuruV2 (Oct 10 2026)
+    expect(Object.keys(DEFAULTS).length).toBe(22); // the 20 fields of 3.11, plus kuruV2 (Oct 10 2026) and headStartS (Oct 12)
     expect(c.kuruV2).toBeNull();
   });
+  test("headStartS: 4 hours by default (the 00:00 requote of every book), configurable within a day", () => {
+    expect(parseConfig("{}").headStartS).toBe(14_400);
+    expect(parseConfig(JSON.stringify({ headStartS: 3_600 })).headStartS).toBe(3_600);
+    expect(() => parseConfig(JSON.stringify({ headStartS: 90_000 }))).toThrow("headStartS is over 86400");
+    expect(() => parseConfig(JSON.stringify({ headStartS: -1 }))).toThrow("headStartS is under 0");
+  });
+
   test("an unknown field is refused, at the top and in perFactory", () => {
     expect(() => parseConfig('{"spredBps": 50}')).toThrow("unknown field spredBps");
     expect(() => parseConfig('{"perFactory": {"demo": {"keepMon": 1}}}')).toThrow("unknown field perFactory.demo.keepMon");

@@ -534,7 +534,9 @@ logger and its own health; the public app runs on Vercel. The same kit runs on b
   `server-alerts`) reads the new lines over the tailnet each minute (host `agate-1` in `~/.ssh/agate.conf`) and shows
   them with the same notify.sh. It starts after what is already in the spool and moves its offset
   (`~/.agate-kit/notify-spool.offset`) only after a read that worked. Full alerts stay in `~/.agate-wall/alerts` on
-  the server (`status.sh production` there).
+  the server (`status.sh production` there). Over plain ssh, give it the PATH and tmux session that
+  `ops/server/stack.sh` exports (a non-interactive shell has no bun on PATH): `ssh -F ~/.ssh/agate.conf agate-1 'cd
+  ~/agate && PATH=$HOME/.bun/bin:$PATH AGATE_KIT_TMUX_SESSION=agate ops/testnet/status.sh production'`.
 
 ## A half-done deploy
 

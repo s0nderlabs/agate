@@ -49,7 +49,7 @@ async function boot(): Promise<Booted> {
   // run has none: it needs no MON, and a budget file it froze from an unfunded key would hold the real run the same
   // UTC day at 0 (review finding, Oct 3)
   const session = sessionFromEnv(process.env, "AGATE_MM");
-  const budget = rt.dryRun ? undefined : new Budget({ dir: rt.dir, role: ROLE, keepWei: config.keepWei, lowBalanceWei: config.lowBalanceWei, runUntil: config.runUntil, lowCode: "MM_KEY_LOW", spentCode: "MM_BUDGET_SPENT", address: rt.from, ...(session ? { session } : {}) });
+  const budget = rt.dryRun ? undefined : new Budget({ dir: rt.dir, role: ROLE, keepWei: config.keepWei, lowBalanceWei: config.lowBalanceWei, runUntil: config.runUntil, lowCode: "MM_KEY_LOW", spentCode: "MM_BUDGET_SPENT", address: rt.from, headStartS: config.headStartS, ...(session ? { session } : {}) });
   let mm: MarketMaker | null = null;
   const sender = new MarketSender({
     pool: rt.pool,
