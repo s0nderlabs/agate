@@ -12,7 +12,7 @@ import { Check, StateMark, Steps } from "@/components/flow/Steps";
 import { Num } from "@/components/num/Num";
 import { useAccount } from "@/lib/account";
 import { useAiBackend, useAiRefresh, useApprovals, useGrants } from "@/lib/account/ai";
-import { approvalWhat, clock, grantState, limitsOf, shortAddress } from "@/lib/account/aiView";
+import { approvalWhat, clock, explorerTx, grantState, limitsOf, shortAddress } from "@/lib/account/aiView";
 import type { ApprovalView } from "@/lib/account/api";
 import { refusalOfOrder, sendRefusal } from "@/lib/account/errors";
 import {
@@ -229,17 +229,30 @@ export function ApproveScreen({ id }: { id: string }) {
     return whole("This request has ended", `${why} Nothing was traded.`, undefined, "ended");
   }
   if (a.step === "declined") return whole("Declined", `${ai} will see it. Nothing was traded.`, undefined, "declined");
+  // the trade that ran, on Monad's explorer, as the other trade-done screens show it (Flow, CloseSheet): from this
+  // page's own run, or the one the server kept with the answer, so a reopened link shows it too
+  const ranHash = a.step === "done" ? a.txHash || a.approval.result?.txHash : a.step === "answered" && a.approval.status === "done" ? a.approval.result?.txHash : undefined;
+  const onExplorer = ranHash ? (
+    <p>
+      <a className="ag-textbtn" href={explorerTx(ranHash)} target="_blank" rel="noreferrer">
+        See it on Monad&apos;s explorer
+      </a>
+    </p>
+  ) : undefined;
   if (a.step === "answered") {
     const how = a.approval.status === "done" ? "It ran from your account." : a.approval.status === "denied" ? "You declined it." : "It didn't go through. Nothing changed.";
-    return whole("This request was already answered", `${how} ${ai} can see the answer.`, undefined, a.approval.status === "done" ? "check" : a.approval.status === "denied" ? "declined" : "ended");
+    return whole("This request was already answered", `${how} ${ai} can see the answer.`, onExplorer, a.approval.status === "done" ? "check" : a.approval.status === "denied" ? "declined" : "ended");
   }
   if (a.step === "done") {
     return whole(
       "Approved",
       `${w?.what ?? "The trade"} ran from your account. ${ai} will see it.`,
-      <Link className="ag-btn ag-btn--primary" href={`/app/positions${q}`}>
-        See your positions
-      </Link>,
+      <>
+        {onExplorer}
+        <Link className="ag-btn ag-btn--primary" href={`/app/positions${q}`}>
+          See your positions
+        </Link>
+      </>,
       "check",
     );
   }

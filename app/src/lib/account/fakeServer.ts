@@ -465,7 +465,9 @@ export function fakeTransport(getWorld: () => World): Transport {
       const status = settle[2] === "deny" ? "denied" : (settle[2] as "done" | "failed");
       const late = a.status === "expired" && status !== "denied" && now < a.expiresAt + 15 * MIN;
       if (a.status !== "pending" && a.status !== "approved" && !late) return err(409, `this approval is ${a.status}`);
-      w.approvals[i] = { ...a, status };
+      // the result the server keeps (app.ts settle): the trade for done, the reason for failed
+      const result = status === "done" ? { txHash: String(b.txHash ?? ""), userOpHash: String(b.userOpHash ?? "") } : status === "failed" ? { reason: String(b.reason ?? "").slice(0, 300) } : null;
+      w.approvals[i] = { ...a, status, result };
       w.events.push(ev(now, `approval.${status}`, a.grantId, { requestId: a.id, ...(status === "done" ? { txHash: b.txHash ?? null } : status === "failed" ? { reason: b.reason ?? "" } : {}) }));
       return json(200, w.approvals[i]);
     }

@@ -955,8 +955,8 @@ export interface ApprovalView {
   status: ApprovalStatus;
   expiresAt: number;
   /** an approval its AI ended before it was answered says why (server/API.md): "the AI was disconnected" or "the AI's
-   *  permission ended"; a plain 15-minute expiry has none */
-  result?: { reason?: string } | null;
+   *  permission ended"; a plain 15-minute expiry has none. One that ran keeps its trade (txHash, userOpHash). */
+  result?: { reason?: string; txHash?: string; userOpHash?: string } | null;
 }
 
 export const APPROVAL_ENDED_BY = { disconnected: "the AI was disconnected", ended: "the AI's permission ended" } as const;
