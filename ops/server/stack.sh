@@ -7,7 +7,7 @@
 #   ops/server/stack.sh --windows  print the window list and exit
 #
 # Besides the kit's windows (up.sh) it runs three of its own, each restarted 10 s after an unexpected exit:
-#   wall-log       the watcher logger (no key)
+#   wall-log       the watcher logger (no key), on the production index once it is deployed (reader swaps)
 #   graphql-proxy  the indexer's public face (ops/server/graphql-proxy.ts), behind Tailscale Funnel on port 8443
 #   ai-server      the AI connector and app API (server/), behind Tailscale Funnel on port 443; its non-secret settings
 #                  come from ~/agate/run/ai-server.env (KEY=value lines), its secrets from ~/.agate-dynamic
@@ -46,7 +46,22 @@ own_window() {
   fi
 }
 
-own_window wall-log "$ROOT/wall" AGATE_PROFILE=PRODUCTION AGATE_EPOCH_TS=0 "$HOME/.bun/bin/bun" run apps/watcher/src/main.ts log
+# The logger reads each page with the reader the index has in force (its reader swaps, 8.6) only when it knows the
+# index. Without AGATE_INDEX it runs the pre-deploy profile mode, which keeps the registered readers for good: after a
+# reader swap the attester then sees that page as no price and leaves every changed day unsigned (Oct 2026, Nebius).
+# own_window joins its arguments with spaces, so a value with a space carries its own single quotes.
+REC="$ROOT/contracts/deployments/10143-indexes.json"
+IX="$(jq -r '.production.index // empty' "$REC" 2>/dev/null || true)"
+if [ -n "$IX" ]; then
+  own_window wall-log "$ROOT/wall" AGATE_WALL_HOME="$HOME/.agate-wall" AGATE_CHAIN_ID=10143 AGATE_INDEX="$IX" \
+    AGATE_PANELS="$ROOT/wall/packages/sources/panels/launch.json" \
+    AGATE_RPC_URLS=https://testnet-rpc.monad.xyz,https://10143.rpc.thirdweb.com,https://rpc.ankr.com/monad_testnet \
+    AGATE_FROM_BLOCK="$(jq -r '.production.deployBlock // 0' "$REC")" \
+    AGATE_WATCHER_LOG_DIR="$HOME/.agate-wall/watcher/production-0" \
+    "AGATE_NOTIFY_CMD='/bin/sh $ROOT/ops/testnet/notify.sh'" "$HOME/.bun/bin/bun" run apps/watcher/src/main.ts log
+else
+  own_window wall-log "$ROOT/wall" AGATE_PROFILE=PRODUCTION AGATE_EPOCH_TS=0 "$HOME/.bun/bin/bun" run apps/watcher/src/main.ts log
+fi
 own_window graphql-proxy "$ROOT" "$HOME/.bun/bin/bun" run ops/server/graphql-proxy.ts
 # the AI server's non-secret settings: each KEY=value line of ai-server.env (values without spaces or quotes)
 AI_ENV=""

@@ -54,7 +54,13 @@ month's series and pays daily positions. `agate.wall.guardian` and `agate.wall.k
 ## Before the first deploy
 
 1. The watcher logger runs (window `wall-log` of the dev session, PRODUCTION profile, log dir
-   `~/.agate-wall/watcher/production-0`). It must have run since before the index's first day began.
+   `~/.agate-wall/watcher/production-0`). It must have run since before the index's first day began. **Once the index
+   is deployed, restart it on the index** (`AGATE_INDEX`, `AGATE_PANELS`, `AGATE_RPC_URLS`, `AGATE_FROM_BLOCK`,
+   `AGATE_WATCHER_LOG_DIR` set to the same log dir): only then does it read each page with the reader the index has
+   in force. The profile mode keeps the registered readers for good, so after a reader swap the attester sees the
+   swapped page as no price and leaves every changed day unsigned. After any reader swap takes effect, check that the
+   logger's next line for that source names the new version under `parsers` and reads VALID.
+   `ops/server/stack.sh` does this on the server.
 2. Tools: `forge`, `cast`, `bun`, `jq`, `tmux`; `cd wall && bun install`; `cd indexer && bun install`. The primary
    writer needs the CRE CLI logged in (`~/.cre/bin/cre`, `cre login`); without the login it posts directly.
 3. The indexer needs Podman (or Docker) for Postgres and Hasura: `podman machine start`.
