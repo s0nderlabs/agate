@@ -128,6 +128,7 @@ export const COPY = {
   otherMonth: "Pick a different month to move into.",
   // planning: sheets
   funds: "This trade needs more test dollars than your account holds. Nothing was sent.",
+  fundsCloseDaily: (back: string) => `Closing early first puts back the ${back} this position was paid so far, and the sale covers it in the same step. Your account holds less than that right now. Nothing was sent.`,
   tokensShort: "You hold fewer GPU-hours than this. Your positions were refreshed.",
   aboveBandBuy: (month: string) => `At these prices this trade can only lose: the asks are above what ${month} can pay. Nothing was sent.`,
   aboveBandCloseShort: (month: string) => `Buying back costs more than ${month} can pay, so holding the Short pays more. Nothing was sent.`,
@@ -301,8 +302,10 @@ export function refusalOf(e: unknown, ctx: { kind: TradeKind; month?: string }):
       return quote ? { sheet: "thin", message: thinText(ctx.month, quote), action: "back", nothingSent: true, quote, reason } : fail(reason, COPY.unchecked, "retry");
     case "PriceMoved":
       return quote ? { sheet: "moved", message: movedText(ctx.kind, quote), action: "back", nothingSent: true, quote, reason } : fail(reason, COPY.bookMoved, "retry");
-    case "InsufficientBalance":
-      return { sheet: "funds", message: COPY.funds, action: "funds", nothingSent: true, reason };
+    case "InsufficientBalance": {
+      const back = ctx.kind === "closeDaily" ? /needs \$([\d.]+)/.exec(msg)?.[1] : undefined;
+      return { sheet: "funds", message: back ? COPY.fundsCloseDaily(usd(Number(back))) : COPY.funds, action: "funds", nothingSent: true, reason };
+    }
     case "InsufficientTokens":
       return fail(reason, COPY.tokensShort, "back", { refresh: true });
     case "AboveBand":

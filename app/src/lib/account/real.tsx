@@ -71,7 +71,8 @@ async function planOf(agate: AgateClient, me: `0x${string}`, order: Order) {
     case "sellLong":
       return c.planSellLong(agate, me, { ...on, gpuHours: order.gpuHours, minDollars: order.minDollars });
     case "closeLongDaily":
-      return c.planCloseLongDaily(agate, me, { ...on, positionIds: order.positionIds, minDollars: order.minDollars });
+      // upFront "paid": puts back only what the positions were paid (not q x the ceiling); same result
+      return c.planCloseLongDaily(agate, me, { ...on, positionIds: order.positionIds, minDollars: order.minDollars, upFront: "paid" });
     case "closeShort":
       return c.planCloseShort(agate, me, { ...on, positionIds: order.positionIds, maxDollars: order.maxDollars });
   }

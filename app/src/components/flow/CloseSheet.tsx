@@ -183,18 +183,18 @@ export function CloseSheet({ p, order: given, shown: givenShown, onClose, onBack
             </div>
             <div>
               <span>You get at least</span>
-              {/* a pay me daily Long sells, then hands back what it was already paid (shown below) */}
-              <span>{usd(s.action === "closeLongDaily" ? Math.max(0, s.bound.value - p.paid) : s.bound.value)}</span>
+              {/* a pay me daily Long sells, less what it puts back (the plan's own read, shown below) */}
+              <span>{usd(s.action === "closeLongDaily" ? Math.max(0, s.bound.value - s.maxSpend) : s.bound.value)}</span>
             </div>
           </>
         )}
         {s.action === "closeLongDaily" && s.maxSpend > 0 && (
           <div>
-            <span>Needs up front</span>
-            <span>{usd(s.maxSpend)}, back in the same step</span>
+            <span>Puts back first</span>
+            <span>{usd(s.maxSpend)}, covered by the sale</span>
           </div>
         )}
-        {p.daily && (
+        {p.daily && s.action !== "closeLongDaily" && (
           <div>
             <span>Already paid</span>
             <span>{usd(p.paid)}</span>

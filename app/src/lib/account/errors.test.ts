@@ -92,6 +92,9 @@ describe("refusalOf: planning (spec 6.9)", () => {
   test("InsufficientBalance and InsufficientTokens", () => {
     expect(refusalOf(writeError("needs $4900", "check", "InsufficientBalance"), buy)).toEqual({ sheet: "funds", message: COPY.funds, action: "funds", nothingSent: true, reason: "InsufficientBalance" });
     expect(refusalOf(writeError("the account holds 3 GPU-hours of H100-NOV26", "check", "InsufficientTokens"), { kind: "sale" })).toMatchObject({ sheet: "failed", message: COPY.tokensShort, action: "back", refresh: true });
+    // an early close of a pay me daily Long names what it puts back (the client's message carries the amount)
+    const back = writeError("closing early (puts back the $4406.174565 these positions were paid so far, covered by the sale in the same transaction) needs $4406.174565 and the wallet holds $1200 tUSD; nothing was sent", "check", "InsufficientBalance");
+    expect(refusalOf(back, { kind: "closeDaily" })).toEqual({ sheet: "funds", message: "Closing early first puts back the $4,406.17 this position was paid so far, and the sale covers it in the same step. Your account holds less than that right now. Nothing was sent.", action: "funds", nothingSent: true, reason: "InsufficientBalance" });
   });
 
   test("the band: a sure loss is refused, with the month's name", () => {

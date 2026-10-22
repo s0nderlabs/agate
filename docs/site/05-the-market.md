@@ -86,6 +86,9 @@ Over the month it adds up to the same as waiting for the end. A daily payer bot 
 also claim, with the SDK's `claim` and `claimDaily`, the series contract's `claim`, or **Collect** on a holding in
 the app's **Positions** (a daily share waiting, or a final month's payout). An order that rests in the book (a limit that does not fill at once) is paid at the month's end, not daily.
 
+Closing a paid-daily Long early first puts back what it has paid you so far, and the sale of its GPU-hours covers it
+in the same transaction: the sale less what you were already paid comes back to your balance.
+
 ## Closing early and limit orders
 
 Closing a Long sells it at the market price; closing a Short buys the token back. Your gain or loss is the difference

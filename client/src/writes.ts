@@ -610,18 +610,26 @@ export async function closeLongDaily(c: AgateClient, w: WalletClient, p: { gpu: 
  *  (its operator), as the router requires.
  *  @internal Shared with plan.ts; not part of the app API (it may change). */
 export async function ownPositions(c: AgateClient, s: SeriesLive, ids: bigint[], me: Address, side: 0 | 1): Promise<bigint> {
+  return (await ownPositionsPaid(c, s, ids, me, side)).q;
+}
+
+/** ownPositions, with what the positions were paid so far (the floor at once, then each claimed day).
+ *  @internal Shared with plan.ts; not part of the app API (it may change). */
+export async function ownPositionsPaid(c: AgateClient, s: SeriesLive, ids: bigint[], me: Address, side: 0 | 1): Promise<{ q: bigint; paid: bigint }> {
   if (ids.length === 0) throw new WriteError("no positions given", "check", "NoPositions");
   const r = await c.mc(ids.map((id) => ({ address: s.terms.series, abi: agateSeriesAbi as Abi, functionName: "position", args: [id] })));
   let q = 0n;
+  let paid = 0n;
   r.forEach((x, i) => {
     if (!x.ok) throw new WriteError(`position ${ids[i]} could not be read`, "check");
-    const pos = x.value as { owner: Address; side: number; q: bigint; operator: Address };
+    const pos = x.value as { owner: Address; side: number; q: bigint; operator: Address; paid: bigint };
     if (pos.owner.toLowerCase() !== me.toLowerCase()) throw new WriteError(`position ${ids[i]} is not yours`, "check");
     if (Number(pos.side) !== side) throw new WriteError(`position ${ids[i]} is a ${Number(pos.side) === 0 ? "long" : "short"}`, "check");
     if (pos.operator.toLowerCase() !== c.router.toLowerCase()) throw new WriteError(`position ${ids[i]} was not opened through the router: close it with the series directly`, "check");
     q += BigInt(pos.q);
+    paid += BigInt(pos.paid ?? 0n);
   });
-  return q;
+  return { q, paid };
 }
 
 // ------------------------------------------------------------------ Short

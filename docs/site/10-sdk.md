@@ -104,7 +104,7 @@ band, a thin book, a price that moved, the balance, slippage) and put the bound 
 | Long | `buyLong` | `planBuyLong` |
 | close a Long | `sellLong` | `planSellLong` |
 | Long, paid daily | `openLongDaily` | `planOpenLongDaily` |
-| close a daily Long | `closeLongDaily` | `planCloseLongDaily` |
+| close a daily Long | `closeLongDaily` | `planCloseLongDaily` (`upFront: "paid"` puts back only what it was paid) |
 | Short (with or without pay me daily) | `openShort` | `planOpenShort` |
 | close a Short | `closeShort` | `planCloseShort` |
 | roll a Long into the next month | | `planRollLong` |

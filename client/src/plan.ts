@@ -5,10 +5,10 @@
 // The bounds go on chain inside the router call (minimum out / maximum in), exactly as the plain writes do.
 import { type Abi, type Address, encodeFunctionData, type Hex, type Log } from "viem";
 import { agateDollarAbi, agateRouterAbi, agateSeriesAbi, agateTokenAbi, kuruMarginAccountAbi, kuruOrderBookAbi } from "./abi.ts";
-import type { AgateClient } from "./client.ts";
+import type { AgateClient, SeriesLive } from "./client.ts";
 import type { Gpu } from "./types.ts";
 import { type Amount, AmountError, iso, KURU_MAX_SIZE, KURU_MIN_SIZE, LOT, parseDollars, parseHours, parsePrice, SIZE_PER_TOKEN, TICK, toNumber6, U, unitsToHours } from "./units.ts";
-import { band, buyBackBound, type BuyBackGuard, buyBound, type BuyGuard, ceilDiv, checkPayee, type DecodedEvent, decodeLogs, live, needDollars, NOPERMIT, ownPositions, sellBound, type SellGuard, WriteError } from "./writes.ts";
+import { band, buyBackBound, type BuyBackGuard, buyBound, type BuyGuard, ceilDiv, checkPayee, type DecodedEvent, decodeLogs, live, needDollars, NOPERMIT, ownPositions, ownPositionsPaid, sellBound, type SellGuard, WriteError } from "./writes.ts";
 
 /** One call of a batch. */
 export interface PlanCall {
@@ -106,16 +106,45 @@ export async function planOpenLongDaily(c: AgateClient, me: Address, p: { gpu: G
   return { account: me, calls, summary: { action: "openLongDaily", gpu: p.gpu, month: p.month, series: s.terms.series, maxSpend: toNumber6(dollars), payee, bound: { kind: "minTokensOut", value: toNumber6(minOut) } } };
 }
 
-/** Exit pay-me-daily long positions early (closeLongDaily), bounded like closeLongDaily. */
-export async function planCloseLongDaily(c: AgateClient, me: Address, p: { gpu: Gpu; month: string; positionIds: (string | bigint)[] } & SellGuard): Promise<Plan<TradeSummary>> {
+/** Exit pay-me-daily long positions early, bounded like closeLongDaily. By default the router's closeLongDaily (it
+ *  mints the q pairs that close them, so the account needs q x C up front). `upFront: "paid"` ends the same way with
+ *  far less up front: the series' unstream takes back what the positions were paid and hands their q tokens back,
+ *  then the router sells them (closeLong), all in one batch. A claim can land before the batch (the daily payer, or
+ *  anyone: claim is open) and raise what unstream takes, so the series' approval also covers what is claimable. */
+export async function planCloseLongDaily(c: AgateClient, me: Address, p: { gpu: Gpu; month: string; positionIds: (string | bigint)[]; upFront?: "cap" | "paid" } & SellGuard): Promise<Plan<TradeSummary>> {
   const s = await live(c, p.gpu, p.month);
   const ids = p.positionIds.map((x) => BigInt(x));
-  const q = await ownPositions(c, s, ids, me, 0);
-  const cost = (q * s.terms.cap + U - 1n) / U;
+  const [own, claimable] = await Promise.all([ownPositionsPaid(c, s, ids, me, 0), p.upFront === "paid" ? claimableOf(c, s, ids) : 0n]);
+  const q = own.q;
   const minOut = sellBound(s, q, p);
+  const summary = (spend: bigint): TradeSummary => ({ action: "closeLongDaily", gpu: p.gpu, month: p.month, series: s.terms.series, maxSpend: toNumber6(spend), gpuHours: toNumber6(q), bound: { kind: "minDollarsOut", value: toNumber6(minOut) } });
+  if (p.upFront === "paid") {
+    // unstream takes back p.paid; a claim landing first raises it by up to `claimable`, so only the approval
+    // carries that cushion (and is put back to 0 at the end, so nothing is left approved)
+    await needDollars(c, me, own.paid, `closing early (puts back the $${toNumber6(own.paid)} these positions were paid so far, covered by the sale in the same transaction)`);
+    const cushion = claimable > 0n;
+    const calls = [
+      ...(await approvalTo(c, me, c.dollar, s.terms.series, own.paid + claimable, "approve tUSD to the series")),
+      ...ids.map((id) => seriesCall(s.terms.series, "unstream", [id, me], "unstream")),
+      ...(await approvalIfShort(c, me, s.terms.token, q, `approve ${s.terms.symbol} to the router`)),
+      routerCall(c, "closeLong", [s.terms.series, q, minOut, NOPERMIT]),
+      ...(cushion ? [{ to: c.dollar, value: 0n, data: encodeFunctionData({ abi: agateTokenAbi as Abi, functionName: "approve", args: [s.terms.series, 0n] }), label: "put back: approve tUSD to the series" }] : []),
+    ];
+    return { account: me, calls, summary: summary(own.paid) };
+  }
+  const cost = (q * s.terms.cap + U - 1n) / U;
   await needDollars(c, me, cost, `closing early (the router mints ${toNumber6(q)} pairs at $${toNumber6(s.terms.cap)}, most of it paid back in the same transaction)`);
   const calls = [...(await approvalIfShort(c, me, c.dollar, cost, "approve tUSD to the router")), routerCall(c, "closeLongDaily", [s.terms.series, ids, minOut, NOPERMIT])];
-  return { account: me, calls, summary: { action: "closeLongDaily", gpu: p.gpu, month: p.month, series: s.terms.series, maxSpend: toNumber6(cost), gpuHours: toNumber6(q), bound: { kind: "minDollarsOut", value: toNumber6(minOut) } } };
+  return { account: me, calls, summary: summary(cost) };
+}
+
+/** What the positions could still claim now: a claim before the batch lands moves it into what unstream takes back. */
+async function claimableOf(c: AgateClient, s: SeriesLive, ids: bigint[]): Promise<bigint> {
+  const r = await c.mc(ids.map((id) => ({ address: s.terms.series, abi: agateSeriesAbi as Abi, functionName: "claimable", args: [id] })));
+  return r.reduce((a, x, i) => {
+    if (!x.ok) throw new WriteError(`position ${ids[i]} could not be read`, "check");
+    return a + BigInt(x.value as bigint);
+  }, 0n);
 }
 
 /** Short (openShort), bounded like openShort; the payee defaults to the account itself. */
@@ -427,6 +456,9 @@ export async function planRedeem(c: AgateClient, me: Address, p: { gpu: Gpu; mon
 
 // ------------------------------------------------------------------ reading what a sent batch did
 
+/** CloseKind.UNSTREAMED in the series' PositionClosed (MarketTypes.sol: FINAL, WITH_TOKEN, UNSTREAMED). */
+const CLOSE_UNSTREAMED = 2;
+
 export type PlanAction = TradeSummary["action"] | ClaimSummary["action"] | LimitSummary["action"];
 
 /** What a landed batch did, from its receipt's logs, in the same words the plain writes return (so "Done" never
@@ -459,6 +491,9 @@ export function readResult(c: AgateClient, action: PlanAction, logs: readonly Lo
     }
     case "closeLongDaily": {
       const r = routed();
+      // upFront "paid": unstream took back what the positions were paid, then closeLong sold the tokens
+      const unstreamed = of("PositionClosed").filter((e) => Number(e.args.kind) === CLOSE_UNSTREAMED);
+      if (unstreamed.length > 0) return { cost: toNumber6(unstreamed.reduce((a, e) => a + (e.args.amount as bigint), 0n)), received: toNumber6(r.dollarsOut), paid: 0 };
       const paid = sum("PositionClosed", "amount");
       return { cost: toNumber6(r.dollarsIn), received: toNumber6(r.dollarsOut - paid), paid: toNumber6(paid) };
     }
