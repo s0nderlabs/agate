@@ -11,7 +11,7 @@ import { ThresholdSignatureScheme } from "@dynamic-labs-wallet/node";
 const chunks = [];
 for await (const c of process.stdin) chunks.push(c);
 const req = JSON.parse(Buffer.concat(chunks).toString("utf8"), (_, v) => (v && typeof v === "object" && v.__bigint ? BigInt(v.__bigint) : v));
-const c = new DynamicEvmWalletClient({ environmentId: req.environmentId });
+const c = new DynamicEvmWalletClient({ environmentId: req.environmentId, errorLogging: false }); // keep SDK errors local (1.1.47 forwards them by default)
 await c.authenticateApiToken(req.apiKey);
 const t0 = performance.now();
 let out;

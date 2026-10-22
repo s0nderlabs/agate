@@ -30,7 +30,7 @@
     },
     "client": {
       "name": "@agate/client",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "viem": "2.57.2",
       },
@@ -45,8 +45,8 @@
       "dependencies": {
         "@agate/client": "workspace:*",
         "@agate/wallet": "workspace:*",
-        "@dynamic-labs-wallet/node": "1.1.28",
-        "@dynamic-labs-wallet/node-evm": "1.1.28",
+        "@dynamic-labs-wallet/node": "1.1.47",
+        "@dynamic-labs-wallet/node-evm": "1.1.47",
         "@hono/mcp": "0.3.2",
         "@modelcontextprotocol/sdk": "1.32.0",
         "@simplewebauthn/server": "14.0.3",
@@ -121,23 +121,25 @@
 
     "@dynamic-labs-wallet/browser-wallet-client": ["@dynamic-labs-wallet/browser-wallet-client@1.1.24", "", { "dependencies": { "@dynamic-labs-wallet/core": "1.1.24", "@dynamic-labs/logger": "^5.0.0", "@dynamic-labs/message-transport": "^5.0.0" } }, "sha512-MPS55ynJpm51rpCPvoy5ahkS2uK6+kd39qjErYLoEEjGZZU9TlA6I1ssLg+n4uBWAKUcBQcs1xBJzp2kfMd5gQ=="],
 
-    "@dynamic-labs-wallet/core": ["@dynamic-labs-wallet/core@1.1.28", "", { "dependencies": { "@dynamic-labs-wallet/primitives": "1.1.28", "@dynamic-labs/sdk-api-core": "0.50.0", "axios": "1.20.0", "uuid": "11.1.0" }, "peerDependencies": { "@dynamic-labs-wallet/forward-mpc-client": "2.0.2" } }, "sha512-0C7NTn2G/Js1JiMuOgIqLP9BZB/4pFnsQR3IBqLw714gy6jUt0jvTW1qtx4d06uqV+WIQbkcCzAru42BZEAZjA=="],
+    "@dynamic-labs-wallet/core": ["@dynamic-labs-wallet/core@1.1.47", "", { "dependencies": { "@dynamic-labs-wallet/primitives": "1.1.47", "@dynamic-labs/sdk-api-core": "0.50.0", "axios": "1.20.0", "uuid": "11.1.0" }, "peerDependencies": { "@dynamic-labs-wallet/forward-mpc-client": "2.0.2" } }, "sha512-nus8t4X0VFSaRzUKnoX85K0lMAU5pdWtU/Fv27vbnrHJo/0z/7VwcrT+wLgfstsJmbOxKUMMelXt49IK5SyRDA=="],
 
     "@dynamic-labs-wallet/forward-mpc-client": ["@dynamic-labs-wallet/forward-mpc-client@2.0.2", "", { "dependencies": { "@dynamic-labs-wallet/forward-mpc-shared": "0.7.2", "@evervault/wasm-attestation-bindings": "^0.3.1", "@noble/hashes": "^2.0.0", "eventemitter3": "^5.0.1", "fp-ts": "^2.16.11", "isows": "^1.0.7", "ws": "^8.18.3" }, "peerDependencies": { "@dynamic-labs-wallet/primitives": ">=0.0.336 || 0.0.1" } }, "sha512-DUdwqhYTEGoz3wMW4PmOl4tyw5IkTGB3n3KAgLMM6UkDWPsYzH5C4hkjbb6ZQdsHqF99kmoU5gsMcylJ41bYLA=="],
 
     "@dynamic-labs-wallet/forward-mpc-shared": ["@dynamic-labs-wallet/forward-mpc-shared@0.7.2", "", { "dependencies": { "@noble/ciphers": "^0.4.1", "@noble/hashes": "^2.0.0", "@noble/post-quantum": "^0.5.1", "fp-ts": "^2.16.11", "io-ts": "^2.2.22" }, "peerDependencies": { "@dynamic-labs-wallet/primitives": ">=0.0.336 || 0.0.1" } }, "sha512-C5ugG0QNL1FNoFNCo3A2Hz3h1boycoC6S5jh5GoQmVTz7/MNKAgsnYRyd/xC7a9UIiZtwr6vttXvTLxMnx/q4A=="],
 
-    "@dynamic-labs-wallet/node": ["@dynamic-labs-wallet/node@1.1.28", "", { "dependencies": { "@dynamic-labs-wallet/core": "1.1.28", "@dynamic-labs-wallet/forward-mpc-client": "2.0.2", "@dynamic-labs-wallet/primitives": "1.1.28", "@dynamic-labs/logger": "^5.0.0", "@dynamic-labs/sdk-api-core": "0.50.0", "@noble/hashes": "1.7.1", "uuid": "11.1.0" } }, "sha512-JgXHYZoALEDWQrelwVX44runlHNtHJT1HdUaFWbJ/yYjI3YoUA1uKQLGgY/YSzzSCqkm2FC40PsU0IN5ADDh9Q=="],
+    "@dynamic-labs-wallet/node": ["@dynamic-labs-wallet/node@1.1.47", "", { "dependencies": { "@dynamic-labs-wallet/core": "1.1.47", "@dynamic-labs-wallet/forward-mpc-client": "2.0.2", "@dynamic-labs-wallet/primitives": "1.1.47", "@dynamic-labs/logger": "^5.9.4", "@dynamic-labs/sdk-api-core": "0.50.0", "@noble/hashes": "1.7.1", "uuid": "11.1.0" } }, "sha512-38Xv5oQCAzSPjiJN/cnd5QAUfOErXzJaQ3aWaQ3K/5JVU1sVxrLQXaD/cjvtPWtHCMG8DoZSmj9jlKIkeu0CTg=="],
 
-    "@dynamic-labs-wallet/node-evm": ["@dynamic-labs-wallet/node-evm@1.1.28", "", { "dependencies": { "@dynamic-labs-sdk/client": "1.18.0", "@dynamic-labs-sdk/evm": "1.18.0", "@dynamic-labs-sdk/zerodev": "1.18.0", "@dynamic-labs-wallet/core": "1.1.28", "@dynamic-labs-wallet/node": "1.1.28", "@dynamic-labs/sdk-api-core": "0.50.0", "@zerodev/ecdsa-validator": "5.4.9", "@zerodev/sdk": "5.4.36" }, "peerDependencies": { "viem": "^2.45.3" } }, "sha512-7ZWRQqqjmTou3k/URgFbiTzu99H3DlOZ4h8Ra096QU7+d0HTKSl+0bbUv1pLmF+D/IwZYBZ/q+nDE/jxz1mzIA=="],
+    "@dynamic-labs-wallet/node-evm": ["@dynamic-labs-wallet/node-evm@1.1.47", "", { "dependencies": { "@dynamic-labs-sdk/client": "1.18.0", "@dynamic-labs-sdk/evm": "1.18.0", "@dynamic-labs-sdk/zerodev": "1.18.0", "@dynamic-labs-wallet/core": "1.1.47", "@dynamic-labs-wallet/node": "1.1.47", "@dynamic-labs/sdk-api-core": "0.50.0", "@zerodev/ecdsa-validator": "5.4.9", "@zerodev/sdk": "5.4.36" }, "peerDependencies": { "viem": "^2.45.3" } }, "sha512-UAP7bSOKU9RMyosOlGFYvZmY6AK/+fk/IDOlD1Eekm9iF/ac6sRktiUw91+WyVACELXeQm6WOsEddaMg5OzNKQ=="],
 
-    "@dynamic-labs-wallet/primitives": ["@dynamic-labs-wallet/primitives@1.1.28", "", {}, "sha512-1dxGD8SCO0hsRI/0mN4+07UOKqK1lJGwYifdwrwJViA92Ks0akRxwq8k9gv24bT5N27apc3DH8LR4v53R2qtcA=="],
+    "@dynamic-labs-wallet/primitives": ["@dynamic-labs-wallet/primitives@1.1.47", "", {}, "sha512-uMOjYFPxlJW36rRDzK5RKbY9oviTOHl2+P0yOCv0qnGhqIIVNp8Y8tAE99q/6X/5TDNS/gF5MYYAPBHWiwBwhQ=="],
 
     "@dynamic-labs/assert-package-version": ["@dynamic-labs/assert-package-version@5.9.3", "", { "dependencies": { "@dynamic-labs/logger": "5.9.3" } }, "sha512-N4dU+cYw6YuLStIN2mio06X4D2DDaLRzGeCl6Dp4Gr1t7QFgr/RM2dgxUY3CD9uqic2Xso63XOJbGS5+bgIjrA=="],
 
-    "@dynamic-labs/logger": ["@dynamic-labs/logger@5.9.3", "", { "dependencies": { "eventemitter3": "5.0.1" } }, "sha512-wbic1hG5wZMSjnw0pThgxTk7m2KfamCJIdRd3B7ll/G1NkdK+zUk26K8zSFVKcXz+ewFLNXFbH7EphO5F7kqSA=="],
+    "@dynamic-labs/logger": ["@dynamic-labs/logger@5.12.2", "", { "dependencies": { "@dynamic-labs/redaction": "1.1.0", "eventemitter3": "5.0.1" } }, "sha512-Be+ZuDcyx9CktTE7O5ibx1NZh8gLUQeiSQXLdoL4hajT4LUCO7Ooc637f/+auq1pCKPcInbnYpD7sC3P/noFlA=="],
 
     "@dynamic-labs/message-transport": ["@dynamic-labs/message-transport@5.9.3", "", { "dependencies": { "@dynamic-labs/assert-package-version": "5.9.3", "@dynamic-labs/logger": "5.9.3", "@dynamic-labs/utils": "5.9.3", "@vue/reactivity": "^3.4.21", "eventemitter3": "5.0.1" } }, "sha512-//QXBGO8yg83zBgvMFzVb9zjdO918X4tO7ZohUfrYqGYUVPvQsgzRsY0rjm+mmlbntwkwMn3SSK3TU/POMS4Jw=="],
+
+    "@dynamic-labs/redaction": ["@dynamic-labs/redaction@1.1.0", "", {}, "sha512-y3ixDtS4N+ZEgQC17k3d3oyxZ5BJ+sAGvQRklXCilwYkWOMwtMc6QEx/5uHz1PS/rxWYuZk+Egr1AC5NuzZLrg=="],
 
     "@dynamic-labs/sdk-api-core": ["@dynamic-labs/sdk-api-core@0.50.0", "", {}, "sha512-qdOdnBDB/q8zfe22jQr+4wBiKcawaLNxYJGNxMs5n+tF4jh2F98ZMv0JiJXPRc/W4jpnjgTNfEAfQErcpaxoOQ=="],
 
@@ -1319,6 +1321,8 @@
 
     "@dynamic-labs-wallet/browser-wallet-client/@dynamic-labs-wallet/core": ["@dynamic-labs-wallet/core@1.1.24", "", { "dependencies": { "@dynamic-labs-wallet/primitives": "1.1.24", "@dynamic-labs/sdk-api-core": "0.50.0", "axios": "1.16.0", "uuid": "11.1.0" }, "peerDependencies": { "@dynamic-labs-wallet/forward-mpc-client": "2.0.2" } }, "sha512-rwmhasy4K1UUUEI0vtBusA4JGCsWv9wikNV0923z6dUUuFHD9T1f1MLqEslJenTIC4HydKi9888dbJl+3m7xrw=="],
 
+    "@dynamic-labs-wallet/browser-wallet-client/@dynamic-labs/logger": ["@dynamic-labs/logger@5.9.3", "", { "dependencies": { "eventemitter3": "5.0.1" } }, "sha512-wbic1hG5wZMSjnw0pThgxTk7m2KfamCJIdRd3B7ll/G1NkdK+zUk26K8zSFVKcXz+ewFLNXFbH7EphO5F7kqSA=="],
+
     "@dynamic-labs-wallet/forward-mpc-client/@noble/hashes": ["@noble/hashes@2.4.0", "", {}, "sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA=="],
 
     "@dynamic-labs-wallet/forward-mpc-shared/@noble/ciphers": ["@noble/ciphers@0.4.1", "", {}, "sha512-QCOA9cgf3Rc33owG0AYBB9wszz+Ul2kramWN8tXG44Gyciud/tbkEqvxRF/IpqQaBpRBNi9f4jdNxqB2CQCIXg=="],
@@ -1335,7 +1339,13 @@
 
     "@dynamic-labs-wallet/node-evm/@zerodev/sdk": ["@zerodev/sdk@5.4.36", "", { "dependencies": { "semver": "^7.6.0" }, "peerDependencies": { "viem": "^2.28.0" } }, "sha512-8ewwlijbzWA16AZ03w7zqvTVXFdaUqGOJmbcAZPIIuz52bsdBsKYiF37RZ05KJ24hfdYsIHjE8pwocfjrtMcng=="],
 
+    "@dynamic-labs/assert-package-version/@dynamic-labs/logger": ["@dynamic-labs/logger@5.9.3", "", { "dependencies": { "eventemitter3": "5.0.1" } }, "sha512-wbic1hG5wZMSjnw0pThgxTk7m2KfamCJIdRd3B7ll/G1NkdK+zUk26K8zSFVKcXz+ewFLNXFbH7EphO5F7kqSA=="],
+
+    "@dynamic-labs/message-transport/@dynamic-labs/logger": ["@dynamic-labs/logger@5.9.3", "", { "dependencies": { "eventemitter3": "5.0.1" } }, "sha512-wbic1hG5wZMSjnw0pThgxTk7m2KfamCJIdRd3B7ll/G1NkdK+zUk26K8zSFVKcXz+ewFLNXFbH7EphO5F7kqSA=="],
+
     "@dynamic-labs/types/@dynamic-labs/sdk-api-core": ["@dynamic-labs/sdk-api-core@0.70.0", "", {}, "sha512-01nyfxzNHyHvu+v+hFrxcLxboLF4vKbN9XlFQ3+S+8isBPFa0vVvavMYSl9bXZn/lHiWUSBR1lMKo8HjV3Mgdg=="],
+
+    "@dynamic-labs/utils/@dynamic-labs/logger": ["@dynamic-labs/logger@5.9.3", "", { "dependencies": { "eventemitter3": "5.0.1" } }, "sha512-wbic1hG5wZMSjnw0pThgxTk7m2KfamCJIdRd3B7ll/G1NkdK+zUk26K8zSFVKcXz+ewFLNXFbH7EphO5F7kqSA=="],
 
     "@dynamic-labs/utils/@dynamic-labs/sdk-api-core": ["@dynamic-labs/sdk-api-core@0.70.0", "", {}, "sha512-01nyfxzNHyHvu+v+hFrxcLxboLF4vKbN9XlFQ3+S+8isBPFa0vVvavMYSl9bXZn/lHiWUSBR1lMKo8HjV3Mgdg=="],
 

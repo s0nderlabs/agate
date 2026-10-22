@@ -15,7 +15,8 @@ export type SignContext = { current?: Record<string, unknown> };
 
 let client: DelegatedEvmWalletClient | undefined;
 export function delegatedClient(): DelegatedEvmWalletClient {
-  client ??= createDelegatedEvmWalletClient({ environmentId: config.environmentId, apiKey: requireSecret("DYNAMIC_API_KEY", "api.env") });
+  // errorLogging off: from 1.1.47 the SDK otherwise ships every error (wallet id, cause chain) to Dynamic's log intake
+  client ??= createDelegatedEvmWalletClient({ environmentId: config.environmentId, apiKey: requireSecret("DYNAMIC_API_KEY", "api.env"), errorLogging: false });
   return client;
 }
 
